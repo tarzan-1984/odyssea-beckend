@@ -25,13 +25,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:reset": "prisma migrate reset",
     "db:push": "prisma db push",
-    "db:test": "ts-node scripts/test-db-connection.ts",
-    "docker:build": "docker build -t odyssea-backend .",
-    "docker:run": "docker run -p 3000:3000 odyssea-backend",
-    "docker:compose:up": "docker-compose up -d",
-    "docker:compose:down": "docker-compose down",
-    "docker:compose:logs": "docker-compose logs -f",
-    "docker:compose:studio": "docker-compose --profile studio up -d"
+    "db:test": "ts-node scripts/test-db-connection.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
