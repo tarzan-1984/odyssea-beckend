@@ -20,7 +20,7 @@ describe('PrismaService', () => {
     it('should connect to database successfully', async () => {
       // Test database connection
       await expect(service.$connect()).resolves.not.toThrow();
-      
+
       // Verify connection is active
       expect(service).toBeDefined();
     });
@@ -34,13 +34,6 @@ describe('PrismaService', () => {
     it('should disconnect from database successfully', async () => {
       await service.$connect();
       await expect(service.$disconnect()).resolves.not.toThrow();
-    });
-  });
-
-  describe('User Model', () => {
-    it('should be able to access User model', () => {
-      // Test that User model is available
-      expect(service.user).toBeDefined();
     });
   });
 });

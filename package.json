@@ -22,10 +22,8 @@
     "prisma:migrate": "prisma db push",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts",
     "db:reset": "prisma migrate reset",
-    "db:push": "prisma db push",
-    "db:test": "ts-node scripts/test-db-connection.ts"
+    "db:push": "prisma db push"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
