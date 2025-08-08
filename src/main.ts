@@ -2,18 +2,22 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
-  // Get configuration service
   const configService = app.get(ConfigService);
 
-  // Enable CORS
-  app.enableCors();
+  // Global prefix - убираем /api префикс
+  const apiPrefix = configService.get<string>('app.apiPrefix');
+  if (apiPrefix) {
+    app.setGlobalPrefix(apiPrefix);
+  }
 
-  // Global validation pipe
+  // Global pipes
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -22,25 +26,29 @@ async function bootstrap() {
     }),
   );
 
-  // Global prefix
-  const apiPrefix = configService.get<string>('app.apiPrefix') || 'api/v1';
-  app.setGlobalPrefix(apiPrefix);
+  // Global filters
+  app.useGlobalFilters(new HttpExceptionFilter());
 
-  // Swagger documentation setup
-  const swaggerConfig = configService.get<{
-    title: string;
-    description: string;
-    version: string;
-  }>('swagger') || {
-    title: 'Odyssea API',
-    description: 'Odyssea Backend API Documentation',
-    version: '1.0',
-  };
+  // Global interceptors
+  app.useGlobalInterceptors(new TransformInterceptor());
+
+  // CORS
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
+
+  // Swagger configuration
+  const swaggerTitle = configService.get<string>('swagger.title');
+  const swaggerDescription = configService.get<string>('swagger.description');
+  const swaggerVersion = configService.get<string>('swagger.version');
 
   const config = new DocumentBuilder()
-    .setTitle(swaggerConfig.title)
-    .setDescription(swaggerConfig.description)
-    .setVersion(swaggerConfig.version)
+    .setTitle(swaggerTitle || 'Odyssea Backend API')
+    .setDescription(
+      swaggerDescription || 'Backend API for Odyssea user management system',
+    )
+    .setVersion(swaggerVersion || '1.0')
     .addBearerAuth()
     .build();
 

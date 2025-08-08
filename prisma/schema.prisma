@@ -9,3 +9,204 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// User roles enum
+enum UserRole {
+  ADMINISTRATOR
+  DISPATCHER_EXPEDITE
+  DISPATCHER_TEAM_LEADER
+  EXPEDITE_MANAGER
+  DISPATCHER_FTL
+  RECRUITER
+  RECRUITER_TEAM_LEADER
+  TRACKING
+  TRACKING_TEAM_LEADER
+  FLEET_MANAGER
+  DRIVER
+}
+
+// Vehicle types enum
+enum VehicleType {
+  CARGO_VAN
+  SPRINTER_VAN
+  BOX_TRUCK
+  SEMI_TRUCK
+}
+
+// Distance coverage enum
+enum DistanceCoverage {
+  LOCAL
+  REGIONAL
+  OTR
+}
+
+// User status enum
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+// Main User model
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  profilePhoto      String?
+  role              UserRole
+  status            UserStatus @default(ACTIVE)
+  language          String[]  // Array of languages user speaks
+  extension         String?   // Phone extension for managers
+  
+  // Driver specific fields
+  vehicleType       VehicleType?
+  vehicleCapacity   String?   // Cargo capacity
+  vehicleDimensions String?   // Cargo compartment dimensions
+  vehicleModel      String?
+  vehicleBrand      String?
+  vehicleYear       Int?
+  distanceCoverage  DistanceCoverage?
+  
+  // Driver equipment and certificates
+  hasPalletJack     Boolean @default(false)
+  hasLiftGate       Boolean @default(false)
+  hasCDL            Boolean @default(false)
+  hasTWIC           Boolean @default(false)
+  hasTSA            Boolean @default(false)
+  hasHazmatCert     Boolean @default(false)
+  hasTankerEndorsement Boolean @default(false)
+  hasDolly          Boolean @default(false)
+  hasCanada         Boolean @default(false)
+  hasMexico         Boolean @default(false)
+  hasETracks        Boolean @default(false)
+  hasLoadBars       Boolean @default(false)
+  hasRamp           Boolean @default(false)
+  hasDockHigh       Boolean @default(false)
+  hasPPE            Boolean @default(false)
+  hasRealID         Boolean @default(false)
+  hasPrinter        Boolean @default(false)
+  hasSleeper        Boolean @default(false)
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastLoginAt       DateTime?
+  
+  // Relations
+  passwordResetTokens PasswordResetToken[]
+  refreshTokens      RefreshToken[]
+  notifications      Notification[]
+  sentMessages       Message[] @relation("MessageSender")
+  receivedMessages   Message[] @relation("MessageReceiver")
+  chatRooms         ChatRoomParticipant[]
+  
+  @@map("users")
+}
+
+// Password reset tokens
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("password_reset_tokens")
+}
+
+// Refresh tokens for JWT
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("refresh_tokens")
+}
+
+// OTP codes for email verification
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@map("otp_codes")
+}
+
+// Notifications
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // System, Load, etc.
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+// Chat rooms
+model ChatRoom {
+  id          String   @id @default(cuid())
+  name        String?
+  type        String   // Direct, Group, Load
+  loadId      String?  // For load-related chats
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  participants ChatRoomParticipant[]
+  messages    Message[]
+  
+  @@map("chat_rooms")
+}
+
+// Chat room participants
+model ChatRoomParticipant {
+  id         String   @id @default(cuid())
+  chatRoomId String
+  userId     String
+  joinedAt   DateTime @default(now())
+  
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([chatRoomId, userId])
+  @@map("chat_room_participants")
+}
+
+// Messages
+model Message {
+  id         String   @id @default(cuid())
+  chatRoomId String
+  senderId   String
+  receiverId String?
+  content    String
+  fileUrl    String?
+  fileName   String?
+  fileSize   Int?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  @@map("messages")
+}
