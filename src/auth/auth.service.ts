@@ -319,6 +319,11 @@ export class AuthService {
 
     // Send email with reset link
     const appConfig = this.configService.get<AppConfig>('app');
+
+    if ( !appConfig ) {
+      throw new BadRequestException('Failed to get app config');
+    }
+
     const resetUrl = `${appConfig.frontendUrl}/reset-password?token=${token}`;
 
     const emailSent = await this.mailerService.sendHtmlEmail(
