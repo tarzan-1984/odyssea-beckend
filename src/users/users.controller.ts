@@ -15,6 +15,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiBody,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -126,6 +127,20 @@ export class UsersController {
 
   @Put(':id/status')
   @ApiOperation({ summary: 'Change user status (Admin only)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'],
+          description: 'New user status',
+          example: 'ACTIVE',
+        },
+      },
+      required: ['status'],
+    },
+  })
   @ApiResponse({
     status: 200,
     description: 'User status updated successfully',
