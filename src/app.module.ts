@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
+import { ChatsModule } from './chats/chats.module';
 
 import {
   databaseConfig,
@@ -26,6 +27,7 @@ import {
     AuthModule,
     UsersModule,
     MailerModule,
+    ChatsModule,
   ],
   controllers: [AppController],
   providers: [],
