@@ -5,10 +5,16 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Get,
+  Query,
+  Res,
+  Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
+import { Request, Response } from 'express';
+import { encryption } from '../helpers/helper';
 
 import { AuthService, AuthResponse } from './auth.service';
 import { EmailLoginDto } from './dto/email-login.dto';
@@ -17,6 +23,46 @@ import { SocialLoginDto } from './dto/social-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+
+function getFrontendUrl(req: Request): string {
+  const referer =
+    (req.headers.referer as string) || (req.headers.origin as string);
+
+  if (referer) {
+    try {
+      const url = new URL(referer);
+
+      // If request comes from localhost, use localhost
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        console.log('Debug - Using localhost URL');
+        return 'http://localhost:3001';
+      }
+      // If request comes from Vercel domain, use staging URL
+      if (url.hostname.includes('vercel.app')) {
+        console.log('Debug - Using Vercel staging URL');
+        return (
+          process.env.FRONTEND_REDIRECT_URL_STAGE || 'http://localhost:3001'
+        );
+      }
+    } catch {
+      console.warn('Invalid referer URL:', referer);
+    }
+  }
+
+  // Fallback to environment-based logic
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Debug - Using production fallback');
+    return (
+      process.env.FRONTEND_REDIRECT_URL_STAGE ||
+      process.env.FRONTEND_REDIRECT_URL ||
+      'http://localhost:3001'
+    );
+  }
+
+  // For development environment, always use localhost
+  console.log('Debug - Using localhost fallback');
+  return 'http://localhost:3001';
+}
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -71,6 +117,102 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto): Promise<AuthResponse> {
     return this.authService.verifyOtp(verifyOtpDto.email, verifyOtpDto.otp);
+  }
+
+  @Get('google')
+  @ApiOperation({ summary: 'Initiate Google OAuth flow' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects the user to the Google OAuth consent screen',
+  })
+  googleAuth(@Res() res: Response, @Req() req: Request) {
+    // Get the frontend URL that initiated the request
+    const frontendUrl = getFrontendUrl(req);
+
+    const state = encodeURIComponent(
+      JSON.stringify({
+        frontendUrl: frontendUrl,
+      }),
+    );
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const redirectUri = process.env.GOOGLE_CALLBACK_URL;
+    const scope = ['email', 'profile'].join(' ');
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${state}`;
+
+    return res.redirect(authUrl);
+  }
+
+  @Get('google/callback')
+  @ApiOperation({ summary: 'Handles Google OAuth callback after user consent' })
+  @ApiQuery({
+    name: 'code',
+    required: true,
+    description:
+      'OAuth 2.0 authorization code returned from Google after user grants access',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'state',
+    required: false,
+    description:
+      'Encoded state passed during initial OAuth request, may contain userId',
+    type: String,
+  })
+  @ApiResponse({
+    status: 302,
+    description:
+      'Redirects user to frontend with encrypted user data in payload query param',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Failed to exchange code for token or internal error occurred',
+  })
+  async googleCallback(
+    @Query('code') code: string,
+    @Res() res: Response,
+    @Query('state') state?: string,
+  ) {
+    try {
+      const decodedState =
+        state && typeof state === 'string'
+          ? JSON.parse(decodeURIComponent(state))
+          : null;
+      const frontendUrl = decodedState
+        ? decodedState?.frontendUrl
+        : 'http://localhost:3001';
+
+      const result = await this.authService.handleGoogleCallback(code);
+
+      const payloadToEncrypt = {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          firstName: result.user.firstName,
+          lastName: result.user.lastName,
+          role: result.user.role,
+          status: result.user.status,
+        },
+      };
+
+      const encryptedPayload = encryption(payloadToEncrypt);
+
+      if (!encryptedPayload) {
+        throw new Error('Failed to encrypt payload');
+      }
+
+      return res.redirect(
+        `${frontendUrl}/auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
+      );
+    } catch (error) {
+      console.error('Error exchanging code for token:', error);
+      return res
+        .status(500)
+        .json({ error: 'Failed to exchange code for token 11111' });
+    }
   }
 
   @Post('social-login')

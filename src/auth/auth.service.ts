@@ -12,11 +12,20 @@ import { MailerService } from '../mailer/mailer.service';
 import { UserRole, UserStatus } from '@prisma/client';
 import { AppConfig } from '../config/env.config';
 import { SocialProvider } from './dto/social-login.dto';
+import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
+}
+
+interface GoogleIdToken {
+  email: string;
+  name: string;
+  picture?: string;
+  sub: string;
 }
 
 export interface AuthResponse {
@@ -40,6 +49,80 @@ export class AuthService {
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService,
   ) {}
+
+  async handleGoogleCallback(code: string) {
+    let tokenResponse;
+    try {
+      tokenResponse = await axios.post(
+        'https://oauth2.googleapis.com/token',
+        null,
+        {
+          params: {
+            code,
+            client_id: process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            redirect_uri: process.env.GOOGLE_CALLBACK_URL,
+            grant_type: 'authorization_code',
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+    } catch (error) {
+      // Log the full error from axios, including response data if present
+      console.error(
+        '❌ Failed to exchange Google code for tokens:',
+        error.response?.data || error.message,
+      );
+      throw new Error('Failed to exchange code for token 22222');
+    }
+
+    const { id_token } = tokenResponse.data;
+
+    const decoded = jwtDecode<GoogleIdToken>(id_token);
+    const userEmail = decoded.email;
+
+    // Check if user exists in database
+    const user = await this.prisma.user.findUnique({
+      where: { email: userEmail },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found with this Google account');
+    }
+
+    // Update last login
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    // Generate JWT tokens
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload),
+      this.generateRefreshToken(user.id),
+    ]);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        status: user.status,
+      },
+    };
+  }
 
   /**
    * Validates user credentials and returns user data
@@ -320,7 +403,7 @@ export class AuthService {
     // Send email with reset link
     const appConfig = this.configService.get<AppConfig>('app');
 
-    if ( !appConfig ) {
+    if (!appConfig) {
       throw new BadRequestException('Failed to get app config');
     }
 
