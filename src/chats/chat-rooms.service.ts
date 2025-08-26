@@ -31,15 +31,16 @@ export class ChatRoomsService {
       }
     }
 
-    // Create chat room and participants in a transaction
-    return await this.prisma.$transaction(async (prisma) => {
-      const chatRoom = await prisma.chatRoom.create({
-        data: {
-          name: name || this.generateDefaultName(type, participantIds),
-          type,
-          loadId,
-        },
-      });
+          // Create chat room and participants in a transaction
+      return await this.prisma.$transaction(async (prisma) => {
+        const defaultName = name || await this.generateDefaultName(type, participantIds);
+        const chatRoom = await prisma.chatRoom.create({
+          data: {
+            name: defaultName,
+            type,
+            loadId,
+          },
+        });
 
       // Add all participants
       const participants = await Promise.all(
@@ -110,7 +111,7 @@ export class ChatRoomsService {
   /**
    * Generate default name for chat rooms based on type and participants
    */
-  private async generateDefaultName(type: string, participantIds: string[]) {
+  private async generateDefaultName(type: string, participantIds: string[]): Promise<string> {
     if (type === 'DIRECT') {
       const users = await this.prisma.user.findMany({
         where: { id: { in: participantIds } },

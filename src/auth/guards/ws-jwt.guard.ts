@@ -1,8 +1,13 @@
 import { CanActivate, Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
-import { ConfigService } from '../../config/env.config';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+
+interface AuthenticatedSocket extends Socket {
+  userId?: string;
+  userRole?: string;
+}
 
 @Injectable()
 export class WsJwtGuard implements CanActivate {
@@ -13,16 +18,14 @@ export class WsJwtGuard implements CanActivate {
 
   async canActivate(context: any): Promise<boolean> {
     try {
-      const client: Socket = context.switchToWs().getClient();
+      const client: AuthenticatedSocket = context.switchToWs().getClient();
       const token = this.extractTokenFromHeader(client);
       
       if (!token) {
         throw new WsException('Unauthorized - no token provided');
       }
 
-      const payload = await this.jwtService.verifyAsync(token, {
-        secret: this.configService.get('JWT_SECRET'),
-      });
+      const payload = await this.jwtService.verifyAsync(token);
 
       // Attach user info to socket for later use
       client.userId = payload.sub;

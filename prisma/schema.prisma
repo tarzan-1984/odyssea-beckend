@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // DIRECT (without -pooler), for migrate
 }
 
 // User roles enum
@@ -50,74 +51,74 @@ enum UserStatus {
 
 // Main User model
 model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  password          String
-  firstName         String
-  lastName          String
-  phone             String?
-  profilePhoto      String?
-  role              UserRole
-  status            UserStatus @default(ACTIVE)
-  language          String[]  // Array of languages user speaks
-  extension         String?   // Phone extension for managers
-  
+  id           String     @id @default(cuid())
+  email        String     @unique
+  password     String
+  firstName    String
+  lastName     String
+  phone        String?
+  profilePhoto String?
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  language     String[] // Array of languages user speaks
+  extension    String? // Phone extension for managers
+
   // Driver specific fields
   vehicleType       VehicleType?
-  vehicleCapacity   String?   // Cargo capacity
-  vehicleDimensions String?   // Cargo compartment dimensions
+  vehicleCapacity   String? // Cargo capacity
+  vehicleDimensions String? // Cargo compartment dimensions
   vehicleModel      String?
   vehicleBrand      String?
   vehicleYear       Int?
   distanceCoverage  DistanceCoverage?
-  
+
   // Driver equipment and certificates
-  hasPalletJack     Boolean @default(false)
-  hasLiftGate       Boolean @default(false)
-  hasCDL            Boolean @default(false)
-  hasTWIC           Boolean @default(false)
-  hasTSA            Boolean @default(false)
-  hasHazmatCert     Boolean @default(false)
+  hasPalletJack        Boolean @default(false)
+  hasLiftGate          Boolean @default(false)
+  hasCDL               Boolean @default(false)
+  hasTWIC              Boolean @default(false)
+  hasTSA               Boolean @default(false)
+  hasHazmatCert        Boolean @default(false)
   hasTankerEndorsement Boolean @default(false)
-  hasDolly          Boolean @default(false)
-  hasCanada         Boolean @default(false)
-  hasMexico         Boolean @default(false)
-  hasETracks        Boolean @default(false)
-  hasLoadBars       Boolean @default(false)
-  hasRamp           Boolean @default(false)
-  hasDockHigh       Boolean @default(false)
-  hasPPE            Boolean @default(false)
-  hasRealID         Boolean @default(false)
-  hasPrinter        Boolean @default(false)
-  hasSleeper        Boolean @default(false)
-  
+  hasDolly             Boolean @default(false)
+  hasCanada            Boolean @default(false)
+  hasMexico            Boolean @default(false)
+  hasETracks           Boolean @default(false)
+  hasLoadBars          Boolean @default(false)
+  hasRamp              Boolean @default(false)
+  hasDockHigh          Boolean @default(false)
+  hasPPE               Boolean @default(false)
+  hasRealID            Boolean @default(false)
+  hasPrinter           Boolean @default(false)
+  hasSleeper           Boolean @default(false)
+
   // Timestamps
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  lastLoginAt       DateTime?
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
   // Relations
   passwordResetTokens PasswordResetToken[]
-  refreshTokens      RefreshToken[]
-  notifications      Notification[]
-  sentMessages       Message[] @relation("MessageSender")
-  receivedMessages   Message[] @relation("MessageReceiver")
-  chatRooms         ChatRoomParticipant[]
-  
+  refreshTokens       RefreshToken[]
+  notifications       Notification[]
+  sentMessages        Message[]             @relation("MessageSender")
+  receivedMessages    Message[]             @relation("MessageReceiver")
+  chatRooms           ChatRoomParticipant[]
+
   @@map("users")
 }
 
 // Password reset tokens
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  token     String   @unique
+  id        String    @id @default(cuid())
+  token     String    @unique
   userId    String
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("password_reset_tokens")
 }
 
@@ -128,9 +129,9 @@ model RefreshToken {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("refresh_tokens")
 }
 
@@ -142,7 +143,7 @@ model OtpCode {
   expiresAt DateTime
   isUsed    Boolean  @default(false)
   createdAt DateTime @default(now())
-  
+
   @@map("otp_codes")
 }
 
@@ -152,28 +153,28 @@ model Notification {
   userId    String
   title     String
   message   String
-  type      String   // System, Load, etc.
+  type      String // System, Load, etc.
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("notifications")
 }
 
 // Chat rooms
 model ChatRoom {
-  id          String   @id @default(cuid())
-  name        String?
-  type        String   // Direct, Group, Load
-  loadId      String?  // For load-related chats
-  isArchived  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id         String   @id @default(cuid())
+  name       String?
+  type       String // Direct, Group, Load
+  loadId     String? // For load-related chats
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
   participants ChatRoomParticipant[]
-  messages    Message[]
-  
+  messages     Message[]
+
   @@map("chat_rooms")
 }
 
@@ -183,10 +184,10 @@ model ChatRoomParticipant {
   chatRoomId String
   userId     String
   joinedAt   DateTime @default(now())
-  
-  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([chatRoomId, userId])
   @@map("chat_room_participants")
 }
@@ -203,10 +204,10 @@ model Message {
   fileSize   Int?
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
-  
-  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver   User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-  
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender   User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
   @@map("messages")
 }
