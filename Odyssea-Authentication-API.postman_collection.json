@@ -1,0 +1,318 @@
+{
+  "info": {
+    "name": "Odyssea Authentication API",
+    "description": "Collection for testing Odyssea backend authentication endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Base URL for the backend API (change to production URL when deploying)"
+    },
+    {
+      "key": "apiPrefix",
+      "value": "v1",
+      "type": "string",
+      "description": "API version prefix"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token for authenticated requests"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT refresh token for token refresh"
+    },
+    {
+      "key": "userEmail",
+      "value": "test@example.com",
+      "type": "string",
+      "description": "Test user email for authentication"
+    },
+    {
+      "key": "userPassword",
+      "value": "password123",
+      "type": "string",
+      "description": "Test user password for authentication"
+    },
+    {
+      "key": "databaseUrl",
+      "value": "postgresql://neondb_owner:npg_2YcTkhgAv9rq@ep-misty-boat-adupeqiy-pooler.c-2.us-east-1.aws.neon.tech/Oddyseia-back-offfice?sslmode=require&channel_binding=require",
+      "type": "string",
+      "description": "PostgreSQL database connection URL (for reference only - Postman doesn't connect directly to DB)"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "1. User Login (Email + Password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "login"]
+            },
+            "description": "Login with email and password. Returns message that OTP code was sent to email."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "verify-otp"]
+            },
+            "description": "Verify OTP code sent to email. Returns access token, refresh token, and user data."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Social Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"accessToken\": \"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/social-login",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "social-login"]
+            },
+            "description": "Login via social provider (google, facebook, apple). Returns access token, refresh token, and user data."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "forgot-password"]
+            },
+            "description": "Request password reset. Sends reset email if user exists."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset_token_here\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "reset-password"]
+            },
+            "description": "Reset password using token from email. Requires valid reset token and new password (min 6 chars)."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "refresh"]
+            },
+            "description": "Refresh access token using refresh token. Returns new access token."
+          },
+          "response": []
+        },
+        {
+          "name": "7. Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "logout"]
+            },
+            "description": "Logout user. Requires valid JWT access token in Authorization header."
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints for user login, logout, and password management"
+    },
+    {
+      "name": "Test Scripts",
+      "item": [
+        {
+          "name": "Set Tokens After OTP Verification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This script should be added to the 'Verify OTP' request",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', response.data.accessToken);",
+                  "        console.log('Access token set:', response.data.accessToken);",
+                  "    }",
+                  "    if (response.data && response.data.refreshToken) {",
+                  "        pm.collectionVariables.set('refreshToken', response.data.refreshToken);",
+                  "        console.log('Refresh token set:', response.data.refreshToken);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "description": "Script to automatically set access and refresh tokens after successful OTP verification"
+        }
+      ],
+      "description": "Postman scripts for automated testing and token management"
+    },
+    {
+      "name": "Environment Setup",
+      "item": [
+        {
+          "name": "Local Development",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["docs"]
+            },
+            "description": "Check if Swagger documentation is accessible at /docs endpoint"
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}"]
+            },
+            "description": "Basic health check to verify API is running"
+          },
+          "response": []
+        }
+      ],
+      "description": "Setup and health check requests"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global pre-request script",
+          "console.log('Making request to:', pm.request.url);"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('Response has valid JSON', function () {",
+          "    pm.response.to.have.jsonBody();",
+          "});"
+        ]
+      }
+    }
+  ]
+}
