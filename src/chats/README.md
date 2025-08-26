@@ -413,3 +413,4 @@ DEBUG=chat:*
 - **Message queuing** for high-volume scenarios
 - **Database sharding** for large message volumes
 - **CDN integration** for global file delivery
+

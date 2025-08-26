@@ -866,3 +866,4 @@ describe('ChatService', () => {
 3. **File upload errors** - Show user-friendly error messages
 4. **WebSocket disconnections** - Automatic reconnection
 5. **Rate limiting** - Show appropriate messages to users
+
