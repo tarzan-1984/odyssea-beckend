@@ -175,6 +175,13 @@ export class AuthService {
   ): Promise<{ message: string }> {
     const user = await this.validateUser(email, password);
 
+    // Check if user has permission to access the system
+    if (user.role.toLowerCase() === 'driver') {
+      throw new UnauthorizedException(
+        'You do not have permission to access this system. Users with your role cannot log in.',
+      );
+    }
+
     // Generate OTP code
     const otpCode = this.generateOtpCode();
 

@@ -9,6 +9,7 @@ import {
   Query,
   Res,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -83,9 +84,16 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials or insufficient permissions' })
   async login(@Body() loginDto: EmailLoginDto): Promise<{ message: string }> {
-    return this.authService.loginWithOtp(loginDto.email, loginDto.password);
+    try {
+      return await this.authService.loginWithOtp(loginDto.email, loginDto.password);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Invalid credentials');
+    }
   }
 
   @Post('verify-otp')
