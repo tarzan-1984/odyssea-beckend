@@ -193,6 +193,14 @@ export class AuthController {
 
       const result = await this.authService.handleGoogleCallback(code);
 
+      // Check if user has permission to access the system
+      if (result.user.role.toLowerCase() === 'driver') {
+        const errorMessage = 'You do not have permission to access this system. Users with your role cannot log in.';
+        return res.redirect(
+          `${frontendUrl}/signin?error=${encodeURIComponent(errorMessage)}`,
+        );
+      }
+
       const payloadToEncrypt = {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
