@@ -102,7 +102,6 @@ export class UsersService {
 
     if (search) {
       where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
         { lastName: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
       ];
@@ -121,45 +120,34 @@ export class UsersService {
           lastName: true,
           phone: true,
           profilePhoto: true,
+          location: true,
           role: true,
-          status: true,
-          language: true,
-          extension: true,
-          vehicleType: true,
-          vehicleCapacity: true,
-          vehicleDimensions: true,
-          vehicleModel: true,
           vehicleBrand: true,
-          vehicleYear: true,
-          distanceCoverage: true,
-          hasPalletJack: true,
-          hasLiftGate: true,
-          hasCDL: true,
-          hasTWIC: true,
-          hasTSA: true,
-          hasHazmatCert: true,
-          hasTankerEndorsement: true,
-          hasDolly: true,
-          hasCanada: true,
-          hasMexico: true,
-          hasETracks: true,
-          hasLoadBars: true,
-          hasRamp: true,
-          hasDockHigh: true,
-          hasPPE: true,
-          hasRealID: true,
-          hasPrinter: true,
-          hasSleeper: true,
-          createdAt: true,
-          updatedAt: true,
-          lastLoginAt: true,
+          vehicleModel: true,
         },
       }),
       this.prisma.user.count({ where }),
     ]);
 
+    // Transform users to match frontend format
+    const transformedUsers = users.map((user) => ({
+      id: user.id,
+      user: {
+        image: user.profilePhoto || '',
+        name: `${user.firstName} ${user.lastName}`,
+        role: user.role.toLowerCase(),
+      },
+      email: user.email,
+      location: user.location || '',
+      phone: user.phone || '',
+      vehicle: {
+        brand: user.vehicleBrand || '',
+        model: user.vehicleModel || '',
+      },
+    }));
+
     return {
-      users,
+      users: transformedUsers,
       pagination: {
         page,
         limit,
