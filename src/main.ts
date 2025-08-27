@@ -11,7 +11,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Global prefix - убираем /api префикс
+  // Global prefix - remove /api prefix
   const apiPrefix = configService.get<string>('app.apiPrefix');
   if (apiPrefix) {
     app.setGlobalPrefix(apiPrefix);

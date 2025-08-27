@@ -119,7 +119,7 @@ export class AuthController {
     return this.authService.verifyOtp(verifyOtpDto.email, verifyOtpDto.otp);
   }
 
-  @Get('google')
+  @Get('social-login')
   @ApiOperation({ summary: 'Initiate Google OAuth flow' })
   @ApiResponse({
     status: 302,
@@ -195,6 +195,7 @@ export class AuthController {
           lastName: result.user.lastName,
           role: result.user.role,
           status: result.user.status,
+          avatar: result.user.avatar,
         },
       };
 
@@ -213,45 +214,6 @@ export class AuthController {
         .status(500)
         .json({ error: 'Failed to exchange code for token 11111' });
     }
-  }
-
-  @Post('social-login')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 300000, limit: 5 } })
-  @ApiOperation({ summary: 'User login via social provider' })
-  @ApiResponse({
-    status: 200,
-    description: 'User successfully logged in via social provider',
-    schema: {
-      type: 'object',
-      properties: {
-        accessToken: { type: 'string' },
-        refreshToken: { type: 'string' },
-        user: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            email: { type: 'string' },
-            firstName: { type: 'string' },
-            lastName: { type: 'string' },
-            role: { type: 'string' },
-            status: { type: 'string' },
-          },
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid social token or user not found',
-  })
-  async socialLogin(
-    @Body() socialLoginDto: SocialLoginDto,
-  ): Promise<AuthResponse> {
-    return this.authService.socialLogin(
-      socialLoginDto.provider,
-      socialLoginDto.accessToken,
-    );
   }
 
   @Post('forgot-password')

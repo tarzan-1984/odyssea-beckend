@@ -38,6 +38,7 @@ export interface AuthResponse {
     lastName: string;
     role: UserRole;
     status: UserStatus;
+    avatar: string;
   };
 }
 
@@ -82,6 +83,7 @@ export class AuthService {
 
     const decoded = jwtDecode<GoogleIdToken>(id_token);
     const userEmail = decoded.email;
+    const avatar = decoded.picture;
 
     // Check if user exists in database
     const user = await this.prisma.user.findUnique({
@@ -92,10 +94,19 @@ export class AuthService {
       throw new NotFoundException('User not found with this Google account');
     }
 
-    // Update last login
+    // Update last login and profile photo if needed
+    const updateData: { lastLoginAt: Date; profilePhoto?: string } = {
+      lastLoginAt: new Date(),
+    };
+
+    // If we have avatar from Google and user doesn't have profilePhoto, update it
+    if (avatar && !user.profilePhoto) {
+      updateData.profilePhoto = avatar;
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: updateData,
     });
 
     // Generate JWT tokens
@@ -120,6 +131,7 @@ export class AuthService {
         lastName: user.lastName,
         role: user.role,
         status: user.status,
+        avatar,
       },
     };
   }
@@ -254,6 +266,7 @@ export class AuthService {
         lastName: user.lastName,
         role: user.role,
         status: user.status,
+        avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
       },
     };
   }
@@ -323,6 +336,7 @@ export class AuthService {
         lastName: user.lastName,
         role: user.role,
         status: user.status,
+        avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
       },
     };
   }
