@@ -55,13 +55,26 @@ export class UsersController {
     @Query('role') role?: UserRole,
     @Query('status') status?: UserStatus,
     @Query('search') search?: string,
+    @Query('sort') sort?: string,
   ) {
+    let sortObj: { [key: string]: 'asc' | 'desc' } | undefined;
+    
+    if (sort) {
+      try {
+        sortObj = JSON.parse(sort);
+      } catch {
+        // If sort parameter is invalid, use default sorting
+        sortObj = { createdAt: 'desc' };
+      }
+    }
+    
     return this.usersService.findAllUsers(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
       role,
       status,
       search,
+      sortObj,
     );
   }
 

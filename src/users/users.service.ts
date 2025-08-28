@@ -87,6 +87,7 @@ export class UsersService {
     role?: UserRole,
     status?: UserStatus,
     search?: string,
+    sort?: { [key: string]: 'asc' | 'desc' },
   ) {
     const skip = (page - 1) * limit;
 
@@ -112,7 +113,7 @@ export class UsersService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: sort || { createdAt: 'desc' },
         select: {
           id: true,
           email: true,
@@ -121,9 +122,11 @@ export class UsersService {
           phone: true,
           profilePhoto: true,
           location: true,
+          vin: true,
           role: true,
           vehicleBrand: true,
           vehicleModel: true,
+          vehicleYear: true,
         },
       }),
       this.prisma.user.count({ where }),
@@ -140,9 +143,11 @@ export class UsersService {
       email: user.email,
       location: user.location || '',
       phone: user.phone || '',
+      vin: user.vin || '',
       vehicle: {
         brand: user.vehicleBrand || '',
         model: user.vehicleModel || '',
+        year: user.vehicleYear || '',
       },
     }));
 

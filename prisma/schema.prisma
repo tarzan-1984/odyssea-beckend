@@ -57,10 +57,11 @@ model User {
   password     String
   firstName    String
   lastName     String
-  phone        String?
-  profilePhoto String?
-  location     String? // User location
-  role         UserRole
+          phone        String?
+        profilePhoto String?
+        location     String? // User location
+        vin          String? // Vehicle identification number
+        role         UserRole
   status       UserStatus @default(ACTIVE)
   language     String[] // Array of languages user speaks
   extension    String? // Phone extension for managers
