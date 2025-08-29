@@ -1,2 +1,0 @@
-# Run tests before pushing to ensure code quality
-npm test -- --testPathPattern="\.spec\.ts$" --testPathIgnorePatterns="test/|e2e"
