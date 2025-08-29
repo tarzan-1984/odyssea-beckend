@@ -2,9 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AppModule } from './app.module';
 
-// Mock SwaggerModule
+// Mock all Swagger decorators before importing AppModule
 jest.mock('@nestjs/swagger', () => ({
   SwaggerModule: {
     createDocument: jest.fn(),
@@ -17,7 +16,56 @@ jest.mock('@nestjs/swagger', () => ({
     addBearerAuth: jest.fn().mockReturnThis(),
     build: jest.fn().mockReturnValue({}),
   })),
+  ApiProperty: jest.fn(() => jest.fn()),
+  ApiOperation: jest.fn(() => jest.fn()),
+  ApiResponse: jest.fn(() => jest.fn()),
+  ApiQuery: jest.fn(() => jest.fn()),
+  ApiTags: jest.fn(() => jest.fn()),
+  ApiBearerAuth: jest.fn(() => jest.fn()),
+  ApiParam: jest.fn(() => jest.fn()),
+  ApiBody: jest.fn(() => jest.fn()),
+  ApiHeader: jest.fn(() => jest.fn()),
+  ApiCookieAuth: jest.fn(() => jest.fn()),
+  ApiExcludeController: jest.fn(() => jest.fn()),
+  ApiExcludeEndpoint: jest.fn(() => jest.fn()),
+  ApiExtraModels: jest.fn(() => jest.fn()),
+  ApiHideProperty: jest.fn(() => jest.fn()),
+  ApiOkResponse: jest.fn(() => jest.fn()),
+  ApiCreatedResponse: jest.fn(() => jest.fn()),
+  ApiAcceptedResponse: jest.fn(() => jest.fn()),
+  ApiNoContentResponse: jest.fn(() => jest.fn()),
+  ApiMovedPermanentlyResponse: jest.fn(() => jest.fn()),
+  ApiFoundResponse: jest.fn(() => jest.fn()),
+  ApiBadRequestResponse: jest.fn(() => jest.fn()),
+  ApiUnauthorizedResponse: jest.fn(() => jest.fn()),
+  ApiForbiddenResponse: jest.fn(() => jest.fn()),
+  ApiNotFoundResponse: jest.fn(() => jest.fn()),
+  ApiMethodNotAllowedResponse: jest.fn(() => jest.fn()),
+  ApiNotAcceptableResponse: jest.fn(() => jest.fn()),
+  ApiRequestTimeoutResponse: jest.fn(() => jest.fn()),
+  ApiConflictResponse: jest.fn(() => jest.fn()),
+  ApiGoneResponse: jest.fn(() => jest.fn()),
+  ApiPayloadTooLargeResponse: jest.fn(() => jest.fn()),
+  ApiUnsupportedMediaTypeResponse: jest.fn(() => jest.fn()),
+  ApiUnprocessableEntityResponse: jest.fn(() => jest.fn()),
+  ApiInternalServerErrorResponse: jest.fn(() => jest.fn()),
+  ApiNotImplementedResponse: jest.fn(() => jest.fn()),
+  ApiBadGatewayResponse: jest.fn(() => jest.fn()),
+  ApiServiceUnavailableResponse: jest.fn(() => jest.fn()),
+  ApiGatewayTimeoutResponse: jest.fn(() => jest.fn()),
+  ApiDefaultResponse: jest.fn(() => jest.fn()),
+  PartialType: jest.fn((dto) => dto),
+  OmitType: jest.fn((dto, keys) => dto),
+  PickType: jest.fn((dto, keys) => dto),
+  IntersectionType: jest.fn((...dtos) => dtos[0]),
+  ApiConsumes: jest.fn(() => jest.fn()),
+  ApiProduces: jest.fn(() => jest.fn()),
+  ApiSecurity: jest.fn(() => jest.fn()),
+  ApiUseTags: jest.fn(() => jest.fn()),
 }));
+
+// Now import AppModule after mocking
+import { AppModule } from './app.module';
 
 describe('Main Application', () => {
   let app: INestApplication;
@@ -54,10 +102,10 @@ describe('Main Application', () => {
       imports: [AppModule],
     }).compile();
     const newApp = newModuleFixture.createNestApplication();
-    
+
     // The global prefix should be set to /api/v1
     expect(newApp).toBeDefined();
-    
+
     await newApp.close();
 
     // Restore original environment
@@ -78,10 +126,10 @@ describe('Main Application', () => {
       imports: [AppModule],
     }).compile();
     const newApp = newModuleFixture.createNestApplication();
-    
+
     // The CORS should be configured
     expect(newApp).toBeDefined();
-    
+
     await newApp.close();
 
     // Restore original environment

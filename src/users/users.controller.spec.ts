@@ -105,16 +105,37 @@ describe('UsersController', () => {
       const result = await controller.findAllUsers();
 
       expect(result).toEqual(mockPaginationResult);
-      expect(usersService.findAllUsers).toHaveBeenCalledWith(1, 10, undefined, undefined, undefined);
+      expect(usersService.findAllUsers).toHaveBeenCalledWith(
+        1,
+        10,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      );
     });
 
     it('should return users with custom pagination and filters', async () => {
       mockUsersService.findAllUsers.mockResolvedValue(mockPaginationResult);
 
-      const result = await controller.findAllUsers('2', '20', UserRole.DRIVER, UserStatus.ACTIVE, 'john');
+      const result = await controller.findAllUsers(
+        '2',
+        '20',
+        UserRole.DRIVER,
+        UserStatus.ACTIVE,
+        'john',
+        undefined,
+      );
 
       expect(result).toEqual(mockPaginationResult);
-      expect(usersService.findAllUsers).toHaveBeenCalledWith(2, 20, UserRole.DRIVER, UserStatus.ACTIVE, 'john');
+      expect(usersService.findAllUsers).toHaveBeenCalledWith(
+        2,
+        20,
+        UserRole.DRIVER,
+        UserStatus.ACTIVE,
+        'john',
+        undefined,
+      );
     });
 
     it('should handle service errors', async () => {
@@ -143,7 +164,9 @@ describe('UsersController', () => {
       const error = new Error('Service error');
       mockUsersService.findUserById.mockRejectedValue(error);
 
-      await expect(controller.getCurrentUserProfile(mockRequest)).rejects.toThrow(error);
+      await expect(
+        controller.getCurrentUserProfile(mockRequest),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -180,17 +203,25 @@ describe('UsersController', () => {
       const updatedUser = { ...mockUser, ...updateUserDto };
       mockUsersService.updateUserProfile.mockResolvedValue(updatedUser);
 
-      const result = await controller.updateUserProfile(mockRequest, updateUserDto);
+      const result = await controller.updateUserProfile(
+        mockRequest,
+        updateUserDto,
+      );
 
       expect(result).toEqual(updatedUser);
-      expect(usersService.updateUserProfile).toHaveBeenCalledWith('1', updateUserDto);
+      expect(usersService.updateUserProfile).toHaveBeenCalledWith(
+        '1',
+        updateUserDto,
+      );
     });
 
     it('should handle service errors', async () => {
       const error = new Error('Service error');
       mockUsersService.updateUserProfile.mockRejectedValue(error);
 
-      await expect(controller.updateUserProfile(mockRequest, updateUserDto)).rejects.toThrow(error);
+      await expect(
+        controller.updateUserProfile(mockRequest, updateUserDto),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -215,7 +246,9 @@ describe('UsersController', () => {
       const error = new Error('Service error');
       mockUsersService.updateUser.mockRejectedValue(error);
 
-      await expect(controller.updateUser('1', updateUserDto)).rejects.toThrow(error);
+      await expect(controller.updateUser('1', updateUserDto)).rejects.toThrow(
+        error,
+      );
     });
   });
 
@@ -243,17 +276,25 @@ describe('UsersController', () => {
       const updatedUser = { ...mockUser, status: UserStatus.SUSPENDED };
       mockUsersService.changeUserStatus.mockResolvedValue(updatedUser);
 
-      const result = await controller.changeUserStatus('1', UserStatus.SUSPENDED);
+      const result = await controller.changeUserStatus(
+        '1',
+        UserStatus.SUSPENDED,
+      );
 
       expect(result).toEqual(updatedUser);
-      expect(usersService.changeUserStatus).toHaveBeenCalledWith('1', UserStatus.SUSPENDED);
+      expect(usersService.changeUserStatus).toHaveBeenCalledWith(
+        '1',
+        UserStatus.SUSPENDED,
+      );
     });
 
     it('should handle service errors', async () => {
       const error = new Error('Service error');
       mockUsersService.changeUserStatus.mockRejectedValue(error);
 
-      await expect(controller.changeUserStatus('1', UserStatus.SUSPENDED)).rejects.toThrow(error);
+      await expect(
+        controller.changeUserStatus('1', UserStatus.SUSPENDED),
+      ).rejects.toThrow(error);
     });
   });
 });

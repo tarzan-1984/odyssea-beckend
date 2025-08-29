@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEnum } from 'class-validator';
+import { IsString, IsEnum, IsNotEmpty } from 'class-validator';
 
 export enum SocialProvider {
   GOOGLE = 'google',
@@ -13,6 +13,7 @@ export class SocialLoginDto {
     description: 'Social provider (google, facebook, apple)',
     enum: SocialProvider,
   })
+  @IsNotEmpty()
   @IsEnum(SocialProvider)
   provider: SocialProvider;
 
@@ -20,6 +21,7 @@ export class SocialLoginDto {
     example: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...',
     description: 'Access token from social provider',
   })
+  @IsNotEmpty()
   @IsString()
   accessToken: string;
 }

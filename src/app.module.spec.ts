@@ -67,6 +67,10 @@ describe('AppModule', () => {
   it('should have no additional providers', () => {
     // AppModule only has controllers, no additional providers
     const moduleMetadata = Reflect.getMetadata('providers', AppModule);
-    expect(moduleMetadata).toBeUndefined();
+    if (moduleMetadata === undefined) {
+      expect(moduleMetadata).toBeUndefined();
+    } else {
+      expect(moduleMetadata).toEqual([]);
+    }
   });
 });

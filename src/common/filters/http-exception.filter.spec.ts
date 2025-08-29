@@ -1,136 +1,132 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 
 describe('HttpExceptionFilter', () => {
   let filter: HttpExceptionFilter;
+  let mockResponse: any;
+  let mockRequest: any;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [HttpExceptionFilter],
-    }).compile();
-
-    filter = module.get<HttpExceptionFilter>(HttpExceptionFilter);
-  });
-
-  it('should be defined', () => {
-    expect(filter).toBeDefined();
-  });
-
-  it('should transform HttpException to standard error response', () => {
-    const exception = new HttpException('Test error message', HttpStatus.BAD_REQUEST);
-    const mockResponse = {
+  beforeEach(() => {
+    filter = new HttpExceptionFilter();
+    mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
     };
-    const mockRequest = {
-      url: '/test-endpoint',
-      method: 'POST',
+    mockRequest = {
+      url: '/test',
+    };
+  });
+
+  it('should handle HttpException correctly', () => {
+    const exception = new HttpException('Test error', HttpStatus.BAD_REQUEST);
+    const mockHost = {
+      switchToHttp: () => ({
+        getResponse: () => mockResponse,
+        getRequest: () => mockRequest,
+      }),
     };
 
-    filter.catch(exception, mockResponse as any, mockRequest as any);
+    filter.catch(exception, mockHost as any);
 
     expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
-    expect(mockResponse.json).toHaveBeenCalledWith({
-      statusCode: HttpStatus.BAD_REQUEST,
-      message: 'Test error message',
-      error: 'Bad Request',
-      timestamp: expect.any(String),
-      path: '/test-endpoint',
-      method: 'POST',
-    });
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Test error',
+        path: '/test',
+      }),
+    );
   });
 
-  it('should handle different HTTP status codes', () => {
-    const exception = new HttpException('Not found', HttpStatus.NOT_FOUND);
-    const mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-    const mockRequest = {
-      url: '/users/999',
-      method: 'GET',
+  it('should handle non-HttpException correctly', () => {
+    const exception = new Error('Generic error');
+    const mockHost = {
+      switchToHttp: () => ({
+        getResponse: () => mockResponse,
+        getRequest: () => mockRequest,
+      }),
     };
 
-    filter.catch(exception, mockResponse as any, mockRequest as any);
+    filter.catch(exception, mockHost as any);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
-    expect(mockResponse.json).toHaveBeenCalledWith({
-      statusCode: HttpStatus.NOT_FOUND,
-      message: 'Not found',
-      error: 'Not Found',
-      timestamp: expect.any(String),
-      path: '/users/999',
-      method: 'GET',
-    });
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Internal server error',
+        path: '/test',
+      }),
+    );
   });
 
-  it('should handle internal server errors', () => {
-    const exception = new HttpException('Internal server error', HttpStatus.INTERNAL_SERVER_ERROR);
-    const mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-    const mockRequest = {
-      url: '/auth/login',
-      method: 'POST',
+  it('should handle HttpException with object response correctly', () => {
+    const exception = new HttpException(
+      { message: 'Object error' },
+      HttpStatus.BAD_REQUEST,
+    );
+    const mockHost = {
+      switchToHttp: () => ({
+        getResponse: () => mockResponse,
+        getRequest: () => mockRequest,
+      }),
     };
 
-    filter.catch(exception, mockResponse as any, mockRequest as any);
+    filter.catch(exception, mockHost as any);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
-    expect(mockResponse.json).toHaveBeenCalledWith({
-      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: 'Internal server error',
-      error: 'Internal Server Error',
-      timestamp: expect.any(String),
-      path: '/auth/login',
-      method: 'POST',
-    });
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Object error',
+        path: '/test',
+      }),
+    );
   });
 
-  it('should include timestamp in response', () => {
-    const exception = new HttpException('Test error', HttpStatus.BAD_REQUEST);
-    const mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-    const mockRequest = {
-      url: '/test',
-      method: 'GET',
+  it('should handle HttpException with complex response correctly', () => {
+    const exception = new HttpException(
+      { error: 'Complex error', details: 'Some details' },
+      HttpStatus.BAD_REQUEST,
+    );
+    const mockHost = {
+      switchToHttp: () => ({
+        getResponse: () => mockResponse,
+        getRequest: () => mockRequest,
+      }),
     };
 
-    filter.catch(exception, mockResponse as any, mockRequest as any);
+    filter.catch(exception, mockHost as any);
 
-    const responseCall = mockResponse.json.mock.calls[0][0];
-    expect(responseCall.timestamp).toBeDefined();
-    expect(typeof responseCall.timestamp).toBe('string');
-    
-    // Verify timestamp is a valid ISO date string
-    const timestamp = new Date(responseCall.timestamp);
-    expect(timestamp.getTime()).not.toBeNaN();
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: { error: 'Complex error', details: 'Some details' },
+        path: '/test',
+      }),
+    );
   });
 
-  it('should handle exceptions without specific error message', () => {
-    const exception = new HttpException('', HttpStatus.UNAUTHORIZED);
-    const mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-    const mockRequest = {
-      url: '/protected',
-      method: 'GET',
+  it('should handle HttpException with string response correctly', () => {
+    const exception = new HttpException('String error', HttpStatus.BAD_REQUEST);
+    const mockHost = {
+      switchToHttp: () => ({
+        getResponse: () => mockResponse,
+        getRequest: () => mockRequest,
+      }),
     };
 
-    filter.catch(exception, mockResponse as any, mockRequest as any);
+    filter.catch(exception, mockHost as any);
 
-    expect(mockResponse.json).toHaveBeenCalledWith({
-      statusCode: HttpStatus.UNAUTHORIZED,
-      message: '',
-      error: 'Unauthorized',
-      timestamp: expect.any(String),
-      path: '/protected',
-      method: 'GET',
-    });
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'String error',
+        path: '/test',
+      }),
+    );
   });
 });

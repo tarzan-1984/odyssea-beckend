@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,7 +32,7 @@ describe('UsersService', () => {
     firstName: 'John',
     lastName: 'Doe',
     phone: '+1234567890',
-    role: UserRole.DRIVER,
+    role: UserRole.ADMINISTRATOR,
     status: UserStatus.ACTIVE,
     language: ['en'],
     vehicleType: 'CARGO_VAN',
@@ -77,7 +81,7 @@ describe('UsersService', () => {
     it('should create a new user successfully', async () => {
       // Mock bcrypt.hash to return a predictable hash
       jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword' as never);
-      
+
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       mockPrismaService.user.create.mockResolvedValue(mockUser);
 
@@ -110,12 +114,30 @@ describe('UsersService', () => {
   describe('findAllUsers', () => {
     const mockUsers = [mockUser];
     const mockPaginationResult = {
-      users: mockUsers,
-      meta: {
+      users: [
+        {
+          id: '1',
+          user: {
+            image: '',
+            name: 'John Doe',
+            role: 'administrator',
+          },
+          email: 'test@example.com',
+          location: '',
+          phone: '+1234567890',
+          vin: '',
+          vehicle: {
+            brand: '',
+            model: '',
+            year: '',
+          },
+        },
+      ],
+      pagination: {
         page: 1,
         limit: 10,
         total: 1,
-        totalPages: 1,
+        pages: 1,
       },
     };
 
@@ -176,7 +198,6 @@ describe('UsersService', () => {
         take: 10,
         where: {
           OR: [
-            { firstName: { contains: 'john', mode: 'insensitive' } },
             { lastName: { contains: 'john', mode: 'insensitive' } },
             { email: { contains: 'john', mode: 'insensitive' } },
           ],
@@ -192,11 +213,11 @@ describe('UsersService', () => {
 
       const result = await service.findAllUsers(3, 10);
 
-      expect(result.meta).toEqual({
+      expect(result.pagination).toEqual({
         page: 3,
         limit: 10,
         total: 25,
-        totalPages: 3,
+        pages: 3,
       });
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
         skip: 20,
@@ -239,6 +260,7 @@ describe('UsersService', () => {
 
     it('should update user profile successfully', async () => {
       const updatedUser = { ...mockUser, ...updateUserDto };
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.user.update.mockResolvedValue(updatedUser);
 
       const result = await service.updateUserProfile('1', updateUserDto);
@@ -271,6 +293,7 @@ describe('UsersService', () => {
 
     it('should update user successfully', async () => {
       const updatedUser = { ...mockUser, ...updateUserDto };
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.user.update.mockResolvedValue(updatedUser);
 
       const result = await service.updateUser('1', updateUserDto);
@@ -294,6 +317,7 @@ describe('UsersService', () => {
 
   describe('deleteUser', () => {
     it('should delete user successfully', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.user.delete.mockResolvedValue(mockUser);
 
       const result = await service.deleteUser('1');
@@ -316,6 +340,7 @@ describe('UsersService', () => {
   describe('changeUserStatus', () => {
     it('should change user status successfully', async () => {
       const updatedUser = { ...mockUser, status: UserStatus.SUSPENDED };
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.user.update.mockResolvedValue(updatedUser);
 
       const result = await service.changeUserStatus('1', UserStatus.SUSPENDED);

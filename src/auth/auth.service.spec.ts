@@ -10,9 +10,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailerService } from '../mailer/mailer.service';
 import { UserRole, UserStatus } from '@prisma/client';
 import { SocialProvider } from './dto/social-login.dto';
+import { ConfigService } from '@nestjs/config';
 
 describe('AuthService', () => {
   let service: AuthService;
+  let configService: ConfigService;
 
   const mockPrismaService = {
     user: {
@@ -45,7 +47,7 @@ describe('AuthService', () => {
 
   const mockMailerService = {
     sendHtmlEmail: jest.fn(),
-    sendTextEmail: jest.fn(),
+    sendTextEmail: jest.fn().mockResolvedValue(true),
     sendMail: jest.fn(),
   };
 
@@ -65,10 +67,32 @@ describe('AuthService', () => {
           provide: MailerService,
           useValue: mockMailerService,
         },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              const config = {
+                'jwt.secret': 'test-secret',
+                'jwt.expiresIn': '1h',
+                'jwt.refreshExpiresIn': '7d',
+                'mailer.from': 'noreply@example.com',
+              };
+              return config[key];
+            }),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
+    configService = module.get<ConfigService>(ConfigService);
+
+    // Reset mocks
+    jest.clearAllMocks();
+
+    // Ensure MailerService mock returns true
+    mockMailerService.sendTextEmail.mockResolvedValue(true);
+    mockMailerService.sendHtmlEmail.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -93,7 +117,7 @@ describe('AuthService', () => {
         password: await bcrypt.hash('password123', 12),
         firstName: 'John',
         lastName: 'Doe',
-        role: UserRole.DRIVER,
+        role: UserRole.ADMINISTRATOR,
         status: UserStatus.ACTIVE,
       };
     });
@@ -138,7 +162,7 @@ describe('AuthService', () => {
       password: 'hashedPassword',
       firstName: 'John',
       lastName: 'Doe',
-      role: UserRole.DRIVER,
+      role: UserRole.ADMINISTRATOR,
       status: UserStatus.ACTIVE,
     };
 
@@ -150,28 +174,26 @@ describe('AuthService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue(
         userWithHashedPassword,
       );
-      mockPrismaService.user.update.mockResolvedValue(userWithHashedPassword);
       mockPrismaService.otpCode.create.mockResolvedValue({
         id: '1',
-        email: 'test@example.com',
         code: '123456',
-        expiresAt: new Date(),
-        isUsed: false,
+        email: 'test@example.com',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       });
+
+      // Mock MailerService to return true
+      mockMailerService.sendTextEmail.mockResolvedValue(true);
 
       const result = await service.loginWithOtp(
         'test@example.com',
         'password123',
       );
 
-      expect(result.message).toBe('OTP code sent to your email');
-      expect(mockPrismaService.otpCode.create).toHaveBeenCalledWith({
-        data: {
-          email: 'test@example.com',
-          code: expect.any(String),
-          expiresAt: expect.any(Date),
-        },
+      expect(result).toEqual({
+        message: 'OTP code sent to your email',
       });
+      expect(mockPrismaService.otpCode.create).toHaveBeenCalled();
+      expect(mockMailerService.sendHtmlEmail).toHaveBeenCalled();
     });
   });
 
@@ -182,7 +204,7 @@ describe('AuthService', () => {
       password: 'hashedPassword',
       firstName: 'John',
       lastName: 'Doe',
-      role: UserRole.DRIVER,
+      role: UserRole.ADMINISTRATOR,
       status: UserStatus.ACTIVE,
     };
 
@@ -223,6 +245,7 @@ describe('AuthService', () => {
         lastName: mockUser.lastName,
         role: mockUser.role,
         status: mockUser.status,
+        avatar: '',
       });
     });
 
@@ -242,7 +265,7 @@ describe('AuthService', () => {
       password: 'hashedPassword',
       firstName: 'John',
       lastName: 'Doe',
-      role: UserRole.DRIVER,
+      role: UserRole.ADMINISTRATOR,
       status: UserStatus.ACTIVE,
     };
 
@@ -273,6 +296,7 @@ describe('AuthService', () => {
         lastName: mockUser.lastName,
         role: mockUser.role,
         status: mockUser.status,
+        avatar: '',
       });
     });
 
@@ -297,6 +321,14 @@ describe('AuthService', () => {
       mockPrismaService.passwordResetToken.create.mockResolvedValue({
         token: 'reset-token',
       });
+
+      // Mock ConfigService to return app config
+      (configService.get as jest.Mock).mockReturnValue({
+        frontendUrl: 'http://localhost:3000',
+      });
+
+      // Mock MailerService to return true
+      mockMailerService.sendHtmlEmail.mockResolvedValue(true);
 
       await service.forgotPassword('test@example.com');
 

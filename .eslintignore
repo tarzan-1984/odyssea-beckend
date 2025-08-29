@@ -1,0 +1,6 @@
+*.config.js
+commitlint.config.js
+test/jest.setup.ts
+node_modules/
+dist/
+coverage/

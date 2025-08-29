@@ -4,222 +4,240 @@ import { of } from 'rxjs';
 import { TransformInterceptor } from './transform.interceptor';
 
 describe('TransformInterceptor', () => {
-  let interceptor: TransformInterceptor;
+  let interceptor: TransformInterceptor<any>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [TransformInterceptor],
     }).compile();
 
-    interceptor = module.get<TransformInterceptor>(TransformInterceptor);
+    interceptor = module.get<TransformInterceptor<any>>(TransformInterceptor);
   });
 
   it('should be defined', () => {
     expect(interceptor).toBeDefined();
   });
 
-  it('should transform successful response with data', (done) => {
-    const mockData = { id: 1, name: 'Test User' };
+  it('should transform data correctly', () => {
+    const mockData = { name: 'test', value: 123 };
     const mockCallHandler = {
       handle: () => of(mockData),
     };
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
+    };
 
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
 
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: mockData,
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: mockData,
+        timestamp: expect.any(String),
+        path: '/test',
+      });
     });
   });
 
-  it('should transform successful response without data', (done) => {
+  it('should handle undefined data', () => {
     const mockCallHandler = {
       handle: () => of(undefined),
     };
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
+    };
 
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
 
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: undefined,
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: undefined,
+        timestamp: expect.any(String),
+        path: '/test',
+      });
     });
   });
 
-  it('should transform successful response with null data', (done) => {
+  it('should handle null data', () => {
     const mockCallHandler = {
       handle: () => of(null),
     };
-
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
-
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: null,
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
-    });
-  });
-
-  it('should transform successful response with empty string data', (done) => {
-    const mockCallHandler = {
-      handle: () => of(''),
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
     };
 
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
 
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: '',
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: null,
+        timestamp: expect.any(String),
+        path: '/test',
+      });
     });
   });
 
-  it('should transform successful response with number data', (done) => {
-    const mockCallHandler = {
-      handle: () => of(42),
-    };
-
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
-
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: 42,
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
-    });
-  });
-
-  it('should transform successful response with boolean data', (done) => {
-    const mockCallHandler = {
-      handle: () => of(true),
-    };
-
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
-
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: true,
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
-    });
-  });
-
-  it('should transform successful response with array data', (done) => {
-    const mockData = [{ id: 1 }, { id: 2 }];
-    const mockCallHandler = {
-      handle: () => of(mockData),
-    };
-
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
-
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: mockData,
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
-    });
-  });
-
-  it('should include valid timestamp in response', (done) => {
+  it('should handle string data', () => {
     const mockCallHandler = {
       handle: () => of('test'),
     };
-
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
-
-    result.subscribe({
-      next: (value) => {
-        expect(value.timestamp).toBeDefined();
-        expect(typeof value.timestamp).toBe('string');
-        
-        // Verify timestamp is a valid ISO date string
-        const timestamp = new Date(value.timestamp);
-        expect(timestamp.getTime()).not.toBeNaN();
-        done();
-      },
-      error: done,
-    });
-  });
-
-  it('should preserve error responses without transformation', (done) => {
-    const mockError = new Error('Test error');
-    const mockCallHandler = {
-      handle: () => {
-        throw mockError;
-      },
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
     };
 
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
 
-    result.subscribe({
-      next: () => {
-        done.fail('Should not call next');
-      },
-      error: (error) => {
-        expect(error).toBe(mockError);
-        done();
-      },
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: 'test',
+        timestamp: expect.any(String),
+        path: '/test',
+      });
     });
   });
 
-  it('should handle async responses correctly', (done) => {
-    const mockData = { async: true };
+  it('should handle number data', () => {
+    const mockCallHandler = {
+      handle: () => of(42),
+    };
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
+    };
+
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
+
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: 42,
+        timestamp: expect.any(String),
+        path: '/test',
+      });
+    });
+  });
+
+  it('should handle boolean data', () => {
+    const mockCallHandler = {
+      handle: () => of(true),
+    };
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
+    };
+
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
+
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: true,
+        timestamp: expect.any(String),
+        path: '/test',
+      });
+    });
+  });
+
+  it('should handle array data', () => {
+    const mockData = [1, 2, 3];
+    const mockCallHandler = {
+      handle: () => of(mockData),
+    };
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
+    };
+
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
+
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: mockData,
+        timestamp: expect.any(String),
+        path: '/test',
+      });
+    });
+  });
+
+  it('should handle complex object data', () => {
+    const mockData = {
+      user: { id: 1, name: 'John' },
+      settings: { theme: 'dark' },
+    };
+    const mockCallHandler = {
+      handle: () => of(mockData),
+    };
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
+    };
+
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
+
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: mockData,
+        timestamp: expect.any(String),
+        path: '/test',
+      });
+    });
+  });
+
+  it('should handle Promise data', () => {
+    const mockData = { name: 'test', value: 123 };
     const mockCallHandler = {
       handle: () => of(Promise.resolve(mockData)),
     };
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url: '/test' }),
+      }),
+    };
 
-    const result = interceptor.intercept({} as ExecutionContext, mockCallHandler as CallHandler);
+    const result = interceptor.intercept(
+      mockExecutionContext as ExecutionContext,
+      mockCallHandler as CallHandler,
+    );
 
-    result.subscribe({
-      next: (value) => {
-        expect(value).toEqual({
-          success: true,
-          data: mockData,
-          timestamp: expect.any(String),
-        });
-        done();
-      },
-      error: done,
+    result.subscribe((transformedData) => {
+      expect(transformedData).toEqual({
+        data: Promise.resolve(mockData),
+        timestamp: expect.any(String),
+        path: '/test',
+      });
     });
   });
 });

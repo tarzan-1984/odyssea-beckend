@@ -9,6 +9,7 @@ import {
   IsInt,
   Min,
   Max,
+  IsNotEmpty,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole, VehicleType, DistanceCoverage } from '@prisma/client';
@@ -18,6 +19,7 @@ export class CreateUserDto {
     description: 'User email address',
     example: 'user@example.com',
   })
+  @IsNotEmpty()
   @IsEmail()
   email: string;
 
@@ -26,6 +28,7 @@ export class CreateUserDto {
     example: 'password123',
     minLength: 6,
   })
+  @IsNotEmpty()
   @IsString()
   @MinLength(6)
   password: string;
@@ -34,13 +37,15 @@ export class CreateUserDto {
     description: 'User first name',
     example: 'John',
   })
+  @IsNotEmpty()
   @IsString()
   firstName: string;
 
   @ApiProperty({
     description: 'User last name',
-    example: 'Doe',
+    example: 'John',
   })
+  @IsNotEmpty()
   @IsString()
   lastName: string;
 

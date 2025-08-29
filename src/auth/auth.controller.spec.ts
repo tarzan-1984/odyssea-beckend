@@ -3,7 +3,6 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { SocialLoginDto } from './dto/social-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -11,25 +10,16 @@ import { UserRole, UserStatus } from '@prisma/client';
 
 describe('AuthController', () => {
   let controller: AuthController;
-  let authService: AuthService;
-
-  const mockAuthService = {
-    loginWithOtp: jest.fn(),
-    verifyOtp: jest.fn(),
-    socialLogin: jest.fn(),
-    forgotPassword: jest.fn(),
-    resetPassword: jest.fn(),
-    refreshToken: jest.fn(),
-    logout: jest.fn(),
-  };
+  let mockAuthService: jest.Mocked<AuthService>;
 
   const mockUser = {
     id: '1',
     email: 'test@example.com',
     firstName: 'John',
     lastName: 'Doe',
-    role: UserRole.DRIVER,
+    role: UserRole.ADMINISTRATOR,
     status: UserStatus.ACTIVE,
+    avatar: 'avatar.jpg',
   };
 
   const mockAuthResponse = {
@@ -44,17 +34,25 @@ describe('AuthController', () => {
       providers: [
         {
           provide: AuthService,
-          useValue: mockAuthService,
+          useValue: {
+            loginWithOtp: jest.fn(),
+            verifyOtp: jest.fn(),
+            forgotPassword: jest.fn(),
+            resetPassword: jest.fn(),
+            refreshToken: jest.fn(),
+            logout: jest.fn(),
+            handleGoogleCallback: jest.fn(),
+          },
         },
       ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
-    authService = module.get<AuthService>(AuthService);
+    mockAuthService = module.get(AuthService);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
   });
 
   describe('login', () => {
@@ -63,14 +61,13 @@ describe('AuthController', () => {
       password: 'password123',
     };
 
-    it('should send OTP code successfully', async () => {
-      const expectedResponse = { message: 'OTP code sent to your email' };
-      mockAuthService.loginWithOtp.mockResolvedValue(expectedResponse);
+    it('should authenticate user successfully', async () => {
+      mockAuthService.loginWithOtp.mockResolvedValue({ message: 'OTP sent' });
 
       const result = await controller.login(loginDto);
 
-      expect(result).toEqual(expectedResponse);
-      expect(authService.loginWithOtp).toHaveBeenCalledWith(
+      expect(result).toEqual({ message: 'OTP sent' });
+      expect(mockAuthService.loginWithOtp).toHaveBeenCalledWith(
         loginDto.email,
         loginDto.password,
       );
@@ -80,7 +77,9 @@ describe('AuthController', () => {
       const error = new Error('Service error');
       mockAuthService.loginWithOtp.mockRejectedValue(error);
 
-      await expect(controller.login(loginDto)).rejects.toThrow(error);
+      await expect(controller.login(loginDto)).rejects.toThrow(
+        'Invalid credentials',
+      );
     });
   });
 
@@ -90,13 +89,13 @@ describe('AuthController', () => {
       otp: '123456',
     };
 
-    it('should verify OTP and return auth response successfully', async () => {
+    it('should verify OTP successfully', async () => {
       mockAuthService.verifyOtp.mockResolvedValue(mockAuthResponse);
 
       const result = await controller.verifyOtp(verifyOtpDto);
 
       expect(result).toEqual(mockAuthResponse);
-      expect(authService.verifyOtp).toHaveBeenCalledWith(
+      expect(mockAuthService.verifyOtp).toHaveBeenCalledWith(
         verifyOtpDto.email,
         verifyOtpDto.otp,
       );
@@ -107,32 +106,6 @@ describe('AuthController', () => {
       mockAuthService.verifyOtp.mockRejectedValue(error);
 
       await expect(controller.verifyOtp(verifyOtpDto)).rejects.toThrow(error);
-    });
-  });
-
-  describe('socialLogin', () => {
-    const socialLoginDto: SocialLoginDto = {
-      provider: 'GOOGLE',
-      accessToken: 'google-token',
-    };
-
-    it('should authenticate user via social provider successfully', async () => {
-      mockAuthService.socialLogin.mockResolvedValue(mockAuthResponse);
-
-      const result = await controller.socialLogin(socialLoginDto);
-
-      expect(result).toEqual(mockAuthResponse);
-      expect(authService.socialLogin).toHaveBeenCalledWith(
-        socialLoginDto.provider,
-        socialLoginDto.accessToken,
-      );
-    });
-
-    it('should handle service errors', async () => {
-      const error = new Error('Service error');
-      mockAuthService.socialLogin.mockRejectedValue(error);
-
-      await expect(controller.socialLogin(socialLoginDto)).rejects.toThrow(error);
     });
   });
 
@@ -150,7 +123,7 @@ describe('AuthController', () => {
         message:
           'If an account with this email exists, a password reset link has been sent.',
       });
-      expect(authService.forgotPassword).toHaveBeenCalledWith(
+      expect(mockAuthService.forgotPassword).toHaveBeenCalledWith(
         forgotPasswordDto.email,
       );
     });
@@ -159,9 +132,9 @@ describe('AuthController', () => {
       const error = new Error('Service error');
       mockAuthService.forgotPassword.mockRejectedValue(error);
 
-      await expect(controller.forgotPassword(forgotPasswordDto)).rejects.toThrow(
-        error,
-      );
+      await expect(
+        controller.forgotPassword(forgotPasswordDto),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -177,7 +150,7 @@ describe('AuthController', () => {
       const result = await controller.resetPassword(resetPasswordDto);
 
       expect(result).toEqual({ message: 'Password successfully reset' });
-      expect(authService.resetPassword).toHaveBeenCalledWith(
+      expect(mockAuthService.resetPassword).toHaveBeenCalledWith(
         resetPasswordDto.token,
         resetPasswordDto.newPassword,
       );
@@ -198,14 +171,13 @@ describe('AuthController', () => {
       refreshToken: 'refresh-token',
     };
 
-    it('should refresh access token successfully', async () => {
-      const expectedResponse = { accessToken: 'new-access-token' };
-      mockAuthService.refreshToken.mockResolvedValue(expectedResponse);
+    it('should refresh token successfully', async () => {
+      mockAuthService.refreshToken.mockResolvedValue(mockAuthResponse);
 
       const result = await controller.refreshToken(refreshTokenDto);
 
-      expect(result).toEqual(expectedResponse);
-      expect(authService.refreshToken).toHaveBeenCalledWith(
+      expect(result).toEqual(mockAuthResponse);
+      expect(mockAuthService.refreshToken).toHaveBeenCalledWith(
         refreshTokenDto.refreshToken,
       );
     });
@@ -231,7 +203,7 @@ describe('AuthController', () => {
       const result = await controller.logout(refreshTokenDto);
 
       expect(result).toEqual({ message: 'Successfully logged out' });
-      expect(authService.logout).toHaveBeenCalledWith(
+      expect(mockAuthService.logout).toHaveBeenCalledWith(
         refreshTokenDto.refreshToken,
       );
     });

@@ -14,6 +14,7 @@ export interface AppConfig {
 export interface JwtConfig {
   secret: string | undefined;
   expiresIn: string | undefined;
+  refreshExpiresIn: string | undefined;
 }
 
 export interface SwaggerConfig {
@@ -53,6 +54,7 @@ export const jwtConfig = registerAs(
   (): JwtConfig => ({
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN,
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
   }),
 );
 

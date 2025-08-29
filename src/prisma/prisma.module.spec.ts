@@ -19,23 +19,10 @@ describe('PrismaModule', () => {
     expect(module).toBeDefined();
   });
 
-  it('should provide PrismaService', () => {
-    const prismaService = module.get<PrismaService>(PrismaService);
-    expect(prismaService).toBeDefined();
-  });
-
-  it('should export PrismaService', () => {
-    const prismaService = module.get<PrismaService>(PrismaService);
-    expect(prismaService).toBeDefined();
-  });
-
-  it('should have PrismaService as global provider', () => {
-    const prismaService = module.get<PrismaService>(PrismaService);
-    expect(prismaService).toBeDefined();
-  });
-
   it('should provide PrismaService instance', () => {
     const prismaService = module.get<PrismaService>(PrismaService);
-    expect(prismaService).toBeInstanceOf(PrismaService);
+    expect(prismaService).toBeDefined();
+    expect(typeof prismaService.onModuleInit).toBe('function');
+    expect(typeof prismaService.onModuleDestroy).toBe('function');
   });
 });

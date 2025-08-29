@@ -259,3 +259,4 @@ yarn test
 yarn test:e2e
 yarn test:cov  # с покрытием кода
 ```
+# Test Husky

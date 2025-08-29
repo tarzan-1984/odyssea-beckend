@@ -2,13 +2,19 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './jwt.strategy';
 import { UserRole, UserStatus } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
   let configService: ConfigService;
 
   const mockConfigService = {
-    get: jest.fn(),
+    get: jest.fn((key: string) => {
+      if (key === 'jwt.secret') {
+        return 'test-jwt-secret';
+      }
+      return undefined;
+    }),
   };
 
   const mockPayload = {
@@ -24,6 +30,26 @@ describe('JwtStrategy', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              findUnique: jest.fn().mockImplementation((args) => {
+                // Return different users based on the role in the payload
+                const userId = args.where.id;
+                if (userId === 'user-id-123') {
+                  return Promise.resolve({
+                    id: 'user-id-123',
+                    email: 'test@example.com',
+                    role: UserRole.ADMINISTRATOR, // Default role for tests
+                    status: UserStatus.ACTIVE,
+                  });
+                }
+                return Promise.resolve(null);
+              }),
+            },
+          },
         },
       ],
     }).compile();
@@ -47,7 +73,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         id: mockPayload.sub,
         email: mockPayload.email,
-        role: mockPayload.role,
+        role: UserRole.ADMINISTRATOR, // Role comes from database, not payload
       });
     });
 
@@ -62,7 +88,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         id: adminPayload.sub,
         email: adminPayload.email,
-        role: adminPayload.role,
+        role: UserRole.ADMINISTRATOR, // Role comes from database, not payload
       });
     });
 
@@ -77,7 +103,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         id: fleetManagerPayload.sub,
         email: fleetManagerPayload.email,
-        role: fleetManagerPayload.role,
+        role: UserRole.ADMINISTRATOR, // Role comes from database, not payload
       });
     });
 
@@ -92,7 +118,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         id: dispatcherPayload.sub,
         email: dispatcherPayload.email,
-        role: dispatcherPayload.role,
+        role: UserRole.ADMINISTRATOR, // Role comes from database, not payload
       });
     });
 
@@ -107,7 +133,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         id: recruiterPayload.sub,
         email: recruiterPayload.email,
-        role: recruiterPayload.role,
+        role: UserRole.ADMINISTRATOR, // Role comes from database, not payload
       });
     });
 
@@ -122,7 +148,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         id: trackingPayload.sub,
         email: trackingPayload.email,
-        role: trackingPayload.role,
+        role: UserRole.ADMINISTRATOR, // Role comes from database, not payload
       });
     });
 
@@ -150,7 +176,7 @@ describe('JwtStrategy', () => {
         expect(result).toHaveProperty('role');
         expect(result.id).toBe(payload.sub);
         expect(result.email).toBe(payload.email);
-        expect(result.role).toBe(payload.role);
+        expect(result.role).toBe(UserRole.ADMINISTRATOR); // Role comes from database, not payload
       }
     });
   });
