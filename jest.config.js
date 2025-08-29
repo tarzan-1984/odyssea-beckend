@@ -9,16 +9,13 @@ module.exports = {
   coverageDirectory: '../coverage',
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/../test/jest.setup.ts'],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  globals: {
-    'ts-jest': {
-      tsconfig: {
-        experimentalDecorators: true,
-        emitDecoratorMetadata: true,
-      },
-    },
+  transform: {
+    '^.+\\.(t|j)s$': ['ts-jest', {
+      tsconfig: 'tsconfig.test.json',
+    }],
   },
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '/test/'],
   modulePathIgnorePatterns: ['<rootDir>/dist/'],
