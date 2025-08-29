@@ -109,6 +109,11 @@ export class AuthController {
     const scope = ['email', 'profile'].join(' ');
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${state}`;
+    
+    console.log(
+      'wwwwwww2222222222',
+      process.env.FRONTEND_REDIRECT_URL_STAGE,
+    );
 
     return res.redirect(authUrl);
   }
@@ -140,8 +145,12 @@ export class AuthController {
   })
   async googleCallback(@Query('code') code: string, @Res() res: Response) {
     try {
-      
       const result = await this.authService.handleGoogleCallback(code);
+      
+      console.log(
+        'wwwwwww111111',
+        process.env.FRONTEND_REDIRECT_URL_STAGE,
+      );
 
       // Check if user has permission to access the system
       if (result.user.role.toLowerCase() === 'driver') {
@@ -171,7 +180,7 @@ export class AuthController {
       if (!encryptedPayload) {
         throw new Error('Failed to encrypt payload');
       }
-      
+
       console.log(
         'wwwwwww=========wwwwwwwww',
         process.env.FRONTEND_REDIRECT_URL_STAGE,
