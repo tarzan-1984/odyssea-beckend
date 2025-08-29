@@ -126,6 +126,10 @@ describe('UsersService', () => {
           location: '',
           phone: '+1234567890',
           vin: '',
+          country: '',
+          city: '',
+          state: '',
+          zip: '',
           vehicle: {
             brand: '',
             model: '',

@@ -94,6 +94,61 @@ export class CreateUserDto {
   @IsString()
   extension?: string;
 
+  // Address fields
+  @ApiProperty({
+    description: 'User location',
+    example: 'New York, NY',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiProperty({
+    description: 'Vehicle identification number',
+    example: '1HGBH41JXMN109186',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  vin?: string;
+
+  @ApiProperty({
+    description: 'Country',
+    example: 'United States',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiProperty({
+    description: 'City',
+    example: 'New York',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiProperty({
+    description: 'State/Province',
+    example: 'NY',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiProperty({
+    description: 'ZIP/Postal code',
+    example: '10001',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  zip?: string;
+
   // Driver specific fields
   @ApiProperty({
     description: 'Vehicle type',

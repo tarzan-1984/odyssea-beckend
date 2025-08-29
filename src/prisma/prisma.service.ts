@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
@@ -6,11 +6,36 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  private readonly logger = new Logger(PrismaService.name);
+
+  constructor() {
+    super({
+      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    });
+  }
+
   /**
    * Initialize Prisma client when the module is initialized
    */
   async onModuleInit(): Promise<void> {
-    await this.$connect();
+    try {
+      // Validate DATABASE_URL before connecting
+      const databaseUrl = process.env.DATABASE_URL;
+      if (!databaseUrl) {
+        throw new Error('DATABASE_URL environment variable is not set');
+      }
+      
+      if (!databaseUrl.startsWith('postgresql://') && !databaseUrl.startsWith('postgres://')) {
+        throw new Error(`Invalid DATABASE_URL format. Expected postgresql:// or postgres://, got: ${databaseUrl.substring(0, 20)}...`);
+      }
+
+      this.logger.log('Connecting to database...');
+      await this.$connect();
+      this.logger.log('Successfully connected to database');
+    } catch (error) {
+      this.logger.error(`Failed to connect to database: ${error.message}`);
+      throw error;
+    }
   }
 
   /**

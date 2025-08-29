@@ -8,6 +8,29 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
+  // Validate critical environment variables before starting the app
+  const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+  const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+  
+  if (missingEnvVars.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    missingEnvVars.forEach(envVar => {
+      console.error(`   - ${envVar}`);
+    });
+    console.error('Please check your .env file or environment configuration.');
+    process.exit(1);
+  }
+
+  // Validate DATABASE_URL format
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl && !databaseUrl.startsWith('postgresql://') && !databaseUrl.startsWith('postgres://')) {
+    console.error('❌ Invalid DATABASE_URL format. Expected postgresql:// or postgres://');
+    console.error(`   Current value: ${databaseUrl.substring(0, 50)}...`);
+    process.exit(1);
+  }
+
+  console.log('✅ Environment variables validated successfully');
+
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
