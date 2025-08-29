@@ -171,6 +171,11 @@ export class AuthController {
       if (!encryptedPayload) {
         throw new Error('Failed to encrypt payload');
       }
+      
+      console.log(
+        'wwwwwww=========wwwwwwwww',
+        process.env.FRONTEND_REDIRECT_URL_STAGE,
+      );
 
       return res.redirect(
         `${process.env.FRONTEND_REDIRECT_URL_STAGE}/auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
