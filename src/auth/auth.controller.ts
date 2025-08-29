@@ -109,6 +109,8 @@ export class AuthController {
     const scope = ['email', 'profile'].join(' ');
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${state}`;
+    
+    console.log('authUrl', authUrl);
 
     return res.redirect(authUrl);
   }
@@ -174,11 +176,11 @@ export class AuthController {
       return res.redirect(
         `${process.env.FRONTEND_URL}auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
       );
-    } catch (error) {
-      console.error('Error exchanging code for token:', error);
-      return res
-        .status(500)
-        .json({ error: 'Failed to exchange code for token 11111' });
+    } catch {
+      const errorMessage = 'You are not registered in the system';
+      return res.redirect(
+        `${process.env.FRONTEND_URL}signin?error=${encodeURIComponent(errorMessage)}`,
+      );
     }
   }
 
