@@ -1,167 +1,182 @@
-# Odyssea Backend - NestJS
+# Odyssea Backend (NestJS)
 
-Backend API для системы управления логистикой Odyssea.
+## Описание
 
-## Система аутентификации
+Backend приложение для системы Odyssea, построенное на NestJS с использованием Prisma ORM, JWT аутентификации и Google OAuth.
 
-Проект поддерживает два типа аутентификации:
+## Технологии
 
-### 1. Email + Password + OTP
-
-Для входа через email и пароль с дополнительной верификацией OTP:
-
-#### Шаг 1: Отправка OTP
-```http
-POST /auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
-
-**Ответ:**
-```json
-{
-  "message": "OTP code sent to your email"
-}
-```
-
-#### Шаг 2: Верификация OTP
-```http
-POST /auth/verify-otp
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "otp": "123456"
-}
-```
-
-**Ответ:**
-```json
-{
-  "accessToken": "jwt-access-token",
-  "refreshToken": "refresh-token",
-  "user": {
-    "id": "user-id",
-    "email": "user@example.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "role": "DRIVER",
-    "status": "ACTIVE"
-  }
-}
-```
-
-### 2. Social Login
-
-Для входа через социальные сети (без OTP):
-
-```http
-POST /auth/social-login
-Content-Type: application/json
-
-{
-  "provider": "google",
-  "accessToken": "social-access-token"
-}
-```
-
-**Поддерживаемые провайдеры:**
-- `google` - Google OAuth
-- `facebook` - Facebook OAuth  
-- `apple` - Apple Sign In
-
-### 3. Восстановление пароля
-
-#### Запрос сброса пароля
-```http
-POST /auth/forgot-password
-Content-Type: application/json
-
-{
-  "email": "user@example.com"
-}
-```
-
-#### Сброс пароля
-```http
-POST /auth/reset-password
-Content-Type: application/json
-
-{
-  "token": "reset-token",
-  "newPassword": "newpassword123"
-}
-```
-
-### 4. Обновление токенов
-
-```http
-POST /auth/refresh
-Content-Type: application/json
-
-{
-  "refreshToken": "refresh-token"
-}
-```
-
-### 5. Выход
-
-```http
-POST /auth/logout
-Content-Type: application/json
-
-{
-  "refreshToken": "refresh-token"
-}
-```
+- **NestJS** - основной фреймворк
+- **Prisma** - ORM для работы с базой данных
+- **PostgreSQL** - база данных
+- **JWT** - аутентификация
+- **Google OAuth** - социальная аутентификация
+- **Jest** - тестирование
+- **Husky** - Git hooks
+- **ESLint + Prettier** - линтинг и форматирование кода
+- **Commitlint** - валидация сообщений коммитов
 
 ## Установка и запуск
 
-### Требования
+### Предварительные требования
+
 - Node.js 18+
 - PostgreSQL
-- Yarn
+- npm или yarn
 
 ### Установка зависимостей
+
 ```bash
-yarn install
+npm install
 ```
 
 ### Настройка базы данных
-```bash
-# Создание миграций
-npx prisma migrate dev
 
-# Или для тестовой среды
-npx prisma db push
+1. Создайте базу данных PostgreSQL
+2. Скопируйте `.env.example` в `.env` и настройте переменные окружения
+3. Запустите миграции:
+
+```bash
+npm run prisma:migrate
 ```
 
-### Переменные окружения
-Создайте файл `.env` на основе `env.example`:
+### Запуск приложения
+
+```bash
+# Разработка
+npm run start:dev
+
+# Продакшн
+npm run start:prod
+```
+
+## Тестирование
+
+### Запуск всех тестов
+
+```bash
+npm test
+```
+
+### Запуск тестов в режиме watch
+
+```bash
+npm run test:watch
+```
+
+### Запуск тестов с покрытием
+
+```bash
+npm run test:cov
+```
+
+## Git Hooks (Husky)
+
+Проект настроен с использованием Husky для автоматического запуска проверок при коммитах и push.
+
+### Установленные хуки
+
+- **pre-commit**: Запускает lint-staged и тесты
+- **commit-msg**: Проверяет формат сообщения коммита
+- **pre-push**: Запускает тесты перед отправкой
+
+### Конфигурация
+
+#### Lint-staged
+Автоматически форматирует и проверяет staged файлы:
+- ESLint для TypeScript файлов в `src/`
+- Prettier для всех файлов
+
+#### Commitlint
+Проверяет формат сообщений коммитов согласно Conventional Commits:
+
+```
+type(scope): description
+
+Примеры:
+feat: add user authentication
+fix: resolve login issue
+docs: update API documentation
+test: add unit tests for auth service
+```
+
+#### Pre-commit
+При каждом коммите:
+1. Запускает lint-staged для форматирования и линтинга
+2. Запускает все тесты для проверки качества кода
+
+#### Pre-push
+Перед отправкой в удаленный репозиторий:
+1. Запускает все тесты для предотвращения отправки нерабочего кода
+
+### Настройка Husky
+
+Husky автоматически настраивается при установке зависимостей благодаря скрипту `prepare` в `package.json`.
+
+### Отключение хуков (временное)
+
+```bash
+# Отключить все хуки
+git config core.hooksPath /dev/null
+
+# Восстановить хуки
+git config --unset core.hooksPath
+```
+
+## Структура проекта
+
+```
+src/
+├── auth/           # Аутентификация и авторизация
+├── users/          # Управление пользователями
+├── mailer/         # Отправка email
+├── prisma/         # Конфигурация Prisma
+├── common/         # Общие компоненты
+└── config/         # Конфигурация приложения
+
+test/
+├── jest.setup.ts   # Глобальная настройка Jest
+└── jest-e2e.json   # Конфигурация E2E тестов
+```
+
+## API Endpoints
+
+### Аутентификация
+- `POST /v1/auth/login` - Вход с email/password
+- `POST /v1/auth/verify-otp` - Подтверждение OTP
+- `POST /v1/auth/social-login` - Вход через социальные сети
+- `GET /v1/auth/google` - Google OAuth callback
+- `POST /v1/auth/forgot-password` - Восстановление пароля
+- `POST /v1/auth/reset-password` - Сброс пароля
+- `POST /v1/auth/refresh-token` - Обновление токена
+- `POST /v1/auth/logout` - Выход
+
+### Пользователи
+- `GET /v1/users/list` - Список пользователей с пагинацией и фильтрацией
+- `POST /v1/users` - Создание пользователя
+- `GET /v1/users/:id` - Получение пользователя по ID
+- `PUT /v1/users/:id` - Обновление пользователя
+- `DELETE /v1/users/:id` - Удаление пользователя
+- `PUT /v1/users/:id/status` - Изменение статуса пользователя
+
+## Переменные окружения
+
+Создайте файл `.env` на основе `.env.example`:
 
 ```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/odyssea_db"
-
-# Application
-PORT=3000
-NODE_ENV=development
-API_PREFIX=api
+# База данных
+DATABASE_URL="postgresql://user:password@localhost:5432/odyssea"
 
 # JWT
-JWT_SECRET="your-super-secret-jwt-key-here"
+JWT_SECRET="your-secret-key"
 JWT_EXPIRES_IN="15m"
+JWT_REFRESH_EXPIRES_IN="7d"
 
-# Swagger
-SWAGGER_TITLE="Odyssea API"
-SWAGGER_DESCRIPTION="Odyssea Backend API"
-SWAGGER_VERSION="1.0"
+# Google OAuth
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
 
-# SMTP Configuration (для отправки OTP и сброса пароля)
+# SMTP
 SMTP_HOST="smtp.gmail.com"
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -169,94 +184,74 @@ SMTP_USER="your-email@gmail.com"
 SMTP_PASS="your-app-password"
 SMTP_FROM="your-email@gmail.com"
 
-# Frontend URL for password reset links
+# Приложение
+PORT=3001
+NODE_ENV=development
+API_PREFIX="/v1"
 FRONTEND_URL="http://localhost:3000"
-
-# Google OAuth (для социальной аутентификации)
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-GOOGLE_CALLBACK_URL="http://localhost:3000/auth/google/callback"
 ```
 
-**Примечание по настройке Gmail SMTP:**
-1. Включите двухфакторную аутентификацию в Google аккаунте
-2. Создайте пароль приложения в настройках безопасности
-3. Используйте пароль приложения вместо обычного пароля
+## Разработка
 
-**Примечание по FRONTEND_URL:**
-- Эта переменная используется для генерации ссылок сброса пароля
-- Если не указана, используется значение по умолчанию `http://localhost:3000`
-- В продакшене укажите реальный URL вашего фронтенда
+### Добавление новых тестов
 
-### Запуск в режиме разработки
+1. Создайте файл `.spec.ts` рядом с тестируемым файлом
+2. Используйте Jest и NestJS TestingModule
+3. Запустите тесты: `npm test`
+
+### Форматирование кода
+
 ```bash
-yarn start:dev
+# Автоматическое форматирование
+npm run format
+
+# Линтинг с автоматическим исправлением
+npm run lint:fix
 ```
 
-### Запуск тестов
+### Миграции базы данных
+
 ```bash
-# Все тесты
-yarn test
+# Создание миграции
+npx prisma migrate dev --name migration_name
 
-# Тесты аутентификации
-yarn test auth.service
+# Применение миграций
+npm run prisma:migrate:deploy
 
-# E2E тесты
-yarn test:e2e
+# Сброс базы данных
+npm run db:reset
 ```
 
-### Сборка для продакшена
+## Деплой
+
+### Подготовка к продакшну
+
 ```bash
-yarn build
-yarn start:prod
+# Сборка
+npm run build:prod
+
+# Генерация Prisma клиента
+npm run prisma:generate
+
+# Применение миграций
+npm run prisma:migrate:deploy
 ```
 
-## API Документация
+### Запуск в продакшне
 
-После запуска сервера, документация Swagger доступна по адресу:
-http://localhost:3000/docs
-
-## Структура проекта
-
-```
-src/
-├── auth/                    # Модуль аутентификации
-│   ├── dto/                # Data Transfer Objects
-│   ├── auth.controller.ts   # Контроллер аутентификации
-│   ├── auth.service.ts     # Сервис аутентификации
-│   └── auth.module.ts      # Модуль аутентификации
-├── mailer/                 # Модуль отправки email
-│   ├── mailer.service.ts   # Сервис отправки email
-│   ├── mailer.module.ts    # Модуль mailer
-│   └── README.md           # Документация mailer
-├── prisma/                 # Prisma ORM
-│   └── prisma.service.ts   # Сервис базы данных
-├── users/                  # Модуль пользователей
-├── config/                 # Конфигурация приложения
-│   └── env.config.ts       # Настройки переменных окружения
-└── main.ts                 # Точка входа приложения
-```
-
-## Безопасность
-
-- Все пароли хешируются с помощью bcrypt
-- JWT токены имеют ограниченное время жизни
-- OTP коды действительны 5 минут
-- Токены сброса пароля действительны 1 час
-- Все эндпоинты защищены от брутфорс атак (rate limiting)
-
-## Тестирование
-
-Проект включает полный набор тестов:
-
-- **Unit тесты** - для сервисов и контроллеров
-- **E2E тесты** - для полного цикла API
-- **Интеграционные тесты** - для работы с базой данных
-
-Запуск тестов:
 ```bash
-yarn test
-yarn test:e2e
-yarn test:cov  # с покрытием кода
+npm run start:prod
 ```
-# Test Husky
+
+## Поддержка
+
+При возникновении проблем:
+
+1. Проверьте логи приложения
+2. Убедитесь, что все переменные окружения настроены
+3. Проверьте, что база данных доступна
+4. Запустите тесты: `npm test`
+
+## Лицензия
+
+UNLICENSED
