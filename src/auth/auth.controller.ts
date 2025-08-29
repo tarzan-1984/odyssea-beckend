@@ -8,60 +8,28 @@ import {
   Get,
   Query,
   Res,
-  Req,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { encryption } from '../helpers/helper';
 
 import { AuthService, AuthResponse } from './auth.service';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { SocialLoginDto } from './dto/social-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
-function getFrontendUrl(req: Request): string {
-  const referer =
-    (req.headers.referer as string) || (req.headers.origin as string);
-
-  if (referer) {
-    try {
-      const url = new URL(referer);
-
-      // If request comes from localhost, use localhost
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-        console.log('Debug - Using localhost URL');
-        return 'http://localhost:3001';
-      }
-      // If request comes from Vercel domain, use staging URL
-      if (url.hostname.includes('vercel.app')) {
-        console.log('Debug - Using Vercel staging URL');
-        return (
-          process.env.FRONTEND_REDIRECT_URL_STAGE || 'http://localhost:3001'
-        );
-      }
-    } catch {
-      console.warn('Invalid referer URL:', referer);
-    }
+function getFrontendUrl(): string {
+  // Check if FRONTEND_REDIRECT_URL_STAGE is set and exists
+  if (process.env.FRONTEND_REDIRECT_URL_STAGE) {
+    return process.env.FRONTEND_REDIRECT_URL_STAGE;
   }
-
-  // Fallback to environment-based logic
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Debug - Using production fallback');
-    return (
-      process.env.FRONTEND_REDIRECT_URL_STAGE ||
-      process.env.FRONTEND_REDIRECT_URL ||
-      'http://localhost:3001'
-    );
-  }
-
-  // For development environment, always use localhost
-  console.log('Debug - Using localhost fallback');
+  
+  // Fallback to localhost
   return 'http://localhost:3001';
 }
 
@@ -133,9 +101,9 @@ export class AuthController {
     status: 302,
     description: 'Redirects the user to the Google OAuth consent screen',
   })
-  googleAuth(@Res() res: Response, @Req() req: Request) {
+  googleAuth(@Res() res: Response) {
     // Get the frontend URL that initiated the request
-    const frontendUrl = getFrontendUrl(req);
+          const frontendUrl = getFrontendUrl();
 
     const state = encodeURIComponent(
       JSON.stringify({
