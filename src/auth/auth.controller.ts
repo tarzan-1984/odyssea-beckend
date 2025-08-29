@@ -23,16 +23,6 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
-function getFrontendUrl(): string {
-  // Check if FRONTEND_REDIRECT_URL_STAGE is set and exists
-  if (process.env.FRONTEND_REDIRECT_URL_STAGE) {
-    return process.env.FRONTEND_REDIRECT_URL_STAGE;
-  }
-
-  // Fallback to localhost
-  return 'http://localhost:3001';
-}
-
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
@@ -108,12 +98,9 @@ export class AuthController {
     description: 'Redirects the user to the Google OAuth consent screen',
   })
   googleAuth(@Res() res: Response) {
-    // Get the frontend URL that initiated the request
-    const frontendUrl = getFrontendUrl();
-
     const state = encodeURIComponent(
       JSON.stringify({
-        frontendUrl: frontendUrl,
+        frontendUrl: process.env.FRONTEND_REDIRECT_URL_STAGE,
       }),
     );
 
@@ -153,10 +140,7 @@ export class AuthController {
   })
   async googleCallback(@Query('code') code: string, @Res() res: Response) {
     try {
-      const frontendUrl = process.env.FRONTEND_REDIRECT_URL_STAGE
-        ? process.env.FRONTEND_REDIRECT_URL_STAGE
-        : 'http://localhost:3001';
-
+      
       const result = await this.authService.handleGoogleCallback(code);
 
       // Check if user has permission to access the system
@@ -164,7 +148,7 @@ export class AuthController {
         const errorMessage =
           'You do not have permission to access this system. Users with your role cannot log in.';
         return res.redirect(
-          `${frontendUrl}/signin?error=${encodeURIComponent(errorMessage)}`,
+          `${process.env.FRONTEND_REDIRECT_URL_STAGE}/signin?error=${encodeURIComponent(errorMessage)}`,
         );
       }
 
@@ -187,15 +171,9 @@ export class AuthController {
       if (!encryptedPayload) {
         throw new Error('Failed to encrypt payload');
       }
-      
-      console.log('frontendUrl', frontendUrl);
-      console.log(
-        'FRONTEND_REDIRECT_URL_STAGE',
-        process.env.FRONTEND_REDIRECT_URL_STAGE,
-      );
 
       return res.redirect(
-        `${frontendUrl}/auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
+        `${process.env.FRONTEND_REDIRECT_URL_STAGE}/auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
       );
     } catch (error) {
       console.error('Error exchanging code for token:', error);
