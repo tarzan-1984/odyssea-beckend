@@ -28,7 +28,7 @@ function getFrontendUrl(): string {
   if (process.env.FRONTEND_REDIRECT_URL_STAGE) {
     return process.env.FRONTEND_REDIRECT_URL_STAGE;
   }
-  
+
   // Fallback to localhost
   return 'http://localhost:3001';
 }
@@ -52,10 +52,16 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'Invalid credentials or insufficient permissions' })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials or insufficient permissions',
+  })
   async login(@Body() loginDto: EmailLoginDto): Promise<{ message: string }> {
     try {
-      return await this.authService.loginWithOtp(loginDto.email, loginDto.password);
+      return await this.authService.loginWithOtp(
+        loginDto.email,
+        loginDto.password,
+      );
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -103,7 +109,7 @@ export class AuthController {
   })
   googleAuth(@Res() res: Response) {
     // Get the frontend URL that initiated the request
-          const frontendUrl = getFrontendUrl();
+    const frontendUrl = getFrontendUrl();
 
     const state = encodeURIComponent(
       JSON.stringify({
@@ -145,25 +151,18 @@ export class AuthController {
     status: 500,
     description: 'Failed to exchange code for token or internal error occurred',
   })
-  async googleCallback(
-    @Query('code') code: string,
-    @Res() res: Response,
-    @Query('state') state?: string,
-  ) {
+  async googleCallback(@Query('code') code: string, @Res() res: Response) {
     try {
-      const decodedState =
-        state && typeof state === 'string'
-          ? JSON.parse(decodeURIComponent(state))
-          : null;
-      const frontendUrl = decodedState
-        ? decodedState?.frontendUrl
+      const frontendUrl = process.env.FRONTEND_REDIRECT_URL_STAGE
+        ? process.env.FRONTEND_REDIRECT_URL_STAGE
         : 'http://localhost:3001';
 
       const result = await this.authService.handleGoogleCallback(code);
 
       // Check if user has permission to access the system
       if (result.user.role.toLowerCase() === 'driver') {
-        const errorMessage = 'You do not have permission to access this system. Users with your role cannot log in.';
+        const errorMessage =
+          'You do not have permission to access this system. Users with your role cannot log in.';
         return res.redirect(
           `${frontendUrl}/signin?error=${encodeURIComponent(errorMessage)}`,
         );
