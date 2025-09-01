@@ -93,14 +93,23 @@ export class AuthController {
 
   @Get('social-login')
   @ApiOperation({ summary: 'Initiate Google OAuth flow' })
+  @ApiQuery({
+    name: 'frontendUrl',
+    required: false,
+    description: 'Frontend URL for redirect after authentication (for dev mode)',
+    type: String,
+  })
   @ApiResponse({
     status: 302,
     description: 'Redirects the user to the Google OAuth consent screen',
   })
-  googleAuth(@Res() res: Response) {
+  googleAuth(@Res() res: Response, @Query('frontendUrl') frontendUrl?: string) {
+    // Use provided frontendUrl or fallback to environment variable
+    const targetFrontendUrl = frontendUrl || process.env.FRONTEND_URL;
+    
     const state = encodeURIComponent(
       JSON.stringify({
-        frontendUrl: process.env.FRONTEND_URL,
+        frontendUrl: targetFrontendUrl,
       }),
     );
 
@@ -111,6 +120,8 @@ export class AuthController {
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${state}`;
     
     console.log('authUrl', authUrl);
+    console.log('frontendUrl from query:', frontendUrl);
+    console.log('targetFrontendUrl:', targetFrontendUrl);
 
     return res.redirect(authUrl);
   }
@@ -140,8 +151,28 @@ export class AuthController {
     status: 500,
     description: 'Failed to exchange code for token or internal error occurred',
   })
-  async googleCallback(@Query('code') code: string, @Res() res: Response) {
+  async googleCallback(
+    @Query('code') code: string, 
+    @Res() res: Response,
+    @Query('state') state?: string
+  ) {
     try {
+      // Extract frontendUrl from state parameter or use environment variable as fallback
+      let frontendUrl = process.env.FRONTEND_URL;
+      
+      if (state) {
+        try {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          if (stateData.frontendUrl) {
+            frontendUrl = stateData.frontendUrl;
+          }
+        } catch (error) {
+          console.warn('Failed to parse state parameter, using default frontend URL:', error);
+        }
+      }
+
+      console.log('Using frontend URL for redirect:', frontendUrl);
+
       const result = await this.authService.handleGoogleCallback(code);
 
       // Check if user has permission to access the system
@@ -149,7 +180,7 @@ export class AuthController {
         const errorMessage =
           'You do not have permission to access this system. Users with your role cannot log in.';
         return res.redirect(
-          `${process.env.FRONTEND_URL}signin?error=${encodeURIComponent(errorMessage)}`,
+          `${frontendUrl}signin?error=${encodeURIComponent(errorMessage)}`,
         );
       }
 
@@ -174,12 +205,26 @@ export class AuthController {
       }
 
       return res.redirect(
-        `${process.env.FRONTEND_URL}auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
+        `${frontendUrl}auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
       );
     } catch {
+      // Extract frontendUrl from state parameter for error redirect as well
+      let frontendUrl = process.env.FRONTEND_URL;
+      
+      if (state) {
+        try {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          if (stateData.frontendUrl) {
+            frontendUrl = stateData.frontendUrl;
+          }
+        } catch (error) {
+          console.warn('Failed to parse state parameter in error handler, using default frontend URL:', error);
+        }
+      }
+
       const errorMessage = 'You are not registered in the system';
       return res.redirect(
-        `${process.env.FRONTEND_URL}signin?error=${encodeURIComponent(errorMessage)}`,
+        `${frontendUrl}signin?error=${encodeURIComponent(errorMessage)}`,
       );
     }
   }

@@ -8,6 +8,11 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 
+// Mock the encryption helper
+jest.mock('../helpers/helper', () => ({
+  encryption: jest.fn().mockReturnValue('encrypted-payload'),
+}));
+
 describe('AuthController', () => {
   let controller: AuthController;
   let mockAuthService: jest.Mocked<AuthService>;
@@ -213,6 +218,211 @@ describe('AuthController', () => {
       mockAuthService.logout.mockRejectedValue(error);
 
       await expect(controller.logout(refreshTokenDto)).rejects.toThrow(error);
+    });
+  });
+
+  describe('googleAuth', () => {
+    let mockResponse: any;
+
+    beforeEach(() => {
+      mockResponse = {
+        redirect: jest.fn(),
+      };
+    });
+
+    it('should redirect to Google OAuth with default frontend URL', () => {
+      // Mock environment variable
+      const originalFrontendUrl = process.env.FRONTEND_URL;
+      process.env.FRONTEND_URL = 'https://production.example.com';
+
+      controller.googleAuth(mockResponse);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('https://accounts.google.com/o/oauth2/v2/auth')
+      );
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('state=' + encodeURIComponent(JSON.stringify({
+          frontendUrl: 'https://production.example.com'
+        })))
+      );
+
+      // Restore environment variable
+      process.env.FRONTEND_URL = originalFrontendUrl;
+    });
+
+    it('should redirect to Google OAuth with custom frontend URL', () => {
+      const customFrontendUrl = 'http://localhost:3000';
+
+      controller.googleAuth(mockResponse, customFrontendUrl);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('https://accounts.google.com/o/oauth2/v2/auth')
+      );
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('state=' + encodeURIComponent(JSON.stringify({
+          frontendUrl: customFrontendUrl
+        })))
+      );
+    });
+
+    it('should include all required OAuth parameters', () => {
+      const customFrontendUrl = 'http://localhost:3000';
+      
+      // Mock environment variables
+      const originalClientId = process.env.GOOGLE_CLIENT_ID;
+      const originalCallbackUrl = process.env.GOOGLE_CALLBACK_URL;
+      process.env.GOOGLE_CLIENT_ID = 'test-client-id';
+      process.env.GOOGLE_CALLBACK_URL = 'http://localhost:3000/auth/google/callback';
+
+      controller.googleAuth(mockResponse, customFrontendUrl);
+
+      const redirectUrl = mockResponse.redirect.mock.calls[0][0];
+      
+      expect(redirectUrl).toContain('response_type=code');
+      expect(redirectUrl).toContain('client_id=test-client-id');
+      expect(redirectUrl).toContain('redirect_uri=http://localhost:3000/auth/google/callback');
+      expect(redirectUrl).toContain('scope=email%20profile');
+      expect(redirectUrl).toContain('access_type=offline');
+      expect(redirectUrl).toContain('prompt=consent');
+
+      // Restore environment variables
+      process.env.GOOGLE_CLIENT_ID = originalClientId;
+      process.env.GOOGLE_CALLBACK_URL = originalCallbackUrl;
+    });
+  });
+
+  describe('googleCallback', () => {
+    let mockResponse: any;
+
+    beforeEach(() => {
+      mockResponse = {
+        redirect: jest.fn(),
+      };
+    });
+
+    it('should redirect to success page with custom frontend URL', async () => {
+      const code = 'test-code';
+      const state = encodeURIComponent(JSON.stringify({
+        frontendUrl: 'http://localhost:3000'
+      }));
+
+      mockAuthService.handleGoogleCallback.mockResolvedValue(mockAuthResponse);
+
+      await controller.googleCallback(code, mockResponse, state);
+
+      expect(mockAuthService.handleGoogleCallback).toHaveBeenCalledWith(code);
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'http://localhost:3000auth-success?payload=encrypted-payload'
+      );
+    });
+
+    it('should redirect to error page for driver role with custom frontend URL', async () => {
+      const code = 'test-code';
+      const state = encodeURIComponent(JSON.stringify({
+        frontendUrl: 'http://localhost:3000'
+      }));
+
+      const driverAuthResponse = {
+        ...mockAuthResponse,
+        user: { ...mockAuthResponse.user, role: UserRole.DRIVER }
+      };
+
+      mockAuthService.handleGoogleCallback.mockResolvedValue(driverAuthResponse);
+
+      await controller.googleCallback(code, mockResponse, state);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('http://localhost:3000signin?error=')
+      );
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'http://localhost:3000signin?error=You%20do%20not%20have%20permission%20to%20access%20this%20system.%20Users%20with%20your%20role%20cannot%20log%20in.'
+      );
+    });
+
+    it('should use default frontend URL when state is not provided', async () => {
+      const code = 'test-code';
+      const originalFrontendUrl = process.env.FRONTEND_URL;
+      process.env.FRONTEND_URL = 'https://production.example.com';
+
+      mockAuthService.handleGoogleCallback.mockResolvedValue(mockAuthResponse);
+
+      await controller.googleCallback(code, mockResponse);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'https://production.example.comauth-success?payload=encrypted-payload'
+      );
+
+      // Restore environment variable
+      process.env.FRONTEND_URL = originalFrontendUrl;
+    });
+
+    it('should use default frontend URL when state parsing fails', async () => {
+      const code = 'test-code';
+      const invalidState = 'invalid-json-state';
+      const originalFrontendUrl = process.env.FRONTEND_URL;
+      process.env.FRONTEND_URL = 'https://production.example.com';
+
+      mockAuthService.handleGoogleCallback.mockResolvedValue(mockAuthResponse);
+
+      await controller.googleCallback(code, mockResponse, invalidState);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'https://production.example.comauth-success?payload=encrypted-payload'
+      );
+
+      // Restore environment variable
+      process.env.FRONTEND_URL = originalFrontendUrl;
+    });
+
+    it('should handle service errors and redirect to error page with custom frontend URL', async () => {
+      const code = 'test-code';
+      const state = encodeURIComponent(JSON.stringify({
+        frontendUrl: 'http://localhost:3000'
+      }));
+
+      mockAuthService.handleGoogleCallback.mockRejectedValue(new Error('Service error'));
+
+      await controller.googleCallback(code, mockResponse, state);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'http://localhost:3000signin?error=' + encodeURIComponent('You are not registered in the system')
+      );
+    });
+
+    it('should handle service errors and use default frontend URL when state parsing fails', async () => {
+      const code = 'test-code';
+      const invalidState = 'invalid-json-state';
+      const originalFrontendUrl = process.env.FRONTEND_URL;
+      process.env.FRONTEND_URL = 'https://production.example.com';
+
+      mockAuthService.handleGoogleCallback.mockRejectedValue(new Error('Service error'));
+
+      await controller.googleCallback(code, mockResponse, invalidState);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'https://production.example.comsignin?error=' + encodeURIComponent('You are not registered in the system')
+      );
+
+      // Restore environment variable
+      process.env.FRONTEND_URL = originalFrontendUrl;
+    });
+
+    it('should handle empty state object gracefully', async () => {
+      const code = 'test-code';
+      const state = encodeURIComponent(JSON.stringify({}));
+      const originalFrontendUrl = process.env.FRONTEND_URL;
+      process.env.FRONTEND_URL = 'https://production.example.com';
+
+      mockAuthService.handleGoogleCallback.mockResolvedValue(mockAuthResponse);
+
+      await controller.googleCallback(code, mockResponse, state);
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'https://production.example.comauth-success?payload=encrypted-payload'
+      );
+
+      // Restore environment variable
+      process.env.FRONTEND_URL = originalFrontendUrl;
     });
   });
 });

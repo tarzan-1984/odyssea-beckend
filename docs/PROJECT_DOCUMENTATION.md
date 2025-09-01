@@ -317,12 +317,18 @@ Odyssea Backend - это REST API сервис, построенный на Nest
 #### **AuthController (auth.controller.spec.ts)**
 - ✅ POST `/auth/login` - отправка OTP кода
 - ✅ POST `/auth/verify-otp` - верификация OTP и получение токенов
-- ✅ POST `/auth/social-login` - социальная аутентификация
+- ✅ GET `/auth/social-login` - инициация Google OAuth с поддержкой dev режима
+- ✅ GET `/auth/google/callback` - обработка Google OAuth callback с динамическим frontend URL
 - ✅ POST `/auth/forgot-password` - запрос сброса пароля
 - ✅ POST `/auth/reset-password` - сброс пароля по токену
 - ✅ POST `/auth/refresh` - обновление access token
 - ✅ POST `/auth/logout` - выход пользователя
 - ✅ Обработка ошибок сервиса для всех эндпоинтов
+- ✅ Тестирование параметра `frontendUrl` для dev режима
+- ✅ Тестирование извлечения `frontendUrl` из `state` параметра
+- ✅ Тестирование fallback на `process.env.FRONTEND_URL`
+- ✅ Тестирование обработки ошибок парсинга `state` параметра
+- ✅ Тестирование всех сценариев редиректа (успех, ошибки, запрет доступа)
 
 #### **UsersController (users.controller.spec.ts)**
 - ✅ POST `/users` - создание пользователя
@@ -453,7 +459,7 @@ npm run test:watch
 
 ### Статистика покрытия
 
-- **Общее количество тестов**: 150+
+- **Общее количество тестов**: 222+
 - **Покрытие строк кода**: 95%+
 - **Покрытие ветвлений**: 90%+
 - **Покрытие функций**: 100%
