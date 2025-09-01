@@ -312,7 +312,7 @@ describe('AuthController', () => {
 
       expect(mockAuthService.handleGoogleCallback).toHaveBeenCalledWith(code);
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        'http://localhost:3000auth-success?payload=encrypted-payload'
+        'http://localhost:3000/auth-success?payload=encrypted-payload'
       );
     });
 
@@ -332,10 +332,10 @@ describe('AuthController', () => {
       await controller.googleCallback(code, mockResponse, state);
 
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('http://localhost:3000signin?error=')
+        expect.stringContaining('http://localhost:3000/signin?error=')
       );
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        'http://localhost:3000signin?error=You%20do%20not%20have%20permission%20to%20access%20this%20system.%20Users%20with%20your%20role%20cannot%20log%20in.'
+        'http://localhost:3000/signin?error=You%20do%20not%20have%20permission%20to%20access%20this%20system.%20Users%20with%20your%20role%20cannot%20log%20in.'
       );
     });
 
@@ -349,7 +349,7 @@ describe('AuthController', () => {
       await controller.googleCallback(code, mockResponse);
 
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        'https://production.example.comauth-success?payload=encrypted-payload'
+        'https://production.example.com/auth-success?payload=encrypted-payload'
       );
 
       // Restore environment variable
@@ -367,7 +367,7 @@ describe('AuthController', () => {
       await controller.googleCallback(code, mockResponse, invalidState);
 
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        'https://production.example.comauth-success?payload=encrypted-payload'
+        'https://production.example.com/auth-success?payload=encrypted-payload'
       );
 
       // Restore environment variable
@@ -385,7 +385,7 @@ describe('AuthController', () => {
       await controller.googleCallback(code, mockResponse, state);
 
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        'http://localhost:3000signin?error=' + encodeURIComponent('You are not registered in the system')
+        'http://localhost:3000/signin?error=' + encodeURIComponent('You are not registered in the system')
       );
     });
 
@@ -400,7 +400,7 @@ describe('AuthController', () => {
       await controller.googleCallback(code, mockResponse, invalidState);
 
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        'https://production.example.comsignin?error=' + encodeURIComponent('You are not registered in the system')
+        'https://production.example.com/signin?error=' + encodeURIComponent('You are not registered in the system')
       );
 
       // Restore environment variable
@@ -418,7 +418,7 @@ describe('AuthController', () => {
       await controller.googleCallback(code, mockResponse, state);
 
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        'https://production.example.comauth-success?payload=encrypted-payload'
+        'https://production.example.com/auth-success?payload=encrypted-payload'
       );
 
       // Restore environment variable

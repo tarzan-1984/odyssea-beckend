@@ -156,9 +156,16 @@ export class AuthController {
     @Res() res: Response,
     @Query('state') state?: string
   ) {
+    // Helper function to ensure proper URL formatting
+    const formatUrl = (baseUrl: string, path: string) => {
+      const cleanBase = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+      const cleanPath = path.replace(/^\//, ''); // Remove leading slash
+      return `${cleanBase}/${cleanPath}`;
+    };
+
     try {
       // Extract frontendUrl from state parameter or use environment variable as fallback
-      let frontendUrl = process.env.FRONTEND_URL;
+      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       
       if (state) {
         try {
@@ -180,7 +187,7 @@ export class AuthController {
         const errorMessage =
           'You do not have permission to access this system. Users with your role cannot log in.';
         return res.redirect(
-          `${frontendUrl}signin?error=${encodeURIComponent(errorMessage)}`,
+          formatUrl(frontendUrl, `signin?error=${encodeURIComponent(errorMessage)}`),
         );
       }
 
@@ -205,11 +212,11 @@ export class AuthController {
       }
 
       return res.redirect(
-        `${frontendUrl}auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
+        formatUrl(frontendUrl, `auth-success?payload=${encodeURIComponent(encryptedPayload)}`),
       );
     } catch {
       // Extract frontendUrl from state parameter for error redirect as well
-      let frontendUrl = process.env.FRONTEND_URL;
+      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       
       if (state) {
         try {
@@ -224,7 +231,7 @@ export class AuthController {
 
       const errorMessage = 'You are not registered in the system';
       return res.redirect(
-        `${frontendUrl}signin?error=${encodeURIComponent(errorMessage)}`,
+        formatUrl(frontendUrl, `signin?error=${encodeURIComponent(errorMessage)}`),
       );
     }
   }

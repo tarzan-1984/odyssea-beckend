@@ -3288,6 +3288,2240 @@ npm error A complete log of this run can be found in: /Users/eugenechernomor/.np
 
 ---
 
+Проблема в том, что у вас установлена версия `wrap-ansi@9.0.0`, которая является ES модулем, но некоторые пакеты ожидают версию `^7.0.0` (CommonJS). Давайте исправим это:
+
+
+---
+
+```bash
+npm install wrap-ansi@^7.0.0 --save-dev
+```
+
+```
+
+
+
+npm silly packumentCache full:https://registry.npmjs.org/@types%2fnode cache-miss
+npm http fetch GET 200 https://registry.npmjs.org/@types%2fnode 426ms (cache miss)
+npm silly packumentCache full:https://registry.npmjs.org/@types%2fnode set size:undefined disposed:false
+npm silly placeDep ROOT @types/node@24.3.0 KEEP for: jest-config@29.7.0 want: *
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: jest-config@29.7.0
+npm warn Found: @types/node@24.3.0
+npm warn node_modules/jest-config/node_modules/@types/node
+npm warn
+npm warn Could not resolve dependency:
+npm warn peerOptional @types/node@"*" from jest-config@29.7.0
+npm warn node_modules/jest-config
+npm warn   jest-config@"^29.7.0" from create-jest@29.7.0
+npm warn   node_modules/create-jest
+npm warn   1 more (jest-cli)
+npm silly fetch manifest wrap-ansi@^9.0.0
+npm silly packumentCache full:https://registry.npmjs.org/wrap-ansi cache-miss
+npm http fetch GET 200 https://registry.npmjs.org/wrap-ansi 7ms (cache hit)
+npm silly packumentCache full:https://registry.npmjs.org/wrap-ansi set size:51143 disposed:false
+npm silly placeDep node_modules/listr2 wrap-ansi@9.0.0 OK for: listr2@9.0.2 want: ^9.0.0
+npm silly fetch manifest ansi-styles@^6.2.1
+npm silly packumentCache full:https://registry.npmjs.org/ansi-styles cache-miss
+npm silly fetch manifest string-width@^7.0.0
+npm silly packumentCache full:https://registry.npmjs.org/string-width cache-miss
+npm silly fetch manifest strip-ansi@^7.1.0
+npm silly packumentCache full:https://registry.npmjs.org/strip-ansi cache-miss
+npm http fetch GET 200 https://registry.npmjs.org/string-width 91ms (cache miss)
+npm silly packumentCache full:https://registry.npmjs.org/string-width set size:undefined disposed:false
+npm http fetch GET 200 https://registry.npmjs.org/strip-ansi 191ms (cache miss)
+npm silly packumentCache full:https://registry.npmjs.org/strip-ansi set size:undefined disposed:false
+npm http fetch GET 200 https://registry.npmjs.org/ansi-styles 209ms (cache miss)
+npm silly packumentCache full:https://registry.npmjs.org/ansi-styles set size:undefined disposed:false
+npm silly placeDep node_modules/log-update wrap-ansi@9.0.0 OK for: log-update@6.1.0 want: ^9.0.0
+npm silly placeDep node_modules/listr2 ansi-styles@6.2.1 OK for: wrap-ansi@9.0.0 want: ^6.2.1
+npm silly placeDep node_modules/listr2 string-width@7.2.0 OK for: wrap-ansi@9.0.0 want: ^7.0.0
+npm silly placeDep node_modules/listr2 strip-ansi@7.1.0 OK for: wrap-ansi@9.0.0 want: ^7.1.0
+npm silly fetch manifest emoji-regex@^10.3.0
+npm silly packumentCache full:https://registry.npmjs.org/emoji-regex cache-miss
+npm silly fetch manifest ansi-regex@^6.0.1
+npm silly packumentCache full:https://registry.npmjs.org/ansi-regex cache-miss
+npm http fetch GET 200 https://registry.npmjs.org/ansi-regex 50ms (cache miss)
+npm silly packumentCache full:https://registry.npmjs.org/ansi-regex set size:undefined disposed:false
+npm http fetch GET 200 https://registry.npmjs.org/emoji-regex 79ms (cache miss)
+npm silly packumentCache full:https://registry.npmjs.org/emoji-regex set size:undefined disposed:false
+npm silly placeDep node_modules/listr2 emoji-regex@10.5.0 OK for: string-width@7.2.0 want: ^10.3.0
+npm silly placeDep node_modules/listr2 ansi-regex@6.2.0 OK for: strip-ansi@7.1.0 want: ^6.0.1
+npm silly placeDep node_modules/log-update string-width@7.2.0 OK for: wrap-ansi@9.0.0 want: ^7.0.0
+npm silly placeDep node_modules/log-update emoji-regex@10.5.0 OK for: string-width@7.2.0 want: ^10.3.0
+npm silly reify mark retired [
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/babel-plugin-istanbul/node_modules/semver',
+
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/babel-plugin-istanbul/node_modules/.bin/semver'
+
+npm silly reify ]
+npm silly reify mark retired [
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/wrap-ansi'
+
+npm silly reify ]
+npm silly reify mark retired [
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/@jest/core/node_modules/jest-config'
+
+npm silly reify ]
+npm silly reify moves {
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/babel-plugin-istanbul/node_modules/semver': '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-
+backend-nestjs/node_modules/babel-plugin-istanbul/node_modules/.semver-6jwoBu1N',
+
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/babel-plugin-istanbul/node_modules/.bin/semver': '/Applications/MAMP/htdocs/devrockets_products/clients/Ody
+ssea-backend-nestjs/node_modules/babel-plugin-istanbul/node_modules/.bin/.semver-uqnJhZmc',
+
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/wrap-ansi': '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/.wra
+p-ansi-J11WvSrV',
+
+npm silly reify   '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules
+/@jest/core/node_modules/jest-config': '/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/@jest/core/node_modules/.jest-config-X7ASpKRe'
+
+npm silly reify }
+npm silly audit bulk request {
+npm silly audit   accepts: [ '1.3.8', '2.0.0' ],
+npm silly audit   JSONStream: [ '1.3.5' ],
+npm silly audit   acorn: [ '8.15.0' ],
+npm silly audit   'acorn-jsx': [ '5.3.2' ],
+npm silly audit   'acorn-walk': [ '8.3.4' ],
+npm silly audit   'ajv-formats': [ '2.1.1', '3.0.1' ],
+npm silly audit   'acorn-import-phases': [ '1.0.4' ],
+npm silly audit   ajv: [ '8.17.1', '6.12.6' ],
+npm silly audit   'ajv-keywords': [ '5.1.0', '3.5.2' ],
+npm silly audit   'ansi-colors': [ '4.1.3' ],
+npm silly audit   'ansi-escapes': [ '4.3.2', '7.0.0' ],
+npm silly audit   'ansi-regex': [ '5.0.1', '6.2.0' ],
+npm silly audit   'ansi-styles': [ '4.3.0', '6.2.1', '5.2.0' ],
+npm silly audit   'ansi-align': [ '3.0.1' ],
+npm silly audit   ansis: [ '4.1.0' ],
+npm silly audit   anymatch: [ '3.1.3' ],
+npm silly audit   arch: [ '3.0.0' ],
+npm silly audit   'append-field': [ '1.0.0' ],
+npm silly audit   arg: [ '4.1.3' ],
+npm silly audit   argparse: [ '2.0.1', '1.0.10' ],
+npm silly audit   'array-ify': [ '1.0.0' ],
+npm silly audit   asap: [ '2.0.6' ],
+npm silly audit   'array-timsort': [ '1.0.3' ],
+npm silly audit   axios: [ '1.11.0' ],
+npm silly audit   b4a: [ '1.6.7' ],
+npm silly audit   'babel-jest': [ '29.7.0' ],
+npm silly audit   'babel-plugin-istanbul': [ '6.1.1' ],
+npm silly audit   'istanbul-lib-instrument': [ '5.2.1', '6.0.3' ],
+npm silly audit   semver: [ '6.3.1', '7.7.2' ],
+npm silly audit   'babel-plugin-jest-hoist': [ '29.6.3' ],
+npm silly audit   asynckit: [ '0.4.0' ],
+npm silly audit   'babel-preset-jest': [ '29.6.3' ],
+npm silly audit   'balanced-match': [ '1.0.2' ],
+npm silly audit   'bare-events': [ '2.6.1' ],
+npm silly audit   'base64-js': [ '1.5.1' ],
+npm silly audit   'babel-preset-current-node-syntax': [ '1.2.0' ],
+npm silly audit   bcryptjs: [ '3.0.2' ],
+npm silly audit   base64id: [ '2.0.0' ],
+npm silly audit   'bin-version-check': [ '5.1.0' ],
+npm silly audit   'body-parser': [ '2.2.0' ],
+npm silly audit   'bin-version': [ '6.0.0' ],
+npm silly audit   bl: [ '4.1.0' ],
+npm silly audit   boxen: [ '5.1.2' ],
+npm silly audit   'type-fest': [ '0.20.2', '4.41.0', '0.21.3' ],
+npm silly audit   bowser: [ '2.12.1' ],
+npm silly audit   'brace-expansion': [ '1.1.12', '2.0.2' ],
+npm silly audit   browserslist: [ '4.25.3' ],
+npm silly audit   braces: [ '3.0.3' ],
+npm silly audit   'bs-logger': [ '0.2.6' ],
+npm silly audit   bser: [ '2.1.1' ],
+npm silly audit   'buffer-crc32': [ '0.2.13' ],
+npm silly audit   buffer: [ '5.7.1' ],
+npm silly audit   'buffer-equal-constant-time': [ '1.0.1' ],
+npm silly audit   'buffer-from': [ '1.1.2' ],
+npm silly audit   busboy: [ '1.6.0' ],
+npm silly audit   bytes: [ '3.1.2' ],
+npm silly audit   c12: [ '3.1.0' ],
+npm silly audit   'cacheable-lookup': [ '7.0.0' ],
+npm silly audit   'call-bind-apply-helpers': [ '1.0.2' ],
+npm silly audit   'cacheable-request': [ '10.2.14' ],
+npm silly audit   'mimic-response': [ '4.0.0', '3.1.0' ],
+npm silly audit   callsites: [ '3.1.0' ],
+npm silly audit   'call-bound': [ '1.0.4' ],
+npm silly audit   'caniuse-lite': [ '1.0.30001737' ],
+npm silly audit   camelcase: [ '6.3.0', '5.3.1' ],
+npm silly audit   chalk: [ '4.1.2', '5.6.0' ],
+npm silly audit   'char-regex': [ '1.0.2' ],
+npm silly audit   chardet: [ '2.1.0' ],
+npm silly audit   'check-disk-space': [ '3.4.0' ],
+npm silly audit   'chrome-trace-event': [ '1.0.4' ],
+npm silly audit   chokidar: [ '4.0.3' ],
+npm silly audit   citty: [ '0.1.6' ],
+npm silly audit   'ci-info': [ '3.9.0' ],
+npm silly audit   'cjs-module-lexer': [ '1.4.3' ],
+npm silly audit   'class-transformer': [ '0.5.1' ],
+npm silly audit   'class-validator': [ '0.14.2' ],
+npm silly audit   'cli-boxes': [ '2.2.1' ],
+npm silly audit   'cli-spinners': [ '2.9.2' ],
+npm silly audit   'cli-table3': [ '0.6.5' ],
+npm silly audit   'cli-cursor': [ '3.1.0', '5.0.0' ],
+npm silly audit   'cli-truncate': [ '4.0.0' ],
+npm silly audit   'string-width': [ '7.2.0', '4.2.3', '5.1.2' ],
+npm silly audit   'emoji-regex': [ '10.5.0', '8.0.0', '9.2.2' ],
+npm silly audit   'strip-ansi': [ '7.1.0', '6.0.1' ],
+npm silly audit   'cli-width': [ '4.1.0' ],
+npm silly audit   cliui: [ '8.0.1' ],
+npm silly audit   clone: [ '1.0.4' ],
+npm silly audit   'collect-v8-coverage': [ '1.0.2' ],
+npm silly audit   co: [ '4.6.0' ],
+npm silly audit   'color-convert': [ '2.0.1' ],
+npm silly audit   colorette: [ '2.0.20' ],
+npm silly audit   'color-name': [ '1.1.4' ],
+npm silly audit   commander: [ '4.1.1', '14.0.0', '6.2.1', '2.20.3', '8.3.0' ],
+npm silly audit   'combined-stream': [ '1.0.8' ],
+npm silly audit   'comment-json': [ '4.2.5' ],
+npm silly audit   'concat-map': [ '0.0.1' ],
+npm silly audit   'compare-func': [ '2.0.0' ],
+npm silly audit   'concat-stream': [ '2.0.0' ],
+npm silly audit   'component-emitter': [ '1.3.1' ],
+npm silly audit   confbox: [ '0.2.2' ],
+npm silly audit   'content-disposition': [ '1.0.0', '0.5.4' ],
+npm silly audit   consola: [ '3.4.2' ],
+npm silly audit   'content-type': [ '1.0.5' ],
+npm silly audit   'conventional-changelog-angular': [ '7.0.0' ],
+npm silly audit   'conventional-commits-parser': [ '5.0.0' ],
+npm silly audit   'core-util-is': [ '1.0.3' ],
+npm silly audit   'conventional-changelog-conventionalcommits': [ '7.0.2' ],
+npm silly audit   'convert-source-map': [ '2.0.0' ],
+npm silly audit   cookie: [ '0.7.2' ],
+npm silly audit   'cookie-signature': [ '1.2.2' ],
+npm silly audit   cookiejar: [ '2.1.4' ],
+npm silly audit   cors: [ '2.8.5' ],
+npm silly audit   cosmiconfig: [ '9.0.0', '8.3.6' ],
+npm silly audit   'create-jest': [ '29.7.0' ],
+npm silly audit   'cosmiconfig-typescript-loader': [ '6.1.0' ],
+npm silly audit   'create-require': [ '1.1.1' ],
+npm silly audit   dargs: [ '8.1.0' ],
+npm silly audit   'cross-spawn': [ '7.0.6' ],
+npm silly audit   'decompress-response': [ '6.0.0' ],
+npm silly audit   dedent: [ '1.6.0' ],
+npm silly audit   debug: [ '4.4.1', '4.3.7' ],
+npm silly audit   'deep-is': [ '0.1.4' ],
+npm silly audit   deepmerge: [ '4.3.1' ],
+npm silly audit   'defer-to-connect': [ '2.0.1' ],
+npm silly audit   'deepmerge-ts': [ '7.1.5' ],
+npm silly audit   defu: [ '6.1.4' ],
+npm silly audit   defaults: [ '1.0.4', '2.0.2' ],
+npm silly audit   'delayed-stream': [ '1.0.0' ],
+npm silly audit   destr: [ '2.0.5' ],
+npm silly audit   depd: [ '2.0.0' ],
+npm silly audit   'detect-newline': [ '3.1.0' ],
+npm silly audit   dezalgo: [ '1.0.4' ],
+npm silly audit   'diff-sequences': [ '29.6.3' ],
+npm silly audit   'dot-prop': [ '5.3.0' ],
+npm silly audit   dotenv: [ '16.6.1', '16.4.7' ],
+npm silly audit   'dotenv-expand': [ '12.0.1' ],
+npm silly audit   diff: [ '4.0.2' ],
+npm silly audit   'dunder-proto': [ '1.0.1' ],
+npm silly audit   eastasianwidth: [ '0.2.0' ],
+npm silly audit   'ecdsa-sig-formatter': [ '1.0.11' ],
+npm silly audit   'ee-first': [ '1.1.1' ],
+npm silly audit   'electron-to-chromium': [ '1.5.209' ],
+npm silly audit   effect: [ '3.16.12' ],
+npm silly audit   emittery: [ '0.13.1' ],
+npm silly audit   empathic: [ '2.0.0' ],
+npm silly audit   'engine.io-parser': [ '5.2.3' ],
+npm silly audit   encodeurl: [ '2.0.0' ],
+npm silly audit   'engine.io': [ '6.6.4' ],
+npm silly audit   'undici-types': [ '7.10.0', '6.21.0' ],
+npm silly audit   '@types/node': [ '24.3.0', '22.18.0' ],
+npm silly audit   environment: [ '1.1.0' ],
+npm silly audit   'enhanced-resolve': [ '5.18.3' ],
+npm silly audit   'env-paths': [ '2.2.1' ],
+npm silly audit   'error-ex': [ '1.3.2' ],
+npm silly audit   'es-define-property': [ '1.0.1' ],
+npm silly audit   'es-object-atoms': [ '1.1.1' ],
+npm silly audit   'es-module-lexer': [ '1.7.0' ],
+npm silly audit   'es-errors': [ '1.3.0' ],
+npm silly audit   'es-set-tostringtag': [ '2.1.0' ],
+npm silly audit   escalade: [ '3.2.0' ],
+npm silly audit   'escape-html': [ '1.0.3' ],
+npm silly audit   'escape-string-regexp': [ '4.0.0', '2.0.0' ],
+npm silly audit   'eslint-config-prettier': [ '10.1.8' ],
+npm silly audit   'eslint-scope': [ '8.4.0', '5.1.1' ],
+npm silly audit   eslint: [ '9.34.0' ],
+npm silly audit   'locate-path': [ '6.0.0', '5.0.0', '7.2.0' ],
+npm silly audit   'json-schema-traverse': [ '0.4.1', '1.0.0' ],
+npm silly audit   'find-up': [ '5.0.0', '4.1.0', '7.0.0' ],
+npm silly audit   'p-locate': [ '5.0.0', '4.1.0', '6.0.0' ],
+npm silly audit   'eslint-plugin-prettier': [ '5.5.4' ],
+npm silly audit   'eslint-plugin-unused-imports': [ '4.2.0' ],
+npm silly audit   espree: [ '10.4.0' ],
+npm silly audit   esprima: [ '4.0.1' ],
+npm silly audit   esrecurse: [ '4.3.0' ],
+npm silly audit   'eslint-visitor-keys': [ '4.2.1', '3.4.3' ],
+npm silly audit   estraverse: [ '5.3.0', '4.3.0' ],
+npm silly audit   esquery: [ '1.6.0' ],
+npm silly audit   esutils: [ '2.0.3' ],
+npm silly audit   etag: [ '1.8.1' ],
+npm silly audit   events: [ '3.3.0' ],
+npm silly audit   eventemitter3: [ '5.0.1' ],
+npm silly audit   execa: [ '5.1.1' ],
+npm silly audit   exit: [ '0.1.2' ],
+npm silly audit   expect: [ '29.7.0' ],
+npm silly audit   express: [ '5.1.0' ],
+npm silly audit   'mime-types': [ '3.0.1', '2.1.35' ],
+npm silly audit   negotiator: [ '1.0.0', '0.6.3' ],
+npm silly audit   exsolve: [ '1.0.7' ],
+npm silly audit   'ext-list': [ '2.2.2' ],
+npm silly audit   'ext-name': [ '5.0.0' ],
+npm silly audit   'fast-check': [ '3.23.2' ],
+npm silly audit   'fast-deep-equal': [ '3.1.3' ],
+npm silly audit   'fast-diff': [ '1.3.0' ],
+npm silly audit   'fast-fifo': [ '1.3.2' ],
+npm silly audit   'fast-glob': [ '3.3.3' ],
+npm silly audit   'glob-parent': [ '5.1.2', '6.0.2' ],
+npm silly audit   'fast-json-stable-stringify': [ '2.1.0' ],
+npm silly audit   'fast-uri': [ '3.1.0' ],
+npm silly audit   'fast-safe-stringify': [ '2.1.1' ],
+npm silly audit   'fast-levenshtein': [ '2.0.6' ],
+npm silly audit   'fast-xml-parser': [ '5.2.5' ],
+npm silly audit   fastq: [ '1.19.1' ],
+npm silly audit   'fb-watchman': [ '2.0.2' ],
+npm silly audit   fflate: [ '0.8.2' ],
+npm silly audit   'file-entry-cache': [ '8.0.0' ],
+npm silly audit   filenamify: [ '6.0.0' ],
+npm silly audit   'fill-range': [ '7.1.1' ],
+npm silly audit   'filename-reserved-regex': [ '3.0.0' ],
+npm silly audit   finalhandler: [ '2.1.0' ],
+npm silly audit   'file-type': [ '20.5.0', '21.0.0' ],
+npm silly audit   'find-versions': [ '5.1.0' ],
+npm silly audit   'flat-cache': [ '4.0.1' ],
+npm silly audit   flatted: [ '3.3.3' ],
+npm silly audit   'follow-redirects': [ '1.15.11' ],
+npm silly audit   'foreground-child': [ '3.3.1' ],
+npm silly audit   'signal-exit': [ '4.1.0', '3.0.7' ],
+npm silly audit   'form-data': [ '4.0.4' ],
+npm silly audit   'form-data-encoder': [ '2.1.4' ],
+npm silly audit   formidable: [ '3.5.4' ],
+npm silly audit   fresh: [ '2.0.0' ],
+npm silly audit   forwarded: [ '0.2.0' ],
+npm silly audit   'fs-extra': [ '10.1.0' ],
+npm silly audit   'fs-monkey': [ '1.1.0' ],
+npm silly audit   'fs.realpath': [ '1.0.0' ],
+npm silly audit   fsevents: [ '2.3.3' ],
+npm silly audit   'function-bind': [ '1.1.2' ],
+npm silly audit   'get-caller-file': [ '2.0.5' ],
+npm silly audit   gensync: [ '1.0.0-beta.2' ],
+npm silly audit   'get-east-asian-width': [ '1.3.0' ],
+npm silly audit   'get-intrinsic': [ '1.3.0' ],
+npm silly audit   'get-package-type': [ '0.1.0' ],
+npm silly audit   'get-proto': [ '1.0.1' ],
+npm silly audit   'get-stream': [ '6.0.1' ],
+npm silly audit   giget: [ '2.0.0' ],
+npm silly audit   'git-raw-commits': [ '4.0.0' ],
+npm silly audit   glob: [ '7.2.3', '11.0.3' ],
+npm silly audit   'glob-to-regexp': [ '0.4.1' ],
+npm silly audit   globals: [ '16.3.0', '14.0.0' ],
+npm silly audit   'global-directory': [ '4.0.1' ],
+npm silly audit   gopd: [ '1.2.0' ],
+npm silly audit   got: [ '13.0.0' ],
+npm silly audit   graphemer: [ '1.4.0' ],
+npm silly audit   'graceful-fs': [ '4.2.11' ],
+npm silly audit   handlebars: [ '4.7.8' ],
+npm silly audit   'has-flag': [ '4.0.0' ],
+npm silly audit   'has-own-prop': [ '2.0.0' ],
+npm silly audit   'has-symbols': [ '1.1.0' ],
+npm silly audit   'has-tostringtag': [ '1.0.2' ],
+npm silly audit   hasown: [ '2.0.2' ],
+npm silly audit   'html-escaper': [ '2.0.2' ],
+npm silly audit   'http-cache-semantics': [ '4.2.0' ],
+npm silly audit   'http-errors': [ '2.0.0' ],
+npm silly audit   statuses: [ '2.0.1', '2.0.2' ],
+npm silly audit   'http2-wrapper': [ '2.2.1' ],
+npm silly audit   'human-signals': [ '2.1.0' ],
+npm silly audit   husky: [ '9.1.7' ],
+npm silly audit   'import-fresh': [ '3.3.1' ],
+npm silly audit   'resolve-from': [ '4.0.0', '5.0.0' ],
+npm silly audit   'import-local': [ '3.2.0' ],
+npm silly audit   ignore: [ '5.3.2', '7.0.5' ],
+npm silly audit   imurmurhash: [ '0.1.4' ],
+npm silly audit   'import-meta-resolve': [ '4.1.0' ],
+npm silly audit   'iconv-lite': [ '0.6.3' ],
+npm silly audit   ieee754: [ '1.2.1' ],
+npm silly audit   inflight: [ '1.0.6' ],
+npm silly audit   inherits: [ '2.0.4' ],
+npm silly audit   ini: [ '4.1.1' ],
+npm silly audit   'is-arrayish': [ '0.2.1' ],
+npm silly audit   'is-core-module': [ '2.16.1' ],
+npm silly audit   'inspect-with-kind': [ '1.0.5' ],
+npm silly audit   'ipaddr.js': [ '1.9.1' ],
+npm silly audit   'is-fullwidth-code-point': [ '3.0.0', '5.0.0', '4.0.0' ],
+npm silly audit   'is-extglob': [ '2.1.1' ],
+npm silly audit   'is-generator-fn': [ '2.1.0' ],
+npm silly audit   'is-glob': [ '4.0.3' ],
+npm silly audit   'is-interactive': [ '1.0.0' ],
+npm silly audit   'is-number': [ '7.0.0' ],
+npm silly audit   'is-obj': [ '2.0.0' ],
+npm silly audit   'is-plain-obj': [ '1.1.0' ],
+npm silly audit   'is-promise': [ '4.0.0' ],
+npm silly audit   'is-stream': [ '2.0.1' ],
+npm silly audit   'is-text-path': [ '2.0.0' ],
+npm silly audit   isexe: [ '2.0.0' ],
+npm silly audit   'is-unicode-supported': [ '0.1.0' ],
+npm silly audit   'istanbul-lib-coverage': [ '3.2.2' ],
+npm silly audit   'istanbul-lib-report': [ '3.0.1' ],
+npm silly audit   'istanbul-lib-source-maps': [ '4.0.1' ],
+npm silly audit   jest: [ '29.7.0' ],
+npm silly audit   'istanbul-reports': [ '3.2.0' ],
+npm silly audit   'jest-changed-files': [ '29.7.0' ],
+npm silly audit   'jest-circus': [ '29.7.0' ],
+npm silly audit   iterare: [ '1.2.1' ],
+npm silly audit   jackspeak: [ '4.1.1' ],
+npm silly audit   'jest-config': [ '29.7.0' ],
+npm silly audit   'jest-cli': [ '29.7.0' ],
+npm silly audit   'jest-diff': [ '29.7.0' ],
+npm silly audit   'jest-docblock': [ '29.7.0' ],
+npm silly audit   'jest-each': [ '29.7.0' ],
+npm silly audit   'jest-environment-node': [ '29.7.0' ],
+npm silly audit   'jest-get-type': [ '29.6.3' ],
+npm silly audit   'jest-leak-detector': [ '29.7.0' ],
+npm silly audit   'jest-matcher-utils': [ '29.7.0' ],
+npm silly audit   'jest-message-util': [ '29.7.0' ],
+npm silly audit   'jest-haste-map': [ '29.7.0' ],
+npm silly audit   'jest-pnp-resolver': [ '1.2.3' ],
+npm silly audit   'jest-regex-util': [ '29.6.3' ],
+npm silly audit   'jest-resolve': [ '29.7.0' ],
+npm silly audit   'jest-resolve-dependencies': [ '29.7.0' ],
+npm silly audit   'jest-runtime': [ '29.7.0' ],
+npm silly audit   'strip-bom': [ '4.0.0', '3.0.0' ],
+npm silly audit   'jest-runner': [ '29.7.0' ],
+npm silly audit   'source-map-support': [ '0.5.13', '0.5.21' ],
+npm silly audit   'jest-snapshot': [ '29.7.0' ],
+npm silly audit   'jest-validate': [ '29.7.0' ],
+npm silly audit   'jest-mock': [ '29.7.0' ],
+npm silly audit   'jest-worker': [ '29.7.0', '27.5.1' ],
+npm silly audit   'supports-color': [ '8.1.1', '7.2.0' ],
+npm silly audit   'jest-watcher': [ '29.7.0' ],
+npm silly audit   'jest-util': [ '29.7.0' ],
+npm silly audit   jiti: [ '2.5.1' ],
+npm silly audit   'js-tokens': [ '4.0.0' ],
+npm silly audit   'js-yaml': [ '4.1.0', '3.14.1' ],
+npm silly audit   'json-parse-even-better-errors': [ '2.3.1' ],
+npm silly audit   jsesc: [ '3.1.0' ],
+npm silly audit   'json-buffer': [ '3.0.1' ],
+npm silly audit   'json-stable-stringify-without-jsonify': [ '1.0.1' ],
+npm silly audit   json5: [ '2.2.3' ],
+npm silly audit   'jsonc-parser': [ '3.3.1' ],
+npm silly audit   jsonfile: [ '6.2.0' ],
+npm silly audit   jsonparse: [ '1.3.1' ],
+npm silly audit   jsonwebtoken: [ '9.0.2' ],
+npm silly audit   jwa: [ '1.4.2' ],
+npm silly audit   jws: [ '3.2.2' ],
+npm silly audit   'jwt-decode': [ '4.0.0' ],
+npm silly audit   'kind-of': [ '6.0.3' ],
+npm silly audit   kleur: [ '3.0.3' ],
+npm silly audit   keyv: [ '4.5.4' ],
+npm silly audit   leven: [ '3.1.0' ],
+npm silly audit   levn: [ '0.4.1' ],
+npm silly audit   'libphonenumber-js': [ '1.12.13' ],
+npm silly audit   lilconfig: [ '3.1.3' ],
+npm silly audit   'lines-and-columns': [ '1.2.4' ],
+npm silly audit   'lint-staged': [ '16.1.5' ],
+npm silly audit   listr2: [ '9.0.2' ],
+npm silly audit   'load-esm': [ '1.0.2' ],
+npm silly audit   'loader-runner': [ '4.3.0' ],
+npm silly audit   'lodash.camelcase': [ '4.3.0' ],
+npm silly audit   lodash: [ '4.17.21' ],
+npm silly audit   'lodash.includes': [ '4.3.0' ],
+npm silly audit   'lodash.isboolean': [ '3.0.3' ],
+npm silly audit   'lodash.isnumber': [ '3.0.3' ],
+npm silly audit   'lodash.isinteger': [ '4.0.4' ],
+npm silly audit   'lodash.isplainobject': [ '4.0.6' ],
+npm silly audit   'lodash.isstring': [ '4.0.1' ],
+npm silly audit   'lodash.kebabcase': [ '4.1.1' ],
+npm silly audit   'lodash.merge': [ '4.6.2' ],
+npm silly audit   'lodash.memoize': [ '4.1.2' ],
+npm silly audit   'lodash.mergewith': [ '4.6.2' ],
+npm silly audit   'lodash.once': [ '4.1.1' ],
+npm silly audit   'lodash.startcase': [ '4.4.0' ],
+npm silly audit   'lodash.snakecase': [ '4.1.1' ],
+npm silly audit   'lodash.uniq': [ '4.5.0' ],
+npm silly audit   'lodash.upperfirst': [ '4.3.1' ],
+npm silly audit   'log-symbols': [ '4.1.0' ],
+npm silly audit   'log-update': [ '6.1.0' ],
+npm silly audit   onetime: [ '7.0.0', '5.1.2' ],
+npm silly audit   'restore-cursor': [ '5.1.0', '3.1.0' ],
+npm silly audit   'slice-ansi': [ '7.1.0', '5.0.0' ],
+npm silly audit   'lru-cache': [ '11.1.0', '5.1.1' ],
+npm silly audit   makeerror: [ '1.0.12' ],
+npm silly audit   'magic-string': [ '0.30.17' ],
+npm silly audit   'make-dir': [ '4.0.0' ],
+npm silly audit   'math-intrinsics': [ '1.1.0' ],
+npm silly audit   'make-error': [ '1.3.6' ],
+npm silly audit   'media-typer': [ '1.1.0', '0.3.0' ],
+npm silly audit   memfs: [ '3.6.0' ],
+npm silly audit   meow: [ '12.1.1' ],
+npm silly audit   'merge-descriptors': [ '2.0.0' ],
+npm silly audit   'merge-stream': [ '2.0.0' ],
+npm silly audit   merge2: [ '1.4.1' ],
+npm silly audit   methods: [ '1.1.2' ],
+npm silly audit   'lowercase-keys': [ '3.0.0' ],
+npm silly audit   micromatch: [ '4.0.8' ],
+npm silly audit   mime: [ '2.6.0' ],
+npm silly audit   'mime-db': [ '1.54.0', '1.52.0' ],
+npm silly audit   'mimic-fn': [ '2.1.0' ],
+npm silly audit   'mimic-function': [ '5.0.1' ],
+npm silly audit   minimatch: [ '3.1.2', '10.0.3', '9.0.5' ],
+npm silly audit   minipass: [ '7.1.2' ],
+npm silly audit   minimist: [ '1.2.8' ],
+npm silly audit   multer: [ '2.0.2' ],
+npm silly audit   'type-is': [ '1.6.18', '2.0.1' ],
+npm silly audit   mkdirp: [ '0.5.6' ],
+npm silly audit   ms: [ '2.1.3' ],
+npm silly audit   'mute-stream': [ '2.0.0' ],
+npm silly audit   'nano-spawn': [ '1.0.2' ],
+npm silly audit   'natural-compare': [ '1.4.0' ],
+npm silly audit   'neo-async': [ '2.6.2' ],
+npm silly audit   'node-emoji': [ '1.11.0' ],
+npm silly audit   'node-abort-controller': [ '3.1.1' ],
+npm silly audit   'node-fetch-native': [ '1.6.7' ],
+npm silly audit   nodemailer: [ '7.0.5' ],
+npm silly audit   'node-int64': [ '0.4.0' ],
+npm silly audit   'node-releases': [ '2.0.19' ],
+npm silly audit   'normalize-path': [ '3.0.0' ],
+npm silly audit   'npm-run-path': [ '4.0.1' ],
+npm silly audit   'normalize-url': [ '8.0.2' ],
+npm silly audit   'object-assign': [ '4.1.1' ],
+npm silly audit   nypm: [ '0.6.1' ],
+npm silly audit   'object-inspect': [ '1.13.4' ],
+npm silly audit   ohash: [ '2.0.11' ],
+npm silly audit   'object-hash': [ '3.0.0' ],
+npm silly audit   once: [ '1.4.0' ],
+npm silly audit   optionator: [ '0.9.4' ],
+npm silly audit   'on-finished': [ '2.4.1' ],
+npm silly audit   ora: [ '5.4.1' ],
+npm silly audit   'p-cancelable': [ '3.0.0' ],
+npm silly audit   'p-limit': [ '3.1.0', '2.3.0', '4.0.0' ],
+npm silly audit   'p-try': [ '2.2.0' ],
+npm silly audit   'package-json-from-dist': [ '1.0.1' ],
+npm silly audit   'parse-json': [ '5.2.0' ],
+npm silly audit   parseurl: [ '1.3.3' ],
+npm silly audit   'parent-module': [ '1.0.1' ],
+npm silly audit   passport: [ '0.7.0' ],
+npm silly audit   'passport-local': [ '1.0.0' ],
+npm silly audit   'passport-jwt': [ '4.0.1' ],
+npm silly audit   'passport-strategy': [ '1.0.0' ],
+npm silly audit   'path-exists': [ '4.0.0', '5.0.0' ],
+npm silly audit   'path-is-absolute': [ '1.0.1' ],
+npm silly audit   'path-key': [ '3.1.1' ],
+npm silly audit   'path-parse': [ '1.0.7' ],
+npm silly audit   'path-scurry': [ '2.0.0' ],
+npm silly audit   'path-to-regexp': [ '8.2.0' ],
+npm silly audit   pause: [ '0.0.1' ],
+npm silly audit   'path-type': [ '4.0.0' ],
+npm silly audit   pend: [ '1.2.0' ],
+npm silly audit   pathe: [ '2.0.3' ],
+npm silly audit   picocolors: [ '1.1.1' ],
+npm silly audit   'perfect-debounce': [ '1.0.0' ],
+npm silly audit   pidtree: [ '0.6.0' ],
+npm silly audit   pirates: [ '4.0.7' ],
+npm silly audit   picomatch: [ '2.3.1', '4.0.2' ],
+npm silly audit   'pkg-types': [ '2.3.0' ],
+npm silly audit   'pkg-dir': [ '4.2.0' ],
+npm silly audit   pluralize: [ '8.0.0' ],
+npm silly audit   piscina: [ '4.9.2' ],
+npm silly audit   'prelude-ls': [ '1.2.1' ],
+npm silly audit   prisma: [ '6.14.0' ],
+npm silly audit   'pretty-format': [ '29.7.0' ],
+npm silly audit   'prettier-linter-helpers': [ '1.0.0' ],
+npm silly audit   prompts: [ '2.4.2' ],
+npm silly audit   'proxy-addr': [ '2.0.7' ],
+npm silly audit   prettier: [ '3.6.2' ],
+npm silly audit   'proxy-from-env': [ '1.1.0' ],
+npm silly audit   punycode: [ '2.3.1' ],
+npm silly audit   'pure-rand': [ '6.1.0' ],
+npm silly audit   qs: [ '6.14.0' ],
+npm silly audit   'queue-microtask': [ '1.2.3' ],
+npm silly audit   'range-parser': [ '1.2.1' ],
+npm silly audit   'quick-lru': [ '5.1.1' ],
+npm silly audit   'raw-body': [ '3.0.0' ],
+npm silly audit   rc9: [ '2.1.2' ],
+npm silly audit   randombytes: [ '2.1.0' ],
+npm silly audit   'readable-stream': [ '3.6.2' ],
+npm silly audit   'reflect-metadata': [ '0.2.2' ],
+npm silly audit   'react-is': [ '18.3.1' ],
+npm silly audit   readdirp: [ '4.1.2' ],
+npm silly audit   'repeat-string': [ '1.6.1' ],
+npm silly audit   'require-from-string': [ '2.0.2' ],
+npm silly audit   'require-directory': [ '2.1.1' ],
+npm silly audit   resolve: [ '1.22.10' ],
+npm silly audit   'resolve-alpn': [ '1.2.1' ],
+npm silly audit   'resolve-cwd': [ '3.0.0' ],
+npm silly audit   responselike: [ '3.0.0' ],
+npm silly audit   router: [ '2.2.0' ],
+npm silly audit   'resolve.exports': [ '2.0.3' ],
+npm silly audit   reusify: [ '1.1.0' ],
+npm silly audit   'run-parallel': [ '1.2.0' ],
+npm silly audit   rfdc: [ '1.4.1' ],
+npm silly audit   rxjs: [ '7.8.2', '7.8.1' ],
+npm silly audit   'safe-buffer': [ '5.2.1' ],
+npm silly audit   'safer-buffer': [ '2.1.2' ],
+npm silly audit   'schema-utils': [ '4.3.2', '3.3.0' ],
+npm silly audit   'seek-bzip': [ '2.0.0' ],
+npm silly audit   'semver-truncate': [ '3.0.0' ],
+npm silly audit   'semver-regex': [ '4.0.5' ],
+npm silly audit   send: [ '1.2.0' ],
+npm silly audit   'serve-static': [ '2.2.0' ],
+npm silly audit   setprototypeof: [ '1.2.0' ],
+npm silly audit   'serialize-javascript': [ '6.0.2' ],
+npm silly audit   'shebang-command': [ '2.0.0' ],
+npm silly audit   'shebang-regex': [ '3.0.0' ],
+npm silly audit   'side-channel': [ '1.1.0' ],
+npm silly audit   'side-channel-weakmap': [ '1.0.2' ],
+npm silly audit   'side-channel-list': [ '1.0.0' ],
+npm silly audit   sisteransi: [ '1.0.5' ],
+npm silly audit   slash: [ '3.0.0' ],
+npm silly audit   'side-channel-map': [ '1.0.1' ],
+npm silly audit   'socket.io': [ '4.8.1' ],
+npm silly audit   'socket.io-parser': [ '4.2.4' ],
+npm silly audit   'socket.io-adapter': [ '2.5.5' ],
+npm silly audit   'source-map': [ '0.6.1', '0.7.6', '0.7.4' ],
+npm silly audit   'sort-keys-length': [ '1.0.1' ],
+npm silly audit   'sort-keys': [ '1.1.2' ],
+npm silly audit   'sprintf-js': [ '1.0.3' ],
+npm silly audit   streamx: [ '2.22.1' ],
+npm silly audit   'stack-utils': [ '2.0.6' ],
+npm silly audit   split2: [ '4.2.0' ],
+npm silly audit   streamsearch: [ '1.1.0' ],
+npm silly audit   'string-argv': [ '0.3.2' ],
+npm silly audit   'string-length': [ '4.0.2' ],
+npm silly audit   string_decoder: [ '1.3.0' ],
+npm silly audit   'strip-dirs': [ '3.0.0' ],
+npm silly audit   'strip-json-comments': [ '3.1.1' ],
+npm silly audit   'strip-final-newline': [ '2.0.0' ],
+npm silly audit   strnum: [ '2.1.1' ],
+npm silly audit   supertest: [ '7.1.4' ],
+npm silly audit   strtok3: [ '10.3.4' ],
+npm silly audit   'supports-preserve-symlinks-flag': [ '1.0.0' ],
+npm silly audit   'swagger-ui-dist': [ '5.21.0' ],
+npm silly audit   superagent: [ '10.2.3' ],
+npm silly audit   'symbol-observable': [ '4.0.0' ],
+npm silly audit   synckit: [ '0.11.11' ],
+npm silly audit   tapable: [ '2.2.3' ],
+npm silly audit   'tar-stream': [ '3.1.7' ],
+npm silly audit   terser: [ '5.43.1' ],
+npm silly audit   'test-exclude': [ '6.0.0' ],
+npm silly audit   'text-decoder': [ '1.2.3' ],
+npm silly audit   'terser-webpack-plugin': [ '5.3.14' ],
+npm silly audit   'text-extensions': [ '2.4.0' ],
+npm silly audit   tinyexec: [ '1.0.1' ],
+npm silly audit   through: [ '2.3.8' ],
+npm silly audit   'to-regex-range': [ '5.0.1' ],
+npm silly audit   toidentifier: [ '1.0.1' ],
+npm silly audit   tmpl: [ '1.0.5' ],
+npm silly audit   'tree-kill': [ '1.2.2' ],
+npm silly audit   'ts-jest': [ '29.4.1' ],
+npm silly audit   'token-types': [ '6.1.1' ],
+npm silly audit   'ts-loader': [ '9.5.4' ],
+npm silly audit   'tsconfig-paths': [ '4.2.0' ],
+npm silly audit   'tsconfig-paths-webpack-plugin': [ '4.2.0' ],
+npm silly audit   'ts-api-utils': [ '2.1.0' ],
+npm silly audit   'type-check': [ '0.4.0' ],
+npm silly audit   'ts-node': [ '10.9.2' ],
+npm silly audit   tslib: [ '2.8.1' ],
+npm silly audit   'type-detect': [ '4.0.8' ],
+npm silly audit   typedarray: [ '0.0.6' ],
+npm silly audit   typescript: [ '5.9.2', '5.8.3' ],
+npm silly audit   'typescript-eslint': [ '8.41.0' ],
+npm silly audit   'uglify-js': [ '3.19.3' ],
+npm silly audit   'unbzip2-stream': [ '1.4.3' ],
+npm silly audit   uid: [ '2.0.2' ],
+npm silly audit   'uint8array-extras': [ '1.5.0' ],
+npm silly audit   'unicorn-magic': [ '0.1.0' ],
+npm silly audit   unpipe: [ '1.0.0' ],
+npm silly audit   universalify: [ '2.0.1' ],
+npm silly audit   'update-browserslist-db': [ '1.1.3' ],
+npm silly audit   'uri-js': [ '4.4.1' ],
+npm silly audit   'util-deprecate': [ '1.0.2' ],
+npm silly audit   'utils-merge': [ '1.0.1' ],
+npm silly audit   uuid: [ '9.0.1' ],
+npm silly audit   'v8-to-istanbul': [ '9.3.0' ],
+npm silly audit   'v8-compile-cache-lib': [ '3.0.1' ],
+npm silly audit   validator: [ '13.15.15' ],
+npm silly audit   walker: [ '1.0.8' ],
+npm silly audit   vary: [ '1.1.2' ],
+npm silly audit   watchpack: [ '2.4.4' ],
+npm silly audit   wcwidth: [ '1.0.1' ],
+npm silly audit   webpack: [ '5.100.2' ],
+npm silly audit   'widest-line': [ '3.1.0' ],
+npm silly audit   'webpack-sources': [ '3.3.3' ],
+npm silly audit   'word-wrap': [ '1.2.5' ],
+npm silly audit   which: [ '2.0.2' ],
+npm silly audit   wordwrap: [ '1.0.0' ],
+npm silly audit   'wrap-ansi': [ '7.0.0', '6.2.0', '8.1.0', '9.0.0' ],
+npm silly audit   'webpack-node-externals': [ '3.0.0' ],
+npm silly audit   wrappy: [ '1.0.2' ],
+npm silly audit   xtend: [ '4.0.2' ],
+npm silly audit   'write-file-atomic': [ '4.0.2' ],
+npm silly audit   ws: [ '8.17.1' ],
+npm silly audit   y18n: [ '5.0.8' ],
+npm silly audit   yaml: [ '2.8.1' ],
+npm silly audit   yargs: [ '17.7.2' ],
+npm silly audit   yallist: [ '3.1.1' ],
+npm silly audit   'yocto-queue': [ '0.1.0', '1.2.1' ],
+npm silly audit   'yargs-parser': [ '21.1.1' ],
+npm silly audit   yauzl: [ '3.2.0' ],
+npm silly audit   yn: [ '3.1.1' ],
+npm silly audit   'yoctocolors-cjs': [ '2.1.3' ],
+npm silly audit   '@ampproject/remapping': [ '2.3.0' ],
+npm silly audit   '@angular-devkit/core': [ '19.2.15' ],
+npm silly audit   '@angular-devkit/schematics': [ '19.2.15' ],
+npm silly audit   '@angular-devkit/schematics-cli': [ '19.2.15' ],
+npm silly audit   '@inquirer/prompts': [ '7.3.2', '7.8.0' ],
+npm silly audit   '@aws-crypto/sha256-js': [ '5.2.0' ],
+npm silly audit   '@aws-crypto/sha256-browser': [ '5.2.0' ],
+npm silly audit   '@smithy/util-buffer-from': [ '2.2.0', '4.0.0' ],
+npm silly audit   '@smithy/is-array-buffer': [ '2.2.0', '4.0.0' ],
+npm silly audit   '@smithy/util-utf8': [ '2.3.0', '4.0.0' ],
+npm silly audit   '@aws-crypto/supports-web-crypto': [ '5.2.0' ],
+npm silly audit   '@aws-crypto/util': [ '5.2.0' ],
+npm silly audit   '@aws-sdk/client-ses': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/client-sso': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/credential-provider-env': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/core': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/credential-provider-ini': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/credential-provider-http': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/credential-provider-node': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/credential-provider-sso': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/credential-provider-process': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/middleware-host-header': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/middleware-recursion-detection': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/middleware-user-agent': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/middleware-logger': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/nested-clients': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/token-providers': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/credential-provider-web-identity': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/region-config-resolver': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/util-locate-window': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/types': [ '3.862.0' ],
+npm silly audit   '@aws-sdk/util-endpoints': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/util-user-agent-browser': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/util-user-agent-node': [ '3.873.0' ],
+npm silly audit   '@aws-sdk/xml-builder': [ '3.873.0' ],
+npm silly audit   '@babel/code-frame': [ '7.27.1' ],
+npm silly audit   '@babel/compat-data': [ '7.28.0' ],
+npm silly audit   '@babel/generator': [ '7.28.3' ],
+npm silly audit   '@babel/helper-compilation-targets': [ '7.27.2' ],
+npm silly audit   '@babel/core': [ '7.28.3' ],
+npm silly audit   '@babel/helper-module-imports': [ '7.27.1' ],
+npm silly audit   '@babel/helper-module-transforms': [ '7.28.3' ],
+npm silly audit   '@babel/helper-plugin-utils': [ '7.27.1' ],
+npm silly audit   '@babel/helper-globals': [ '7.28.0' ],
+npm silly audit   '@babel/helper-string-parser': [ '7.27.1' ],
+npm silly audit   '@babel/helper-validator-identifier': [ '7.27.1' ],
+npm silly audit   '@babel/helper-validator-option': [ '7.27.1' ],
+npm silly audit   '@babel/parser': [ '7.28.3' ],
+npm silly audit   '@babel/helpers': [ '7.28.3' ],
+npm silly audit   '@babel/plugin-syntax-async-generators': [ '7.8.4' ],
+npm silly audit   '@babel/plugin-syntax-class-properties': [ '7.12.13' ],
+npm silly audit   '@babel/plugin-syntax-bigint': [ '7.8.3' ],
+npm silly audit   '@babel/plugin-syntax-class-static-block': [ '7.14.5' ],
+npm silly audit   '@babel/plugin-syntax-import-attributes': [ '7.27.1' ],
+npm silly audit   '@babel/plugin-syntax-import-meta': [ '7.10.4' ],
+npm silly audit   '@babel/plugin-syntax-json-strings': [ '7.8.3' ],
+npm silly audit   '@babel/plugin-syntax-jsx': [ '7.27.1' ],
+npm silly audit   '@babel/plugin-syntax-logical-assignment-operators': [ '7.10.4' ],
+npm silly audit   '@babel/plugin-syntax-nullish-coalescing-operator': [ '7.8.3' ],
+npm silly audit   '@babel/plugin-syntax-numeric-separator': [ '7.10.4' ],
+npm silly audit   '@babel/plugin-syntax-object-rest-spread': [ '7.8.3' ],
+npm silly audit   '@babel/plugin-syntax-optional-catch-binding': [ '7.8.3' ],
+npm silly audit   '@babel/plugin-syntax-optional-chaining': [ '7.8.3' ],
+npm silly audit   '@babel/plugin-syntax-top-level-await': [ '7.14.5' ],
+npm silly audit   '@babel/plugin-syntax-private-property-in-object': [ '7.14.5' ],
+npm silly audit   '@babel/plugin-syntax-typescript': [ '7.27.1' ],
+npm silly audit   '@babel/traverse': [ '7.28.3' ],
+npm silly audit   '@babel/types': [ '7.28.2' ],
+npm silly audit   '@babel/template': [ '7.27.2' ],
+npm silly audit   '@borewit/text-codec': [ '0.1.1' ],
+npm silly audit   '@bcoe/v8-coverage': [ '0.2.3' ],
+npm silly audit   '@commitlint/cli': [ '19.8.1' ],
+npm silly audit   '@colors/colors': [ '1.5.0' ],
+npm silly audit   '@commitlint/config-conventional': [ '19.8.1' ],
+npm silly audit   '@commitlint/ensure': [ '19.8.1' ],
+npm silly audit   '@commitlint/config-validator': [ '19.8.1' ],
+npm silly audit   '@commitlint/execute-rule': [ '19.8.1' ],
+npm silly audit   '@commitlint/is-ignored': [ '19.8.1' ],
+npm silly audit   '@commitlint/lint': [ '19.8.1' ],
+npm silly audit   '@commitlint/load': [ '19.8.1' ],
+npm silly audit   '@commitlint/format': [ '19.8.1' ],
+npm silly audit   '@commitlint/parse': [ '19.8.1' ],
+npm silly audit   '@commitlint/message': [ '19.8.1' ],
+npm silly audit   '@commitlint/read': [ '19.8.1' ],
+npm silly audit   '@commitlint/resolve-extends': [ '19.8.1' ],
+npm silly audit   '@commitlint/rules': [ '19.8.1' ],
+npm silly audit   '@commitlint/to-lines': [ '19.8.1' ],
+npm silly audit   '@commitlint/top-level': [ '19.8.1' ],
+npm silly audit   '@commitlint/types': [ '19.8.1' ],
+npm silly audit   '@eslint/config-array': [ '0.21.0' ],
+npm silly audit   '@eslint/config-helpers': [ '0.3.1' ],
+npm silly audit   '@cspotcode/source-map-support': [ '0.8.1' ],
+npm silly audit   '@jridgewell/trace-mapping': [ '0.3.9', '0.3.30' ],
+npm silly audit   '@eslint/core': [ '0.15.2' ],
+npm silly audit   '@eslint/eslintrc': [ '3.3.1' ],
+npm silly audit   '@eslint/js': [ '9.34.0' ],
+npm silly audit   '@eslint/object-schema': [ '2.1.6' ],
+npm silly audit   '@eslint/plugin-kit': [ '0.3.5' ],
+npm silly audit   '@humanfs/core': [ '0.19.1' ],
+npm silly audit   '@eslint-community/eslint-utils': [ '4.7.0' ],
+npm silly audit   '@humanfs/node': [ '0.16.6' ],
+npm silly audit   '@humanwhocodes/retry': [ '0.3.1', '0.4.3' ],
+npm silly audit   '@eslint-community/regexpp': [ '4.12.1' ],
+npm silly audit   '@humanwhocodes/module-importer': [ '1.0.1' ],
+npm silly audit   '@inquirer/confirm': [ '5.1.16' ],
+npm silly audit   '@inquirer/checkbox': [ '4.2.2' ],
+npm silly audit   '@inquirer/core': [ '10.2.0' ],
+npm silly audit   '@inquirer/editor': [ '4.2.18' ],
+npm silly audit   '@inquirer/expand': [ '4.0.18' ],
+npm silly audit   '@inquirer/external-editor': [ '1.0.1' ],
+npm silly audit   '@inquirer/figures': [ '1.0.13' ],
+npm silly audit   '@inquirer/input': [ '4.2.2' ],
+npm silly audit   '@inquirer/number': [ '3.0.18' ],
+npm silly audit   '@inquirer/password': [ '4.0.18' ],
+npm silly audit   '@inquirer/rawlist': [ '4.1.6' ],
+npm silly audit   '@inquirer/search': [ '3.1.1' ],
+npm silly audit   '@inquirer/type': [ '3.0.8' ],
+npm silly audit   '@inquirer/select': [ '4.3.2' ],
+npm silly audit   '@isaacs/brace-expansion': [ '5.0.0' ],
+npm silly audit   '@istanbuljs/load-nyc-config': [ '1.1.0' ],
+npm silly audit   '@istanbuljs/schema': [ '0.1.3' ],
+npm silly audit   '@isaacs/balanced-match': [ '4.0.1' ],
+npm silly audit   '@jest/console': [ '29.7.0' ],
+npm silly audit   '@jest/core': [ '29.7.0' ],
+npm silly audit   '@isaacs/cliui': [ '8.0.2' ],
+npm silly audit   '@jest/expect': [ '29.7.0' ],
+npm silly audit   '@jest/environment': [ '29.7.0' ],
+npm silly audit   '@jest/expect-utils': [ '29.7.0' ],
+npm silly audit   '@jest/fake-timers': [ '29.7.0' ],
+npm silly audit   '@jest/globals': [ '29.7.0' ],
+npm silly audit   '@jest/reporters': [ '29.7.0' ],
+npm silly audit   '@jest/schemas': [ '29.6.3' ],
+npm silly audit   '@jest/test-result': [ '29.7.0' ],
+npm silly audit   '@jest/source-map': [ '29.6.3' ],
+npm silly audit   '@jest/test-sequencer': [ '29.7.0' ],
+npm silly audit   '@jest/types': [ '29.6.3' ],
+npm silly audit   '@jest/transform': [ '29.7.0' ],
+npm silly audit   '@jridgewell/resolve-uri': [ '3.1.2' ],
+npm silly audit   '@jridgewell/gen-mapping': [ '0.3.13' ],
+npm silly audit   '@jridgewell/sourcemap-codec': [ '1.5.5' ],
+npm silly audit   '@jridgewell/source-map': [ '0.3.11' ],
+npm silly audit   '@microsoft/tsdoc': [ '0.15.1' ],
+npm silly audit   '@lukeed/csprng': [ '1.1.0' ],
+npm silly audit   '@napi-rs/nice': [ '1.1.1' ],
+npm silly audit   '@nestjs/cli': [ '11.0.10' ],
+npm silly audit   'fork-ts-checker-webpack-plugin': [ '9.1.0' ],
+npm silly audit   '@nestjs/common': [ '11.1.6' ],
+npm silly audit   '@napi-rs/nice-darwin-arm64': [ '1.1.1' ],
+npm silly audit   '@nestjs/config': [ '4.0.2' ],
+npm silly audit   '@nestjs/core': [ '11.1.6' ],
+npm silly audit   '@nestjs/jwt': [ '11.0.0' ],
+npm silly audit   '@types/jsonwebtoken': [ '9.0.7', '9.0.10' ],
+npm silly audit   '@nestjs/platform-express': [ '11.1.6' ],
+npm silly audit   '@nestjs/mapped-types': [ '2.1.0' ],
+npm silly audit   '@nestjs/passport': [ '11.0.5' ],
+npm silly audit   '@nestjs/platform-socket.io': [ '11.1.6' ],
+npm silly audit   '@nestjs/terminus': [ '11.0.0' ],
+npm silly audit   '@nestjs/testing': [ '11.1.6' ],
+npm silly audit   '@nestjs/swagger': [ '11.2.0' ],
+npm silly audit   '@nestjs/throttler': [ '6.4.0' ],
+npm silly audit   '@nestjs/websockets': [ '11.1.6' ],
+npm silly audit   '@nestjs/schematics': [ '11.0.7' ],
+npm silly audit   '@nodelib/fs.scandir': [ '2.1.5' ],
+npm silly audit   '@noble/hashes': [ '1.8.0' ],
+npm silly audit   '@nodelib/fs.stat': [ '2.0.5' ],
+npm silly audit   '@nuxt/opencollective': [ '0.4.1' ],
+npm silly audit   '@paralleldrive/cuid2': [ '2.2.2' ],
+npm silly audit   '@prisma/client': [ '6.14.0' ],
+npm silly audit   '@pkgr/core': [ '0.2.9' ],
+npm silly audit   '@prisma/config': [ '6.14.0' ],
+npm silly audit   '@nodelib/fs.walk': [ '1.2.8' ],
+npm silly audit   '@prisma/debug': [ '6.14.0' ],
+npm silly audit   '@prisma/engines': [ '6.14.0' ],
+npm silly audit   '@prisma/engines-version': [ '6.14.0-25.717184b7b35ea05dfa71a3236b7af656013e1e49' ],
+npm silly audit   '@prisma/fetch-engine': [ '6.14.0' ],
+npm silly audit   '@prisma/get-platform': [ '6.14.0' ],
+npm silly audit   '@scarf/scarf': [ '1.4.0' ],
+npm silly audit   '@sindresorhus/is': [ '5.6.0' ],
+npm silly audit   '@sinclair/typebox': [ '0.27.8' ],
+npm silly audit   '@sinonjs/fake-timers': [ '10.3.0' ],
+npm silly audit   '@smithy/core': [ '3.8.0' ],
+npm silly audit   '@smithy/abort-controller': [ '4.0.5' ],
+npm silly audit   '@sinonjs/commons': [ '3.0.1' ],
+npm silly audit   '@smithy/config-resolver': [ '4.1.5' ],
+npm silly audit   '@smithy/fetch-http-handler': [ '5.1.1' ],
+npm silly audit   '@smithy/credential-provider-imds': [ '4.0.7' ],
+npm silly audit   '@smithy/hash-node': [ '4.0.5' ],
+npm silly audit   '@smithy/invalid-dependency': [ '4.0.5' ],
+npm silly audit   '@smithy/middleware-endpoint': [ '4.1.18' ],
+npm silly audit   '@smithy/middleware-content-length': [ '4.0.5' ],
+npm silly audit   '@smithy/middleware-retry': [ '4.1.19' ],
+npm silly audit   '@smithy/middleware-serde': [ '4.0.9' ],
+npm silly audit   '@smithy/node-config-provider': [ '4.1.4' ],
+npm silly audit   '@smithy/middleware-stack': [ '4.0.5' ],
+npm silly audit   '@smithy/protocol-http': [ '5.1.3' ],
+npm silly audit   '@smithy/querystring-parser': [ '4.0.5' ],
+npm silly audit   '@smithy/service-error-classification': [ '4.0.7' ],
+npm silly audit   '@smithy/querystring-builder': [ '4.0.5' ],
+npm silly audit   '@smithy/signature-v4': [ '5.1.3' ],
+npm silly audit   '@smithy/property-provider': [ '4.0.5' ],
+npm silly audit   '@smithy/node-http-handler': [ '4.1.1' ],
+npm silly audit   '@smithy/shared-ini-file-loader': [ '4.0.5' ],
+npm silly audit   '@smithy/smithy-client': [ '4.4.10' ],
+npm silly audit   '@smithy/types': [ '4.3.2' ],
+npm silly audit   '@smithy/url-parser': [ '4.0.5' ],
+npm silly audit   '@smithy/util-base64': [ '4.0.0' ],
+npm silly audit   '@smithy/util-body-length-browser': [ '4.0.0' ],
+npm silly audit   '@smithy/util-config-provider': [ '4.0.0' ],
+npm silly audit   '@smithy/util-body-length-node': [ '4.0.0' ],
+npm silly audit   '@smithy/util-defaults-mode-browser': [ '4.0.26' ],
+npm silly audit   '@smithy/util-endpoints': [ '3.0.7' ],
+npm silly audit   '@smithy/util-hex-encoding': [ '4.0.0' ],
+npm silly audit   '@smithy/util-defaults-mode-node': [ '4.0.26' ],
+npm silly audit   '@smithy/util-stream': [ '4.2.4' ],
+npm silly audit   '@smithy/util-middleware': [ '4.0.5' ],
+npm silly audit   '@smithy/util-uri-escape': [ '4.0.0' ],
+npm silly audit   '@smithy/util-retry': [ '4.0.7' ],
+npm silly audit   '@smithy/util-waiter': [ '4.0.7' ],
+npm silly audit   '@socket.io/component-emitter': [ '3.1.2' ],
+npm silly audit   '@swc/core': [ '1.13.5' ],
+npm silly audit   '@standard-schema/spec': [ '1.0.0' ],
+npm silly audit   '@swc/cli': [ '0.6.0' ],
+npm silly audit   '@swc/core-darwin-arm64': [ '1.13.5' ],
+npm silly audit   '@swc/counter': [ '0.1.3' ],
+npm silly audit   '@swc/types': [ '0.1.24' ],
+npm silly audit   '@szmarczak/http-timer': [ '5.0.1' ],
+npm silly audit   '@tokenizer/inflate': [ '0.2.7' ],
+npm silly audit   '@tokenizer/token': [ '0.3.0' ],
+npm silly audit   '@tsconfig/node10': [ '1.0.11' ],
+npm silly audit   '@tsconfig/node12': [ '1.0.11' ],
+npm silly audit   '@tsconfig/node16': [ '1.0.4' ],
+npm silly audit   '@tsconfig/node14': [ '1.0.3' ],
+npm silly audit   '@types/babel__core': [ '7.20.5' ],
+npm silly audit   '@types/babel__generator': [ '7.27.0' ],
+npm silly audit   '@types/babel__template': [ '7.4.4' ],
+npm silly audit   '@types/babel__traverse': [ '7.28.0' ],
+npm silly audit   '@types/bcryptjs': [ '3.0.0' ],
+npm silly audit   '@types/connect': [ '3.4.38' ],
+npm silly audit   '@types/conventional-commits-parser': [ '5.0.1' ],
+npm silly audit   '@types/body-parser': [ '1.19.6' ],
+npm silly audit   '@types/cookiejar': [ '2.1.5' ],
+npm silly audit   '@types/eslint': [ '9.6.1' ],
+npm silly audit   '@types/eslint-scope': [ '3.7.7' ],
+npm silly audit   '@types/estree': [ '1.0.8' ],
+npm silly audit   '@types/cors': [ '2.8.19' ],
+npm silly audit   '@types/express': [ '5.0.3' ],
+npm silly audit   '@types/graceful-fs': [ '4.1.9' ],
+npm silly audit   '@types/express-serve-static-core': [ '5.0.7' ],
+npm silly audit   '@types/http-cache-semantics': [ '4.0.4' ],
+npm silly audit   '@types/http-errors': [ '2.0.5' ],
+npm silly audit   '@types/istanbul-lib-coverage': [ '2.0.6' ],
+npm silly audit   '@types/istanbul-lib-report': [ '3.0.3' ],
+npm silly audit   '@types/json-schema': [ '7.0.15' ],
+npm silly audit   '@types/methods': [ '1.1.4' ],
+npm silly audit   '@types/mime': [ '1.3.5' ],
+npm silly audit   '@types/ms': [ '2.1.0' ],
+npm silly audit   '@types/multer': [ '2.0.0' ],
+npm silly audit   '@types/istanbul-reports': [ '3.0.4' ],
+npm silly audit   '@types/jest': [ '29.5.14' ],
+npm silly audit   '@types/passport': [ '1.0.17' ],
+npm silly audit   '@types/nodemailer': [ '6.4.19' ],
+npm silly audit   '@types/passport-local': [ '1.0.38' ],
+npm silly audit   '@types/passport-jwt': [ '4.0.1' ],
+npm silly audit   '@types/qs': [ '6.14.0' ],
+npm silly audit   '@types/passport-strategy': [ '0.2.38' ],
+npm silly audit   '@types/range-parser': [ '1.2.7' ],
+npm silly audit   '@types/send': [ '0.17.5' ],
+npm silly audit   '@types/serve-static': [ '1.15.8' ],
+npm silly audit   '@types/superagent': [ '8.1.9' ],
+npm silly audit   '@types/stack-utils': [ '2.0.3' ],
+npm silly audit   '@types/supertest': [ '6.0.3' ],
+npm silly audit   '@types/uuid': [ '9.0.8' ],
+npm silly audit   '@types/validator': [ '13.15.2' ],
+npm silly audit   '@types/yargs': [ '17.0.33' ],
+npm silly audit   '@types/yargs-parser': [ '21.0.3' ],
+npm silly audit   '@typescript-eslint/eslint-plugin': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/parser': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/project-service': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/scope-manager': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/typescript-estree': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/types': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/tsconfig-utils': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/utils': [ '8.41.0' ],
+npm silly audit   '@typescript-eslint/visitor-keys': [ '8.41.0' ],
+npm silly audit   '@webassemblyjs/helper-api-error': [ '1.13.2' ],
+npm silly audit   '@webassemblyjs/floating-point-hex-parser': [ '1.13.2' ],
+npm silly audit   '@webassemblyjs/ast': [ '1.14.1' ],
+npm silly audit   '@webassemblyjs/helper-numbers': [ '1.13.2' ],
+npm silly audit   '@webassemblyjs/helper-wasm-bytecode': [ '1.13.2' ],
+npm silly audit   '@webassemblyjs/helper-buffer': [ '1.14.1' ],
+npm silly audit   '@webassemblyjs/helper-wasm-section': [ '1.14.1' ],
+npm silly audit   '@webassemblyjs/ieee754': [ '1.13.2' ],
+npm silly audit   '@webassemblyjs/leb128': [ '1.13.2' ],
+npm silly audit   '@webassemblyjs/utf8': [ '1.13.2' ],
+npm silly audit   '@webassemblyjs/wasm-edit': [ '1.14.1' ],
+npm silly audit   '@webassemblyjs/wasm-gen': [ '1.14.1' ],
+npm silly audit   '@webassemblyjs/wasm-opt': [ '1.14.1' ],
+npm silly audit   '@webassemblyjs/wasm-parser': [ '1.14.1' ],
+npm silly audit   '@typescript-eslint/type-utils': [ '8.41.0' ],
+npm silly audit   '@webassemblyjs/wast-printer': [ '1.14.1' ],
+npm silly audit   '@xhmikosr/archive-type': [ '7.1.0' ],
+npm silly audit   '@xhmikosr/bin-check': [ '7.1.0' ],
+npm silly audit   '@xhmikosr/decompress': [ '10.2.0' ],
+npm silly audit   '@xhmikosr/bin-wrapper': [ '13.2.0' ],
+npm silly audit   '@xhmikosr/decompress-tarbz2': [ '8.1.0' ],
+npm silly audit   '@xhmikosr/decompress-tar': [ '8.1.0' ],
+npm silly audit   '@xhmikosr/decompress-targz': [ '8.1.0' ],
+npm silly audit   '@xhmikosr/decompress-unzip': [ '7.1.0' ],
+npm silly audit   '@xhmikosr/downloader': [ '15.2.0' ],
+npm silly audit   '@xhmikosr/os-filter-obj': [ '3.0.0' ],
+npm silly audit   '@xtuc/long': [ '4.2.2' ],
+npm silly audit   '@xtuc/ieee754': [ '1.2.0' ]
+npm silly audit }
+npm silly tarball no local data for emoji-regex@https://registry.npmjs.org/emoji-regex/-/emoji-regex-10.5.0.
+tgz. Extracting by manifest.
+
+npm silly tarball no local data for emoji-regex@https://registry.npmjs.org/emoji-regex/-/emoji-regex-10.5.0.
+tgz. Extracting by manifest.
+
+npm silly tarball no local data for ansi-regex@https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.2.0.tgz.
+ Extracting by manifest.
+
+npm http fetch GET 200 https://registry.npmjs.org/emoji-regex/-/emoji-regex-10.5.0.tgz 49ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/emoji-regex/-/emoji-regex-10.5.0.tgz 66ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.2.0.tgz 155ms (cache miss)
+npm http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 419ms
+npm silly audit report {}
+npm silly REMOVE node_modules/@jest/core/node_modules/jest-config
+npm silly CHANGE node_modules/wrap-ansi
+npm silly REMOVE node_modules/wrap-ansi/node_modules/strip-ansi
+npm silly REMOVE node_modules/wrap-ansi/node_modules/string-width
+npm silly REMOVE node_modules/wrap-ansi/node_modules/ansi-styles
+npm silly REMOVE node_modules/wrap-ansi/node_modules/emoji-regex
+npm silly REMOVE node_modules/wrap-ansi/node_modules/ansi-regex
+npm silly ADD node_modules/log-update/node_modules/emoji-regex
+npm silly ADD node_modules/log-update/node_modules/string-width
+npm silly ADD node_modules/log-update/node_modules/wrap-ansi
+npm silly ADD node_modules/listr2/node_modules/ansi-regex
+npm silly ADD node_modules/listr2/node_modules/emoji-regex
+npm silly ADD node_modules/listr2/node_modules/strip-ansi
+npm silly ADD node_modules/listr2/node_modules/string-width
+npm silly ADD node_modules/listr2/node_modules/ansi-styles
+npm silly ADD node_modules/listr2/node_modules/wrap-ansi
+npm silly CHANGE node_modules/babel-plugin-istanbul/node_modules/semver
+
+added 9 packages, removed 6 packages, changed 2 packages, and audited 1093 packages in 3s
+
+197 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 0
+npm info ok
+```
+
+---
+
+Отлично! Теперь давайте проверим, что тесты работают:
+
+
+---
+
+```bash
+npm test -- --testPathPattern=auth.controller.spec.ts
+```
+
+```
+
+npm verbose cli /Users/eugenechernomor/.nvm/versions/node/v22.12.0/bin/node /Users/eugenechernomor/.nvm/vers
+ions/node/v22.12.0/bin/npm
+
+npm info using npm@10.9.0
+npm info using node@v22.12.0
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/lib/node_modules/npm/npmrc
+npm silly config load:file:/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/.npm
+rc
+
+npm silly config load:file:/Users/eugenechernomor/.npmrc
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/etc/npmrc
+npm verbose title npm test --testPathPattern=auth.controller.spec.ts
+npm verbose argv "test" "--" "--testPathPattern=auth.controller.spec.ts"
+npm verbose logfile logs-max:10 dir:/Users/eugenechernomor/.npm/_logs/2025-09-01T13_39_23_366Z-
+npm verbose logfile /Users/eugenechernomor/.npm/_logs/2025-09-01T13_39_23_366Z-debug-0.log
+npm silly logfile start cleaning logs, removing 1 files
+npm silly logfile done cleaning log files
+
+> Odyssea-backend-nestjs@0.0.1 test
+> jest --testPathPattern=auth.controller.spec.ts
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_uri
+=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22https%3A
+%2F%2Fproduction.example.com%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: undefined
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: https://production.example.com
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_uri
+=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22http%3A%
+2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=test-client-id&redirec
+t_uri=http://localhost:3000/auth/google/callback&scope=email%20profile&access_type=offline&prompt=consent&st
+ate=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+  console.warn
+    Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "invalid
+-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:165:34)
+
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:367:24)
+
+        at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nes
+tjs/node_modules/jest-circus/build/utils.js:298:28)
+
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/utils.js:231:10)
+
+        at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-circus/build/run.js:316:40)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modul
+es/jest-circus/build/run.js:252:3)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/je
+st-circus/build/run.js:71:3)
+
+        at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea
+-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+        at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mo
+dules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+        at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/runTest.js:367:16)
+
+        at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_module
+s/jest-runner/build/runTest.js:444:34)
+
+
+      168 |           }
+      169 |         } catch (error) {
+    > 170 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      171 |         }
+      172 |       }
+      173 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:170:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:367:24)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+  console.warn
+    Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "invalid
+-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:165:34)
+
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:400:24)
+
+        at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nes
+tjs/node_modules/jest-circus/build/utils.js:298:28)
+
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/utils.js:231:10)
+
+        at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-circus/build/run.js:316:40)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modul
+es/jest-circus/build/run.js:252:3)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/je
+st-circus/build/run.js:71:3)
+
+        at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea
+-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+        at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mo
+dules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+        at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/runTest.js:367:16)
+
+        at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_module
+s/jest-runner/build/runTest.js:444:34)
+
+
+      168 |           }
+      169 |         } catch (error) {
+    > 170 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      171 |         }
+      172 |       }
+      173 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:170:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:24)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+  console.warn
+    Failed to parse state parameter in error handler, using default frontend URL: SyntaxError: Unexpected to
+ken 'i', "invalid-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:216:34)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:400:7)
+
+
+      219 |           }
+      220 |         } catch (error) {
+    > 221 |           console.warn('Failed to parse state parameter in error handler, using default frontend
+ URL:', error);
+
+          |                   ^
+      222 |         }
+      223 |       }
+      224 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:221:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:7)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+ PASS  src/auth/auth.controller.spec.ts
+  AuthController
+    ✓ should be defined (7 ms)
+    login
+      ✓ should authenticate user successfully (2 ms)
+      ✓ should handle service errors (11 ms)
+    verifyOtp
+      ✓ should verify OTP successfully (2 ms)
+      ✓ should handle service errors (3 ms)
+    forgotPassword
+      ✓ should send password reset email successfully (1 ms)
+      ✓ should handle service errors (1 ms)
+    resetPassword
+      ✓ should reset password successfully (1 ms)
+      ✓ should handle service errors (2 ms)
+    refreshToken
+      ✓ should refresh token successfully (1 ms)
+      ✓ should handle service errors (1 ms)
+    logout
+      ✓ should logout user successfully (1 ms)
+      ✓ should handle service errors
+    googleAuth
+      ✓ should redirect to Google OAuth with default frontend URL (18 ms)
+      ✓ should redirect to Google OAuth with custom frontend URL (2 ms)
+      ✓ should include all required OAuth parameters (5 ms)
+    googleCallback
+      ✓ should redirect to success page with custom frontend URL (2 ms)
+      ✓ should redirect to error page for driver role with custom frontend URL (2 ms)
+      ✓ should use default frontend URL when state is not provided (1 ms)
+      ✓ should use default frontend URL when state parsing fails (5 ms)
+      ✓ should handle service errors and redirect to error page with custom frontend URL (2 ms)
+      ✓ should handle service errors and use default frontend URL when state parsing fails (5 ms)
+      ✓ should handle empty state object gracefully (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        2.041 s
+Ran all test suites matching /auth.controller.spec.ts/i.
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 0
+npm info ok
+```
+
+---
+
+Отлично! Теперь давайте проверим, что все тесты проходят:
+
+
+---
+
+```bash
+npm test
+```
+
+```
+
+npm verbose cli /Users/eugenechernomor/.nvm/versions/node/v22.12.0/bin/node /Users/eugenechernomor/.nvm/vers
+ions/node/v22.12.0/bin/npm
+
+npm info using npm@10.9.0
+npm info using node@v22.12.0
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/lib/node_modules/npm/npmrc
+npm silly config load:file:/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/.npm
+rc
+
+npm silly config load:file:/Users/eugenechernomor/.npmrc
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/etc/npmrc
+npm verbose title npm test
+npm verbose argv "test"
+npm verbose logfile logs-max:10 dir:/Users/eugenechernomor/.npm/_logs/2025-09-01T13_39_34_277Z-
+npm verbose logfile /Users/eugenechernomor/.npm/_logs/2025-09-01T13_39_34_277Z-debug-0.log
+npm silly logfile start cleaning logs, removing 2 files
+npm silly logfile done cleaning log files
+
+> Odyssea-backend-nestjs@0.0.1 test
+> jest
+
+
+
+Test Suites: 0 of 21 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ PASS  src/config/env.config.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/config/env.config.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+ PASS  src/auth/auth.controller.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/users.service.spec.ts
+  ● Console
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22https%
+3A%2F%2Fproduction.example.com%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: undefined
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: https://production.example.com
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22http%3
+A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=test-client-id&redir
+ect_uri=http://localhost:3000/auth/google/callback&scope=email%20profile&access_type=offline&prompt=consent&
+state=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:165:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:367:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      168 |           }
+      169 |         } catch (error) {
+    > 170 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      171 |         }
+      172 |       }
+      173 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:170:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:367:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:165:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      168 |           }
+      169 |         } catch (error) {
+    > 170 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      171 |         }
+      172 |       }
+      173 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:170:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.warn
+      Failed to parse state parameter in error handler, using default frontend URL: SyntaxError: Unexpected
+token 'i', "invalid-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:216:34)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:7)
+
+
+      219 |           }
+      220 |         } catch (error) {
+    > 221 |           console.warn('Failed to parse state parameter in error handler, using default frontend
+ URL:', error);
+
+          |                   ^
+      222 |         }
+      223 |       }
+      224 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:221:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:7)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ PASS  src/main.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+[Nest] 59651  - 09/01/2025, 4:39:38 PM   ERROR [MailerService] ❌ SMTP transporter not initialized
+
+ RUNS  src/prisma/prisma.service.spec.ts
+[Nest] 59651  - 09/01/2025, 4:39:38 PM   ERROR [MailerService] ❌ Failed to send email to recipient@example.c
+om                                                                                                         
+
+ RUNS  src/prisma/prisma.service.spec.ts
+[Nest] 59651  - 09/01/2025, 4:39:38 PM   ERROR [MailerService] Error: SMTP error
+    at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/src/
+mailer/mailer.service.spec.ts:139:50)
+
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ PASS  src/mailer/mailer.service.spec.ts
+
+ PASS  src/users/dto/users.dto.spec.ts
+ PASS  src/app.module.spec.ts
+ PASS  src/auth/dto/auth.dto.spec.ts
+ PASS  src/mailer/mailer.integration.spec.ts
+ PASS  src/common/interceptors/transform.interceptor.spec.ts
+ PASS  src/auth/strategies/jwt.strategy.spec.ts
+ PASS  src/users/users.service.spec.ts
+ PASS  src/prisma/prisma.module.spec.ts
+ PASS  src/common/filters/http-exception.filter.spec.ts
+ PASS  src/app.controller.spec.ts
+ PASS  src/mailer/mailer.module.spec.ts
+ PASS  src/users/users.controller.spec.ts
+ PASS  src/auth/strategies/local.strategy.spec.ts
+ PASS  src/users/users.module.spec.ts
+ PASS  src/auth/auth.module.spec.ts
+ PASS  src/auth/auth.service.spec.ts (6.069 s)
+ PASS  src/prisma/prisma.service.spec.ts (6.958 s)
+
+Test Suites: 21 passed, 21 total
+Tests:       222 passed, 222 total
+Snapshots:   0 total
+Time:        7.395 s, estimated 8 s
+Ran all test suites.
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 0
+npm info ok
+```
+
+---
+
+Отлично! Теперь все тесты проходят успешно (222/222). Давайте попробуем создать коммит:
+
+
+---
+
+```bash
+git add .
+```
+
+---
+
+```bash
+git commit -m "feat: add Google Auth dev mode support with comprehensive tests
+
+- Add frontendUrl parameter to googleAuth endpoint for dev mode
+- Implement dynamic frontend URL handling in googleCallback
+- Add comprehensive test coverage for new functionality
+- Update documentation with dev mode usage examples
+- Fix wrap-ansi dependency compatibility issue
+
+Tests: 222/222 passing
+Coverage: All new functionality tested including error scenarios"
+```
+
+```
+
+npm verbose cli /Users/eugenechernomor/.nvm/versions/node/v22.12.0/bin/node /Users/eugenechernomor/.nvm/vers
+ions/node/v22.12.0/bin/npm
+
+npm info using npm@10.9.0
+npm info using node@v22.12.0
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/lib/node_modules/npm/npmrc
+npm silly config load:file:/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/.npm
+rc
+
+npm silly config load:file:/Users/eugenechernomor/.npmrc
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/etc/npmrc
+npm verbose title npm test --testPathPattern=\.spec\.ts$ --testPathIgnorePatterns=test/|e2e
+npm verbose argv "test" "--" "--testPathPattern=\\.spec\\.ts$" "--testPathIgnorePatterns=test/|e2e"
+npm verbose logfile logs-max:10 dir:/Users/eugenechernomor/.npm/_logs/2025-09-01T13_39_53_906Z-
+npm verbose logfile /Users/eugenechernomor/.npm/_logs/2025-09-01T13_39_53_906Z-debug-0.log
+npm silly logfile start cleaning logs, removing 1 files
+npm silly logfile done cleaning log files
+
+> Odyssea-backend-nestjs@0.0.1 test
+> jest --testPathPattern=\.spec\.ts$ --testPathIgnorePatterns=test/|e2e
+
+ PASS  src/auth/dto/auth.dto.spec.ts
+ PASS  src/users/dto/users.dto.spec.ts
+ PASS  src/common/interceptors/transform.interceptor.spec.ts
+ PASS  src/config/env.config.spec.ts
+ PASS  src/users/users.service.spec.ts
+ PASS  src/users/users.controller.spec.ts
+ PASS  src/users/users.module.spec.ts
+ PASS  src/auth/strategies/local.strategy.spec.ts
+ PASS  src/mailer/mailer.module.spec.ts
+ PASS  src/app.controller.spec.ts
+ PASS  src/auth/auth.module.spec.ts
+ PASS  src/auth/strategies/jwt.strategy.spec.ts
+ PASS  src/mailer/mailer.integration.spec.ts
+ PASS  src/prisma/prisma.module.spec.ts
+[Nest] 60716  - 09/01/2025, 4:39:59 PM   ERROR [MailerService] ❌ SMTP transporter not initialized
+[Nest] 60716  - 09/01/2025, 4:39:59 PM   ERROR [MailerService] ❌ Failed to send email to recipient@example.c
+om                                                                                                         
+[Nest] 60716  - 09/01/2025, 4:39:59 PM   ERROR [MailerService] Error: SMTP error
+    at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/src/
+mailer/mailer.service.spec.ts:139:50)
+
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+ PASS  src/mailer/mailer.service.spec.ts
+ PASS  src/common/filters/http-exception.filter.spec.ts
+ PASS  src/auth/auth.controller.spec.ts
+  ● Console
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22https%
+3A%2F%2Fproduction.example.com%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: undefined
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: https://production.example.com
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22http%3
+A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=test-client-id&redir
+ect_uri=http://localhost:3000/auth/google/callback&scope=email%20profile&access_type=offline&prompt=consent&
+state=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:165:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:367:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      168 |           }
+      169 |         } catch (error) {
+    > 170 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      171 |         }
+      172 |       }
+      173 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:170:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:367:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:165:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      168 |           }
+      169 |         } catch (error) {
+    > 170 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      171 |         }
+      172 |       }
+      173 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:170:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+    console.warn
+      Failed to parse state parameter in error handler, using default frontend URL: SyntaxError: Unexpected
+token 'i', "invalid-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:216:34)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:7)
+
+
+      219 |           }
+      220 |         } catch (error) {
+    > 221 |           console.warn('Failed to parse state parameter in error handler, using default frontend
+ URL:', error);
+
+          |                   ^
+      222 |         }
+      223 |       }
+      224 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:221:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:7)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:174:15)
+
+ PASS  src/app.module.spec.ts
+ PASS  src/main.spec.ts
+ PASS  src/auth/auth.service.spec.ts (6.838 s)
+ PASS  src/prisma/prisma.service.spec.ts (7.351 s)
+
+Test Suites: 21 passed, 21 total
+Tests:       222 passed, 222 total
+Snapshots:   0 total
+Time:        7.825 s
+Ran all test suites matching /\.spec\.ts$/i.
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 0
+npm info ok
+[main 8508044] feat: add Google Auth dev mode support with comprehensive tests
+ 10 files changed, 20883 insertions(+), 9 deletions(-)
+ create mode 100644 ".specstory/history/2025-08-20_07-59Z-\320\275\320\260\321\201\321\202\321\200\320\276\3
+20\271\320\272\320\260-\320\273\320\276\320\272\320\260\320\273\321\214\320\275\320\276\320\263\320\276-\320
+\276\320\272\321\200\321\203\320\266\320\265\320\275\320\270\321\217-\320\264\320\273\321\217-\320\277\321\2
+00\320\276\320\265\320\272\321\202\320\260.md"
+
+ create mode 100644 ".specstory/history/2025-08-20_11-53Z-\320\276\320\261\320\267\320\276\321\200-\320\272\
+320\276\320\264\320\260-\320\270-\320\264\320\276\320\272\321\203\320\274\320\265\320\275\321\202\320\260\32
+1\206\320\270\321\217-\320\277\321\200\320\276\320\265\320\272\321\202\320\260.md"
+
+ create mode 100644 ".specstory/history/2025-08-25_08-11Z-\320\262\321\213\320\261\320\276\321\200-\321\200\
+320\265\321\210\320\265\320\275\320\270\321\217-\320\264\320\273\321\217-\321\207\320\260\321\202\320\260-\3
+20\274\320\265\320\266\320\264\321\203-\320\262\320\276\320\264\320\270\321\202\320\265\320\273\321\217\320\
+274\320\270-\320\270-\320\274\320\265\320\275\320\265\320\264\320\266\320\265\321\200\320\260\320\274\320\27
+0.md"
+
+ create mode 100644 .specstory/history/2025-08-26_08-08Z-troubleshooting-render-com-deployment-error.md
+ create mode 100644 .specstory/history/2025-08-27_10-51Z-handle-frontend-url-for-social-login.md
+ create mode 100644 docs/GOOGLE_AUTH_DEV_MODE.md
+```
+
+---
+
+Отлично! Коммит успешно создан! 🎉
+
+## Резюме выполненной работы
+
+Я успешно решил проблему с ошибкой `ERR_REQUIRE_ESM` и добавил комплексные тесты для Google Auth Dev Mode. Вот что было сделано:
+
+### ✅ Проблема решена:
+
+**Ошибка `ERR_REQUIRE_ESM`** была вызвана конфликтом версий пакета `wrap-ansi`:
+- У вас была установлена версия `9.0.0` (ES модуль)
+- Но некоторые пакеты ожидали версию `^7.0.0` (CommonJS)
+
+**Решение:** Установил совместимую версию `wrap-ansi@^7.0.0`
+
+### ✅ Добавлены комплексные тесты:
+
+#### **Тесты для `googleAuth` метода:**
+- ✅ Редирект с дефолтным frontend URL (production режим)
+- ✅ Редирект с кастомным frontend URL (dev режим)  
+- ✅ Проверка всех обязательных OAuth параметров
+
+#### **Тесты для `googleCallback` метода:**
+- ✅ Успешный редирект с кастомным frontend URL
+- ✅ Редирект на страницу ошибки для роли DRIVER
+- ✅ Использование дефолтного frontend URL когда state не предоставлен
+- ✅ Использование дефолтного frontend URL при ошибке парсинга state
+- ✅ Обработка ошибок сервиса с кастомным frontend URL
+- ✅ Обработка ошибок сервиса с дефолтным frontend URL
+- ✅ Корректная обработка пустого state объекта
+
+### ✅ Технические улучшения:
+
+- **Мокирование зависимостей**: добавлен мок для функции `encryption`
+- **Правильная типизация**: исправлены типы для `UserRole.DRIVER`
+- **Обработка URL encoding**: корректная проверка encoded параметров
+- **Восстановление environment variables**: правильная очистка после тестов
+
+### ✅ Результаты:
+
+- **Все тесты проходят**: 222/222 ✅
+- **Коммит создан успешно**: без ошибок husky pre-commit hook
+- **Документация обновлена**: добавлена информация о новых тестах
+- **Статистика обновлена**: количество тестов увеличено с 150+ до 222+
+
+### ✅ Обновленная документация:
+
+1. **`docs/PROJECT_DOCUMENTATION.md`** - обновлена секция тестирования AuthController
+2. **`docs/GOOGLE_AUTH_DEV_MODE.md`** - добавлена секция Testing с подробным описанием
+3. **Статистика тестов** - обновлено общее количество тестов
+
+Теперь вы можете:
+- ✅ Создавать коммиты без ошибок
+- ✅ Использовать Google Auth в dev режиме с `frontendUrl=http://localhost:3000`
+- ✅ Получать редиректы на правильный фронтенд URL
+- ✅ Иметь полное покрытие тестами для нового функционала
+
+Проблема полностью решена! 🚀
+
+---
+
+_**User**_
+
+проверил, сейчас при переходе на backend и отправке затем запроса к google на авторизацию , я получаю такой адрес и ошибку @https://odyssea-backend-nestjs.onrender.com/v1/auth/social-login?frontendUrl=http://localhost:3000 
+
+@https://odyssea-backend-nestjs.onrender.com/v1/auth/google/callback?state=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D&code=4%2F0AVMBsJgu0S7tuSBWv_Fy2rZwmClpxfkpCic1heozDF4e6aPzCmhTIeF5SRiGfFCpTN2qmg&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+openid&authuser=5&prompt=consent 
+
+odyssea-backend-nestjs.onrender.com sent an invalid response.
+ERR_INVALID_REDIRECT
+
+---
+
+_**Assistant**_
+
+Я вижу проблему! Ошибка `ERR_INVALID_REDIRECT` возникает потому, что в URL редиректа отсутствует слэш между доменом и путем. Давайте исправим это в коде.
+
+Проблема в том, что когда мы формируем URL для редиректа, мы просто конкатенируем строки без проверки наличия слэша. Нужно добавить функцию для правильного формирования URL.
+
+Давайте исправим это:
+
+
+
+---
+
+The string to replace was not found in the file.
+
+---
+
+Давайте сначала посмотрим на текущее содержимое файла:
+
+
+---
+
+Read file: undefined
+
+---
+
+Теперь я вижу проблему! В коде отсутствуют слэши между доменом и путем. Давайте исправим это, добавив функцию для правильного формирования URL:
+
+
+---
+
+
+
+---
+
 
 
 ---
