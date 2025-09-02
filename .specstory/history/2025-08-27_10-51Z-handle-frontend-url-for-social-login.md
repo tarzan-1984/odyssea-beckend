@@ -5518,11 +5518,2172 @@ Read file: undefined
 
 ---
 
+<details><summary>Edit file: src/auth/auth.controller.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 7, lines removed: undefined
+
+```diff
+@@ -157,4 +157,11 @@
+      @Query('state') state?: string
+    ) {
++     // Helper function to ensure proper URL formatting
++     const formatUrl = (baseUrl: string, path: string) => {
++       const cleanBase = baseUrl.replace(/\/$/, ''); // Remove trailing slash
++       const cleanPath = path.replace(/^\//, ''); // Remove leading slash
++       return `${cleanBase}/${cleanPath}`;
++     };
++ 
+      try {
+        // Extract frontendUrl from state parameter or use environment variable as fallback
+```
+
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -181,5 +188,5 @@
+            'You do not have permission to access this system. Users with your role cannot log in.';
+          return res.redirect(
+-           `${frontendUrl}signin?error=${encodeURIComponent(errorMessage)}`,
++           formatUrl(frontendUrl, `signin?error=${encodeURIComponent(errorMessage)}`),
+          );
+        }
+```
+
+**Chunk 3**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -206,5 +213,5 @@
+  
+        return res.redirect(
+-         `${frontendUrl}auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
++         formatUrl(frontendUrl, `auth-success?payload=${encodeURIComponent(encryptedPayload)}`),
+        );
+      } catch {
+```
+
+**Chunk 4**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -225,5 +232,5 @@
+        const errorMessage = 'You are not registered in the system';
+        return res.redirect(
+-         `${frontendUrl}signin?error=${encodeURIComponent(errorMessage)}`,
++         formatUrl(frontendUrl, `signin?error=${encodeURIComponent(errorMessage)}`),
+        );
+      }
+```
+
+</details>
+
+---
+
+Теперь давайте обновим тесты, чтобы они отражали новую логику с функцией `formatUrl`:
+
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.spec.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -313,5 +313,5 @@
+        expect(mockAuthService.handleGoogleCallback).toHaveBeenCalledWith(code);
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         'http://localhost:3000auth-success?payload=encrypted-payload'
++         'http://localhost:3000/auth-success?payload=encrypted-payload'
+        );
+      });
+```
+
+</details>
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.spec.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -336,5 +336,5 @@
+        );
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         'http://localhost:3000signin?error=You%20do%20not%20have%20permission%20to%20access%20this%20system.%20Users%20with%20your%20role%20cannot%20log%20in.'
++         'http://localhost:3000/signin?error=You%20do%20not%20have%20permission%20to%20access%20this%20system.%20Users%20with%20your%20role%20cannot%20log%20in.'
+        );
+      });
+```
+
+</details>
+
+---
+
+The model provided an ambiguous search string to replace.
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.spec.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -350,5 +350,5 @@
+  
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         'https://production.example.comauth-success?payload=encrypted-payload'
++         'https://production.example.com/auth-success?payload=encrypted-payload'
+        );
+  
+```
+
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -368,5 +368,5 @@
+  
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         'https://production.example.comauth-success?payload=encrypted-payload'
++         'https://production.example.com/auth-success?payload=encrypted-payload'
+        );
+  
+```
+
+**Chunk 3**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -419,5 +419,5 @@
+  
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         'https://production.example.comauth-success?payload=encrypted-payload'
++         'https://production.example.com/auth-success?payload=encrypted-payload'
+        );
+  
+```
+
+</details>
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.spec.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -386,5 +386,5 @@
+  
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         'http://localhost:3000signin?error=' + encodeURIComponent('You are not registered in the system')
++         'http://localhost:3000/signin?error=' + encodeURIComponent('You are not registered in the system')
+        );
+      });
+```
+
+</details>
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.spec.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -401,5 +401,5 @@
+  
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         'https://production.example.comsignin?error=' + encodeURIComponent('You are not registered in the system')
++         'https://production.example.com/signin?error=' + encodeURIComponent('You are not registered in the system')
+        );
+  
+```
+
+</details>
+
+---
+
+Теперь давайте проверим, есть ли ошибки линтера:
 
 
 ---
 
 
+
+---
+
+Ошибки линтера в тестах связаны с типами Jest, что нормально. Но есть ошибки TypeScript в основном файле - нужно исправить типы для `frontendUrl`. Давайте исправим это:
+
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -166,5 +166,5 @@
+      try {
+        // Extract frontendUrl from state parameter or use environment variable as fallback
+-       let frontendUrl = process.env.FRONTEND_URL;
++       let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        
+        if (state) {
+```
+
+</details>
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -217,5 +217,5 @@
+      } catch {
+        // Extract frontendUrl from state parameter for error redirect as well
+-       let frontendUrl = process.env.FRONTEND_URL;
++       let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        
+        if (state) {
+```
+
+</details>
+
+---
+
+Теперь давайте проверим, исправились ли ошибки TypeScript:
+
+
+---
+
+
+
+---
+
+Отлично! Теперь давайте запустим тесты, чтобы убедиться, что все работает:
+
+
+---
+
+```bash
+npm test -- --testPathPattern=auth.controller.spec.ts
+```
+
+```
+
+npm verbose cli /Users/eugenechernomor/.nvm/versions/node/v22.12.0/bin/node /Users/eugenechernomor/.nvm/vers
+ions/node/v22.12.0/bin/npm
+
+npm info using npm@10.9.0
+npm info using node@v22.12.0
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/lib/node_modules/npm/npmrc
+npm silly config load:file:/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/.npm
+rc
+
+npm silly config load:file:/Users/eugenechernomor/.npmrc
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/etc/npmrc
+npm verbose title npm test --testPathPattern=auth.controller.spec.ts
+npm verbose argv "test" "--" "--testPathPattern=auth.controller.spec.ts"
+npm verbose logfile logs-max:10 dir:/Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_06_395Z-
+npm verbose logfile /Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_06_395Z-debug-0.log
+npm silly logfile start cleaning logs, removing 5 files
+
+> Odyssea-backend-nestjs@0.0.1 test
+> jest --testPathPattern=auth.controller.spec.ts
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_uri
+=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22https%3A
+%2F%2Fproduction.example.com%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: undefined
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: https://production.example.com
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_uri
+=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22http%3A%
+2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=test-client-id&redirec
+t_uri=http://localhost:3000/auth/google/callback&scope=email%20profile&access_type=offline&prompt=consent&st
+ate=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.warn
+    Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "invalid
+-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:172:34)
+
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:367:24)
+
+        at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nes
+tjs/node_modules/jest-circus/build/utils.js:298:28)
+
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/utils.js:231:10)
+
+        at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-circus/build/run.js:316:40)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modul
+es/jest-circus/build/run.js:252:3)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/je
+st-circus/build/run.js:71:3)
+
+        at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea
+-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+        at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mo
+dules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+        at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/runTest.js:367:16)
+
+        at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_module
+s/jest-runner/build/runTest.js:444:34)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:367:24)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.warn
+    Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "invalid
+-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:172:34)
+
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:400:24)
+
+        at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nes
+tjs/node_modules/jest-circus/build/utils.js:298:28)
+
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/utils.js:231:10)
+
+        at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-circus/build/run.js:316:40)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modul
+es/jest-circus/build/run.js:252:3)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/je
+st-circus/build/run.js:71:3)
+
+        at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea
+-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+        at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mo
+dules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+        at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/runTest.js:367:16)
+
+        at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_module
+s/jest-runner/build/runTest.js:444:34)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:24)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.warn
+    Failed to parse state parameter in error handler, using default frontend URL: SyntaxError: Unexpected to
+ken 'i', "invalid-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:223:34)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:400:7)
+
+
+      226 |           }
+      227 |         } catch (error) {
+    > 228 |           console.warn('Failed to parse state parameter in error handler, using default frontend
+ URL:', error);
+
+          |                   ^
+      229 |         }
+      230 |       }
+      231 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:228:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:7)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+ FAIL  src/auth/auth.controller.spec.ts
+  AuthController
+    ✓ should be defined (5 ms)
+    login
+      ✓ should authenticate user successfully (1 ms)
+      ✓ should handle service errors (10 ms)
+    verifyOtp
+      ✓ should verify OTP successfully (1 ms)
+      ✓ should handle service errors (2 ms)
+    forgotPassword
+      ✓ should send password reset email successfully (1 ms)
+      ✓ should handle service errors (4 ms)
+    resetPassword
+      ✓ should reset password successfully (1 ms)
+      ✓ should handle service errors (2 ms)
+    refreshToken
+      ✓ should refresh token successfully (1 ms)
+      ✓ should handle service errors (1 ms)
+    logout
+      ✓ should logout user successfully (1 ms)
+      ✓ should handle service errors
+    googleAuth
+      ✓ should redirect to Google OAuth with default frontend URL (19 ms)
+      ✓ should redirect to Google OAuth with custom frontend URL (2 ms)
+      ✓ should include all required OAuth parameters (3 ms)
+    googleCallback
+      ✓ should redirect to success page with custom frontend URL (3 ms)
+      ✕ should redirect to error page for driver role with custom frontend URL (2 ms)
+      ✓ should use default frontend URL when state is not provided (1 ms)
+      ✓ should use default frontend URL when state parsing fails (5 ms)
+      ✓ should handle service errors and redirect to error page with custom frontend URL (5 ms)
+      ✓ should handle service errors and use default frontend URL when state parsing fails (7 ms)
+      ✓ should handle empty state object gracefully (1 ms)
+
+  ● AuthController › googleCallback › should redirect to error page for driver role with custom frontend URL
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: StringContaining "http://localhost:3000signin?error="
+    Received: "http://localhost:3000/signin?error=You%20do%20not%20have%20permission%20to%20access%20this%20
+system.%20Users%20with%20your%20role%20cannot%20log%20in."
+
+
+    Number of calls: 1
+
+      332 |       await controller.googleCallback(code, mockResponse, state);
+      333 |
+    > 334 |       expect(mockResponse.redirect).toHaveBeenCalledWith(
+          |                                     ^
+      335 |         expect.stringContaining('http://localhost:3000signin?error=')
+      336 |       );
+      337 |       expect(mockResponse.redirect).toHaveBeenCalledWith(
+
+      at Object.<anonymous> (auth/auth.controller.spec.ts:334:37)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 22 passed, 23 total
+Snapshots:   0 total
+Time:        2.515 s
+Ran all test suites matching /auth.controller.spec.ts/i.
+npm silly logfile done cleaning log files
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 1
+npm verbose code 1
+```
+
+---
+
+Есть один тест, который не проходит. Нужно исправить проверку в тесте - он ожидает URL без слэша, но теперь мы правильно формируем URL с слэшем. Давайте исправим это:
+
+
+---
+
+<details><summary>Edit file: src/auth/auth.controller.spec.ts</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -333,5 +333,5 @@
+  
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+-         expect.stringContaining('http://localhost:3000signin?error=')
++         expect.stringContaining('http://localhost:3000/signin?error=')
+        );
+        expect(mockResponse.redirect).toHaveBeenCalledWith(
+```
+
+</details>
+
+---
+
+Теперь запустим тесты снова:
+
+
+---
+
+```bash
+npm test -- --testPathPattern=auth.controller.spec.ts
+```
+
+```
+
+npm verbose cli /Users/eugenechernomor/.nvm/versions/node/v22.12.0/bin/node /Users/eugenechernomor/.nvm/vers
+ions/node/v22.12.0/bin/npm
+
+npm info using npm@10.9.0
+npm info using node@v22.12.0
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/lib/node_modules/npm/npmrc
+npm silly config load:file:/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/.npm
+rc
+
+npm silly config load:file:/Users/eugenechernomor/.npmrc
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/etc/npmrc
+npm verbose title npm test --testPathPattern=auth.controller.spec.ts
+npm verbose argv "test" "--" "--testPathPattern=auth.controller.spec.ts"
+npm verbose logfile logs-max:10 dir:/Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_18_249Z-
+npm verbose logfile /Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_18_249Z-debug-0.log
+npm silly logfile start cleaning logs, removing 1 files
+npm silly logfile done cleaning log files
+
+> Odyssea-backend-nestjs@0.0.1 test
+> jest --testPathPattern=auth.controller.spec.ts
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_uri
+=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22https%3A
+%2F%2Fproduction.example.com%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: undefined
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: https://production.example.com
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_uri
+=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22http%3A%
+2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=test-client-id&redirec
+t_uri=http://localhost:3000/auth/google/callback&scope=email%20profile&access_type=offline&prompt=consent&st
+ate=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+  console.log
+    frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+  console.log
+    targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.warn
+    Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "invalid
+-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:172:34)
+
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:367:24)
+
+        at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nes
+tjs/node_modules/jest-circus/build/utils.js:298:28)
+
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/utils.js:231:10)
+
+        at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-circus/build/run.js:316:40)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modul
+es/jest-circus/build/run.js:252:3)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/je
+st-circus/build/run.js:71:3)
+
+        at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea
+-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+        at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mo
+dules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+        at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/runTest.js:367:16)
+
+        at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_module
+s/jest-runner/build/runTest.js:444:34)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:367:24)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.log
+    Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.warn
+    Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "invalid
+-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:172:34)
+
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:400:24)
+
+        at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nes
+tjs/node_modules/jest-circus/build/utils.js:298:28)
+
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/utils.js:231:10)
+
+        at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-circus/build/run.js:316:40)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modul
+es/jest-circus/build/run.js:252:3)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-
+nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+        at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/je
+st-circus/build/run.js:71:3)
+
+        at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea
+-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+        at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mo
+dules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+        at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/runTest.js:367:16)
+
+        at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_module
+s/jest-runner/build/runTest.js:444:34)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:24)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+  console.warn
+    Failed to parse state parameter in error handler, using default frontend URL: SyntaxError: Unexpected to
+ken 'i', "invalid-json-state" is not valid JSON
+
+        at JSON.parse (<anonymous>)
+        at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-back
+end-nestjs/src/auth/auth.controller.ts:223:34)
+
+        at processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/
+src/auth/auth.controller.spec.ts:400:7)
+
+
+      226 |           }
+      227 |         } catch (error) {
+    > 228 |           console.warn('Failed to parse state parameter in error handler, using default frontend
+ URL:', error);
+
+          |                   ^
+      229 |         }
+      230 |       }
+      231 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:228:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:7)
+
+  console.log
+    Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+ PASS  src/auth/auth.controller.spec.ts
+  AuthController
+    ✓ should be defined (6 ms)
+    login
+      ✓ should authenticate user successfully (2 ms)
+      ✓ should handle service errors (10 ms)
+    verifyOtp
+      ✓ should verify OTP successfully (2 ms)
+      ✓ should handle service errors (3 ms)
+    forgotPassword
+      ✓ should send password reset email successfully (1 ms)
+      ✓ should handle service errors (1 ms)
+    resetPassword
+      ✓ should reset password successfully (1 ms)
+      ✓ should handle service errors (2 ms)
+    refreshToken
+      ✓ should refresh token successfully (1 ms)
+      ✓ should handle service errors (1 ms)
+    logout
+      ✓ should logout user successfully (1 ms)
+      ✓ should handle service errors (1 ms)
+    googleAuth
+      ✓ should redirect to Google OAuth with default frontend URL (17 ms)
+      ✓ should redirect to Google OAuth with custom frontend URL (3 ms)
+      ✓ should include all required OAuth parameters (5 ms)
+    googleCallback
+      ✓ should redirect to success page with custom frontend URL (2 ms)
+      ✓ should redirect to error page for driver role with custom frontend URL (1 ms)
+      ✓ should use default frontend URL when state is not provided (1 ms)
+      ✓ should use default frontend URL when state parsing fails (4 ms)
+      ✓ should handle service errors and redirect to error page with custom frontend URL (2 ms)
+      ✓ should handle service errors and use default frontend URL when state parsing fails (4 ms)
+      ✓ should handle empty state object gracefully (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        1.827 s, estimated 3 s
+Ran all test suites matching /auth.controller.spec.ts/i.
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 0
+npm info ok
+```
+
+---
+
+Отлично! Все тесты прошли успешно (23/23). Теперь давайте запустим все тесты, чтобы убедиться, что мы ничего не сломали:
+
+
+---
+
+```bash
+npm test
+```
+
+```
+
+npm verbose cli /Users/eugenechernomor/.nvm/versions/node/v22.12.0/bin/node /Users/eugenechernomor/.nvm/vers
+ions/node/v22.12.0/bin/npm
+
+npm info using npm@10.9.0
+npm info using node@v22.12.0
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/lib/node_modules/npm/npmrc
+npm silly config load:file:/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/.npm
+rc
+
+npm silly config load:file:/Users/eugenechernomor/.npmrc
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/etc/npmrc
+npm verbose title npm test
+npm verbose argv "test"
+npm verbose logfile logs-max:10 dir:/Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_24_517Z-
+npm verbose logfile /Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_24_517Z-debug-0.log
+npm silly logfile start cleaning logs, removing 1 files
+npm silly logfile done cleaning log files
+
+> Odyssea-backend-nestjs@0.0.1 test
+> jest
+
+ PASS  src/auth/dto/auth.dto.spec.ts
+ PASS  src/users/dto/users.dto.spec.ts
+ PASS  src/common/interceptors/transform.interceptor.spec.ts
+ PASS  src/config/env.config.spec.ts
+ PASS  src/users/users.controller.spec.ts
+ PASS  src/users/users.service.spec.ts
+ PASS  src/auth/strategies/local.strategy.spec.ts
+ PASS  src/users/users.module.spec.ts
+ PASS  src/mailer/mailer.module.spec.ts
+[Nest] 264  - 09/01/2025, 5:17:29 PM   ERROR [MailerService] ❌ SMTP transporter not initialized
+[Nest] 264  - 09/01/2025, 5:17:29 PM   ERROR [MailerService] ❌ Failed to send email to recipient@example.com
+                                                                                                           
+[Nest] 264  - 09/01/2025, 5:17:29 PM   ERROR [MailerService] Error: SMTP error
+    at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/src/
+mailer/mailer.service.spec.ts:139:50)
+
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+ PASS  src/mailer/mailer.service.spec.ts
+ PASS  src/auth/strategies/jwt.strategy.spec.ts
+ PASS  src/auth/auth.controller.spec.ts
+  ● Console
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22https%
+3A%2F%2Fproduction.example.com%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: undefined
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: https://production.example.com
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22http%3
+A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=test-client-id&redir
+ect_uri=http://localhost:3000/auth/google/callback&scope=email%20profile&access_type=offline&prompt=consent&
+state=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:172:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:367:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:367:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:172:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.warn
+      Failed to parse state parameter in error handler, using default frontend URL: SyntaxError: Unexpected
+token 'i', "invalid-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:223:34)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:7)
+
+
+      226 |           }
+      227 |         } catch (error) {
+    > 228 |           console.warn('Failed to parse state parameter in error handler, using default frontend
+ URL:', error);
+
+          |                   ^
+      229 |         }
+      230 |       }
+      231 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:228:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:7)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+ PASS  src/mailer/mailer.integration.spec.ts
+ PASS  src/app.controller.spec.ts
+ PASS  src/prisma/prisma.module.spec.ts
+ PASS  src/common/filters/http-exception.filter.spec.ts
+ PASS  src/auth/auth.module.spec.ts
+ PASS  src/app.module.spec.ts
+ PASS  src/main.spec.ts
+ PASS  src/auth/auth.service.spec.ts (6.096 s)
+ PASS  src/prisma/prisma.service.spec.ts (7.082 s)
+
+Test Suites: 21 passed, 21 total
+Tests:       222 passed, 222 total
+Snapshots:   0 total
+Time:        7.626 s, estimated 8 s
+Ran all test suites.
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 0
+npm info ok
+```
+
+---
+
+Отлично! Все тесты прошли успешно (222/222). Теперь давайте создадим коммит с исправлениями:
+
+
+---
+
+```bash
+git add .
+```
+
+```
+eugenechernomor@DevRocketsPrimary Odyssea-backend-nestjs % git add .
+eugenechernomor@DevRocketsPrimary Odyssea-backend-nestjs %
+```
+
+---
+
+```bash
+git commit -m "fix: resolve ERR_INVALID_REDIRECT error in Google OAuth callback
+
+- Add formatUrl helper function to properly format redirect URLs with slashes
+- Fix missing slashes between domain and path in redirect URLs
+- Update tests to reflect correct URL formatting
+- Ensure proper URL construction for both success and error redirects
+- Add fallback for undefined FRONTEND_URL environment variable
+
+Fixes: ERR_INVALID_REDIRECT error when redirecting to frontend after Google OAuth
+Tests: 222/222 passing"
+```
+
+```
+
+npm verbose cli /Users/eugenechernomor/.nvm/versions/node/v22.12.0/bin/node /Users/eugenechernomor/.nvm/vers
+ions/node/v22.12.0/bin/npm
+
+npm info using npm@10.9.0
+npm info using node@v22.12.0
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/lib/node_modules/npm/npmrc
+npm silly config load:file:/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/.npm
+rc
+
+npm silly config load:file:/Users/eugenechernomor/.npmrc
+npm silly config load:file:/Users/eugenechernomor/.nvm/versions/node/v22.12.0/etc/npmrc
+npm verbose title npm test --testPathPattern=\.spec\.ts$ --testPathIgnorePatterns=test/|e2e
+npm verbose argv "test" "--" "--testPathPattern=\\.spec\\.ts$" "--testPathIgnorePatterns=test/|e2e"
+npm verbose logfile logs-max:10 dir:/Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_41_921Z-
+npm verbose logfile /Users/eugenechernomor/.npm/_logs/2025-09-01T14_17_41_921Z-debug-0.log
+npm silly logfile start cleaning logs, removing 1 files
+npm silly logfile done cleaning log files
+
+> Odyssea-backend-nestjs@0.0.1 test
+> jest --testPathPattern=\.spec\.ts$ --testPathIgnorePatterns=test/|e2e
+
+
+
+Test Suites: 0 of 21 total
+Tests:       0 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+
+Test Suites: 0 of 21 total
+Tests:       0 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+
+Test Suites: 0 of 21 total
+Tests:       0 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+
+Test Suites: 0 of 21 total
+Tests:       0 total
+ PASS  src/auth/dto/auth.dto.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+
+Test Suites: 0 of 21 total
+Tests:       0 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+ RUNS  src/auth/dto/auth.dto.spec.ts
+
+Test Suites: 0 of 21 total
+Tests:       0 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 1 passed, 1 of 21 total
+Tests:       17 passed, 17 total
+ PASS  src/users/dto/users.dto.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/users/dto/users.dto.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 1 passed, 1 of 21 total
+Tests:       17 passed, 17 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 2 passed, 2 of 21 total
+Tests:       31 passed, 31 total
+ PASS  src/config/env.config.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/config/env.config.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 2 passed, 2 of 21 total
+Tests:       31 passed, 31 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 3 passed, 3 of 21 total
+Tests:       52 passed, 52 total
+ PASS  src/users/users.controller.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.controller.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 3 passed, 3 of 21 total
+Tests:       52 passed, 52 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 4 passed, 4 of 21 total
+Tests:       69 passed, 69 total
+ PASS  src/auth/strategies/local.strategy.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/local.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 4 passed, 4 of 21 total
+Tests:       69 passed, 69 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/mailer/mailer.integration.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 5 passed, 5 of 21 total
+Tests:       83 passed, 83 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/mailer/mailer.integration.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 5 passed, 5 of 21 total
+Tests:       92 passed, 92 total
+ PASS  src/mailer/mailer.integration.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/mailer/mailer.integration.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 5 passed, 5 of 21 total
+Tests:       92 passed, 92 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/jwt.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 6 passed, 6 of 21 total
+Tests:       101 passed, 101 total
+ PASS  src/auth/strategies/jwt.strategy.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/jwt.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 6 passed, 6 of 21 total
+Tests:       101 passed, 101 total
+ PASS  src/auth/auth.module.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/auth/strategies/jwt.strategy.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/auth/auth.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 6 passed, 6 of 21 total
+Tests:       101 passed, 101 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/mailer/mailer.module.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 8 passed, 8 of 21 total
+Tests:       129 passed, 129 total
+ PASS  src/users/users.service.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/mailer/mailer.module.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 8 passed, 8 of 21 total
+Tests:       129 passed, 129 total
+ PASS  src/mailer/mailer.module.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/mailer/mailer.module.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 8 passed, 8 of 21 total
+Tests:       129 passed, 129 total
+ PASS  src/users/users.module.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/mailer/mailer.module.spec.ts
+ RUNS  src/users/users.service.spec.ts
+ RUNS  src/users/users.module.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 8 passed, 8 of 21 total
+Tests:       129 passed, 129 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/app.controller.spec.ts
+ RUNS  src/prisma/prisma.module.spec.ts
+ RUNS  src/mailer/mailer.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 11 passed, 11 of 21 total
+Tests:       142 passed, 142 total
+ PASS  src/prisma/prisma.module.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/app.controller.spec.ts
+ RUNS  src/prisma/prisma.module.spec.ts
+ RUNS  src/mailer/mailer.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 11 passed, 11 of 21 total
+Tests:       142 passed, 142 total
+ PASS  src/app.controller.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/app.controller.spec.ts
+ RUNS  src/prisma/prisma.module.spec.ts
+ RUNS  src/mailer/mailer.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 11 passed, 11 of 21 total
+Tests:       142 passed, 142 total
+ PASS  src/auth/auth.controller.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/app.controller.spec.ts
+ RUNS  src/prisma/prisma.module.spec.ts
+ RUNS  src/mailer/mailer.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 11 passed, 11 of 21 total
+Tests:       142 passed, 142 total
+  ● Console
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22https%
+3A%2F%2Fproduction.example.com%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: undefined
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: https://production.example.com
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=undefined&redirect_u
+ri=undefined&scope=email%20profile&access_type=offline&prompt=consent&state=%7B%22frontendUrl%22%3A%22http%3
+A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      authUrl https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=test-client-id&redir
+ect_uri=http://localhost:3000/auth/google/callback&scope=email%20profile&access_type=offline&prompt=consent&
+state=%7B%22frontendUrl%22%3A%22http%3A%2F%2Flocalhost%3A3000%22%7D
+
+
+      at AuthController.googleAuth (auth/auth.controller.ts:122:13)
+
+    console.log
+      frontendUrl from query: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:123:13)
+
+    console.log
+      targetFrontendUrl: http://localhost:3000
+
+      at AuthController.googleAuth (auth/auth.controller.ts:124:13)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:172:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:367:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:367:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.log
+      Using frontend URL for redirect: http://localhost:3000
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.warn
+      Failed to parse state parameter, using default frontend URL: SyntaxError: Unexpected token 'i', "inval
+id-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:172:34)
+
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:24)
+
+          at Promise.then.completed (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-n
+estjs/node_modules/jest-circus/build/utils.js:298:28)
+
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+/node_modules/jest-circus/build/utils.js:231:10)
+
+          at _callCircusTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-circus/build/run.js:316:40)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_mod
+ules/jest-circus/build/run.js:252:3)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:126:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at _runTestsForDescribeBlock (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backen
+d-nestjs/node_modules/jest-circus/build/run.js:121:9)
+
+          at run (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modules/
+jest-circus/build/run.js:71:3)
+
+          at runAndTransformResultsToJestFormat (/Applications/MAMP/htdocs/devrockets_products/clients/Odyss
+ea-backend-nestjs/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+
+          at jestAdapter (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_
+modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+
+          at runTestInternal (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/n
+ode_modules/jest-runner/build/runTest.js:367:16)
+
+          at runTest (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/node_modu
+les/jest-runner/build/runTest.js:444:34)
+
+          at Object.worker (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/nod
+e_modules/jest-runner/build/testWorker.js:106:12)
+
+
+      175 |           }
+      176 |         } catch (error) {
+    > 177 |           console.warn('Failed to parse state parameter, using default frontend URL:', error);
+          |                   ^
+      178 |         }
+      179 |       }
+      180 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:177:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:24)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+    console.warn
+      Failed to parse state parameter in error handler, using default frontend URL: SyntaxError: Unexpected
+token 'i', "invalid-json-state" is not valid JSON
+
+          at JSON.parse (<anonymous>)
+          at AuthController.googleCallback (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-ba
+ckend-nestjs/src/auth/auth.controller.ts:223:34)
+
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestj
+s/src/auth/auth.controller.spec.ts:400:7)
+
+
+      226 |           }
+      227 |         } catch (error) {
+    > 228 |           console.warn('Failed to parse state parameter in error handler, using default frontend
+ URL:', error);
+
+          |                   ^
+      229 |         }
+      230 |       }
+      231 |
+
+      at AuthController.googleCallback (auth/auth.controller.ts:228:19)
+      at Object.<anonymous> (auth/auth.controller.spec.ts:400:7)
+
+    console.log
+      Using frontend URL for redirect: https://production.example.com
+
+      at AuthController.googleCallback (auth/auth.controller.ts:181:15)
+
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/app.controller.spec.ts
+ RUNS  src/prisma/prisma.module.spec.ts
+ RUNS  src/mailer/mailer.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 11 passed, 11 of 21 total
+Tests:       142 passed, 142 total
+[Nest] 1821  - 09/01/2025, 5:17:46 PM   ERROR [MailerService] ❌ SMTP transporter not initialized
+[Nest] 1821  - 09/01/2025, 5:17:46 PM   ERROR [MailerService] ❌ Failed to send email to recipient@example.co
+m                                                                                                          
+[Nest] 1821  - 09/01/2025, 5:17:46 PM   ERROR [MailerService] Error: SMTP error
+    at Object.<anonymous> (/Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs/src/
+mailer/mailer.service.spec.ts:139:50)
+
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/app.controller.spec.ts
+ RUNS  src/prisma/prisma.module.spec.ts
+ RUNS  src/mailer/mailer.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 11 passed, 11 of 21 total
+Tests:       142 passed, 142 total
+ PASS  src/mailer/mailer.service.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/app.controller.spec.ts
+ RUNS  src/prisma/prisma.module.spec.ts
+ RUNS  src/mailer/mailer.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/auth/auth.controller.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 11 passed, 11 of 21 total
+Tests:       142 passed, 142 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/common/filters/http-exception.filter.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 15 passed, 15 of 21 total
+Tests:       185 passed, 185 total
+ PASS  src/common/filters/http-exception.filter.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/common/filters/http-exception.filter.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 15 passed, 15 of 21 total
+Tests:       185 passed, 185 total
+ PASS  src/main.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/common/filters/http-exception.filter.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 15 passed, 15 of 21 total
+Tests:       185 passed, 185 total
+ PASS  src/app.module.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/common/filters/http-exception.filter.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+ RUNS  src/app.module.spec.ts
+ RUNS  src/main.spec.ts
+
+Test Suites: 15 passed, 15 of 21 total
+Tests:       185 passed, 185 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+
+Test Suites: 18 passed, 18 of 21 total
+Tests:       196 passed, 196 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+
+Test Suites: 18 passed, 18 of 21 total
+Tests:       197 passed, 197 total
+ PASS  src/common/interceptors/transform.interceptor.spec.ts
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+ RUNS  src/common/interceptors/transform.interceptor.spec.ts
+
+Test Suites: 18 passed, 18 of 21 total
+Tests:       197 passed, 197 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+
+Test Suites: 19 passed, 19 of 21 total
+Tests:       208 passed, 208 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+
+Test Suites: 19 passed, 19 of 21 total
+Tests:       209 passed, 209 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+
+Test Suites: 19 passed, 19 of 21 total
+Tests:       216 passed, 216 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+
+Test Suites: 19 passed, 19 of 21 total
+Tests:       217 passed, 217 total
+ PASS  src/auth/auth.service.spec.ts (6.009 s)
+
+ RUNS  src/prisma/prisma.service.spec.ts
+ RUNS  src/auth/auth.service.spec.ts
+
+Test Suites: 19 passed, 19 of 21 total
+Tests:       217 passed, 217 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+
+Test Suites: 20 passed, 20 of 21 total
+Tests:       220 passed, 220 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+
+Test Suites: 20 passed, 20 of 21 total
+Tests:       220 passed, 220 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+
+Test Suites: 20 passed, 20 of 21 total
+Tests:       221 passed, 221 total
+
+ RUNS  src/prisma/prisma.service.spec.ts
+
+Test Suites: 20 passed, 20 of 21 total
+ PASS  src/prisma/prisma.service.spec.ts (7.845 s)
+
+ RUNS  src/prisma/prisma.service.spec.ts
+
+Test Suites: 20 passed, 20 of 21 total
+
+Test Suites: 21 passed, 21 total
+Tests:       222 passed, 222 total
+Snapshots:   0 total
+Time:        8.373 s
+Ran all test suites matching /\.spec\.ts$/i.
+npm verbose cwd /Applications/MAMP/htdocs/devrockets_products/clients/Odyssea-backend-nestjs
+npm verbose os Darwin 23.5.0
+npm verbose node v22.12.0
+npm verbose npm  v10.9.0
+npm verbose exit 0
+npm info ok
+[main 7a52f99] fix: resolve ERR_INVALID_REDIRECT error in Google OAuth callback
+ 3 files changed, 2254 insertions(+), 13 deletions(-)
+```
+
+---
+
+Отлично! Коммит успешно создан! 🎉
+
+## Резюме выполненной работы
+
+Я успешно решил проблему с ошибкой `ERR_INVALID_REDIRECT` в Google OAuth callback. Вот что было сделано:
+
+### ✅ Проблема решена:
+
+**Ошибка `ERR_INVALID_REDIRECT`** была вызвана неправильным формированием URL для редиректа:
+- В URL отсутствовали слэши между доменом и путем
+- Например: `http://localhost:3000auth-success` вместо `http://localhost:3000/auth-success`
+
+### ✅ Решение:
+
+1. **Добавлена функция `formatUrl`** в метод `googleCallback`:
+   - Правильно обрабатывает слэши в URL
+   - Удаляет лишние слэши в начале и конце
+   - Обеспечивает корректное формирование URL
+
+2. **Исправлены все редиректы**:
+   - Успешный редирект: `http://localhost:3000/auth-success`
+   - Редирект с ошибкой: `http://localhost:3000/signin?error=...`
+   - Редирект для роли DRIVER: `http://localhost:3000/signin?error=...`
+
+3. **Добавлен fallback** для `process.env.FRONTEND_URL`:
+   - Если переменная окружения не определена, используется `http://localhost:3000`
+
+4. **Обновлены тесты**:
+   - Все тесты теперь проверяют правильное формирование URL с слэшами
+   - 23/23 теста для auth контроллера проходят успешно
+   - 222/222 общих тестов проходят успешно
+
+### ✅ Результат:
+
+Теперь Google OAuth callback корректно редиректит на фронтенд с правильными URL:
+- **Dev режим**: `http://localhost:3000/auth-success` или `http://localhost:3000/signin?error=...`
+- **Production режим**: `https://your-domain.com/auth-success` или `https://your-domain.com/signin?error=...`
+
+Ошибка `ERR_INVALID_REDIRECT` больше не возникает, и пользователи корректно перенаправляются на фронтенд после авторизации через Google.
 
 ---
 
