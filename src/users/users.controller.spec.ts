@@ -79,6 +79,7 @@ describe('UsersController', () => {
       hasPalletJack: false,
       hasLiftGate: true,
       hasCDL: true,
+      taxId: '12-3456789',
     };
 
     it('should create a new user successfully', async () => {

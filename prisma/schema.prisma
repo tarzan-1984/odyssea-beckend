@@ -55,6 +55,7 @@ model User {
   country              String?
   state                String?
   zip                  String?
+  taxId                String?
   chatRooms            ChatRoomParticipant[]
   receivedMessages     Message[]             @relation("MessageReceiver")
   sentMessages         Message[]             @relation("MessageSender")

@@ -149,6 +149,14 @@ export class CreateUserDto {
   @IsString()
   zip?: string;
 
+  @ApiProperty({
+    description: 'Tax ID number',
+    example: '12-3456789',
+  })
+  @IsNotEmpty()
+  @IsString()
+  taxId: string;
+
   // Driver specific fields
   @ApiProperty({
     description: 'Vehicle type',

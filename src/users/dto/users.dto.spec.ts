@@ -18,6 +18,7 @@ describe('Users DTOs', () => {
       dto.hasPalletJack = false;
       dto.hasLiftGate = true;
       dto.hasCDL = true;
+      dto.taxId = '12-3456789';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(0);
@@ -30,6 +31,7 @@ describe('Users DTOs', () => {
       dto.firstName = 'John';
       dto.lastName = 'Doe';
       dto.role = UserRole.DRIVER;
+      dto.taxId = '12-3456789';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(1);
@@ -43,6 +45,7 @@ describe('Users DTOs', () => {
       dto.firstName = 'John';
       dto.lastName = 'Doe';
       dto.role = UserRole.DRIVER;
+      dto.taxId = '12-3456789';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(1);
@@ -56,6 +59,7 @@ describe('Users DTOs', () => {
       dto.firstName = '';
       dto.lastName = 'Doe';
       dto.role = UserRole.DRIVER;
+      dto.taxId = '12-3456789';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(1);
@@ -69,6 +73,21 @@ describe('Users DTOs', () => {
       dto.firstName = 'John';
       dto.lastName = '';
       dto.role = UserRole.DRIVER;
+      dto.taxId = '12-3456789';
+
+      const errors = await validate(dto);
+      expect(errors).toHaveLength(1);
+      expect(errors[0].constraints?.isNotEmpty).toBeDefined();
+    });
+
+    it('should fail validation for empty taxId', async () => {
+      const dto = new CreateUserDto();
+      dto.email = 'test@example.com';
+      dto.password = 'password123';
+      dto.firstName = 'John';
+      dto.lastName = 'Doe';
+      dto.role = UserRole.DRIVER;
+      dto.taxId = '';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(1);
@@ -82,6 +101,7 @@ describe('Users DTOs', () => {
       dto.firstName = 'John';
       dto.lastName = 'Doe';
       dto.role = 'INVALID_ROLE' as UserRole;
+      dto.taxId = '12-3456789';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(1);
@@ -122,6 +142,7 @@ describe('Users DTOs', () => {
       dto.hasRealID = false;
       dto.hasPrinter = true;
       dto.hasSleeper = false;
+      dto.taxId = '12-3456789';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(0);
@@ -219,6 +240,15 @@ describe('Users DTOs', () => {
       dto.hasRealID = true;
       dto.hasPrinter = true;
       dto.hasSleeper = true;
+      dto.taxId = '12-3456789';
+
+      const errors = await validate(dto);
+      expect(errors).toHaveLength(0);
+    });
+
+    it('should validate taxId field correctly', async () => {
+      const dto = new UpdateUserDto();
+      dto.taxId = '12-3456789';
 
       const errors = await validate(dto);
       expect(errors).toHaveLength(0);

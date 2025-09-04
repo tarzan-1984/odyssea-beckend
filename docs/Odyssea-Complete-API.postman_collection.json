@@ -1,0 +1,1011 @@
+{
+  "info": {
+    "name": "Odyssea Complete API",
+    "description": "Complete collection for testing all Odyssea backend API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Base URL for the backend API (change to production URL when deploying)"
+    },
+    {
+      "key": "apiPrefix",
+      "value": "v1",
+      "type": "string",
+      "description": "API version prefix"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token for authenticated requests"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT refresh token for token refresh"
+    },
+    {
+      "key": "userEmail",
+      "value": "test@example.com",
+      "type": "string",
+      "description": "Test user email for authentication"
+    },
+    {
+      "key": "userPassword",
+      "value": "password123",
+      "type": "string",
+      "description": "Test user password for authentication"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string",
+      "description": "User ID for testing user-specific endpoints"
+    },
+    {
+      "key": "chatRoomId",
+      "value": "",
+      "type": "string",
+      "description": "Chat room ID for testing chat endpoints"
+    },
+    {
+      "key": "messageId",
+      "value": "",
+      "type": "string",
+      "description": "Message ID for testing message endpoints"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "1. User Login (Email + Password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "login"]
+            },
+            "description": "Login with email and password. Returns message that OTP code was sent to email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains success message', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.message).to.include('OTP');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "verify-otp"]
+            },
+            "description": "Verify OTP code sent to email. Returns access token, refresh token, and user data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', response.data.accessToken);",
+                  "        console.log('Access token set:', response.data.accessToken);",
+                  "    }",
+                  "    if (response.data && response.data.refreshToken) {",
+                  "        pm.collectionVariables.set('refreshToken', response.data.refreshToken);",
+                  "        console.log('Refresh token set:', response.data.refreshToken);",
+                  "    }",
+                  "    if (response.data && response.data.user && response.data.user.id) {",
+                  "        pm.collectionVariables.set('userId', response.data.user.id);",
+                  "        console.log('User ID set:', response.data.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Social Login (Google)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/social-login?provider=google&frontendUrl=http://localhost:3000",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "social-login"],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "google"
+                },
+                {
+                  "key": "frontendUrl",
+                  "value": "http://localhost:3000"
+                }
+              ]
+            },
+            "description": "Initiate Google OAuth flow. Redirects to Google for authentication."
+          }
+        },
+        {
+          "name": "4. Google OAuth Callback",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/google/callback?code=google_auth_code&state=encrypted_state",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "google", "callback"],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "google_auth_code"
+                },
+                {
+                  "key": "state",
+                  "value": "encrypted_state"
+                }
+              ]
+            },
+            "description": "Handles Google OAuth callback after user consent. Returns access token, refresh token, and user data."
+          }
+        },
+        {
+          "name": "5. Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "forgot-password"]
+            },
+            "description": "Request password reset. Sends reset email if user exists."
+          }
+        },
+        {
+          "name": "6. Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset_token_here\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "reset-password"]
+            },
+            "description": "Reset password using token from email. Requires valid reset token and new password (min 6 chars)."
+          }
+        },
+        {
+          "name": "7. Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "refresh"]
+            },
+            "description": "Refresh access token using refresh token. Returns new access token."
+          }
+        },
+        {
+          "name": "8. Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "auth", "logout"]
+            },
+            "description": "Logout user. Requires valid JWT access token in Authorization header."
+          }
+        }
+      ],
+      "description": "Authentication endpoints for user login, logout, and password management"
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "1. Create User (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phone\": \"+1234567890\",\n  \"role\": \"DRIVER\",\n  \"language\": [\"en\"],\n  \"taxId\": \"12-3456789\",\n  \"city\": \"New York\",\n  \"country\": \"United States\",\n  \"state\": \"NY\",\n  \"zip\": \"10001\",\n  \"vehicleType\": \"CARGO_VAN\",\n  \"hasCDL\": true,\n  \"hasLiftGate\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users"]
+            },
+            "description": "Create a new user. Requires admin privileges and JWT authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.id) {",
+                  "        pm.collectionVariables.set('userId', response.data.id);",
+                  "        console.log('New user ID set:', response.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users?page=1&limit=10&role=DRIVER&status=ACTIVE&search=john",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "DRIVER"
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE"
+                },
+                {
+                  "key": "search",
+                  "value": "john"
+                }
+              ]
+            },
+            "description": "Get all users with pagination and filtering. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "3. Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users", "profile"]
+            },
+            "description": "Get current user profile. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "4. Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users", "{{userId}}"]
+            },
+            "description": "Get user by ID. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "5. Update Current User Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"phone\": \"+0987654321\",\n  \"city\": \"Los Angeles\",\n  \"state\": \"CA\",\n  \"zip\": \"90210\",\n  \"taxId\": \"98-7654321\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users", "profile"]
+            },
+            "description": "Update current user profile. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "6. Update User (Admin only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"User\",\n  \"role\": \"FLEET_MANAGER\",\n  \"city\": \"Chicago\",\n  \"state\": \"IL\",\n  \"taxId\": \"11-2233445\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users", "{{userId}}"]
+            },
+            "description": "Update user by ID. Requires admin privileges and JWT authentication."
+          }
+        },
+        {
+          "name": "7. Delete User (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users", "{{userId}}"]
+            },
+            "description": "Delete user by ID. Requires admin privileges and JWT authentication."
+          }
+        },
+        {
+          "name": "8. Change User Status (Admin only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SUSPENDED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/users/{{userId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "users", "{{userId}}", "status"]
+            },
+            "description": "Change user status. Requires admin privileges and JWT authentication."
+          }
+        }
+      ],
+      "description": "User management endpoints for CRUD operations and profile management"
+    },
+    {
+      "name": "Chat Rooms",
+      "item": [
+        {
+          "name": "1. Create Chat Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Chat Room\",\n  \"type\": \"Group\",\n  \"participantIds\": [\"user1\", \"user2\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/chat-rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "chat-rooms"]
+            },
+            "description": "Create a new chat room. Requires JWT authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.id) {",
+                  "        pm.collectionVariables.set('chatRoomId', response.data.id);",
+                  "        console.log('Chat room ID set:', response.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Get User Chat Rooms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/chat-rooms?page=1&limit=10&type=Group",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "chat-rooms"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "type",
+                  "value": "Group"
+                }
+              ]
+            },
+            "description": "Get user's chat rooms with pagination and filtering. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "3. Get Chat Room by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/chat-rooms/{{chatRoomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "chat-rooms", "{{chatRoomId}}"]
+            },
+            "description": "Get specific chat room by ID. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "4. Archive Chat Room",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/chat-rooms/{{chatRoomId}}/archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "chat-rooms", "{{chatRoomId}}", "archive"]
+            },
+            "description": "Archive a chat room. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "5. Add Participants to Chat Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participantIds\": [\"user3\", \"user4\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/chat-rooms/{{chatRoomId}}/participants",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "chat-rooms", "{{chatRoomId}}", "participants"]
+            },
+            "description": "Add participants to chat room. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "6. Search Users for Chat",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/chat-rooms/search/users?query=john&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "chat-rooms", "search", "users"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "john"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Search users for adding to chat. Requires JWT authentication."
+          }
+        }
+      ],
+      "description": "Chat room management endpoints for creating, managing, and searching chat rooms"
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "1. Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chatRoomId\": \"{{chatRoomId}}\",\n  \"content\": \"Hello, this is a test message!\",\n  \"receiverId\": \"optional_receiver_id\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages"]
+            },
+            "description": "Send a message to a chat room. Requires JWT authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.id) {",
+                  "        pm.collectionVariables.set('messageId', response.data.id);",
+                  "        console.log('Message ID set:', response.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Upload File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "chatRoomId",
+                  "value": "{{chatRoomId}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages", "upload"]
+            },
+            "description": "Upload a file to a chat room. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "3. Get Chat Room Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages/chat-room/{{chatRoomId}}?page=1&limit=20&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages", "chat-room", "{{chatRoomId}}"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc"
+                }
+              ]
+            },
+            "description": "Get messages from a specific chat room. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "4. Search Messages in Chat Room",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages/search/{{chatRoomId}}?query=test&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages", "search", "{{chatRoomId}}"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "test"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Search messages in a chat room. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "5. Get Message Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages/stats/{{chatRoomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages", "stats", "{{chatRoomId}}"]
+            },
+            "description": "Get message statistics for a chat room. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "6. Get Unread Message Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages/unread/count",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages", "unread", "count"]
+            },
+            "description": "Get unread message count for current user. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "7. Mark Message as Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages/{{messageId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages", "{{messageId}}", "read"]
+            },
+            "description": "Mark a message as read. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "8. Delete Message",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/messages/{{messageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}", "messages", "{{messageId}}"]
+            },
+            "description": "Delete a message. Requires JWT authentication."
+          }
+        }
+      ],
+      "description": "Message management endpoints for sending, receiving, and managing messages"
+    },
+    {
+      "name": "Health Check & Documentation",
+      "item": [
+        {
+          "name": "1. Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{apiPrefix}}"]
+            },
+            "description": "Basic health check to verify API is running"
+          }
+        },
+        {
+          "name": "2. Swagger Documentation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["docs"]
+            },
+            "description": "Access Swagger API documentation"
+          }
+        },
+        {
+          "name": "3. Swagger JSON",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/docs-json",
+              "host": ["{{baseUrl}}"],
+              "path": ["docs-json"]
+            },
+            "description": "Get Swagger API specification in JSON format"
+          }
+        }
+      ],
+      "description": "Health check and documentation endpoints"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global pre-request script",
+          "console.log('Making request to:', pm.request.url);",
+          "",
+          "// Add timestamp to requests",
+          "pm.request.headers.add({",
+          "    key: 'X-Request-Time',",
+          "    value: new Date().toISOString()",
+          "});"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('Response has valid JSON', function () {",
+          "    if (pm.response.headers.get('Content-Type') && pm.response.headers.get('Content-Type').includes('application/json')) {",
+          "        pm.response.to.have.jsonBody();",
+          "    }",
+          "});",
+          "",
+          "pm.test('Response has success status', function () {",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+          "});"
+        ]
+      }
+    }
+  ]
+}

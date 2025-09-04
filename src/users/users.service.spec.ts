@@ -76,6 +76,7 @@ describe('UsersService', () => {
       hasPalletJack: false,
       hasLiftGate: true,
       hasCDL: true,
+      taxId: '12-3456789',
     };
 
     it('should create a new user successfully', async () => {
@@ -130,6 +131,7 @@ describe('UsersService', () => {
           city: '',
           state: '',
           zip: '',
+          taxId: '',
           vehicle: {
             brand: '',
             model: '',
