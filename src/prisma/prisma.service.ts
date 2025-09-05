@@ -10,7 +10,7 @@ export class PrismaService
 
   constructor() {
     super({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+      log: process.env.PRISMA_LOG_LEVEL === 'warn' ? ['error', 'warn'] : ['error'],
     });
   }
 
@@ -29,7 +29,7 @@ export class PrismaService
         throw new Error(`Invalid DATABASE_URL format. Expected postgresql:// or postgres://, got: ${databaseUrl.substring(0, 20)}...`);
       }
 
-      this.logger.log('Connecting to database...');
+      this.logger.log( 'Connecting to database...');
       await this.$connect();
       this.logger.log('Successfully connected to database');
     } catch (error) {

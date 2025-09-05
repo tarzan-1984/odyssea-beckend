@@ -79,7 +79,7 @@ export class MessagesService {
 
   /**
    * Get messages for a specific chat room with pagination
-   * Supports loading older messages for infinite scroll
+   * For chat: gets the most recent messages first, then older ones for infinite scroll
    */
   async getChatRoomMessages(
     chatRoomId: string,
@@ -101,50 +101,65 @@ export class MessagesService {
       throw new NotFoundException('Chat room not found or access denied');
     }
 
-    const skip = (page - 1) * limit;
+    // Get total count first
+    const total = await this.prisma.message.count({
+      where: { chatRoomId },
+    });
 
-    const [messages, total] = await Promise.all([
-      this.prisma.message.findMany({
-        where: { chatRoomId },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-        include: {
-          sender: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              profilePhoto: true,
-              role: true,
-            },
-          },
-          receiver: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              profilePhoto: true,
-              role: true,
-            },
+    // For chat, we want to get the most recent messages
+    // If page = 1, get the last 'limit' messages
+    // If page > 1, get older messages (for infinite scroll)
+    let skip: number;
+    let orderBy: any;
+
+    if (page === 1) {
+      // First page: get the most recent messages
+      skip = Math.max(0, total - limit);
+      orderBy = { createdAt: 'asc' }; // We'll reverse this later
+    } else {
+      // Subsequent pages: get older messages
+      skip = Math.max(0, total - (page * limit));
+      orderBy = { createdAt: 'asc' }; // We'll reverse this later
+    }
+
+    const messages = await this.prisma.message.findMany({
+      where: { chatRoomId },
+      orderBy,
+      skip,
+      take: limit,
+      include: {
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profilePhoto: true,
+            role: true,
           },
         },
-      }),
-      this.prisma.message.count({
-        where: { chatRoomId },
-      }),
-    ]);
+        receiver: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profilePhoto: true,
+            role: true,
+          },
+        },
+      },
+    });
 
     // Mark messages as read for the current user
     await this.markMessagesAsRead(chatRoomId, userId);
 
     return {
-      messages: messages.reverse(), // Show oldest first
+      messages: messages,
       pagination: {
         page,
         limit,
         total,
         pages: Math.ceil(total / limit),
+        hasMore: skip > 0, // There are more older messages if skip > 0
       },
     };
   }
@@ -244,7 +259,7 @@ export class MessagesService {
             mode: 'insensitive', // Case-insensitive search
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'asc' },
         skip,
         take: limit,
         include: {

@@ -213,6 +213,9 @@ export class MessagesController {
     @Query('limit') limit: number = 50,
     @Request() req,
   ) {
+
+    console.log('chatRoomId = ', chatRoomId);
+
     const userId = req.user.id;
     return await this.messagesService.getChatRoomMessages(chatRoomId, userId, page, limit);
   }

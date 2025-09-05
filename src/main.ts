@@ -10,11 +10,13 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 async function bootstrap() {
   // Validate critical environment variables before starting the app
   const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
-  const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-  
+  const missingEnvVars = requiredEnvVars.filter(
+    (envVar) => !process.env[envVar],
+  );
+
   if (missingEnvVars.length > 0) {
     console.error('❌ Missing required environment variables:');
-    missingEnvVars.forEach(envVar => {
+    missingEnvVars.forEach((envVar) => {
       console.error(`   - ${envVar}`);
     });
     console.error('Please check your .env file or environment configuration.');
@@ -23,8 +25,14 @@ async function bootstrap() {
 
   // Validate DATABASE_URL format
   const databaseUrl = process.env.DATABASE_URL;
-  if (databaseUrl && !databaseUrl.startsWith('postgresql://') && !databaseUrl.startsWith('postgres://')) {
-    console.error('❌ Invalid DATABASE_URL format. Expected postgresql:// or postgres://');
+  if (
+    databaseUrl &&
+    !databaseUrl.startsWith('postgresql://') &&
+    !databaseUrl.startsWith('postgres://')
+  ) {
+    console.error(
+      '❌ Invalid DATABASE_URL format. Expected postgresql:// or postgres://',
+    );
     console.error(`   Current value: ${databaseUrl.substring(0, 50)}...`);
     process.exit(1);
   }
@@ -57,7 +65,12 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: true,
+    origin: [
+      /^https?:\/\/localhost:\d+$/,
+      'https://odyssea-backend-ui.vercel.app',
+    ],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 

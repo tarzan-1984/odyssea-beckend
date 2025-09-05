@@ -15,6 +15,7 @@ import {
   swaggerConfig,
   mailerConfig,
 } from './config/env.config';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import {
     UsersModule,
     MailerModule,
     ChatsModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [],

@@ -190,3 +190,13 @@ enum UserStatus {
   SUSPENDED
   PENDING
 }
+
+model FileObject {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  url       String
+  mime      String?
+  size      Int?
+  userId    String? // if you want ownership
+  createdAt DateTime @default(now())
+}
