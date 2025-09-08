@@ -48,6 +48,24 @@ async function main() {
     },
   });
 
+  // Create second additional admin user
+  const tdev2Password = await bcrypt.hash('Passcode456!', 12);
+  const tdev2Admin = await prisma.user.upsert({
+    where: { email: 'tdev13104@gmail.com' },
+    update: {},
+    create: {
+      email: 'tdev13104@gmail.com',
+      password: tdev2Password,
+      firstName: 'TDev2',
+      lastName: 'Admin',
+      role: UserRole.ADMINISTRATOR,
+      status: UserStatus.ACTIVE,
+      phone: '+1234567896',
+      language: ['English'],
+      extension: '105',
+    },
+  });
+
   // Create dispatcher user
   const dispatcherPassword = await bcrypt.hash('dispatcher123', 12);
   const dispatcher = await prisma.user.upsert({
@@ -144,6 +162,7 @@ async function main() {
   console.log('📋 Created users:');
   console.log(`   Admin: ${admin.email} (password: admin123)`);
   console.log(`   TDev Admin: ${tdevAdmin.email} (password: Passcode456!)`);
+  console.log(`   TDev2 Admin: ${tdev2Admin.email} (password: Passcode456!)`);
   console.log(`   Dispatcher: ${dispatcher.email} (password: dispatcher123)`);
   console.log(`   Driver: ${driver.email} (password: driver123)`);
   console.log(`   Recruiter: ${recruiter.email} (password: recruiter123)`);
