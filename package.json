@@ -28,6 +28,9 @@
     "db:reset": "prisma migrate reset",
     "db:push": "prisma db push",
     "db:seed": "ts-node src/scripts/seed.ts",
+    "test:notifications": "ts-node src/scripts/test-notifications.ts",
+    "test:cron": "ts-node src/scripts/check-cron.ts",
+    "monitor:cron": "ts-node src/scripts/monitor-cron.ts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -41,6 +44,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.6",
     "@nestjs/platform-socket.io": "^11.0.1",
+    "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/terminus": "^11.0.0",
     "@nestjs/throttler": "^6.4.0",
@@ -48,6 +52,7 @@
     "@types/express": "^5.0.0",
     "@types/multer": "^2.0.0",
     "@types/nodemailer": "^6.4.17",
+    "@types/socket.io-client": "^1.4.36",
     "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "class-transformer": "^0.5.1",
@@ -59,7 +64,8 @@
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",

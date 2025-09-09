@@ -28,6 +28,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MessagesService } from './messages.service';
 import { FileUploadService } from './file-upload.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { ChatGateway } from './chat.gateway';
 
 @ApiTags('Messages')
 @Controller('messages')
@@ -37,6 +38,7 @@ export class MessagesController {
   constructor(
     private readonly messagesService: MessagesService,
     private readonly fileUploadService: FileUploadService,
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   @Post()
@@ -91,8 +93,8 @@ export class MessagesController {
     const userId = req.user.id;
     const message = await this.messagesService.sendMessage(sendMessageDto, userId);
     
-    // TODO: Broadcast message via WebSocket
-    // await this.chatGateway.broadcastMessage(sendMessageDto.chatRoomId, message);
+    // Broadcast message via WebSocket to all participants
+    await this.chatGateway.broadcastMessage(sendMessageDto.chatRoomId, message);
     
     return message;
   }

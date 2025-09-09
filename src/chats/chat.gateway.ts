@@ -152,7 +152,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /**
    * Handle typing indicators
-   * Shows when user is typing a message
+   * Shows when user is typing a message with automatic timeout
    */
   @SubscribeMessage('typing')
   async handleTyping(
@@ -166,12 +166,94 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { error: 'Unauthorized' };
     }
 
+    // Verify user has access to this chat room
+    try {
+      await this.chatRoomsService.getChatRoom(chatRoomId, userId);
+    } catch (error) {
+      client.emit('error', { message: 'Access denied to this chat room' });
+      return;
+    }
+
     // Broadcast typing indicator to other participants
     client.to(`chat_${chatRoomId}`).emit('userTyping', {
       userId,
       chatRoomId,
       isTyping,
     });
+
+    // If user started typing, set a timeout to automatically stop the indicator
+    if (isTyping) {
+      // Clear any existing timeout for this user
+      if (client.data.typingTimeout) {
+        clearTimeout(client.data.typingTimeout);
+      }
+      
+      // Set new timeout to stop typing indicator after 3 seconds
+      client.data.typingTimeout = setTimeout(() => {
+        client.to(`chat_${chatRoomId}`).emit('userTyping', {
+          userId,
+          chatRoomId,
+          isTyping: false,
+        });
+      }, 3000);
+    } else {
+      // User stopped typing, clear the timeout
+      if (client.data.typingTimeout) {
+        clearTimeout(client.data.typingTimeout);
+        client.data.typingTimeout = null;
+      }
+    }
+  }
+
+  /**
+   * Handle sending messages through WebSocket
+   * This provides real-time message sending without HTTP requests
+   */
+  @SubscribeMessage('sendMessage')
+  async handleSendMessage(
+    @MessageBody() data: { 
+      chatRoomId: string; 
+      content: string; 
+      fileUrl?: string; 
+      fileName?: string; 
+      fileSize?: number; 
+    },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { chatRoomId, content, fileUrl, fileName, fileSize } = data;
+    const userId = client.userId;
+
+    if (!userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    try {
+      // Verify user has access to this chat room
+      await this.chatRoomsService.getChatRoom(chatRoomId, userId);
+
+      // Create message using the service
+      const message = await this.messagesService.sendMessage({
+        chatRoomId,
+        content,
+        fileUrl,
+        fileName,
+        fileSize,
+      }, userId);
+
+      // Broadcast message to all participants in the chat room
+      await this.broadcastMessage(chatRoomId, message);
+
+      // Send confirmation back to sender
+      client.emit('messageSent', { messageId: message.id, chatRoomId });
+
+      console.log(`Message sent via WebSocket in room ${chatRoomId} by user ${userId}`);
+    } catch (error) {
+      console.error('Error sending message via WebSocket:', error);
+      client.emit('error', { 
+        message: 'Failed to send message', 
+        details: error.message 
+      });
+    }
   }
 
   /**
@@ -258,6 +340,218 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       role,
       message,
     });
+  }
+
+  /**
+   * Handle creating a new chat room through WebSocket
+   * This provides real-time chat room creation
+   */
+  @SubscribeMessage('createChatRoom')
+  async handleCreateChatRoom(
+    @MessageBody() data: { 
+      name?: string; 
+      type: string; 
+      loadId?: string; 
+      participantIds: string[]; 
+    },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { name, type, loadId, participantIds } = data;
+    const userId = client.userId;
+
+    if (!userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    try {
+      // Create chat room using the service
+      const chatRoom = await this.chatRoomsService.createChatRoom({
+        name,
+        type,
+        loadId,
+        participantIds,
+      }, userId);
+
+      // Join creator to the new chat room
+      client.join(`chat_${chatRoom.id}`);
+
+      // Notify all participants about the new chat room
+      participantIds.forEach(participantId => {
+        const participantSocketId = this.userSockets.get(participantId);
+        if (participantSocketId) {
+          this.server.to(participantSocketId).emit('chatRoomCreated', chatRoom);
+        }
+      });
+
+      // Send confirmation back to creator
+      client.emit('chatRoomCreated', chatRoom);
+
+      console.log(`Chat room created via WebSocket: ${chatRoom.id} by user ${userId}`);
+    } catch (error) {
+      console.error('Error creating chat room via WebSocket:', error);
+      client.emit('error', { 
+        message: 'Failed to create chat room', 
+        details: error.message 
+      });
+    }
+  }
+
+  /**
+   * Handle updating chat room through WebSocket
+   * This provides real-time chat room updates
+   */
+  @SubscribeMessage('updateChatRoom')
+  async handleUpdateChatRoom(
+    @MessageBody() data: { 
+      chatRoomId: string; 
+      updates: { name?: string; isArchived?: boolean }; 
+    },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { chatRoomId, updates } = data;
+    const userId = client.userId;
+
+    if (!userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    try {
+      // Update chat room using the service
+      const updatedChatRoom = await this.chatRoomsService.updateChatRoom(chatRoomId, updates, userId);
+
+      // Broadcast update to all participants
+      this.server.to(`chat_${chatRoomId}`).emit('chatRoomUpdated', {
+        chatRoomId,
+        updatedChatRoom,
+        updatedBy: userId,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Send confirmation back to updater
+      client.emit('chatRoomUpdated', { chatRoomId, updatedChatRoom });
+
+      console.log(`Chat room updated via WebSocket: ${chatRoomId} by user ${userId}`);
+    } catch (error) {
+      console.error('Error updating chat room via WebSocket:', error);
+      client.emit('error', { 
+        message: 'Failed to update chat room', 
+        details: error.message 
+      });
+    }
+  }
+
+  /**
+   * Handle adding participants to chat room through WebSocket
+   * This provides real-time participant management
+   */
+  @SubscribeMessage('addParticipants')
+  async handleAddParticipants(
+    @MessageBody() data: { 
+      chatRoomId: string; 
+      participantIds: string[]; 
+    },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { chatRoomId, participantIds } = data;
+    const userId = client.userId;
+
+    if (!userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    try {
+      // Add participants using the service
+      const newParticipants = await this.chatRoomsService.addParticipants(
+        chatRoomId, 
+        participantIds, 
+        userId
+      );
+
+      // Notify all current participants about new members
+      this.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
+        chatRoomId,
+        newParticipants,
+        addedBy: userId,
+      });
+
+      // Notify new participants about the chat room
+      participantIds.forEach(participantId => {
+        const participantSocketId = this.userSockets.get(participantId);
+        if (participantSocketId) {
+          this.server.to(participantSocketId).emit('addedToChatRoom', {
+            chatRoomId,
+            addedBy: userId,
+          });
+        }
+      });
+
+      // Send confirmation back to adder
+      client.emit('participantsAdded', { chatRoomId, newParticipants });
+
+      console.log(`Participants added via WebSocket to room ${chatRoomId} by user ${userId}`);
+    } catch (error) {
+      console.error('Error adding participants via WebSocket:', error);
+      client.emit('error', { 
+        message: 'Failed to add participants', 
+        details: error.message 
+      });
+    }
+  }
+
+  /**
+   * Handle removing participants from chat room through WebSocket
+   * This provides real-time participant management
+   */
+  @SubscribeMessage('removeParticipant')
+  async handleRemoveParticipant(
+    @MessageBody() data: { 
+      chatRoomId: string; 
+      participantId: string; 
+    },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { chatRoomId, participantId } = data;
+    const userId = client.userId;
+
+    if (!userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    try {
+      // Remove participant using the service
+      const result = await this.chatRoomsService.removeParticipant(
+        chatRoomId, 
+        participantId, 
+        userId
+      );
+
+      // Notify all current participants about the removal
+      this.server.to(`chat_${chatRoomId}`).emit('participantRemoved', {
+        chatRoomId,
+        removedUserId: participantId,
+        removedBy: userId,
+      });
+
+      // Notify the removed participant
+      const removedUserSocketId = this.userSockets.get(participantId);
+      if (removedUserSocketId) {
+        this.server.to(removedUserSocketId).emit('removedFromChatRoom', {
+          chatRoomId,
+          removedBy: userId,
+        });
+      }
+
+      // Send confirmation back to remover
+      client.emit('participantRemoved', { chatRoomId, result });
+
+      console.log(`Participant removed via WebSocket from room ${chatRoomId} by user ${userId}`);
+    } catch (error) {
+      console.error('Error removing participant via WebSocket:', error);
+      client.emit('error', { 
+        message: 'Failed to remove participant', 
+        details: error.message 
+      });
+    }
   }
 
   /**

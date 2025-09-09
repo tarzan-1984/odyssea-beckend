@@ -316,4 +316,118 @@ export class ChatRoomsService {
 
     return newParticipants;
   }
+
+  /**
+   * Update chat room information
+   * Allows updating name and archive status
+   */
+  async updateChatRoom(chatRoomId: string, updates: { name?: string; isArchived?: boolean }, userId: string) {
+    // Verify user is participant
+    const participant = await this.prisma.chatRoomParticipant.findUnique({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId,
+          userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('Chat room not found or access denied');
+    }
+
+    // Update chat room
+    const updatedChatRoom = await this.prisma.chatRoom.update({
+      where: { id: chatRoomId },
+      data: {
+        ...updates,
+        updatedAt: new Date(),
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                profilePhoto: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return updatedChatRoom;
+  }
+
+  /**
+   * Remove participant from chat room
+   */
+  async removeParticipant(chatRoomId: string, participantId: string, userId: string) {
+    // Verify user is participant and can remove others
+    const participant = await this.prisma.chatRoomParticipant.findUnique({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId,
+          userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('Chat room not found or access denied');
+    }
+
+    // Remove participant
+    await this.prisma.chatRoomParticipant.delete({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId,
+          userId: participantId,
+        },
+      },
+    });
+
+    return { success: true, removedUserId: participantId };
+  }
+
+  /**
+   * Get chat room participants
+   */
+  async getChatRoomParticipants(chatRoomId: string, userId: string) {
+    // Verify user is participant
+    const participant = await this.prisma.chatRoomParticipant.findUnique({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId,
+          userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('Chat room not found or access denied');
+    }
+
+    // Get all participants
+    const participants = await this.prisma.chatRoomParticipant.findMany({
+      where: { chatRoomId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            profilePhoto: true,
+          },
+        },
+      },
+    });
+
+    return participants;
+  }
 }

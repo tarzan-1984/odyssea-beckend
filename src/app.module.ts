@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
 import { ChatsModule } from './chats/chats.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 import {
   databaseConfig,
@@ -29,6 +30,7 @@ import { StorageModule } from './storage/storage.module';
     UsersModule,
     MailerModule,
     ChatsModule,
+    NotificationsModule,
     StorageModule,
   ],
   controllers: [AppController],
