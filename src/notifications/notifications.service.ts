@@ -2,134 +2,153 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailerService } from '../mailer/mailer.service';
 import { ConfigService } from '@nestjs/config';
+import {
+	NotificationUserData,
+	UserData,
+	ChatData,
+} from '../types/request.types';
 
 @Injectable()
 export class NotificationsService {
-  private readonly logger = new Logger(NotificationsService.name);
+	private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private mailerService: MailerService,
-    private configService: ConfigService,
-  ) {}
+	constructor(
+		private prisma: PrismaService,
+		private mailerService: MailerService,
+		private configService: ConfigService,
+	) {}
 
   /**
    * Send email notifications for unread messages
    * This method is called by the cron job every 15 minutes
-   * Only sends notifications for messages that haven't been notified about yet
+   * Only send notifications for messages that haven't been notified about yet
    */
   async sendUnreadMessageNotifications() {
     this.logger.log('Starting unread message notifications check...');
 
-    try {
-      // Get all users who have unread messages
-      const usersWithUnreadMessages = await this.getUsersWithUnreadMessages();
+		try {
+			// Get all users who have unread messages
+			const usersWithUnreadMessages =
+				await this.getUsersWithUnreadMessages();
 
-      if (usersWithUnreadMessages.length === 0) {
-        this.logger.log('No users with unread messages found');
-        return;
-      }
+			if (usersWithUnreadMessages.length === 0) {
+				this.logger.log('No users with unread messages found');
+				return;
+			}
 
-      this.logger.log(`Found ${usersWithUnreadMessages.length} users with unread messages`);
+			this.logger.log(
+				`Found ${usersWithUnreadMessages.length} users with unread messages`,
+			);
 
       // Send notifications to each user (only for new unread messages)
       for (const userData of usersWithUnreadMessages) {
         await this.sendNotificationToUserIfNew(userData);
       }
 
-      this.logger.log('Unread message notifications check completed');
-    } catch (error) {
-      this.logger.error('Error in sendUnreadMessageNotifications:', error);
-    }
-  }
+			this.logger.log('Unread message notifications check completed');
+		} catch (error) {
+			this.logger.error(
+				'Error in sendUnreadMessageNotifications:',
+				error,
+			);
+		}
+	}
 
-  /**
-   * Get users who have unread messages with their chat room details
-   */
-  private async getUsersWithUnreadMessages() {
-    const unreadMessages = await this.prisma.message.findMany({
-      where: {
-        isRead: false,
-        receiverId: { not: null },
-      },
-      include: {
-        receiver: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        sender: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-        chatRoom: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+	/**
+	 * Get users who have unread messages with their chat room details
+	 */
+	private async getUsersWithUnreadMessages() {
+		const unreadMessages = await this.prisma.message.findMany({
+			where: {
+				isRead: false,
+				receiverId: { not: null },
+			},
+			include: {
+				receiver: {
+					select: {
+						id: true,
+						email: true,
+						firstName: true,
+						lastName: true,
+					},
+				},
+				sender: {
+					select: {
+						firstName: true,
+						lastName: true,
+					},
+				},
+				chatRoom: {
+					select: {
+						id: true,
+						name: true,
+						type: true,
+					},
+				},
+			},
+			orderBy: {
+				createdAt: 'desc',
+			},
+		});
 
-    // Group messages by user and chat room
-    const userChatMap = new Map<string, Map<string, {
-      chatRoom: any;
-      messages: any[];
-      unreadCount: number;
-    }>>();
+		// Group messages by user and chat room
+		const userChatMap = new Map<
+			string,
+			Map<
+				string,
+				{
+					chatRoom: any;
+					messages: any[];
+					unreadCount: number;
+				}
+			>
+		>();
 
-    for (const message of unreadMessages) {
-      const userId = message.receiverId!;
-      const chatRoomId = message.chatRoomId;
+		for (const message of unreadMessages) {
+			const userId = message.receiverId!;
+			const chatRoomId = message.chatRoomId;
 
-      if (!userChatMap.has(userId)) {
-        userChatMap.set(userId, new Map());
-      }
+			if (!userChatMap.has(userId)) {
+				userChatMap.set(userId, new Map());
+			}
 
-      const userChats = userChatMap.get(userId)!;
-      if (!userChats.has(chatRoomId)) {
-        userChats.set(chatRoomId, {
-          chatRoom: message.chatRoom,
-          messages: [],
-          unreadCount: 0,
-        });
-      }
+			const userChats = userChatMap.get(userId)!;
+			if (!userChats.has(chatRoomId)) {
+				userChats.set(chatRoomId, {
+					chatRoom: message.chatRoom,
+					messages: [],
+					unreadCount: 0,
+				});
+			}
 
-      userChats.get(chatRoomId)!.messages.push(message);
-      userChats.get(chatRoomId)!.unreadCount++;
-    }
+			userChats.get(chatRoomId)!.messages.push(message);
+			userChats.get(chatRoomId)!.unreadCount++;
+		}
 
-    // Convert to array format
-    const result: Array<{
-      user: any;
-      chats: Array<{
-        chatRoom: any;
-        messages: any[];
-        unreadCount: number;
-      }>;
-    }> = [];
-    
-    for (const [userId, chatMap] of userChatMap) {
-      const user = unreadMessages.find(m => m.receiverId === userId)?.receiver;
-      if (user) {
-        result.push({
-          user,
-          chats: Array.from(chatMap.values()),
-        });
-      }
-    }
+		// Convert to array format
+		const result: Array<{
+			user: any;
+			chats: Array<{
+				chatRoom: any;
+				messages: any[];
+				unreadCount: number;
+			}>;
+		}> = [];
 
-    return result;
-  }
+		for (const [userId, chatMap] of userChatMap) {
+			const user = unreadMessages.find(
+				(m) => m.receiverId === userId,
+			)?.receiver;
+			if (user) {
+				result.push({
+					user,
+					chats: Array.from(chatMap.values()),
+				});
+			}
+		}
+
+		return result;
+	}
 
   /**
    * Send notification email to a specific user only if there are new unread messages
@@ -144,13 +163,13 @@ export class NotificationsService {
     }>;
   }) {
     const { user, chats } = userData;
-    
+
     // Get all message IDs from all chats
     const allMessageIds = chats.flatMap(chat => chat.messages.map(msg => msg.id));
-    
+
     // Check if we've already sent notifications for these messages
     const hasNewMessages = await this.hasNewUnreadMessages(user.id, allMessageIds);
-    
+
     if (!hasNewMessages) {
       this.logger.log(`No new unread messages for user ${user.email}, skipping notification`);
       return;
@@ -158,7 +177,7 @@ export class NotificationsService {
 
     // Filter chats to only include those with new messages
     const chatsWithNewMessages = await this.filterChatsWithNewMessages(user.id, chats);
-    
+
     if (chatsWithNewMessages.length === 0) {
       this.logger.log(`No new messages in any chat for user ${user.email}, skipping notification`);
       return;
@@ -180,7 +199,7 @@ export class NotificationsService {
 
       if (success) {
         this.logger.log(`Notification sent successfully to ${user.email}`);
-        
+
         // Record that we've sent notifications for these messages
         await this.recordNotificationSent(user.id, chatsWithNewMessages);
       } else {
@@ -205,40 +224,48 @@ export class NotificationsService {
     const { user, chats } = userData;
     const totalUnreadCount = chats.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
-    try {
-      const subject = `You have ${totalUnreadCount} unread messages in Odyssea`;
-      const html = this.generateEmailTemplate(user, chats);
-      const text = this.generateTextTemplate(user, chats);
+		try {
+			const subject = `You have ${totalUnreadCount} unread messages in Odyssea`;
+			const html = this.generateEmailTemplate(user, chats);
+			const text = this.generateTextTemplate(user, chats);
 
-      const success = await this.mailerService.sendEmail(
-        user.email,
-        subject,
-        text,
-        html,
-      );
+			const success = await this.mailerService.sendEmail(
+				user.email,
+				subject,
+				text,
+				html,
+			);
 
-      if (success) {
-        this.logger.log(`Notification sent successfully to ${user.email}`);
-      } else {
-        this.logger.error(`Failed to send notification to ${user.email}`);
-      }
-    } catch (error) {
-      this.logger.error(`Error sending notification to ${user.email}:`, error);
-    }
-  }
+			if (success) {
+				this.logger.log(
+					`Notification sent successfully to ${user.email}`,
+				);
+			} else {
+				this.logger.error(
+					`Failed to send notification to ${user.email}`,
+				);
+			}
+		} catch (error) {
+			this.logger.error(
+				`Error sending notification to ${user.email}:`,
+				error,
+			);
+		}
+	}
 
-  /**
-   * Generate HTML email template for unread messages
-   */
-  private generateEmailTemplate(user: any, chats: any[]): string {
-    const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
-    
-    let chatListHtml = '';
-    chats.forEach(chat => {
-      const chatName = chat.chatRoom.name || `${chat.chatRoom.type} Chat`;
-      const chatUrl = `${frontendUrl}/chats/${chat.chatRoom.id}`;
-      
-      chatListHtml += `
+	/**
+	 * Generate HTML email template for unread messages
+	 */
+	private generateEmailTemplate(user: UserData, chats: ChatData[]): string {
+		const frontendUrl =
+			(this.configService.get<string>('app.frontendUrl') as string) ||
+			'http://localhost:3000';
+
+		let chatListHtml = '';
+		chats.forEach((chat) => {
+			const chatName = chat.chatRoom.name || `${chat.chatRoom.type} Chat`;
+			const chatUrl = `${frontendUrl}/chats/${chat.chatRoom.id}`;
+			chatListHtml += `
         <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px;">
           <h3 style="margin: 0 0 10px 0; color: #333;">
             <a href="${chatUrl}" style="color: #007bff; text-decoration: none;">${chatName}</a>
@@ -247,13 +274,13 @@ export class NotificationsService {
             Unread messages: <strong>${chat.unreadCount}</strong>
           </p>
           <p style="margin: 0; color: #888; font-size: 14px;">
-            Last message from: ${chat.messages[0]?.sender.firstName} ${chat.messages[0]?.sender.lastName}
+				Last message from: ${chat.messages[0]?.sender.firstName} ${chat.messages[0]?.sender.lastName}
           </p>
         </div>
       `;
-    });
+		});
 
-    return `
+		return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -290,27 +317,29 @@ export class NotificationsService {
       </body>
       </html>
     `;
-  }
+	}
 
-  /**
-   * Generate plain text email template for unread messages
-   */
-  private generateTextTemplate(user: any, chats: any[]): string {
-    const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
-    
-    let chatList = '';
-    chats.forEach(chat => {
-      const chatName = chat.chatRoom.name || `${chat.chatRoom.type} Chat`;
-      chatList += `
+	/**
+	 * Generate plain text email template for unread messages
+	 */
+	private generateTextTemplate(user: UserData, chats: ChatData[]): string {
+		const frontendUrl =
+			(this.configService.get<string>('app.frontendUrl') as string) ||
+			'http://localhost:3000';
+
+		let chatList = '';
+		chats.forEach((chat) => {
+			const chatName = chat.chatRoom.name || `${chat.chatRoom.type} Chat`;
+			chatList += `
 ${chatName}:
 - Unread messages: ${chat.unreadCount}
-- Last message from: ${chat.messages[0]?.sender.firstName} ${chat.messages[0]?.sender.lastName}
-- Link: ${frontendUrl}/chats/${chat.chatRoom.id}
+			- Last message from: ${chat.messages[0]?.sender.firstName} ${chat.messages[0]?.sender.lastName}
+			- Link: ${frontendUrl}/chats/${chat.chatRoom.id}
 
 `;
-    });
+		});
 
-    return `
+		return `
 Hello, ${user.firstName}!
 
 You have unread messages in Odyssea chats:
@@ -323,65 +352,74 @@ Open all chats: ${frontendUrl}/chats
 This is an automatic notification from the Odyssea system.
 If you don't want to receive these notifications, please contact your administrator.
     `.trim();
-  }
+	}
 
-  /**
-   * Create a notification record in the database
-   */
-  async createNotification(userId: string, title: string, message: string, type: string) {
-    return await this.prisma.notification.create({
-      data: {
-        userId,
-        title,
-        message,
-        type,
-      },
-    });
-  }
+	/**
+	 * Create a notification record in the database
+	 */
+	async createNotification(
+		userId: string,
+		title: string,
+		message: string,
+		type: string,
+	) {
+		return await this.prisma.notification.create({
+			data: {
+				userId,
+				title,
+				message,
+				type,
+			},
+		});
+	}
 
-  /**
-   * Get notifications for a user
-   */
-  async getUserNotifications(userId: string, page: number = 1, limit: number = 20) {
-    const skip = (page - 1) * limit;
+	/**
+	 * Get notifications for a user
+	 */
+	async getUserNotifications(
+		userId: string,
+		page: number = 1,
+		limit: number = 20,
+	) {
+		const skip = (page - 1) * limit;
 
-    const [notifications, total] = await Promise.all([
-      this.prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.notification.count({
-        where: { userId },
-      }),
-    ]);
+		const [notifications, total] = await Promise.all([
+			this.prisma.notification.findMany({
+				where: { userId },
+				orderBy: { createdAt: 'desc' },
+				skip,
+				take: limit,
+			}),
+			this.prisma.notification.count({
+				where: { userId },
+			}),
+		]);
 
-    return {
-      notifications,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
-  }
+		return {
+			notifications,
+			pagination: {
+				page,
+				limit,
+				total,
+				pages: Math.ceil(total / limit),
+			},
+		};
+	}
 
-  /**
-   * Mark notification as read
-   */
-  async markNotificationAsRead(notificationId: string, userId: string) {
-    return await this.prisma.notification.updateMany({
-      where: {
-        id: notificationId,
-        userId,
-      },
-      data: {
-        isRead: true,
-      },
-    });
-  }
+	/**
+	 * Mark notification as read
+	 */
+	async markNotificationAsRead(notificationId: string, userId: string) {
+		return this.prisma.notification.updateMany({
+			where: {
+				id: notificationId,
+				userId,
+			},
+			data: {
+				isRead: true,
+			},
+		});
+	}
 
   /**
    * Mark all notifications as read for a user
@@ -452,7 +490,7 @@ If you don't want to receive these notifications, please contact your administra
 
     for (const chat of chats) {
       const messageIds = chat.messages.map(msg => msg.id);
-      
+
       // Get already notified message IDs for this user
       const sentNotifications = await this.prisma.notificationSent.findMany({
         where: {
@@ -501,7 +539,7 @@ If you don't want to receive these notifications, please contact your administra
       // Group messages by chat room
       for (const chat of chats) {
         const messageIds = chat.messages.map(msg => msg.id);
-        
+
         if (messageIds.length > 0) {
           await this.prisma.notificationSent.create({
             data: {

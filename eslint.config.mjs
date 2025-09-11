@@ -54,6 +54,10 @@ export default tseslint.config(
           argsIgnorePattern: '^_',
         },
       ],
+      'prettier/prettier': ['error', { useTabs: true, tabWidth: 4 }],
+      'indent': 'off',
+      '@typescript-eslint/indent': 'off',
+      'no-tabs': 'off',
     },
   },
 );

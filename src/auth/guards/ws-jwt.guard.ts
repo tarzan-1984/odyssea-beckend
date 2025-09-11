@@ -3,54 +3,62 @@ import { WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { WebSocketContext } from '../../types/request.types';
 
 interface AuthenticatedSocket extends Socket {
-  userId?: string;
-  userRole?: string;
+	userId?: string;
+	userRole?: string;
 }
 
 @Injectable()
 export class WsJwtGuard implements CanActivate {
-  constructor(
-    private jwtService: JwtService,
-    private configService: ConfigService,
-  ) {}
+	constructor(
+		private jwtService: JwtService,
+		private configService: ConfigService,
+	) {}
 
-  async canActivate(context: any): Promise<boolean> {
-    try {
-      const client: AuthenticatedSocket = context.switchToWs().getClient();
-      const token = this.extractTokenFromHeader(client);
-      
-      if (!token) {
-        throw new WsException('Unauthorized - no token provided');
-      }
+	async canActivate(context: WebSocketContext): Promise<boolean> {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+			const client: AuthenticatedSocket = context
+				.switchToWs()
+				.getClient();
+			const token = this.extractTokenFromHeader(client);
 
-      const payload = await this.jwtService.verifyAsync(token);
+			if (!token) {
+				throw new WsException('Unauthorized - no token provided');
+			}
 
-      // Attach user info to socket for later use
-      client.userId = payload.sub;
-      client.userRole = payload.role;
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+			const payload = await this.jwtService.verifyAsync(token);
 
-      return true;
-    } catch (error) {
-      throw new WsException('Unauthorized - invalid token');
-    }
-  }
+			// Attach user info to socket for later use
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access
+			client.userId = payload.sub;
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access
+			client.userRole = payload.role;
 
-  private extractTokenFromHeader(client: Socket): string | undefined {
-    const auth = client.handshake.auth?.token || 
-                 client.handshake.headers?.authorization ||
-                 client.handshake.query?.token;
+			return true;
+		} catch {
+			throw new WsException('Unauthorized - invalid token');
+		}
+	}
 
-    if (!auth) {
-      return undefined;
-    }
+	private extractTokenFromHeader(client: Socket): string | undefined {
+		const auth =
+			(client.handshake.auth?.token as string) ||
+			(client.handshake.headers?.authorization as string) ||
+			(client.handshake.query?.token as string);
 
-    // Handle both "Bearer token" and direct token formats
-    if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
-      return auth.substring(7);
-    }
+		if (!auth) {
+			return undefined;
+		}
 
-    return auth;
-  }
+		// Handle both "Bearer token" and direct token formats
+		if (auth.startsWith('Bearer ')) {
+			return auth.substring(7);
+		}
+
+		return auth;
+	}
 }

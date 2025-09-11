@@ -7,17 +7,17 @@ import * as crypto from 'crypto';
  * @returns A string containing the IV and encrypted payload in the format iv:encryptedData.
  */
 export function encryption(data: object) {
-  const encryptionKey = process.env.ENCRYPTION_SECRET;
-  if(!encryptionKey) return;
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(
-    'aes-256-cbc',
-    Buffer.from(encryptionKey, 'hex'),
-    iv,
-  );
-  let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+	const encryptionKey = process.env.ENCRYPTION_SECRET;
+	if (!encryptionKey) return;
+	const iv = crypto.randomBytes(16);
+	const cipher = crypto.createCipheriv(
+		'aes-256-cbc',
+		Buffer.from(encryptionKey, 'hex'),
+		iv,
+	);
+	let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
+	encrypted += cipher.final('hex');
+	return iv.toString('hex') + ':' + encrypted;
 }
 
 /**
@@ -27,10 +27,10 @@ export function encryption(data: object) {
  * @returns A randomly generated password string.
  */
 export function generateRandomPassword(length = 8): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  return Array.from(
-    { length },
-    () => chars[Math.floor(Math.random() * chars.length)],
-  ).join('');
+	const chars =
+		'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	return Array.from(
+		{ length },
+		() => chars[Math.floor(Math.random() * chars.length)],
+	).join('');
 }

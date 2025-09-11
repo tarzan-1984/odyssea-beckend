@@ -11,27 +11,27 @@ import { FileUploadService } from './file-upload.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [
-    PrismaModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET'),
-        signOptions: { expiresIn: '1d' },
-      }),
-      inject: [ConfigService],
-    }),
-    MulterModule.register({
-      dest: './uploads',
-    }),
-  ],
-  controllers: [ChatRoomsController, MessagesController],
-  providers: [
-    ChatRoomsService,
-    MessagesService,
-    ChatGateway,
-    FileUploadService,
-  ],
-  exports: [ChatRoomsService, MessagesService, FileUploadService],
+	imports: [
+		PrismaModule,
+		JwtModule.registerAsync({
+			imports: [ConfigModule],
+			useFactory: (configService: ConfigService) => ({
+				secret: configService.get('JWT_SECRET'),
+				signOptions: { expiresIn: '1d' },
+			}),
+			inject: [ConfigService],
+		}),
+		MulterModule.register({
+			dest: './uploads',
+		}),
+	],
+	controllers: [ChatRoomsController, MessagesController],
+	providers: [
+		ChatRoomsService,
+		MessagesService,
+		ChatGateway,
+		FileUploadService,
+	],
+	exports: [ChatRoomsService, MessagesService, FileUploadService],
 })
 export class ChatsModule {}
