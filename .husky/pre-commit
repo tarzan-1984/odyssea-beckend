@@ -1,2 +1,11 @@
+# Run lint-staged to fix code style and linting issues
+echo "🔧 Running lint-staged to fix code style..."
+npx lint-staged
+
+# Check TypeScript types (excluding test files)
+echo "🔍 Checking TypeScript types..."
+npx tsc --project tsconfig.typecheck.json
+
 # Run tests to ensure code quality
-npm test -- --testPathPattern="\.spec\.ts$" --testPathIgnorePatterns="test/|e2e"
+echo "🧪 Running tests..."
+npm test -- --testPathPattern="\.spec\.ts$" --testPathIgnorePatterns="test/|e2e" --passWithNoTests
