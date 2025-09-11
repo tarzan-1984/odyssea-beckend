@@ -33,36 +33,41 @@ export class NotificationsCron {
 		}
 	}
 
-  /**
-   * Alternative cron job that runs every 15 minutes
-   * This is a backup method in case the string-based cron doesn't work
-   */
-  @Cron('0 */15 * * * *', {
-    name: 'unread-messages-notifications-backup',
-    timeZone: 'UTC',
-  })
-  async handleUnreadMessageNotificationsBackup() {
-    // This method is intentionally empty to avoid duplicate notifications
-    // The main cron job above handles the actual work
-    this.logger.debug('Backup cron job triggered (main job should handle this)');
-  }
+	/**
+	 * Alternative cron job that runs every 15 minutes
+	 * This is a backup method in case the string-based cron doesn't work
+	 */
+	@Cron('0 */15 * * * *', {
+		name: 'unread-messages-notifications-backup',
+		timeZone: 'UTC',
+	})
+	handleUnreadMessageNotificationsBackup() {
+		// This method is intentionally empty to avoid duplicate notifications
+		// The main cron job above handles the actual work
+		this.logger.debug(
+			'Backup cron job triggered (main job should handle this)',
+		);
+	}
 
-  /**
-   * Clean up old notification sent records every day at 2 AM
-   * This prevents the notifications_sent table from growing too large
-   */
-  @Cron('0 2 * * *', {
-    name: 'cleanup-notification-records',
-    timeZone: 'UTC',
-  })
-  async handleCleanupNotificationRecords() {
-    this.logger.log('Running cleanup of old notification records...');
+	/**
+	 * Clean up old notification sent records every day at 2 AM
+	 * This prevents the notifications_sent table from growing too large
+	 */
+	@Cron('0 2 * * *', {
+		name: 'cleanup-notification-records',
+		timeZone: 'UTC',
+	})
+	async handleCleanupNotificationRecords() {
+		this.logger.log('Running cleanup of old notification records...');
 
-    try {
-      const deletedCount = await this.notificationsService.cleanupOldNotificationRecords();
-      this.logger.log(`Cleanup completed. Deleted ${deletedCount} old notification records`);
-    } catch (error) {
-      this.logger.error('Cleanup of notification records failed:', error);
-    }
-  }
+		try {
+			const deletedCount =
+				await this.notificationsService.cleanupOldNotificationRecords();
+			this.logger.log(
+				`Cleanup completed. Deleted ${deletedCount} old notification records`,
+			);
+		} catch (error) {
+			this.logger.error('Cleanup of notification records failed:', error);
+		}
+	}
 }
