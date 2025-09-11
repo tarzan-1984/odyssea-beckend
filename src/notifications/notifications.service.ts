@@ -7,6 +7,7 @@ import {
 	ChatData,
 	NotificationUserData,
 } from '../types/request.types';
+import { mainEmailTemplate } from '../helpers/email_templates';
 
 // Interface for NotificationSent model
 interface NotificationSent {
@@ -332,43 +333,29 @@ export class NotificationsService {
       `;
 		});
 
-		return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>New Messages in Odyssea</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-          <h1 style="margin: 0; font-size: 28px;">Odyssea</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Freight Management System</p>
-        </div>
-        
-        <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
-          <h2 style="color: #333; margin-top: 0;">Hello, ${user.firstName}!</h2>
-          <p style="font-size: 16px; margin-bottom: 25px;">
-            You have unread messages in your chats. Don't miss important information!
-          </p>
-          
-          ${chatListHtml}
-          
-          <div style="text-align: center; margin-top: 30px;">
-            <a href="${frontendUrl}/chats" 
-               style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-              Open All Chats
-            </a>
-          </div>
-          
-          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 14px; color: #666;">
-            <p>This is an automatic notification from the Odyssea system.</p>
-            <p>If you don't want to receive these notifications, please contact your administrator.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+		return mainEmailTemplate(
+			'New Messages in Odyssea',
+			`<div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+				          <h2 style="color: #333; margin-top: 0;">Hello, ${user.firstName}!</h2>
+				          <p style="font-size: 16px; margin-bottom: 25px;">
+				            You have unread messages in your chats. Don't miss important information!
+				          </p>
+				          
+				          ${chatListHtml}
+				          
+				          <div style="text-align: center; margin-top: 30px;">
+				            <a href="${frontendUrl}/chats" 
+				               style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+				              Open All Chats
+				            </a>
+				          </div>
+				          
+				          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 14px; color: #666;">
+				            <p>This is an automatic notification from the Odyssea system.</p>
+				            <p>If you don't want to receive these notifications, please contact your administrator.</p>
+				          </div>
+				        </div>`,
+		);
 	}
 
 	/**
