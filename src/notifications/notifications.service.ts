@@ -274,7 +274,7 @@ export class NotificationsService {
             Unread messages: <strong>${chat.unreadCount}</strong>
           </p>
           <p style="margin: 0; color: #888; font-size: 14px;">
-				Last message from: ${chat.messages[0]?.sender.firstName} ${chat.messages[0]?.sender.lastName}
+				Last message from: ${chat.messages[0]?.sender?.firstName || 'Unknown'} ${chat.messages[0]?.sender?.lastName || 'User'}
           </p>
         </div>
       `;
@@ -282,7 +282,7 @@ export class NotificationsService {
 
 		return `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -333,7 +333,7 @@ export class NotificationsService {
 			chatList += `
 ${chatName}:
 - Unread messages: ${chat.unreadCount}
-			- Last message from: ${chat.messages[0]?.sender.firstName} ${chat.messages[0]?.sender.lastName}
+			- Last message from: ${chat.messages[0]?.sender?.firstName || 'Unknown'} ${chat.messages[0]?.sender?.lastName || 'User'}
 			- Link: ${frontendUrl}/chats/${chat.chatRoom.id}
 
 `;
@@ -363,7 +363,7 @@ If you don't want to receive these notifications, please contact your administra
 		message: string,
 		type: string,
 	) {
-		return await this.prisma.notification.create({
+		return this.prisma.notification.create({
 			data: {
 				userId,
 				title,

@@ -72,13 +72,13 @@ export class FileUploadService {
 
 		// TODO: Implement actual Google Drive upload
 		// For now, return mock data
-		return {
+		return Promise.resolve({
 			url: `https://drive.google.com/file/d/mock_file_id/view`,
 			fileName: file.originalname,
 			fileSize: file.size,
 			mimeType: file.mimetype,
 			uploadProvider: 'google-drive',
-		};
+		});
 	}
 
 	/**
@@ -109,13 +109,13 @@ export class FileUploadService {
 
 		// TODO: Implement actual S3 upload
 		// For now, return mock data
-		return {
+		return Promise.resolve({
 			url: `https://${awsBucketName}.s3.${awsRegion}.amazonaws.com/${folder}/${file.originalname}`,
 			fileName: file.originalname,
 			fileSize: file.size,
 			mimeType: file.mimetype,
 			uploadProvider: 'aws-s3',
-		};
+		});
 	}
 
 	/**
@@ -141,13 +141,13 @@ export class FileUploadService {
 
 		// TODO: Implement actual Azure Blob upload
 		// For now, return mock data
-		return {
+		return Promise.resolve({
 			url: `https://storage.blob.core.windows.net/${azureContainerName}/${folder}/${file.originalname}`,
 			fileName: file.originalname,
 			fileSize: file.size,
 			mimeType: file.mimetype,
 			uploadProvider: 'azure-blob',
-		};
+		});
 	}
 
 	/**
@@ -169,13 +169,13 @@ export class FileUploadService {
 
 		// TODO: Implement actual local file storage
 		// For now, return mock data
-		return {
+		return Promise.resolve({
 			url: `${baseUrl}/uploads/${folder}/${file.originalname}`,
 			fileName: file.originalname,
 			fileSize: file.size,
 			mimeType: file.mimetype,
 			uploadProvider: 'local',
-		};
+		});
 	}
 
 	/**
@@ -206,7 +206,7 @@ export class FileUploadService {
 	 */
 	private deleteFromGoogleDrive(_fileUrl: string): Promise<boolean> {
 		// TODO: Implement actual Google Drive file deletion
-		return true;
+		return Promise.resolve(true);
 	}
 
 	/**
@@ -214,7 +214,7 @@ export class FileUploadService {
 	 */
 	private deleteFromS3(_fileUrl: string): Promise<boolean> {
 		// TODO: Implement actual S3 file deletion
-		return true;
+		return Promise.resolve(true);
 	}
 
 	/**
@@ -222,7 +222,7 @@ export class FileUploadService {
 	 */
 	private deleteFromAzureBlob(_fileUrl: string): Promise<boolean> {
 		// TODO: Implement actual Azure Blob file deletion
-		return true;
+		return Promise.resolve(true);
 	}
 
 	/**
@@ -230,7 +230,7 @@ export class FileUploadService {
 	 */
 	private deleteFromLocal(_fileUrl: string): Promise<boolean> {
 		// TODO: Implement actual local file deletion
-		return true;
+		return Promise.resolve(true);
 	}
 
 	/**
