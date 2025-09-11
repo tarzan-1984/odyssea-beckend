@@ -16,6 +16,7 @@ export class NotificationsService {
   /**
    * Send email notifications for unread messages
    * This method is called by the cron job every 15 minutes
+   * Only sends notifications for messages that haven't been notified about yet
    */
   async sendUnreadMessageNotifications() {
     this.logger.log('Starting unread message notifications check...');
@@ -31,9 +32,9 @@ export class NotificationsService {
 
       this.logger.log(`Found ${usersWithUnreadMessages.length} users with unread messages`);
 
-      // Send notifications to each user
+      // Send notifications to each user (only for new unread messages)
       for (const userData of usersWithUnreadMessages) {
-        await this.sendNotificationToUser(userData);
+        await this.sendNotificationToUserIfNew(userData);
       }
 
       this.logger.log('Unread message notifications check completed');
@@ -131,7 +132,67 @@ export class NotificationsService {
   }
 
   /**
-   * Send notification email to a specific user
+   * Send notification email to a specific user only if there are new unread messages
+   * that haven't been notified about yet
+   */
+  private async sendNotificationToUserIfNew(userData: {
+    user: any;
+    chats: Array<{
+      chatRoom: any;
+      messages: any[];
+      unreadCount: number;
+    }>;
+  }) {
+    const { user, chats } = userData;
+    
+    // Get all message IDs from all chats
+    const allMessageIds = chats.flatMap(chat => chat.messages.map(msg => msg.id));
+    
+    // Check if we've already sent notifications for these messages
+    const hasNewMessages = await this.hasNewUnreadMessages(user.id, allMessageIds);
+    
+    if (!hasNewMessages) {
+      this.logger.log(`No new unread messages for user ${user.email}, skipping notification`);
+      return;
+    }
+
+    // Filter chats to only include those with new messages
+    const chatsWithNewMessages = await this.filterChatsWithNewMessages(user.id, chats);
+    
+    if (chatsWithNewMessages.length === 0) {
+      this.logger.log(`No new messages in any chat for user ${user.email}, skipping notification`);
+      return;
+    }
+
+    const totalUnreadCount = chatsWithNewMessages.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0);
+
+    try {
+      const subject = `You have ${totalUnreadCount} unread messages in Odyssea`;
+      const html = this.generateEmailTemplate(user, chatsWithNewMessages);
+      const text = this.generateTextTemplate(user, chatsWithNewMessages);
+
+      const success = await this.mailerService.sendEmail(
+        user.email,
+        subject,
+        text,
+        html,
+      );
+
+      if (success) {
+        this.logger.log(`Notification sent successfully to ${user.email}`);
+        
+        // Record that we've sent notifications for these messages
+        await this.recordNotificationSent(user.id, chatsWithNewMessages);
+      } else {
+        this.logger.error(`Failed to send notification to ${user.email}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error sending notification to ${user.email}:`, error);
+    }
+  }
+
+  /**
+   * Send notification email to a specific user (legacy method for backward compatibility)
    */
   private async sendNotificationToUser(userData: {
     user: any;
@@ -335,5 +396,150 @@ If you don't want to receive these notifications, please contact your administra
         isRead: true,
       },
     });
+  }
+
+  /**
+   * Check if there are new unread messages that haven't been notified about
+   */
+  private async hasNewUnreadMessages(userId: string, messageIds: string[]): Promise<boolean> {
+    if (messageIds.length === 0) {
+      return false;
+    }
+
+    // Get all message IDs that we've already sent notifications for
+    const sentNotifications = await this.prisma.notificationSent.findMany({
+      where: {
+        userId,
+        notificationType: 'unread_messages',
+        messageIds: {
+          hasSome: messageIds,
+        },
+      },
+      select: {
+        messageIds: true,
+      },
+    });
+
+    // Flatten all previously notified message IDs
+    const alreadyNotifiedMessageIds = new Set(
+      sentNotifications.flatMap(notification => notification.messageIds)
+    );
+
+    // Check if any of the current message IDs are new
+    return messageIds.some(messageId => !alreadyNotifiedMessageIds.has(messageId));
+  }
+
+  /**
+   * Filter chats to only include those with new messages that haven't been notified about
+   */
+  private async filterChatsWithNewMessages(
+    userId: string,
+    chats: Array<{
+      chatRoom: any;
+      messages: any[];
+      unreadCount: number;
+    }>
+  ): Promise<Array<{
+    chatRoom: any;
+    messages: any[];
+    unreadCount: number;
+  }>> {
+    const filteredChats: Array<{
+      chatRoom: any;
+      messages: any[];
+      unreadCount: number;
+    }> = [];
+
+    for (const chat of chats) {
+      const messageIds = chat.messages.map(msg => msg.id);
+      
+      // Get already notified message IDs for this user
+      const sentNotifications = await this.prisma.notificationSent.findMany({
+        where: {
+          userId,
+          notificationType: 'unread_messages',
+          messageIds: {
+            hasSome: messageIds,
+          },
+        },
+        select: {
+          messageIds: true,
+        },
+      });
+
+      const alreadyNotifiedMessageIds = new Set(
+        sentNotifications.flatMap(notification => notification.messageIds)
+      );
+
+      // Filter messages to only include new ones
+      const newMessages = chat.messages.filter(msg => !alreadyNotifiedMessageIds.has(msg.id));
+
+      if (newMessages.length > 0) {
+        filteredChats.push({
+          chatRoom: chat.chatRoom,
+          messages: newMessages,
+          unreadCount: newMessages.length,
+        });
+      }
+    }
+
+    return filteredChats;
+  }
+
+  /**
+   * Record that we've sent notifications for specific messages
+   */
+  private async recordNotificationSent(
+    userId: string,
+    chats: Array<{
+      chatRoom: any;
+      messages: any[];
+      unreadCount: number;
+    }>
+  ) {
+    try {
+      // Group messages by chat room
+      for (const chat of chats) {
+        const messageIds = chat.messages.map(msg => msg.id);
+        
+        if (messageIds.length > 0) {
+          await this.prisma.notificationSent.create({
+            data: {
+              userId,
+              chatRoomId: chat.chatRoom.id,
+              messageIds,
+              notificationType: 'unread_messages',
+            },
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error recording notification sent:', error);
+    }
+  }
+
+  /**
+   * Clean up old notification sent records (older than 7 days)
+   * This method should be called periodically to prevent the table from growing too large
+   */
+  async cleanupOldNotificationRecords() {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    try {
+      const result = await this.prisma.notificationSent.deleteMany({
+        where: {
+          sentAt: {
+            lt: sevenDaysAgo,
+          },
+        },
+      });
+
+      this.logger.log(`Cleaned up ${result.count} old notification records`);
+      return result.count;
+    } catch (error) {
+      this.logger.error('Error cleaning up old notification records:', error);
+      return 0;
+    }
   }
 }

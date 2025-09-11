@@ -60,6 +60,7 @@ model User {
   receivedMessages     Message[]             @relation("MessageReceiver")
   sentMessages         Message[]             @relation("MessageSender")
   notifications        Notification[]
+  notificationsSent    NotificationSent[]
   passwordResetTokens  PasswordResetToken[]
   refreshTokens        RefreshToken[]
 
@@ -111,6 +112,18 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+model NotificationSent {
+  id             String   @id @default(cuid())
+  userId         String
+  chatRoomId     String?
+  messageIds     String[] // Array of message IDs that were included in the notification
+  notificationType String // 'unread_messages', 'new_message', etc.
+  sentAt         DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications_sent")
 }
 
 model ChatRoom {

@@ -41,4 +41,23 @@ export class NotificationsCron {
     // The main cron job above handles the actual work
     this.logger.debug('Backup cron job triggered (main job should handle this)');
   }
+
+  /**
+   * Clean up old notification sent records every day at 2 AM
+   * This prevents the notifications_sent table from growing too large
+   */
+  @Cron('0 2 * * *', {
+    name: 'cleanup-notification-records',
+    timeZone: 'UTC',
+  })
+  async handleCleanupNotificationRecords() {
+    this.logger.log('Running cleanup of old notification records...');
+    
+    try {
+      const deletedCount = await this.notificationsService.cleanupOldNotificationRecords();
+      this.logger.log(`Cleanup completed. Deleted ${deletedCount} old notification records`);
+    } catch (error) {
+      this.logger.error('Cleanup of notification records failed:', error);
+    }
+  }
 }
