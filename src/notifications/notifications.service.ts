@@ -8,6 +8,25 @@ import {
 	NotificationUserData,
 } from '../types/request.types';
 
+// Interface for NotificationSent model
+interface NotificationSent {
+	id: string;
+	userId: string;
+	chatRoomId: string | null;
+	messageIds: string[];
+	notificationType: string;
+	sentAt: Date;
+}
+
+// Extended Prisma client interface with notificationSent
+interface ExtendedPrismaClient {
+	notificationSent: {
+		findMany: (args: any) => Promise<NotificationSent[]>;
+		create: (args: any) => Promise<NotificationSent>;
+		deleteMany: (args: any) => Promise<{ count: number }>;
+	};
+}
+
 @Injectable()
 export class NotificationsService {
 	private readonly logger = new Logger(NotificationsService.name);
@@ -463,7 +482,9 @@ export class NotificationsService {
 		}
 
 		// Get all message IDs that we've already sent notifications for
-		const sentNotifications = await this.prisma.notificationSent.findMany({
+		const sentNotifications: NotificationSent[] = await (
+			this.prisma as ExtendedPrismaClient
+		).notificationSent.findMany({
 			where: {
 				userId,
 				notificationType: 'unread_messages',
@@ -477,7 +498,7 @@ export class NotificationsService {
 		});
 
 		// Flatten all previously notified message IDs
-		const alreadyNotifiedMessageIds = new Set(
+		const alreadyNotifiedMessageIds = new Set<string>(
 			sentNotifications.flatMap(
 				(notification) => notification.messageIds,
 			),
@@ -502,21 +523,22 @@ export class NotificationsService {
 			const messageIds = chat.messages.map((msg) => msg.id);
 
 			// Get already notified message IDs for this user
-			const sentNotifications =
-				await this.prisma.notificationSent.findMany({
-					where: {
-						userId,
-						notificationType: 'unread_messages',
-						messageIds: {
-							hasSome: messageIds,
-						},
+			const sentNotifications: NotificationSent[] = await (
+				this.prisma as ExtendedPrismaClient
+			).notificationSent.findMany({
+				where: {
+					userId,
+					notificationType: 'unread_messages',
+					messageIds: {
+						hasSome: messageIds,
 					},
-					select: {
-						messageIds: true,
-					},
-				});
+				},
+				select: {
+					messageIds: true,
+				},
+			});
 
-			const alreadyNotifiedMessageIds = new Set(
+			const alreadyNotifiedMessageIds = new Set<string>(
 				sentNotifications.flatMap(
 					(notification) => notification.messageIds,
 				),
@@ -549,7 +571,9 @@ export class NotificationsService {
 				const messageIds = chat.messages.map((msg) => msg.id);
 
 				if (messageIds.length > 0) {
-					await this.prisma.notificationSent.create({
+					await (
+						this.prisma as ExtendedPrismaClient
+					).notificationSent.create({
 						data: {
 							userId,
 							chatRoomId: chat.chatRoom.id,
@@ -573,7 +597,9 @@ export class NotificationsService {
 		sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
 		try {
-			const result = await this.prisma.notificationSent.deleteMany({
+			const result: { count: number } = await (
+				this.prisma as ExtendedPrismaClient
+			).notificationSent.deleteMany({
 				where: {
 					sentAt: {
 						lt: sevenDaysAgo,
