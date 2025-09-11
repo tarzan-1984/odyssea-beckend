@@ -18,14 +18,32 @@ interface NotificationSent {
 	sentAt: Date;
 }
 
-// Extended Prisma client interface with notificationSent
-interface ExtendedPrismaClient {
+// Type assertion for PrismaService with notificationSent
+type PrismaServiceWithNotificationSent = PrismaService & {
 	notificationSent: {
-		findMany: (args: any) => Promise<NotificationSent[]>;
-		create: (args: any) => Promise<NotificationSent>;
-		deleteMany: (args: any) => Promise<{ count: number }>;
+		findMany: (args: {
+			where: {
+				userId: string;
+				notificationType: string;
+				messageIds?: { hasSome: string[] };
+			};
+			select?: { messageIds: boolean };
+		}) => Promise<NotificationSent[]>;
+		create: (args: {
+			data: {
+				userId: string;
+				chatRoomId: string;
+				messageIds: string[];
+				notificationType: string;
+			};
+		}) => Promise<NotificationSent>;
+		deleteMany: (args: {
+			where: {
+				sentAt: { lt: Date };
+			};
+		}) => Promise<{ count: number }>;
 	};
-}
+};
 
 @Injectable()
 export class NotificationsService {
@@ -482,8 +500,8 @@ export class NotificationsService {
 		}
 
 		// Get all message IDs that we've already sent notifications for
-		const sentNotifications: NotificationSent[] = await (
-			this.prisma as ExtendedPrismaClient
+		const sentNotifications = await (
+			this.prisma as PrismaServiceWithNotificationSent
 		).notificationSent.findMany({
 			where: {
 				userId,
@@ -523,8 +541,8 @@ export class NotificationsService {
 			const messageIds = chat.messages.map((msg) => msg.id);
 
 			// Get already notified message IDs for this user
-			const sentNotifications: NotificationSent[] = await (
-				this.prisma as ExtendedPrismaClient
+			const sentNotifications = await (
+				this.prisma as PrismaServiceWithNotificationSent
 			).notificationSent.findMany({
 				where: {
 					userId,
@@ -572,7 +590,7 @@ export class NotificationsService {
 
 				if (messageIds.length > 0) {
 					await (
-						this.prisma as ExtendedPrismaClient
+						this.prisma as PrismaServiceWithNotificationSent
 					).notificationSent.create({
 						data: {
 							userId,
@@ -598,7 +616,7 @@ export class NotificationsService {
 
 		try {
 			const result: { count: number } = await (
-				this.prisma as ExtendedPrismaClient
+				this.prisma as PrismaServiceWithNotificationSent
 			).notificationSent.deleteMany({
 				where: {
 					sentAt: {
