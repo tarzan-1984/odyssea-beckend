@@ -119,6 +119,13 @@ export class AcfFields {
 	})
 	@IsOptional()
 	flt?: boolean;
+
+	@ApiProperty({
+		description: 'Deactivate account flag from TMS',
+		example: true,
+	})
+	@IsOptional()
+	deactivate_account?: boolean;
 }
 
 export class UserData {

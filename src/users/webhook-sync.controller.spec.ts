@@ -200,6 +200,7 @@ describe('SyncController - Webhook', () => {
 					location: 'pl',
 					role: UserRole.DISPATCHER_EXPEDITE,
 					status: UserStatus.ACTIVE,
+					deactivateAccount: false,
 					createdAt: new Date(),
 					updatedAt: new Date(),
 				},
@@ -253,6 +254,62 @@ describe('SyncController - Webhook', () => {
 					location: 'pl',
 					role: UserRole.DISPATCHER_EXPEDITE,
 					status: UserStatus.ACTIVE,
+					deactivateAccount: false,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				},
+			};
+
+			mockUsersService.processWebhookSync.mockResolvedValue(
+				expectedResult,
+			);
+
+			const result = await controller.processWebhook(webhookData);
+
+			expect(usersService.processWebhookSync).toHaveBeenCalledWith(
+				webhookData,
+			);
+			expect(result).toEqual(expectedResult);
+		});
+
+		it('should process employee update webhook with deactivate_account successfully', async () => {
+			const webhookData: WebhookSyncDto = {
+				type: WebhookType.UPDATE,
+				role: WebhookRole.EMPLOYEE,
+				timestamp: '2025-09-12 11:02:41',
+				source: 'tms-statistics',
+				user_data: {
+					id: 27,
+					user_email: 'milchenko2k16+55995@gmail.com',
+					display_name: 'Serhii Milchenko',
+					first_name: 'Serhii',
+					last_name: 'Milchenkos',
+					roles: ['dispatcher'],
+					user_registered: '2025-09-11 14:15:00',
+					acf_fields: {
+						permission_view: [],
+						initials_color: '#0d6efd',
+						work_location: 'pl',
+						phone_number: '(667) 290-7550',
+						flt: false,
+						deactivate_account: true,
+					},
+				},
+			};
+
+			const expectedResult = {
+				action: 'updated',
+				user: {
+					id: '1',
+					externalId: '27',
+					email: 'milchenko2k16+55995@gmail.com',
+					firstName: 'Serhii',
+					lastName: 'Milchenkos',
+					phone: '(667) 290-7550',
+					location: 'pl',
+					role: UserRole.DISPATCHER_EXPEDITE,
+					status: UserStatus.INACTIVE,
+					deactivateAccount: true,
 					createdAt: new Date(),
 					updatedAt: new Date(),
 				},

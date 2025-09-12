@@ -498,6 +498,12 @@ export class UsersService {
 			}
 		}
 
+		// Determine user status based on deactivate_account flag
+		const userStatus =
+			acf_fields?.deactivate_account === true
+				? UserStatus.INACTIVE
+				: UserStatus.ACTIVE;
+
 		const employeeData = {
 			externalId: String(id),
 			email: user_email,
@@ -506,6 +512,8 @@ export class UsersService {
 			phone: acf_fields?.phone_number || undefined,
 			location: acf_fields?.work_location || undefined,
 			role: mappedRole,
+			status: userStatus,
+			deactivateAccount: acf_fields?.deactivate_account || false,
 		};
 
 		if (type === WebhookType.ADD) {
@@ -539,6 +547,7 @@ export class UsersService {
 					city: true,
 					role: true,
 					status: true,
+					deactivateAccount: true,
 					createdAt: true,
 					updatedAt: true,
 				},
@@ -575,6 +584,7 @@ export class UsersService {
 					city: true,
 					role: true,
 					status: true,
+					deactivateAccount: true,
 					createdAt: true,
 					updatedAt: true,
 				},
