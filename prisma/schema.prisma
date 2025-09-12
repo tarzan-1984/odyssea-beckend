@@ -11,51 +11,22 @@ datasource db {
 
 model User {
   id                   String                @id @default(cuid())
+  externalId           String?               @unique // ID from external service
   email                String                @unique
   password             String
   firstName            String
   lastName             String
   phone                String?
   profilePhoto         String?
+  location             String?
+  state                String?
+  zip                  String?
+  city                 String?
   role                 UserRole
   status               UserStatus            @default(ACTIVE)
-  language             String[]
-  extension            String?
-  vehicleType          VehicleType?
-  vehicleCapacity      String?
-  vehicleDimensions    String?
-  vehicleModel         String?
-  vehicleBrand         String?
-  vehicleYear          Int?
-  distanceCoverage     DistanceCoverage?
-  hasPalletJack        Boolean               @default(false)
-  hasLiftGate          Boolean               @default(false)
-  hasCDL               Boolean               @default(false)
-  hasTWIC              Boolean               @default(false)
-  hasTSA               Boolean               @default(false)
-  hasHazmatCert        Boolean               @default(false)
-  hasTankerEndorsement Boolean               @default(false)
-  hasDolly             Boolean               @default(false)
-  hasCanada            Boolean               @default(false)
-  hasMexico            Boolean               @default(false)
-  hasETracks           Boolean               @default(false)
-  hasLoadBars          Boolean               @default(false)
-  hasRamp              Boolean               @default(false)
-  hasDockHigh          Boolean               @default(false)
-  hasPPE               Boolean               @default(false)
-  hasRealID            Boolean               @default(false)
-  hasPrinter           Boolean               @default(false)
-  hasSleeper           Boolean               @default(false)
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   lastLoginAt          DateTime?
-  location             String?
-  vin                  String?
-  city                 String?
-  country              String?
-  state                String?
-  zip                  String?
-  taxId                String?
   chatRooms            ChatRoomParticipant[]
   receivedMessages     Message[]             @relation("MessageReceiver")
   sentMessages         Message[]             @relation("MessageSender")
@@ -184,18 +155,6 @@ enum UserRole {
   DRIVER
 }
 
-enum VehicleType {
-  CARGO_VAN
-  SPRINTER_VAN
-  BOX_TRUCK
-  SEMI_TRUCK
-}
-
-enum DistanceCoverage {
-  LOCAL
-  REGIONAL
-  OTR
-}
 
 enum UserStatus {
   ACTIVE

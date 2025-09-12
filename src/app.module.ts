@@ -15,6 +15,7 @@ import {
 	jwtConfig,
 	swaggerConfig,
 	mailerConfig,
+	externalApiConfig,
 } from './config/env.config';
 import { StorageModule } from './storage/storage.module';
 
@@ -28,6 +29,7 @@ import { StorageModule } from './storage/storage.module';
 				jwtConfig,
 				swaggerConfig,
 				mailerConfig,
+				externalApiConfig,
 			],
 			envFilePath: '.env',
 		}),

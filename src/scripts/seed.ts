@@ -1,10 +1,4 @@
-import {
-	PrismaClient,
-	UserRole,
-	UserStatus,
-	VehicleType,
-	DistanceCoverage,
-} from '@prisma/client';
+import { PrismaClient, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -25,8 +19,6 @@ async function main() {
 			role: UserRole.ADMINISTRATOR,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567890',
-			language: ['English'],
-			extension: '100',
 		},
 	});
 
@@ -43,8 +35,6 @@ async function main() {
 			role: UserRole.ADMINISTRATOR,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567895',
-			language: ['English'],
-			extension: '104',
 		},
 	});
 
@@ -61,8 +51,6 @@ async function main() {
 			role: UserRole.ADMINISTRATOR,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567896',
-			language: ['English'],
-			extension: '105',
 		},
 	});
 
@@ -79,8 +67,6 @@ async function main() {
 			role: UserRole.DISPATCHER_EXPEDITE,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567891',
-			language: ['English', 'Spanish'],
-			extension: '101',
 		},
 	});
 
@@ -97,28 +83,6 @@ async function main() {
 			role: UserRole.DRIVER,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567892',
-			language: ['English'],
-			vehicleType: VehicleType.SPRINTER_VAN,
-			vehicleCapacity: '2000 lbs',
-			vehicleDimensions: '10x8x6 feet',
-			vehicleModel: 'Sprinter 2500',
-			vehicleBrand: 'Mercedes-Benz',
-			vehicleYear: 2020,
-			distanceCoverage: DistanceCoverage.REGIONAL,
-			hasCDL: true,
-			hasTWIC: true,
-			hasLiftGate: true,
-			hasPalletJack: true,
-			hasCanada: true,
-			hasMexico: false,
-			hasETracks: true,
-			hasLoadBars: true,
-			hasRamp: true,
-			hasDockHigh: true,
-			hasPPE: true,
-			hasRealID: true,
-			hasPrinter: false,
-			hasSleeper: false,
 		},
 	});
 
@@ -135,8 +99,6 @@ async function main() {
 			role: UserRole.RECRUITER,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567893',
-			language: ['English'],
-			extension: '102',
 		},
 	});
 
@@ -153,8 +115,6 @@ async function main() {
 			role: UserRole.TRACKING,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567894',
-			language: ['English'],
-			extension: '103',
 		},
 	});
 

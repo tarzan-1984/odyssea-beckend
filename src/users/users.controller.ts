@@ -22,6 +22,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SyncUserDto } from './dto/sync-user.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 
 @ApiTags('Users')
@@ -88,6 +89,17 @@ export class UsersController {
 		return this.usersService.findUserById(req.user.id);
 	}
 
+	@Get('external/:externalId')
+	@ApiOperation({ summary: 'Get user by external ID' })
+	@ApiResponse({
+		status: 200,
+		description: 'User retrieved successfully',
+	})
+	@ApiResponse({ status: 404, description: 'User not found' })
+	async findUserByExternalId(@Param('externalId') externalId: string) {
+		return this.usersService.findUserByExternalId(externalId);
+	}
+
 	@Get(':id')
 	@ApiOperation({ summary: 'Get user by ID' })
 	@ApiResponse({
@@ -100,7 +112,9 @@ export class UsersController {
 	}
 
 	@Put('profile')
-	@ApiOperation({ summary: 'Update current user profile' })
+	@ApiOperation({
+		summary: 'Update current user profile (basic fields only)',
+	})
 	@ApiResponse({
 		status: 200,
 		description: 'User profile updated successfully',
@@ -164,5 +178,16 @@ export class UsersController {
 		@Body('status') status: UserStatus,
 	) {
 		return this.usersService.changeUserStatus(id, status);
+	}
+
+	@Post('sync-db')
+	@ApiOperation({ summary: 'Sync user data from external service' })
+	@ApiResponse({
+		status: 200,
+		description: 'User data synced successfully',
+	})
+	@ApiResponse({ status: 400, description: 'Bad request' })
+	async syncUser(@Body() syncUserDto: SyncUserDto) {
+		return this.usersService.syncUser(syncUserDto);
 	}
 }

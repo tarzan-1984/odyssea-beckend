@@ -5,13 +5,8 @@ import {
 	IsEnum,
 	IsOptional,
 	MinLength,
-	IsArray,
-	IsBoolean,
-	IsInt,
-	Min,
-	Max,
 } from 'class-validator';
-import { UserRole, VehicleType, DistanceCoverage } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 
 export class UpdateUserDto {
 	@ApiProperty({
@@ -62,15 +57,6 @@ export class UpdateUserDto {
 	phone?: string;
 
 	@ApiProperty({
-		description: 'User profile photo URL',
-		example: 'https://example.com/photo.jpg',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	profilePhoto?: string;
-
-	@ApiProperty({
 		description: 'User role',
 		enum: UserRole,
 		example: UserRole.DRIVER,
@@ -81,25 +67,14 @@ export class UpdateUserDto {
 	role?: UserRole;
 
 	@ApiProperty({
-		description: 'Languages user speaks',
-		example: ['English', 'Spanish'],
-		required: false,
-	})
-	@IsOptional()
-	@IsArray()
-	@IsString({ each: true })
-	language?: string[];
-
-	@ApiProperty({
-		description: 'Phone extension for managers',
-		example: '31',
+		description: 'User profile photo URL',
+		example: 'https://example.com/photo.jpg',
 		required: false,
 	})
 	@IsOptional()
 	@IsString()
-	extension?: string;
+	profilePhoto?: string;
 
-	// Address fields
 	@ApiProperty({
 		description: 'User location',
 		example: 'New York, NY',
@@ -108,33 +83,6 @@ export class UpdateUserDto {
 	@IsOptional()
 	@IsString()
 	location?: string;
-
-	@ApiProperty({
-		description: 'Vehicle identification number',
-		example: '1HGBH41JXMN109186',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	vin?: string;
-
-	@ApiProperty({
-		description: 'Country',
-		example: 'United States',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	country?: string;
-
-	@ApiProperty({
-		description: 'City',
-		example: 'New York',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	city?: string;
 
 	@ApiProperty({
 		description: 'State/Province',
@@ -155,240 +103,20 @@ export class UpdateUserDto {
 	zip?: string;
 
 	@ApiProperty({
-		description: 'Tax ID number',
-		example: '12-3456789',
+		description: 'City',
+		example: 'New York',
 		required: false,
 	})
 	@IsOptional()
 	@IsString()
-	taxId?: string;
-
-	// Driver specific fields
-	@ApiProperty({
-		description: 'Vehicle type',
-		enum: VehicleType,
-		required: false,
-	})
-	@IsOptional()
-	@IsEnum(VehicleType)
-	vehicleType?: VehicleType;
+	city?: string;
 
 	@ApiProperty({
-		description: 'Vehicle brand',
-		example: 'Ford',
+		description: 'External ID from external service',
+		example: 'ext_123456',
 		required: false,
 	})
 	@IsOptional()
 	@IsString()
-	vehicleBrand?: string;
-
-	@ApiProperty({
-		description: 'Vehicle model',
-		example: 'Transit',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	vehicleModel?: string;
-
-	@ApiProperty({
-		description: 'Vehicle year',
-		example: 2020,
-		required: false,
-	})
-	@IsOptional()
-	@IsInt()
-	@Min(1900)
-	@Max(new Date().getFullYear())
-	vehicleYear?: number;
-
-	@ApiProperty({
-		description: 'Vehicle capacity',
-		example: '1000 lbs',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	vehicleCapacity?: string;
-
-	@ApiProperty({
-		description: 'Vehicle dimensions',
-		example: '10x6x6 ft',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	vehicleDimensions?: string;
-
-	@ApiProperty({
-		description: 'Distance coverage preference',
-		enum: DistanceCoverage,
-		required: false,
-	})
-	@IsOptional()
-	@IsEnum(DistanceCoverage)
-	distanceCoverage?: DistanceCoverage;
-
-	// Driver certifications and capabilities
-	@ApiProperty({
-		description: 'Has Commercial Driver License',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasCDL?: boolean;
-
-	@ApiProperty({
-		description: 'Can drive in Canada',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasCanada?: boolean;
-
-	@ApiProperty({
-		description: 'Can drive in Mexico',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasMexico?: boolean;
-
-	@ApiProperty({
-		description: 'Has dock high capability',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasDockHigh?: boolean;
-
-	@ApiProperty({
-		description: 'Has dolly capability',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasDolly?: boolean;
-
-	@ApiProperty({
-		description: 'Has E-tracks capability',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasETracks?: boolean;
-
-	@ApiProperty({
-		description: 'Has hazmat certification',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasHazmatCert?: boolean;
-
-	@ApiProperty({
-		description: 'Has lift gate capability',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasLiftGate?: boolean;
-
-	@ApiProperty({
-		description: 'Has load bars capability',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasLoadBars?: boolean;
-
-	@ApiProperty({
-		description: 'Has PPE equipment',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasPPE?: boolean;
-
-	@ApiProperty({
-		description: 'Has pallet jack capability',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasPalletJack?: boolean;
-
-	@ApiProperty({
-		description: 'Has printer capability',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasPrinter?: boolean;
-
-	@ApiProperty({
-		description: 'Has ramp capability',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasRamp?: boolean;
-
-	@ApiProperty({
-		description: 'Has Real ID',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasRealID?: boolean;
-
-	@ApiProperty({
-		description: 'Has sleeper capability',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasSleeper?: boolean;
-
-	@ApiProperty({
-		description: 'Has TSA certification',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasTSA?: boolean;
-
-	@ApiProperty({
-		description: 'Has TWIC certification',
-		example: true,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasTWIC?: boolean;
-
-	@ApiProperty({
-		description: 'Has tanker endorsement',
-		example: false,
-		required: false,
-	})
-	@IsOptional()
-	@IsBoolean()
-	hasTankerEndorsement?: boolean;
+	externalId?: string;
 }

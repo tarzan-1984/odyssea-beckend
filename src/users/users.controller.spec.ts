@@ -13,25 +13,23 @@ describe('UsersController', () => {
 		createUser: jest.fn(),
 		findAllUsers: jest.fn(),
 		findUserById: jest.fn(),
+		findUserByExternalId: jest.fn(),
 		updateUserProfile: jest.fn(),
 		updateUser: jest.fn(),
 		deleteUser: jest.fn(),
 		changeUserStatus: jest.fn(),
+		syncUser: jest.fn(),
 	};
 
 	const mockUser = {
 		id: '1',
+		externalId: 'ext_123',
 		email: 'test@example.com',
 		firstName: 'John',
 		lastName: 'Doe',
 		phone: '+1234567890',
 		role: UserRole.DRIVER,
 		status: UserStatus.ACTIVE,
-		language: ['en'],
-		vehicleType: 'CARGO_VAN',
-		hasPalletJack: false,
-		hasLiftGate: true,
-		hasCDL: true,
 		createdAt: new Date(),
 		updatedAt: new Date(),
 		lastLoginAt: null,
@@ -39,11 +37,11 @@ describe('UsersController', () => {
 
 	const mockPaginationResult = {
 		users: [mockUser],
-		meta: {
+		pagination: {
 			page: 1,
 			limit: 10,
 			total: 1,
-			totalPages: 1,
+			pages: 1,
 		},
 	};
 
@@ -74,12 +72,7 @@ describe('UsersController', () => {
 			lastName: 'Doe',
 			phone: '+1234567890',
 			role: UserRole.DRIVER,
-			language: ['en'],
-			vehicleType: 'CARGO_VAN',
-			hasPalletJack: false,
-			hasLiftGate: true,
-			hasCDL: true,
-			taxId: '12-3456789',
+			externalId: 'ext_123',
 		};
 
 		it('should create a new user successfully', async () => {
@@ -173,6 +166,28 @@ describe('UsersController', () => {
 
 			await expect(
 				controller.getCurrentUserProfile(mockRequest),
+			).rejects.toThrow(error);
+		});
+	});
+
+	describe('findUserByExternalId', () => {
+		it('should return user by external ID successfully', async () => {
+			mockUsersService.findUserByExternalId.mockResolvedValue(mockUser);
+
+			const result = await controller.findUserByExternalId('ext_123');
+
+			expect(result).toEqual(mockUser);
+			expect(usersService.findUserByExternalId).toHaveBeenCalledWith(
+				'ext_123',
+			);
+		});
+
+		it('should handle service errors', async () => {
+			const error = new Error('Service error');
+			mockUsersService.findUserByExternalId.mockRejectedValue(error);
+
+			await expect(
+				controller.findUserByExternalId('ext_123'),
 			).rejects.toThrow(error);
 		});
 	});
@@ -305,6 +320,39 @@ describe('UsersController', () => {
 			await expect(
 				controller.changeUserStatus('1', UserStatus.SUSPENDED),
 			).rejects.toThrow(error);
+		});
+	});
+
+	describe('syncUser', () => {
+		const syncUserDto = {
+			externalId: 'ext_123',
+			email: 'test@example.com',
+			firstName: 'John',
+			lastName: 'Doe',
+			phone: '+1234567890',
+			role: UserRole.DRIVER,
+		};
+
+		it('should sync user data successfully', async () => {
+			const syncResult = {
+				action: 'created',
+				user: mockUser,
+			};
+			mockUsersService.syncUser.mockResolvedValue(syncResult);
+
+			const result = await controller.syncUser(syncUserDto);
+
+			expect(result).toEqual(syncResult);
+			expect(usersService.syncUser).toHaveBeenCalledWith(syncUserDto);
+		});
+
+		it('should handle service errors', async () => {
+			const error = new Error('Service error');
+			mockUsersService.syncUser.mockRejectedValue(error);
+
+			await expect(controller.syncUser(syncUserDto)).rejects.toThrow(
+				error,
+			);
 		});
 	});
 });
