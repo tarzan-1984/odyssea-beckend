@@ -1,14 +1,12 @@
 import {
 	Controller,
 	Get,
-	Post,
 	Put,
 	Delete,
 	Body,
 	Param,
 	Query,
 	UseGuards,
-	Request,
 } from '@nestjs/common';
 import {
 	ApiTags,
@@ -20,9 +18,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 
 import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { SyncUserDto } from './dto/sync-user.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 
 @ApiTags('Users')
@@ -31,18 +27,6 @@ import { UserRole, UserStatus } from '@prisma/client';
 @UseGuards(AuthGuard('jwt'))
 export class UsersController {
 	constructor(private readonly usersService: UsersService) {}
-
-	@Post()
-	@ApiOperation({ summary: 'Create new user (Admin only)' })
-	@ApiResponse({
-		status: 201,
-		description: 'User created successfully',
-	})
-	@ApiResponse({ status: 400, description: 'Bad request' })
-	@ApiResponse({ status: 409, description: 'User already exists' })
-	async createUser(@Body() createUserDto: CreateUserDto) {
-		return this.usersService.createUser(createUserDto);
-	}
 
 	@Get()
 	@ApiOperation({ summary: 'Get all users with pagination and filtering' })
@@ -79,16 +63,6 @@ export class UsersController {
 		);
 	}
 
-	@Get('profile')
-	@ApiOperation({ summary: 'Get current user profile' })
-	@ApiResponse({
-		status: 200,
-		description: 'User profile retrieved successfully',
-	})
-	async getCurrentUserProfile(@Request() req: { user: { id: string } }) {
-		return this.usersService.findUserById(req.user.id);
-	}
-
 	@Get('external/:externalId')
 	@ApiOperation({ summary: 'Get user by external ID' })
 	@ApiResponse({
@@ -109,22 +83,6 @@ export class UsersController {
 	@ApiResponse({ status: 404, description: 'User not found' })
 	async findUserById(@Param('id') id: string) {
 		return this.usersService.findUserById(id);
-	}
-
-	@Put('profile')
-	@ApiOperation({
-		summary: 'Update current user profile (basic fields only)',
-	})
-	@ApiResponse({
-		status: 200,
-		description: 'User profile updated successfully',
-	})
-	@ApiResponse({ status: 400, description: 'Bad request' })
-	async updateUserProfile(
-		@Request() req: { user: { id: string } },
-		@Body() updateUserDto: UpdateUserDto,
-	) {
-		return this.usersService.updateUserProfile(req.user.id, updateUserDto);
 	}
 
 	@Put(':id')
@@ -178,16 +136,5 @@ export class UsersController {
 		@Body('status') status: UserStatus,
 	) {
 		return this.usersService.changeUserStatus(id, status);
-	}
-
-	@Post('sync-db')
-	@ApiOperation({ summary: 'Sync user data from external service' })
-	@ApiResponse({
-		status: 200,
-		description: 'User data synced successfully',
-	})
-	@ApiResponse({ status: 400, description: 'Bad request' })
-	async syncUser(@Body() syncUserDto: SyncUserDto) {
-		return this.usersService.syncUser(syncUserDto);
 	}
 }

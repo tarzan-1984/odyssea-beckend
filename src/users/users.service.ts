@@ -6,9 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { SyncUserDto } from './dto/sync-user.dto';
 import {
 	WebhookSyncDto,
 	WebhookType,
@@ -21,48 +19,6 @@ import { UserRole, UserStatus } from '@prisma/client';
 @Injectable()
 export class UsersService {
 	constructor(private readonly prisma: PrismaService) {}
-
-	/**
-	 * Creates a new user (admin only)
-	 */
-	async createUser(createUserDto: CreateUserDto) {
-		const existingUser = await this.prisma.user.findUnique({
-			where: { email: createUserDto.email },
-		});
-
-		if (existingUser) {
-			throw new ConflictException('User with this email already exists');
-		}
-
-		const hashedPassword = await bcrypt.hash(createUserDto.password, 12);
-
-		const user = await this.prisma.user.create({
-			data: {
-				...createUserDto,
-				password: hashedPassword,
-			},
-			select: {
-				id: true,
-				externalId: true,
-				email: true,
-				firstName: true,
-				lastName: true,
-				phone: true,
-				profilePhoto: true,
-				location: true,
-				state: true,
-				zip: true,
-				city: true,
-				role: true,
-				status: true,
-				createdAt: true,
-				updatedAt: true,
-				lastLoginAt: true,
-			},
-		});
-
-		return user;
-	}
 
 	/**
 	 * Finds all users with pagination and filtering
@@ -209,70 +165,6 @@ export class UsersService {
 	}
 
 	/**
-	 * Updates user profile (only basic fields)
-	 */
-	async updateUserProfile(userId: string, updateUserDto: UpdateUserDto) {
-		const user = await this.prisma.user.findUnique({
-			where: { id: userId },
-		});
-
-		if (!user) {
-			throw new NotFoundException('User not found');
-		}
-
-		// Only allow updating basic fields
-		const allowedFields = [
-			'firstName',
-			'lastName',
-			'phone',
-			'email',
-			'profilePhoto',
-			'location',
-			'state',
-			'zip',
-			'city',
-		];
-		const updateData: Partial<UpdateUserDto> = {};
-
-		for (const field of allowedFields) {
-			if (updateUserDto[field as keyof UpdateUserDto] !== undefined) {
-				(updateData as any)[field] =
-					updateUserDto[field as keyof UpdateUserDto];
-			}
-		}
-
-		// Hash password if provided
-		if (updateUserDto.password) {
-			updateData.password = await bcrypt.hash(updateUserDto.password, 12);
-		}
-
-		const updatedUser = await this.prisma.user.update({
-			where: { id: userId },
-			data: updateData,
-			select: {
-				id: true,
-				externalId: true,
-				email: true,
-				firstName: true,
-				lastName: true,
-				phone: true,
-				profilePhoto: true,
-				location: true,
-				state: true,
-				zip: true,
-				city: true,
-				role: true,
-				status: true,
-				createdAt: true,
-				updatedAt: true,
-				lastLoginAt: true,
-			},
-		});
-
-		return updatedUser;
-	}
-
-	/**
 	 * Updates user (admin only)
 	 */
 	async updateUser(id: string, updateUserDto: UpdateUserDto) {
@@ -364,131 +256,6 @@ export class UsersService {
 		});
 
 		return updatedUser;
-	}
-
-	/**
-	 * Syncs user data from external service
-	 * Creates or updates user based on externalId
-	 */
-	async syncUser(syncUserDto: SyncUserDto) {
-		const { externalId, ...userData } = syncUserDto;
-
-		// Check if user exists by externalId
-		const existingUser = await this.prisma.user.findUnique({
-			where: { externalId },
-		});
-
-		if (existingUser) {
-			// Update existing user
-			const updatedUser = await this.prisma.user.update({
-				where: { externalId },
-				data: {
-					email: userData.email,
-					firstName: userData.firstName,
-					lastName: userData.lastName,
-					phone: userData.phone,
-					role: userData.role,
-				},
-				select: {
-					id: true,
-					externalId: true,
-					email: true,
-					firstName: true,
-					lastName: true,
-					phone: true,
-					profilePhoto: true,
-					location: true,
-					state: true,
-					zip: true,
-					city: true,
-					role: true,
-					status: true,
-					createdAt: true,
-					updatedAt: true,
-				},
-			});
-
-			return {
-				action: 'updated',
-				user: updatedUser,
-			};
-		} else {
-			// Check if user exists by email
-			const userByEmail = await this.prisma.user.findUnique({
-				where: { email: userData.email },
-			});
-
-			if (userByEmail) {
-				// Update existing user with externalId
-				const updatedUser = await this.prisma.user.update({
-					where: { email: userData.email },
-					data: {
-						externalId,
-						firstName: userData.firstName,
-						lastName: userData.lastName,
-						phone: userData.phone,
-						role: userData.role,
-					},
-					select: {
-						id: true,
-						externalId: true,
-						email: true,
-						firstName: true,
-						lastName: true,
-						phone: true,
-						profilePhoto: true,
-						location: true,
-						state: true,
-						zip: true,
-						city: true,
-						role: true,
-						status: true,
-						createdAt: true,
-						updatedAt: true,
-					},
-				});
-
-				return {
-					action: 'updated',
-					user: updatedUser,
-				};
-			} else {
-				// Create new user
-				const newUser = await this.prisma.user.create({
-					data: {
-						externalId,
-						email: userData.email,
-						firstName: userData.firstName,
-						lastName: userData.lastName,
-						phone: userData.phone,
-						role: userData.role,
-						password: '', // Will be set when user first logs in
-					},
-					select: {
-						id: true,
-						externalId: true,
-						email: true,
-						firstName: true,
-						lastName: true,
-						phone: true,
-						profilePhoto: true,
-						location: true,
-						state: true,
-						zip: true,
-						city: true,
-						role: true,
-						status: true,
-						createdAt: true,
-						updatedAt: true,
-					},
-				});
-
-				return {
-					action: 'created',
-					user: newUser,
-				};
-			}
-		}
 	}
 
 	/**

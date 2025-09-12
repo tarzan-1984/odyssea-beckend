@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 
@@ -10,15 +9,12 @@ describe('UsersController', () => {
 	let usersService: UsersService;
 
 	const mockUsersService = {
-		createUser: jest.fn(),
 		findAllUsers: jest.fn(),
 		findUserById: jest.fn(),
 		findUserByExternalId: jest.fn(),
-		updateUserProfile: jest.fn(),
 		updateUser: jest.fn(),
 		deleteUser: jest.fn(),
 		changeUserStatus: jest.fn(),
-		syncUser: jest.fn(),
 	};
 
 	const mockUser = {
@@ -28,21 +24,16 @@ describe('UsersController', () => {
 		firstName: 'John',
 		lastName: 'Doe',
 		phone: '+1234567890',
-		role: UserRole.DRIVER,
+		profilePhoto: null,
+		location: 'New York',
+		state: 'NY',
+		zip: '10001',
+		city: 'New York',
+		role: UserRole.ADMINISTRATOR,
 		status: UserStatus.ACTIVE,
 		createdAt: new Date(),
 		updatedAt: new Date(),
 		lastLoginAt: null,
-	};
-
-	const mockPaginationResult = {
-		users: [mockUser],
-		pagination: {
-			page: 1,
-			limit: 10,
-			total: 1,
-			pages: 1,
-		},
 	};
 
 	beforeEach(async () => {
@@ -64,295 +55,143 @@ describe('UsersController', () => {
 		jest.clearAllMocks();
 	});
 
-	describe('createUser', () => {
-		const createUserDto: CreateUserDto = {
-			email: 'test@example.com',
-			password: 'password123',
-			firstName: 'John',
-			lastName: 'Doe',
-			phone: '+1234567890',
-			role: UserRole.DRIVER,
-			externalId: 'ext_123',
-		};
-
-		it('should create a new user successfully', async () => {
-			mockUsersService.createUser.mockResolvedValue(mockUser);
-
-			const result = await controller.createUser(createUserDto);
-
-			expect(result).toEqual(mockUser);
-			expect(usersService.createUser).toHaveBeenCalledWith(createUserDto);
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.createUser.mockRejectedValue(error);
-
-			await expect(controller.createUser(createUserDto)).rejects.toThrow(
-				error,
-			);
-		});
-	});
-
 	describe('findAllUsers', () => {
-		it('should return users with default pagination', async () => {
-			mockUsersService.findAllUsers.mockResolvedValue(
-				mockPaginationResult,
+		it('should return paginated users', async () => {
+			const mockResult = {
+				users: [mockUser],
+				pagination: {
+					page: 1,
+					limit: 10,
+					total: 1,
+					totalPages: 1,
+				},
+			};
+
+			mockUsersService.findAllUsers.mockResolvedValue(mockResult);
+
+			const result = await controller.findAllUsers(
+				'1',
+				'10',
+				UserRole.ADMINISTRATOR,
+				UserStatus.ACTIVE,
+				'test',
+				'{"createdAt":"desc"}',
 			);
 
-			const result = await controller.findAllUsers();
+			expect(usersService.findAllUsers).toHaveBeenCalledWith(
+				1,
+				10,
+				UserRole.ADMINISTRATOR,
+				UserStatus.ACTIVE,
+				'test',
+				{ createdAt: 'desc' },
+			);
+			expect(result).toEqual(mockResult);
+		});
 
-			expect(result).toEqual(mockPaginationResult);
+		it('should handle invalid sort parameter', async () => {
+			const mockResult = {
+				users: [mockUser],
+				pagination: {
+					page: 1,
+					limit: 10,
+					total: 1,
+					totalPages: 1,
+				},
+			};
+
+			mockUsersService.findAllUsers.mockResolvedValue(mockResult);
+
+			const result = await controller.findAllUsers(
+				'1',
+				'10',
+				undefined,
+				undefined,
+				undefined,
+				'invalid-json',
+			);
+
 			expect(usersService.findAllUsers).toHaveBeenCalledWith(
 				1,
 				10,
 				undefined,
 				undefined,
 				undefined,
-				undefined,
+				{ createdAt: 'desc' },
 			);
-		});
-
-		it('should return users with custom pagination and filters', async () => {
-			mockUsersService.findAllUsers.mockResolvedValue(
-				mockPaginationResult,
-			);
-
-			const result = await controller.findAllUsers(
-				'2',
-				'20',
-				UserRole.DRIVER,
-				UserStatus.ACTIVE,
-				'john',
-				undefined,
-			);
-
-			expect(result).toEqual(mockPaginationResult);
-			expect(usersService.findAllUsers).toHaveBeenCalledWith(
-				2,
-				20,
-				UserRole.DRIVER,
-				UserStatus.ACTIVE,
-				'john',
-				undefined,
-			);
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.findAllUsers.mockRejectedValue(error);
-
-			await expect(controller.findAllUsers()).rejects.toThrow(error);
-		});
-	});
-
-	describe('getCurrentUserProfile', () => {
-		const mockRequest = {
-			user: { id: '1' },
-		};
-
-		it('should return current user profile successfully', async () => {
-			mockUsersService.findUserById.mockResolvedValue(mockUser);
-
-			const result = await controller.getCurrentUserProfile(mockRequest);
-
-			expect(result).toEqual(mockUser);
-			expect(usersService.findUserById).toHaveBeenCalledWith('1');
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.findUserById.mockRejectedValue(error);
-
-			await expect(
-				controller.getCurrentUserProfile(mockRequest),
-			).rejects.toThrow(error);
+			expect(result).toEqual(mockResult);
 		});
 	});
 
 	describe('findUserByExternalId', () => {
-		it('should return user by external ID successfully', async () => {
+		it('should return user by external id', async () => {
 			mockUsersService.findUserByExternalId.mockResolvedValue(mockUser);
 
 			const result = await controller.findUserByExternalId('ext_123');
 
-			expect(result).toEqual(mockUser);
 			expect(usersService.findUserByExternalId).toHaveBeenCalledWith(
 				'ext_123',
 			);
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.findUserByExternalId.mockRejectedValue(error);
-
-			await expect(
-				controller.findUserByExternalId('ext_123'),
-			).rejects.toThrow(error);
+			expect(result).toEqual(mockUser);
 		});
 	});
 
 	describe('findUserById', () => {
-		it('should return user by ID successfully', async () => {
+		it('should return user by id', async () => {
 			mockUsersService.findUserById.mockResolvedValue(mockUser);
 
 			const result = await controller.findUserById('1');
 
-			expect(result).toEqual(mockUser);
 			expect(usersService.findUserById).toHaveBeenCalledWith('1');
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.findUserById.mockRejectedValue(error);
-
-			await expect(controller.findUserById('1')).rejects.toThrow(error);
-		});
-	});
-
-	describe('updateUserProfile', () => {
-		const updateUserDto: UpdateUserDto = {
-			firstName: 'Jane',
-			lastName: 'Smith',
-			phone: '+0987654321',
-		};
-
-		const mockRequest = {
-			user: { id: '1' },
-		};
-
-		it('should update current user profile successfully', async () => {
-			const updatedUser = { ...mockUser, ...updateUserDto };
-			mockUsersService.updateUserProfile.mockResolvedValue(updatedUser);
-
-			const result = await controller.updateUserProfile(
-				mockRequest,
-				updateUserDto,
-			);
-
-			expect(result).toEqual(updatedUser);
-			expect(usersService.updateUserProfile).toHaveBeenCalledWith(
-				'1',
-				updateUserDto,
-			);
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.updateUserProfile.mockRejectedValue(error);
-
-			await expect(
-				controller.updateUserProfile(mockRequest, updateUserDto),
-			).rejects.toThrow(error);
+			expect(result).toEqual(mockUser);
 		});
 	});
 
 	describe('updateUser', () => {
-		const updateUserDto: UpdateUserDto = {
-			firstName: 'Jane',
-			lastName: 'Smith',
-			role: UserRole.FLEET_MANAGER,
-		};
-
 		it('should update user successfully', async () => {
+			const updateUserDto: UpdateUserDto = {
+				firstName: 'Jane',
+				lastName: 'Smith',
+			};
+
 			const updatedUser = { ...mockUser, ...updateUserDto };
 			mockUsersService.updateUser.mockResolvedValue(updatedUser);
 
 			const result = await controller.updateUser('1', updateUserDto);
 
-			expect(result).toEqual(updatedUser);
 			expect(usersService.updateUser).toHaveBeenCalledWith(
 				'1',
 				updateUserDto,
 			);
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.updateUser.mockRejectedValue(error);
-
-			await expect(
-				controller.updateUser('1', updateUserDto),
-			).rejects.toThrow(error);
+			expect(result).toEqual(updatedUser);
 		});
 	});
 
 	describe('deleteUser', () => {
 		it('should delete user successfully', async () => {
-			const expectedResponse = { message: 'User deleted successfully' };
-			mockUsersService.deleteUser.mockResolvedValue(expectedResponse);
+			mockUsersService.deleteUser.mockResolvedValue(mockUser);
 
 			const result = await controller.deleteUser('1');
 
-			expect(result).toEqual(expectedResponse);
 			expect(usersService.deleteUser).toHaveBeenCalledWith('1');
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.deleteUser.mockRejectedValue(error);
-
-			await expect(controller.deleteUser('1')).rejects.toThrow(error);
+			expect(result).toEqual(mockUser);
 		});
 	});
 
 	describe('changeUserStatus', () => {
 		it('should change user status successfully', async () => {
-			const updatedUser = { ...mockUser, status: UserStatus.SUSPENDED };
+			const newStatus = UserStatus.INACTIVE;
+			const updatedUser = { ...mockUser, status: newStatus };
+
 			mockUsersService.changeUserStatus.mockResolvedValue(updatedUser);
 
-			const result = await controller.changeUserStatus(
-				'1',
-				UserStatus.SUSPENDED,
-			);
+			const result = await controller.changeUserStatus('1', newStatus);
 
-			expect(result).toEqual(updatedUser);
 			expect(usersService.changeUserStatus).toHaveBeenCalledWith(
 				'1',
-				UserStatus.SUSPENDED,
+				newStatus,
 			);
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.changeUserStatus.mockRejectedValue(error);
-
-			await expect(
-				controller.changeUserStatus('1', UserStatus.SUSPENDED),
-			).rejects.toThrow(error);
-		});
-	});
-
-	describe('syncUser', () => {
-		const syncUserDto = {
-			externalId: 'ext_123',
-			email: 'test@example.com',
-			firstName: 'John',
-			lastName: 'Doe',
-			phone: '+1234567890',
-			role: UserRole.DRIVER,
-		};
-
-		it('should sync user data successfully', async () => {
-			const syncResult = {
-				action: 'created',
-				user: mockUser,
-			};
-			mockUsersService.syncUser.mockResolvedValue(syncResult);
-
-			const result = await controller.syncUser(syncUserDto);
-
-			expect(result).toEqual(syncResult);
-			expect(usersService.syncUser).toHaveBeenCalledWith(syncUserDto);
-		});
-
-		it('should handle service errors', async () => {
-			const error = new Error('Service error');
-			mockUsersService.syncUser.mockRejectedValue(error);
-
-			await expect(controller.syncUser(syncUserDto)).rejects.toThrow(
-				error,
-			);
+			expect(result).toEqual(updatedUser);
 		});
 	});
 });

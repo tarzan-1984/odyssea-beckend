@@ -14,7 +14,6 @@ import {
 	ApiSecurity,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { SyncUserDto } from './dto/sync-user.dto';
 import { WebhookSyncDto } from './dto/webhook-sync.dto';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 
@@ -100,32 +99,5 @@ export class SyncController {
 	})
 	async processWebhook(@Body() webhookData: WebhookSyncDto) {
 		return this.usersService.processWebhookSync(webhookData);
-	}
-
-	@Post('legacy')
-	@HttpCode(HttpStatus.OK)
-	@ApiOperation({
-		summary: 'Legacy sync user data from external service',
-		description:
-			'Legacy endpoint for backward compatibility. Use the main endpoint for TMS webhook integration.',
-	})
-	@ApiBody({
-		type: SyncUserDto,
-		description: 'User data to sync from external service',
-	})
-	@ApiResponse({
-		status: 200,
-		description: 'User data synced successfully',
-	})
-	@ApiResponse({
-		status: 400,
-		description: 'Bad request - invalid data provided',
-	})
-	@ApiResponse({
-		status: 401,
-		description: 'Unauthorized - invalid API key',
-	})
-	async syncUser(@Body() syncUserDto: SyncUserDto) {
-		return this.usersService.syncUser(syncUserDto);
 	}
 }
