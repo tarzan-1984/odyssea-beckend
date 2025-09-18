@@ -26,6 +26,7 @@ export class WsJwtGuard implements CanActivate {
 			const token = this.extractTokenFromHeader(client);
 
 			if (!token) {
+				console.log('❌ WebSocket JWT Guard: No token provided');
 				throw new WsException('Unauthorized - no token provided');
 			}
 
@@ -39,7 +40,10 @@ export class WsJwtGuard implements CanActivate {
 			client.userRole = payload.role;
 
 			return true;
-		} catch {
+		} catch (error) {
+			console.log('❌ WebSocket JWT Guard: Authentication failed', {
+				error: error.message,
+			});
 			throw new WsException('Unauthorized - invalid token');
 		}
 	}

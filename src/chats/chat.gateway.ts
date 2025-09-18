@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { MessagesService } from './messages.service';
 import { ChatRoomsService } from './chat-rooms.service';
@@ -26,9 +27,8 @@ interface AuthenticatedSocket extends Socket {
 		origin: process.env.FRONTEND_URL || 'http://localhost:3000',
 		credentials: true,
 	},
-	namespace: '/chat',
+	// namespace: '/chat',  // Removed for better compatibility with hosting platforms
 })
-@UseGuards(WsJwtGuard)
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	@WebSocketServer()
 	server: Server;
@@ -39,6 +39,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	constructor(
 		private messagesService: MessagesService,
 		private chatRoomsService: ChatRoomsService,
+		private jwtService: JwtService,
 	) {}
 
 	/**
@@ -47,11 +48,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 */
 	async handleConnection(client: AuthenticatedSocket) {
 		try {
-			// Authentication is handled by WsJwtGuard
+			// Authenticate user manually since WsJwtGuard doesn't work with handleConnection
+			const token = this.extractTokenFromHeader(client);
+
+			if (!token) {
+				console.log(
+					'❌ WebSocket connection: No token provided, disconnecting',
+				);
+				client.disconnect();
+				return;
+			}
+
+			// Verify JWT token
+			const payload = await this.jwtService.verifyAsync(token);
+			client.userId = payload.sub;
+			client.userRole = payload.role;
+
 			const userId = client.userId;
 			const userRole = client.userRole;
 
 			if (!userId) {
+				console.log(
+					'❌ WebSocket connection: No userId after auth, disconnecting',
+				);
 				client.disconnect();
 				return;
 			}
@@ -77,9 +96,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				chatRooms: chatRooms.length,
 			});
 
-			console.log(`User ${userId} connected to chat gateway`);
+			console.log('✅ WebSocket connected:', {
+				userId,
+				userRole,
+				chatRoomsCount: chatRooms.length,
+				totalOnlineUsers: this.userSockets.size,
+			});
 		} catch (error) {
-			console.error('Connection error:', error);
+			console.error('❌ WebSocket connection error:', error);
 			client.disconnect();
 		}
 	}
@@ -101,6 +125,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 * Used when user opens a chat conversation
 	 */
 	@SubscribeMessage('joinChatRoom')
+	@UseGuards(WsJwtGuard)
 	async handleJoinChatRoom(
 		@MessageBody() data: { chatRoomId: string },
 		@ConnectedSocket() client: AuthenticatedSocket,
@@ -109,6 +134,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		const userId = client.userId;
 
 		if (!userId) {
+			console.log('❌ WebSocket joinChatRoom: Unauthorized - no userId');
 			return { error: 'Unauthorized' };
 		}
 
@@ -128,7 +154,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			void client
 				.to(`chat_${chatRoomId}`)
 				.emit('userJoined', { userId, chatRoomId });
-		} catch {
+		} catch (error) {
+			console.error('❌ WebSocket joinChatRoom: Error', {
+				userId,
+				chatRoomId,
+				error: error.message,
+			});
 			client.emit('error', { message: 'Failed to join chat room' });
 		}
 	}
@@ -220,6 +251,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 * This provides real-time message sending without HTTP requests
 	 */
 	@SubscribeMessage('sendMessage')
+	@UseGuards(WsJwtGuard)
 	async handleSendMessage(
 		@MessageBody()
 		data: {
@@ -235,6 +267,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		const userId = client.userId;
 
 		if (!userId) {
+			console.log('❌ WebSocket sendMessage: Unauthorized - no userId');
 			return { error: 'Unauthorized' };
 		}
 
@@ -260,11 +293,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			// Send confirmation back to sender
 			client.emit('messageSent', { messageId: message.id, chatRoomId });
 
-			console.log(
-				`Message sent via WebSocket in room ${chatRoomId} by user ${userId}`,
-			);
+			console.log('✅ Message sent:', {
+				userId,
+				chatRoomId,
+				messageId: message.id,
+				contentLength: content.length,
+			});
 		} catch (error) {
-			console.error('Error sending message via WebSocket:', error);
+			console.error('❌ WebSocket sendMessage: Error', {
+				userId,
+				chatRoomId,
+				error: error.message,
+			});
 			client.emit('error', {
 				message: 'Failed to send message',
 				details: (error as Error).message,
@@ -658,5 +698,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 */
 	isUserOnline(userId: string): boolean {
 		return this.userSockets.has(userId);
+	}
+
+	/**
+	 * Extract JWT token from WebSocket handshake
+	 */
+	private extractTokenFromHeader(client: Socket): string | undefined {
+		const auth =
+			(client.handshake.auth?.token as string) ||
+			(client.handshake.headers?.authorization as string) ||
+			(client.handshake.query?.token as string);
+
+		if (!auth) {
+			return undefined;
+		}
+
+		// Handle both "Bearer token" and direct token formats
+		if (auth.startsWith('Bearer ')) {
+			return auth.substring(7);
+		}
+
+		return auth;
 	}
 }

@@ -74,9 +74,10 @@ async function bootstrap() {
 		origin: [
 			/^https?:\/\/localhost:\d+$/,
 			'https://odyssea-backend-ui.vercel.app',
+			process.env.FRONTEND_URL || 'http://localhost:3000',
 		],
-		methods: ['GET', 'POST', 'OPTIONS'],
-		allowedHeaders: ['Content-Type', 'Authorization'],
+		methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+		allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 		credentials: true,
 	});
 

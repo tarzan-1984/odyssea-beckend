@@ -1,709 +1,871 @@
-# WebSocket интеграция для Next.js с Odyssea Backend
+# WebSocket Integration Guide для Next.js Frontend
 
 ## Обзор
 
-Это руководство содержит только WebSocket интеграцию для Next.js фронтенда с Odyssea Backend. Включает в себя подключение к WebSocket, обработку событий и компоненты для real-time чата.
+Этот гайд описывает полную интеграцию WebSocket функциональности в Next.js приложение для работы с чат-системой Odyssea. Бэкенд использует Socket.IO на базовом namespace (без `/chat`) и JWT аутентификацией.
 
-## Базовые настройки
+> **⚠️ Важно:** Namespace `/chat` был удален из бэкенда для лучшей совместимости с хостинг-платформами (например, Render.com). Подключение происходит к базовому URL без namespace.
 
-### 1. Создание Next.js проекта
-
-```bash
-npx create-next-app@latest odyssea-frontend --typescript --tailwind --eslint --app
-cd odyssea-frontend
-```
-
-### 2. Установка зависимостей
+## Установка зависимостей
 
 ```bash
 npm install socket.io-client
-npm install @types/node
-# или
-yarn add socket.io-client @types/node
+npm install @types/socket.io-client  # для TypeScript
 ```
 
-### 3. Переменные окружения
+## Архитектура интеграции
 
-Создайте файл `.env.local` в корне проекта:
+### 1. WebSocket Context Provider
 
-```env
-NEXT_PUBLIC_WS_BASE_URL=ws://localhost:3000
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/v1
-```
-
-### 4. Базовые константы
+Создайте контекст для управления WebSocket соединением:
 
 ```typescript
-// lib/constants.ts
-export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_BASE_URL || 'ws://localhost:3000';
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/v1';
-```
+// contexts/WebSocketContext.tsx
+'use client';
 
-### 5. Типы TypeScript
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 
-```typescript
-// types/api.ts
-export interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: 'DRIVER' | 'FLEET_MANAGER' | 'ADMIN';
-  status: 'ACTIVE' | 'INACTIVE';
-  createdAt: string;
-  updatedAt: string;
+interface WebSocketContextType {
+  socket: Socket | null;
+  isConnected: boolean;
+  connect: (token: string) => void;
+  disconnect: () => void;
+  joinChatRoom: (chatRoomId: string) => void;
+  leaveChatRoom: (chatRoomId: string) => void;
+  sendMessage: (data: SendMessageData) => void;
+  sendTyping: (chatRoomId: string, isTyping: boolean) => void;
+  markMessageAsRead: (messageId: string, chatRoomId: string) => void;
 }
 
-export interface ChatRoom {
-  id: string;
-  name?: string;
-  type: 'DIRECT' | 'GROUP' | 'LOAD';
-  loadId?: string;
-  participants: User[];
-  lastMessage?: Message;
-  unreadCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Message {
-  id: string;
-  content: string;
-  senderId: string;
-  sender: User;
+interface SendMessageData {
   chatRoomId: string;
+  content: string;
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
-  isRead: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
-```
 
-## API Routes для Next.js
+const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
-### 1. API Route для чат-комнат
+export const useWebSocket = () => {
+  const context = useContext(WebSocketContext);
+  if (!context) {
+    throw new Error('useWebSocket must be used within WebSocketProvider');
+  }
+  return context;
+};
 
-```typescript
-// app/api/chat-rooms/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+interface WebSocketProviderProps {
+  children: React.ReactNode;
+}
 
-export async function GET(request: NextRequest) {
-  try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }) => {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
+
+  const connect = (token: string) => {
+    // Disconnect existing connection if any
+    if (socket) {
+      socket.disconnect();
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/chat-rooms`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    // Create new socket connection with authentication
+    const newSocket = io(process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3000', {
+      auth: {
+        token: token
       },
+      transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+      timeout: 20000,
+      forceNew: true
     });
 
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error fetching chat rooms:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
-```
+    // Connection event handlers
+    newSocket.on('connect', () => {
+      console.log('WebSocket connected');
+      setIsConnected(true);
+      reconnectAttempts.current = 0;
 
-### 2. API Route для сообщений
-
-```typescript
-// app/api/messages/chat-room/[chatRoomId]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { chatRoomId: string } }
-) {
-  try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const page = searchParams.get('page') || '1';
-    const limit = searchParams.get('limit') || '50';
-
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/messages/chat-room/${params.chatRoomId}?page=${page}&limit=${limit}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      // Clear any pending reconnection attempts
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
-    );
-
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error fetching messages:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
-```
-
-### 3. API Route для отправки сообщений
-
-```typescript
-// app/api/messages/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function POST(request: NextRequest) {
-  try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
     });
 
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error sending message:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
-```
+    newSocket.on('disconnect', (reason) => {
+      console.log('WebSocket disconnected:', reason);
+      setIsConnected(false);
 
-### 4. API Route для загрузки файлов
-
-```typescript
-// app/api/messages/upload/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function POST(request: NextRequest) {
-  try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const formData = await request.formData();
-
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/messages/upload`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: formData,
-    });
-
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error uploading file:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
-```
-
-## WebSocket интеграция
-
-### 1. WebSocket сервис
-
-```typescript
-// lib/services/websocketService.ts
-import { io, Socket } from 'socket.io-client';
-import { Message, ChatRoom, User } from '@/types/api';
-import { WS_BASE_URL } from '@/lib/constants';
-
-class WebSocketService {
-  private socket: Socket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-
-  // Подключение к WebSocket
-  connect(token: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // Проверяем, что мы в браузере
-      if (typeof window === 'undefined') {
-        reject(new Error('WebSocket can only be used in browser'));
-        return;
+      // Attempt to reconnect if not manually disconnected
+      if (reason !== 'io client disconnect') {
+        attemptReconnect(token);
       }
-
-      this.socket = io(`${WS_BASE_URL}/chat`, {
-        auth: {
-          token,
-        },
-        transports: ['websocket', 'polling'],
-      });
-
-      this.socket.on('connect', () => {
-        console.log('WebSocket connected');
-        this.reconnectAttempts = 0;
-        resolve();
-      });
-
-      this.socket.on('connect_error', (error) => {
-        console.error('WebSocket connection error:', error);
-        reject(error);
-      });
-
-      this.socket.on('disconnect', (reason) => {
-        console.log('WebSocket disconnected:', reason);
-        this.handleReconnect();
-      });
     });
-  }
 
-  // Обработка переподключения
-  private handleReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.pow(2, this.reconnectAttempts) * 1000; // Exponential backoff
-      
-      setTimeout(() => {
-        console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-        this.socket?.connect();
-      }, delay);
+    newSocket.on('connect_error', (error) => {
+      console.error('WebSocket connection error:', error);
+      setIsConnected(false);
+
+      // Attempt to reconnect on connection error
+      attemptReconnect(token);
+    });
+
+    // Handle authentication errors
+    newSocket.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      if (error.message?.includes('Unauthorized')) {
+        // Token might be expired, try to refresh
+        handleAuthError();
+      }
+    });
+
+    setSocket(newSocket);
+  };
+
+  const attemptReconnect = (token: string) => {
+    if (reconnectAttempts.current >= maxReconnectAttempts) {
+      console.log('Max reconnection attempts reached');
+      return;
     }
-  }
 
-  // Отключение от WebSocket
-  disconnect() {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
+    reconnectAttempts.current++;
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000); // Exponential backoff, max 30s
+
+    console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts.current})`);
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      connect(token);
+    }, delay);
+  };
+
+  const handleAuthError = () => {
+    // Implement token refresh logic here
+    // For now, we'll just disconnect and let the user re-authenticate
+    disconnect();
+  };
+
+  const disconnect = () => {
+    if (socket) {
+      socket.disconnect();
+      setSocket(null);
+      setIsConnected(false);
     }
-  }
 
-  // Присоединиться к чат-комнате
-  joinChatRoom(chatRoomId: string) {
-    this.socket?.emit('joinChatRoom', { chatRoomId });
-  }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
 
-  // Покинуть чат-комнату
-  leaveChatRoom(chatRoomId: string) {
-    this.socket?.emit('leaveChatRoom', { chatRoomId });
-  }
+    reconnectAttempts.current = 0;
+  };
 
-  // Создать чат-комнату
-  createChatRoom(data: {
-    name?: string;
-    type: 'DIRECT' | 'GROUP' | 'LOAD';
-    loadId?: string;
-    participantIds: string[];
-  }) {
-    this.socket?.emit('createChatRoom', data);
-  }
+  const joinChatRoom = (chatRoomId: string) => {
+    if (socket && isConnected) {
+      socket.emit('joinChatRoom', { chatRoomId });
+    }
+  };
 
-  // Обновить чат-комнату
-  updateChatRoom(chatRoomId: string, updates: {
-    name?: string;
-    isArchived?: boolean;
-  }) {
-    this.socket?.emit('updateChatRoom', { chatRoomId, updates });
-  }
+  const leaveChatRoom = (chatRoomId: string) => {
+    if (socket && isConnected) {
+      socket.emit('leaveChatRoom', { chatRoomId });
+    }
+  };
 
-  // Добавить участников
-  addParticipants(chatRoomId: string, participantIds: string[]) {
-    this.socket?.emit('addParticipants', { chatRoomId, participantIds });
-  }
+  const sendMessage = (data: SendMessageData) => {
+    if (socket && isConnected) {
+      socket.emit('sendMessage', data);
+    }
+  };
 
-  // Удалить участника
-  removeParticipant(chatRoomId: string, participantId: string) {
-    this.socket?.emit('removeParticipant', { chatRoomId, participantId });
-  }
+  const sendTyping = (chatRoomId: string, isTyping: boolean) => {
+    if (socket && isConnected) {
+      socket.emit('typing', { chatRoomId, isTyping });
+    }
+  };
 
-  // Отправить сообщение
-  sendMessage(data: {
-    chatRoomId: string;
-    content: string;
-    fileUrl?: string;
-    fileName?: string;
-    fileSize?: number;
-  }) {
-    this.socket?.emit('sendMessage', data);
-  }
+  const markMessageAsRead = (messageId: string, chatRoomId: string) => {
+    if (socket && isConnected) {
+      socket.emit('messageRead', { messageId, chatRoomId });
+    }
+  };
 
-  // Подтвердить доставку сообщения
-  confirmMessageDelivery(messageId: string, chatRoomId: string) {
-    this.socket?.emit('messageDelivered', { messageId, chatRoomId });
-  }
-
-  // Отметить сообщение как прочитанное
-  markMessageAsRead(messageId: string, chatRoomId: string) {
-    this.socket?.emit('messageRead', { messageId, chatRoomId });
-  }
-
-  // Индикатор печати
-  setTyping(chatRoomId: string, isTyping: boolean) {
-    this.socket?.emit('typing', { chatRoomId, isTyping });
-  }
-
-  // Слушатели событий
-  onConnected(callback: (data: { userId: string; userRole: string; chatRooms: number }) => void) {
-    this.socket?.on('connected', callback);
-  }
-
-  onNewMessage(callback: (data: { chatRoomId: string; message: Message }) => void) {
-    this.socket?.on('newMessage', callback);
-  }
-
-  onUserTyping(callback: (data: { userId: string; chatRoomId: string; isTyping: boolean }) => void) {
-    this.socket?.on('userTyping', callback);
-  }
-
-  onChatUpdated(callback: (data: { chatRoomId: string }) => void) {
-    this.socket?.on('chatUpdated', callback);
-  }
-
-  onUserJoined(callback: (data: { userId: string; chatRoomId: string }) => void) {
-    this.socket?.on('userJoined', callback);
-  }
-
-  onUserLeft(callback: (data: { userId: string; chatRoomId: string }) => void) {
-    this.socket?.on('userLeft', callback);
-  }
-
-  onChatRoomCreated(callback: (data: { chatRoom: ChatRoom }) => void) {
-    this.socket?.on('chatRoomCreated', callback);
-  }
-
-  onChatRoomUpdated(callback: (data: { chatRoom: ChatRoom }) => void) {
-    this.socket?.on('chatRoomUpdated', callback);
-  }
-
-  onParticipantsAdded(callback: (data: { chatRoomId: string; participants: User[] }) => void) {
-    this.socket?.on('participantsAdded', callback);
-  }
-
-  onParticipantRemoved(callback: (data: { chatRoomId: string; participantId: string }) => void) {
-    this.socket?.on('participantRemoved', callback);
-  }
-
-  onMessageSent(callback: (data: { messageId: string; chatRoomId: string }) => void) {
-    this.socket?.on('messageSent', callback);
-  }
-
-  onMessageDelivered(callback: (data: { messageId: string; chatRoomId: string }) => void) {
-    this.socket?.on('messageDelivered', callback);
-  }
-
-  onMessageRead(callback: (data: { messageId: string; chatRoomId: string }) => void) {
-    this.socket?.on('messageRead', callback);
-  }
-
-  onError(callback: (error: { message: string; details?: string }) => void) {
-    this.socket?.on('error', callback);
-  }
-
-  // Удалить слушатели
-  removeAllListeners() {
-    this.socket?.removeAllListeners();
-  }
-}
-
-export const websocketService = new WebSocketService();
-```
-
-### 2. Хук для WebSocket
-
-```typescript
-// hooks/useWebSocket.ts
-import { useEffect, useCallback, useRef } from 'react';
-import { websocketService } from '@/lib/services/websocketService';
-
-interface UseWebSocketProps {
-  token?: string;
-  isAuthenticated?: boolean;
-}
-
-export const useWebSocket = ({ token, isAuthenticated = false }: UseWebSocketProps) => {
-  const isConnected = useRef(false);
-
+  // Cleanup on unmount
   useEffect(() => {
-    // Проверяем, что мы в браузере
-    if (typeof window === 'undefined') return;
-
-    if (isAuthenticated && token && !isConnected.current) {
-      websocketService.connect(token)
-        .then(() => {
-          isConnected.current = true;
-          console.log('WebSocket connected successfully');
-        })
-        .catch((error) => {
-          console.error('Failed to connect WebSocket:', error);
-        });
-    }
-
     return () => {
-      if (isConnected.current) {
-        websocketService.disconnect();
-        isConnected.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (socket) {
+        socket.disconnect();
       }
     };
-  }, [isAuthenticated, token]);
+  }, [socket]);
 
-  const joinChatRoom = useCallback((chatRoomId: string) => {
-    websocketService.joinChatRoom(chatRoomId);
-  }, []);
-
-  const leaveChatRoom = useCallback((chatRoomId: string) => {
-    websocketService.leaveChatRoom(chatRoomId);
-  }, []);
-
-  const sendMessage = useCallback((data: {
-    chatRoomId: string;
-    content: string;
-    fileUrl?: string;
-    fileName?: string;
-    fileSize?: number;
-  }) => {
-    websocketService.sendMessage(data);
-  }, []);
-
-  const setTyping = useCallback((chatRoomId: string, isTyping: boolean) => {
-    websocketService.setTyping(chatRoomId, isTyping);
-  }, []);
-
-  return {
+  const value: WebSocketContextType = {
+    socket,
+    isConnected,
+    connect,
+    disconnect,
     joinChatRoom,
     leaveChatRoom,
     sendMessage,
-    setTyping,
-    websocketService,
+    sendTyping,
+    markMessageAsRead,
   };
+
+  return (
+    <WebSocketContext.Provider value={value}>
+      {children}
+    </WebSocketContext.Provider>
+  );
 };
 ```
 
-## Компоненты Next.js
+### 2. WebSocket Hooks
 
-### 1. Компонент чата
+Создайте специализированные хуки для различных WebSocket функций:
+
+```typescript
+// hooks/useWebSocketMessages.ts
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+
+interface Message {
+	id: string;
+	content: string;
+	senderId: string;
+	receiverId?: string | null;
+	fileUrl?: string | null;
+	fileName?: string | null;
+	fileSize?: number | null;
+	isRead: boolean;
+	createdAt: string;
+	sender: {
+		id: string;
+		firstName: string;
+		lastName: string;
+		profilePhoto?: string | null;
+		role: string;
+	};
+	receiver?: {
+		id: string;
+		firstName: string;
+		lastName: string;
+		profilePhoto?: string | null;
+		role: string;
+	} | null;
+}
+
+interface UseWebSocketMessagesProps {
+	chatRoomId: string;
+	onNewMessage?: (message: Message) => void;
+	onMessageSent?: (data: { messageId: string; chatRoomId: string }) => void;
+	onMessageRead?: (data: { messageId: string; readBy: string }) => void;
+	onUserTyping?: (data: {
+		userId: string;
+		chatRoomId: string;
+		isTyping: boolean;
+	}) => void;
+	onError?: (error: { message: string; details?: string }) => void;
+}
+
+export const useWebSocketMessages = ({
+	chatRoomId,
+	onNewMessage,
+	onMessageSent,
+	onMessageRead,
+	onUserTyping,
+	onError,
+}: UseWebSocketMessagesProps) => {
+	const {
+		socket,
+		isConnected,
+		joinChatRoom,
+		leaveChatRoom,
+		sendMessage,
+		sendTyping,
+		markMessageAsRead,
+	} = useWebSocket();
+	const [isTyping, setIsTyping] = useState<Record<string, boolean>>({});
+	const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(
+		null,
+	);
+
+	// Join chat room when component mounts or chatRoomId changes
+	useEffect(() => {
+		if (isConnected && chatRoomId) {
+			joinChatRoom(chatRoomId);
+
+			return () => {
+				leaveChatRoom(chatRoomId);
+			};
+		}
+	}, [isConnected, chatRoomId, joinChatRoom, leaveChatRoom]);
+
+	// Set up event listeners
+	useEffect(() => {
+		if (!socket) return;
+
+		const handleNewMessage = (data: {
+			chatRoomId: string;
+			message: Message;
+		}) => {
+			if (data.chatRoomId === chatRoomId) {
+				onNewMessage?.(data.message);
+			}
+		};
+
+		const handleMessageSent = (data: {
+			messageId: string;
+			chatRoomId: string;
+		}) => {
+			if (data.chatRoomId === chatRoomId) {
+				onMessageSent?.(data);
+			}
+		};
+
+		const handleMessageRead = (data: {
+			messageId: string;
+			readBy: string;
+		}) => {
+			onMessageRead?.(data);
+		};
+
+		const handleUserTyping = (data: {
+			userId: string;
+			chatRoomId: string;
+			isTyping: boolean;
+		}) => {
+			if (data.chatRoomId === chatRoomId) {
+				setIsTyping((prev) => ({
+					...prev,
+					[data.userId]: data.isTyping,
+				}));
+				onUserTyping?.(data);
+			}
+		};
+
+		const handleError = (error: { message: string; details?: string }) => {
+			onError?.(error);
+		};
+
+		// Register event listeners
+		socket.on('newMessage', handleNewMessage);
+		socket.on('messageSent', handleMessageSent);
+		socket.on('messageRead', handleMessageRead);
+		socket.on('userTyping', handleUserTyping);
+		socket.on('error', handleError);
+
+		// Cleanup listeners
+		return () => {
+			socket.off('newMessage', handleNewMessage);
+			socket.off('messageSent', handleMessageSent);
+			socket.off('messageRead', handleMessageRead);
+			socket.off('userTyping', handleUserTyping);
+			socket.off('error', handleError);
+		};
+	}, [
+		socket,
+		chatRoomId,
+		onNewMessage,
+		onMessageSent,
+		onMessageRead,
+		onUserTyping,
+		onError,
+	]);
+
+	// Send message function
+	const sendMessageHandler = useCallback(
+		(data: {
+			content: string;
+			fileUrl?: string;
+			fileName?: string;
+			fileSize?: number;
+		}) => {
+			sendMessage({
+				chatRoomId,
+				...data,
+			});
+		},
+		[sendMessage, chatRoomId],
+	);
+
+	// Send typing indicator with debouncing
+	const sendTypingHandler = useCallback(
+		(isTyping: boolean) => {
+			sendTyping(chatRoomId, isTyping);
+
+			// Auto-stop typing indicator after 3 seconds
+			if (isTyping) {
+				if (typingTimeout) {
+					clearTimeout(typingTimeout);
+				}
+
+				const timeout = setTimeout(() => {
+					sendTyping(chatRoomId, false);
+				}, 3000);
+
+				setTypingTimeout(timeout);
+			} else {
+				if (typingTimeout) {
+					clearTimeout(typingTimeout);
+					setTypingTimeout(null);
+				}
+			}
+		},
+		[sendTyping, chatRoomId, typingTimeout],
+	);
+
+	// Mark message as read
+	const markAsRead = useCallback(
+		(messageId: string) => {
+			markMessageAsRead(messageId, chatRoomId);
+		},
+		[markMessageAsRead, chatRoomId],
+	);
+
+	// Cleanup typing timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (typingTimeout) {
+				clearTimeout(typingTimeout);
+			}
+		};
+	}, [typingTimeout]);
+
+	return {
+		sendMessage: sendMessageHandler,
+		sendTyping: sendTypingHandler,
+		markAsRead,
+		isTyping,
+	};
+};
+```
+
+### 3. Chat Room Management Hook
+
+```typescript
+// hooks/useWebSocketChatRooms.ts
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+
+interface ChatRoom {
+	id: string;
+	name?: string;
+	type: 'DIRECT' | 'GROUP' | 'LOAD';
+	loadId?: string;
+	participants: Array<{
+		id: string;
+		firstName: string;
+		lastName: string;
+		profilePhoto?: string | null;
+		role: string;
+	}>;
+	createdAt: string;
+	updatedAt: string;
+}
+
+interface UseWebSocketChatRoomsProps {
+	onChatRoomCreated?: (chatRoom: ChatRoom) => void;
+	onChatRoomUpdated?: (data: {
+		chatRoomId: string;
+		updatedChatRoom: ChatRoom;
+		updatedBy: string;
+	}) => void;
+	onParticipantsAdded?: (data: {
+		chatRoomId: string;
+		newParticipants: any[];
+		addedBy: string;
+	}) => void;
+	onParticipantRemoved?: (data: {
+		chatRoomId: string;
+		removedUserId: string;
+		removedBy: string;
+	}) => void;
+	onError?: (error: { message: string; details?: string }) => void;
+}
+
+export const useWebSocketChatRooms = ({
+	onChatRoomCreated,
+	onChatRoomUpdated,
+	onParticipantsAdded,
+	onParticipantRemoved,
+	onError,
+}: UseWebSocketChatRoomsProps) => {
+	const { socket, isConnected } = useWebSocket();
+	const [isLoading, setIsLoading] = useState(false);
+
+	// Set up event listeners
+	useEffect(() => {
+		if (!socket) return;
+
+		const handleChatRoomCreated = (chatRoom: ChatRoom) => {
+			onChatRoomCreated?.(chatRoom);
+		};
+
+		const handleChatRoomUpdated = (data: {
+			chatRoomId: string;
+			updatedChatRoom: ChatRoom;
+			updatedBy: string;
+		}) => {
+			onChatRoomUpdated?.(data);
+		};
+
+		const handleParticipantsAdded = (data: {
+			chatRoomId: string;
+			newParticipants: any[];
+			addedBy: string;
+		}) => {
+			onParticipantsAdded?.(data);
+		};
+
+		const handleParticipantRemoved = (data: {
+			chatRoomId: string;
+			removedUserId: string;
+			removedBy: string;
+		}) => {
+			onParticipantRemoved?.(data);
+		};
+
+		const handleError = (error: { message: string; details?: string }) => {
+			setIsLoading(false);
+			onError?.(error);
+		};
+
+		// Register event listeners
+		socket.on('chatRoomCreated', handleChatRoomCreated);
+		socket.on('chatRoomUpdated', handleChatRoomUpdated);
+		socket.on('participantsAdded', handleParticipantsAdded);
+		socket.on('participantRemoved', handleParticipantRemoved);
+		socket.on('error', handleError);
+
+		// Cleanup listeners
+		return () => {
+			socket.off('chatRoomCreated', handleChatRoomCreated);
+			socket.off('chatRoomUpdated', handleChatRoomUpdated);
+			socket.off('participantsAdded', handleParticipantsAdded);
+			socket.off('participantRemoved', handleParticipantRemoved);
+			socket.off('error', handleError);
+		};
+	}, [
+		socket,
+		onChatRoomCreated,
+		onChatRoomUpdated,
+		onParticipantsAdded,
+		onParticipantRemoved,
+		onError,
+	]);
+
+	// Create chat room
+	const createChatRoom = useCallback(
+		(data: {
+			name?: string;
+			type: 'DIRECT' | 'GROUP' | 'LOAD';
+			loadId?: string;
+			participantIds: string[];
+		}) => {
+			if (socket && isConnected) {
+				setIsLoading(true);
+				socket.emit('createChatRoom', data);
+			}
+		},
+		[socket, isConnected],
+	);
+
+	// Update chat room
+	const updateChatRoom = useCallback(
+		(data: {
+			chatRoomId: string;
+			updates: { name?: string; isArchived?: boolean };
+		}) => {
+			if (socket && isConnected) {
+				setIsLoading(true);
+				socket.emit('updateChatRoom', data);
+			}
+		},
+		[socket, isConnected],
+	);
+
+	// Add participants
+	const addParticipants = useCallback(
+		(data: { chatRoomId: string; participantIds: string[] }) => {
+			if (socket && isConnected) {
+				setIsLoading(true);
+				socket.emit('addParticipants', data);
+			}
+		},
+		[socket, isConnected],
+	);
+
+	// Remove participant
+	const removeParticipant = useCallback(
+		(data: { chatRoomId: string; participantId: string }) => {
+			if (socket && isConnected) {
+				setIsLoading(true);
+				socket.emit('removeParticipant', data);
+			}
+		},
+		[socket, isConnected],
+	);
+
+	return {
+		createChatRoom,
+		updateChatRoom,
+		addParticipants,
+		removeParticipant,
+		isLoading,
+	};
+};
+```
+
+### 4. Notifications Hook
+
+```typescript
+// hooks/useWebSocketNotifications.ts
+'use client';
+
+import { useEffect, useCallback } from 'react';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+
+interface Notification {
+	id: string;
+	title: string;
+	message: string;
+	type: string;
+	isRead: boolean;
+	createdAt: string;
+	chatRoomId?: string;
+}
+
+interface RoleBroadcast {
+	role: string;
+	message: {
+		title: string;
+		content: string;
+	};
+}
+
+interface UseWebSocketNotificationsProps {
+	onNotification?: (notification: Notification) => void;
+	onRoleBroadcast?: (broadcast: RoleBroadcast) => void;
+	onError?: (error: { message: string; details?: string }) => void;
+}
+
+export const useWebSocketNotifications = ({
+	onNotification,
+	onRoleBroadcast,
+	onError,
+}: UseWebSocketNotificationsProps) => {
+	const { socket } = useWebSocket();
+
+	useEffect(() => {
+		if (!socket) return;
+
+		const handleNotification = (notification: Notification) => {
+			onNotification?.(notification);
+		};
+
+		const handleRoleBroadcast = (broadcast: RoleBroadcast) => {
+			onRoleBroadcast?.(broadcast);
+		};
+
+		const handleError = (error: { message: string; details?: string }) => {
+			onError?.(error);
+		};
+
+		// Register event listeners
+		socket.on('notification', handleNotification);
+		socket.on('roleBroadcast', handleRoleBroadcast);
+		socket.on('error', handleError);
+
+		// Cleanup listeners
+		return () => {
+			socket.off('notification', handleNotification);
+			socket.off('roleBroadcast', handleRoleBroadcast);
+			socket.off('error', handleError);
+		};
+	}, [socket, onNotification, onRoleBroadcast, onError]);
+
+	// Mark notification as read (if you have this functionality)
+	const markNotificationAsRead = useCallback((notificationId: string) => {
+		// Implement if your backend supports this
+		console.log('Mark notification as read:', notificationId);
+	}, []);
+
+	return {
+		markNotificationAsRead,
+	};
+};
+```
+
+### 5. Chat Component Example
 
 ```typescript
 // components/Chat.tsx
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useWebSocket } from '@/hooks/useWebSocket';
-import { Message, ChatRoom } from '@/types/api';
+import { useWebSocketMessages } from '@/hooks/useWebSocketMessages';
 
 interface ChatProps {
-  chatRoom: ChatRoom;
+  chatRoomId: string;
   currentUserId: string;
-  token: string;
-  isAuthenticated: boolean;
 }
 
-export const Chat: React.FC<ChatProps> = ({ 
-  chatRoom, 
-  currentUserId, 
-  token, 
-  isAuthenticated 
-}) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+export const Chat: React.FC<ChatProps> = ({ chatRoomId, currentUserId }) => {
+  const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [isTyping, setIsTyping] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { sendMessage, setTyping, websocketService } = useWebSocket({ 
-    token, 
-    isAuthenticated 
+  const {
+    sendMessage,
+    sendTyping,
+    markAsRead,
+    isTyping: typingUsers,
+  } = useWebSocketMessages({
+    chatRoomId,
+    onNewMessage: (message) => {
+      setMessages(prev => [...prev, message]);
+      // Mark message as read if it's not from current user
+      if (message.senderId !== currentUserId) {
+        markAsRead(message.id);
+      }
+    },
+    onMessageSent: (data) => {
+      console.log('Message sent:', data);
+    },
+    onMessageRead: (data) => {
+      console.log('Message read:', data);
+      // Update message read status in UI
+    },
+    onUserTyping: (data) => {
+      setIsTyping(prev => ({
+        ...prev,
+        [data.userId]: data.isTyping
+      }));
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error);
+    },
   });
 
-  // Загрузка сообщений при монтировании компонента
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    loadMessages();
-  }, [chatRoom.id]);
-
-  // Подключение к WebSocket событиям
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    // Присоединяемся к чат-комнате
-    websocketService.joinChatRoom(chatRoom.id);
-
-    // Слушаем новые сообщения
-    websocketService.onNewMessage((data) => {
-      if (data.chatRoomId === chatRoom.id) {
-        setMessages(prev => [...prev, data.message]);
-        scrollToBottom();
-      }
-    });
-
-    // Слушаем индикаторы печати
-    websocketService.onUserTyping((data) => {
-      if (data.chatRoomId === chatRoom.id && data.userId !== currentUserId) {
-        if (data.isTyping) {
-          setTypingUsers(prev => [...prev.filter(id => id !== data.userId), data.userId]);
-        } else {
-          setTypingUsers(prev => prev.filter(id => id !== data.userId));
-        }
-      }
-    });
-
-    return () => {
-      websocketService.leaveChatRoom(chatRoom.id);
-    };
-  }, [chatRoom.id, currentUserId, isAuthenticated]);
-
-  // Автоскролл к последнему сообщению
-  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [messages]);
 
-  // Загрузка сообщений
-  const loadMessages = async () => {
-    try {
-      const response = await fetch(`/api/messages/chat-room/${chatRoom.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data.data);
-        scrollToBottom();
-      }
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-    }
-  };
-
-  // Отправка сообщения
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (newMessage.trim()) {
-      sendMessage({
-        chatRoomId: chatRoom.id,
-        content: newMessage.trim(),
-      });
-      
-      setNewMessage('');
-      setTyping(chatRoom.id, false);
-      
-      // Очищаем таймаут печати
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    }
-  };
-
-  // Обработка изменения текста с индикатором печати
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle message input change with typing indicator
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setNewMessage(value);
 
-    // Отправляем индикатор печати
-    if (value.trim() && !isTyping) {
-      setIsTyping(true);
-      setTyping(chatRoom.id, true);
-    }
+    // Send typing indicator
+    if (value.trim()) {
+      sendTyping(true);
 
-    // Очищаем предыдущий таймаут
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    // Устанавливаем новый таймаут для остановки индикатора печати
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-      setTyping(chatRoom.id, false);
-    }, 3000);
-  };
-
-  // Очистка таймаута при размонтировании
-  useEffect(() => {
-    return () => {
+      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-    };
-  }, []);
+
+      // Set new timeout to stop typing indicator
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTyping(false);
+      }, 1000);
+    } else {
+      sendTyping(false);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    }
+  };
+
+  // Handle message send
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (newMessage.trim()) {
+      sendMessage({
+        content: newMessage.trim(),
+      });
+      setNewMessage('');
+      sendTyping(false);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    }
+  };
+
+  // Get typing users list
+  const typingUsersList = Object.entries(typingUsers)
+    .filter(([userId, isTyping]) => isTyping && userId !== currentUserId)
+    .map(([userId]) => userId);
 
   return (
-    <div className="flex flex-col h-96 bg-white rounded-lg shadow">
-      <div className="p-4 border-b">
-        <h3 className="text-lg font-semibold">{chatRoom.name || 'Chat'}</h3>
-        <div className="text-sm text-gray-500">
-          {chatRoom.participants.length} участников
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full">
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map(message => (
+        {messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs px-4 py-2 rounded-lg ${
+              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                 message.senderId === currentUserId
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-200 text-gray-800'
               }`}
             >
-              <div className="text-sm">{message.content}</div>
-              {message.fileUrl && (
-                <div className="mt-2">
-                  <a 
-                    href={message.fileUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-300 underline"
-                  >
-                    {message.fileName || 'File'}
-                  </a>
-                </div>
-              )}
-              <div className="text-xs mt-1 opacity-75">
-                {message.sender.firstName} {message.sender.lastName}
-              </div>
+              <p className="text-sm">{message.content}</p>
+              <p className="text-xs opacity-70 mt-1">
+                {new Date(message.createdAt).toLocaleTimeString()}
+              </p>
             </div>
           </div>
         ))}
-        
-        {typingUsers.length > 0 && (
-          <div className="text-sm text-gray-500 italic">
-            Кто-то печатает...
+
+        {/* Typing indicator */}
+        {typingUsersList.length > 0 && (
+          <div className="flex justify-start">
+            <div className="bg-gray-100 px-4 py-2 rounded-lg">
+              <p className="text-sm text-gray-600">
+                {typingUsersList.length === 1 ? 'Someone is typing...' : 'Multiple people are typing...'}
+              </p>
+            </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Message input */}
       <form onSubmit={handleSendMessage} className="p-4 border-t">
         <div className="flex space-x-2">
           <input
             type="text"
             value={newMessage}
-            onChange={handleInputChange}
-            placeholder="Введите сообщение..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={handleMessageChange}
+            placeholder="Type a message..."
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <button
+            type="submit"
+            disabled={!newMessage.trim()}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Отправить
+            Send
           </button>
         </div>
       </form>
@@ -712,306 +874,216 @@ export const Chat: React.FC<ChatProps> = ({
 };
 ```
 
-### 2. Компонент списка чатов
+### 6. App Setup
 
 ```typescript
-// components/ChatList.tsx
-'use client';
+// app/layout.tsx или pages/_app.tsx
+import { WebSocketProvider } from '@/contexts/WebSocketContext';
 
-import React, { useState, useEffect } from 'react';
-import { ChatRoom } from '@/types/api';
-
-interface ChatListProps {
-  token: string;
-  onChatSelect: (chatRoom: ChatRoom) => void;
-  selectedChatRoomId?: string;
-}
-
-export const ChatList: React.FC<ChatListProps> = ({ 
-  token, 
-  onChatSelect, 
-  selectedChatRoomId 
-}) => {
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadChatRooms();
-  }, []);
-
-  const loadChatRooms = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/chat-rooms', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setChatRooms(data.data);
-      }
-    } catch (error) {
-      console.error('Failed to load chat rooms:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="text-center">Загрузка чатов...</div>
-      </div>
-    );
-  }
-
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold">Чаты</h2>
-        <button 
-          onClick={loadChatRooms}
-          className="text-sm text-blue-500 hover:text-blue-700"
-        >
-          Обновить
-        </button>
-      </div>
-      
-      <div className="max-h-96 overflow-y-auto">
-        {chatRooms.map(chatRoom => (
-          <div
-            key={chatRoom.id}
-            className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
-              selectedChatRoomId === chatRoom.id ? 'bg-blue-50' : ''
-            }`}
-            onClick={() => onChatSelect(chatRoom)}
-          >
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <h4 className="font-medium">{chatRoom.name || 'Без названия'}</h4>
-                <p className="text-sm text-gray-500">
-                  {chatRoom.participants.length} участников
-                </p>
-                {chatRoom.lastMessage && (
-                  <p className="text-sm text-gray-600 truncate">
-                    {chatRoom.lastMessage.content}
-                  </p>
-                )}
-              </div>
-              <div className="text-right">
-                {chatRoom.unreadCount > 0 && (
-                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                    {chatRoom.unreadCount}
-                  </span>
-                )}
-                <div className="text-xs text-gray-400 mt-1">
-                  {chatRoom.lastMessage && 
-                    new Date(chatRoom.lastMessage.createdAt).toLocaleDateString()
-                  }
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-```
-
-## Пример использования
-
-### Страница чата
-
-```typescript
-// app/chat/page.tsx
-'use client';
-
-import { useState } from 'react';
-import { ChatList } from '@/components/ChatList';
-import { Chat } from '@/components/Chat';
-import { ChatRoom } from '@/types/api';
-
-export default function ChatPage() {
-  const [selectedChatRoom, setSelectedChatRoom] = useState<ChatRoom | null>(null);
-  
-  // В реальном приложении токен должен приходить из контекста аутентификации
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
-  const isAuthenticated = !!token;
-
-  const handleChatSelect = (chatRoom: ChatRoom) => {
-    setSelectedChatRoom(chatRoom);
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            Необходима авторизация
-          </h1>
-          <p className="text-gray-600">
-            Пожалуйста, войдите в систему для доступа к чату
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
-            <ChatList 
-              token={token}
-              onChatSelect={handleChatSelect}
-              selectedChatRoomId={selectedChatRoom?.id}
-            />
-          </div>
-          <div className="lg:col-span-2">
-            {selectedChatRoom ? (
-              <Chat 
-                chatRoom={selectedChatRoom}
-                currentUserId="current-user-id" // В реальном приложении из контекста
-                token={token}
-                isAuthenticated={isAuthenticated}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-96 bg-white rounded-lg shadow">
-                <p className="text-gray-500">Выберите чат для начала общения</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <html lang="en">
+      <body>
+        <WebSocketProvider>
+          {children}
+        </WebSocketProvider>
+      </body>
+    </html>
   );
 }
 ```
 
-## Конфигурация Next.js
+### 7. Authentication Integration
 
-### next.config.js
+```typescript
+// hooks/useAuth.ts
+'use client';
 
-```javascript
-// next.config.js
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
-  env: {
-    NEXT_PUBLIC_WS_BASE_URL: process.env.NEXT_PUBLIC_WS_BASE_URL,
-    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
-  },
+import { useEffect } from 'react';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+
+export const useAuth = () => {
+	const { connect, disconnect, isConnected } = useWebSocket();
+
+	// Connect to WebSocket when user logs in
+	const login = async (email: string, password: string) => {
+		try {
+			const response = await fetch('/api/auth/login', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ email, password }),
+			});
+
+			const data = await response.json();
+
+			if (data.access_token) {
+				// Store token in localStorage or secure storage
+				localStorage.setItem('token', data.access_token);
+
+				// Connect to WebSocket with token
+				connect(data.access_token);
+
+				return data;
+			}
+		} catch (error) {
+			console.error('Login error:', error);
+			throw error;
+		}
+	};
+
+	// Disconnect from WebSocket when user logs out
+	const logout = () => {
+		localStorage.removeItem('token');
+		disconnect();
+	};
+
+	// Auto-connect on app start if token exists
+	useEffect(() => {
+		const token = localStorage.getItem('token');
+		if (token && !isConnected) {
+			connect(token);
+		}
+	}, [connect, isConnected]);
+
+	return {
+		login,
+		logout,
+		isConnected,
+	};
 };
-
-module.exports = nextConfig;
 ```
 
-### tsconfig.json
+## Environment Variables
 
-```json
-{
-  "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "es6"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./*"]
-    }
-  },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
-}
+Создайте файл `.env.local`:
+
+```env
+NEXT_PUBLIC_WS_URL=ws://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
-## Важные замечания
+## Обработка ошибок
 
-### CORS и API Routes
+### 1. Connection Errors
 
-**HTTP запросы** (получение чатов, сообщений) проходят через Next.js API routes (`/api/*`) для избежания проблем с CORS:
+- Автоматическое переподключение с экспоненциальной задержкой
+- Обработка ошибок аутентификации
+- Fallback на polling если WebSocket недоступен
+
+### 2. Message Errors
+
+- Retry механизм для отправки сообщений
+- Обработка ошибок доставки
+- Показ статуса сообщений пользователю
+
+### 3. Network Issues
+
+- Детекция потери соединения
+- Очередь сообщений для офлайн режима
+- Синхронизация при восстановлении соединения
+
+## Best Practices
+
+### 1. Performance
+
+- Используйте `useCallback` для стабильности ссылок
+- Очищайте таймауты при размонтировании компонентов
+- Ограничивайте количество перерендеров
+
+### 2. Security
+
+- Никогда не храните токены в localStorage в production
+- Используйте httpOnly cookies для токенов
+- Валидируйте все входящие данные
+
+### 3. UX
+
+- Показывайте статус соединения
+- Предупреждайте о проблемах с сетью
+- Обеспечивайте плавную работу в офлайн режиме
+
+## Тестирование
+
+### 1. Unit Tests
 
 ```typescript
-// ✅ Правильно - через API route
-fetch('/api/chat-rooms', { headers: { 'Authorization': `Bearer ${token}` } })
+// __tests__/WebSocketContext.test.tsx
+import { renderHook, act } from '@testing-library/react';
+import { WebSocketProvider } from '@/contexts/WebSocketContext';
 
-// ❌ Неправильно - прямой запрос к бэкенду
-fetch('http://localhost:3000/v1/chat-rooms', { headers: { 'Authorization': `Bearer ${token}` } })
+// Mock socket.io-client
+jest.mock('socket.io-client', () => ({
+	io: jest.fn(() => ({
+		on: jest.fn(),
+		off: jest.fn(),
+		emit: jest.fn(),
+		disconnect: jest.fn(),
+	})),
+}));
+
+describe('WebSocketContext', () => {
+	it('should connect with valid token', () => {
+		const { result } = renderHook(() => useWebSocket(), {
+			wrapper: WebSocketProvider,
+		});
+
+		act(() => {
+			result.current.connect('valid-token');
+		});
+
+		expect(result.current.isConnected).toBe(true);
+	});
+});
 ```
 
-**WebSocket соединения** подключаются напрямую к бэкенду, так как WebSocket не поддерживает CORS:
+### 2. Integration Tests
+
+- Тестируйте полный цикл отправки сообщений
+- Проверяйте обработку ошибок
+- Тестируйте переподключение
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Connection Failed**
+    - Проверьте CORS настройки на бэкенде
+    - Убедитесь что токен валидный
+    - Проверьте URL WebSocket сервера (без `/chat` namespace)
+    - Убедитесь что namespace `/chat` удален из бэкенда
+
+2. **Messages Not Received**
+    - Проверьте что пользователь присоединен к комнате
+    - Убедитесь что обработчики событий зарегистрированы
+    - Проверьте что URL не содержит `/chat` namespace
+
+3. **Typing Indicators Not Working**
+    - Проверьте debouncing логику
+    - Убедитесь что таймауты очищаются
+    - Проверьте права доступа к комнате
+
+4. **Namespace Issues**
+    - Если видите ошибки с namespace, убедитесь что бэкенд не использует `namespace: '/chat'`
+    - Подключайтесь к базовому URL: `ws://localhost:3000` вместо `ws://localhost:3000/chat`
+    - Проверьте что на хостинге (Render.com) нет ограничений на namespace
+
+### Debug Mode
+
+Включите debug режим для Socket.IO:
 
 ```typescript
-// ✅ WebSocket подключается напрямую
-const socket = io('ws://localhost:3000/chat', { auth: { token } })
-```
-
-### Структура проекта
-
-```
-odyssea-frontend/
-├── app/
-│   ├── api/                    # API routes для HTTP запросов
-│   │   ├── chat-rooms/
-│   │   │   └── route.ts
-│   │   └── messages/
-│   │       ├── chat-room/
-│   │       │   └── [chatRoomId]/
-│   │       │       └── route.ts
-│   │       ├── upload/
-│   │       │   └── route.ts
-│   │       └── route.ts
-│   ├── chat/
-│   │   └── page.tsx
-│   ├── layout.tsx
-│   └── page.tsx
-├── components/
-│   ├── Chat.tsx
-│   └── ChatList.tsx
-├── hooks/
-│   └── useWebSocket.ts
-├── lib/
-│   ├── constants.ts
-│   └── services/
-│       └── websocketService.ts
-├── types/
-│   └── api.ts
-├── next.config.js
-├── package.json
-├── tailwind.config.js
-└── tsconfig.json
+const socket = io(url, {
+	auth: { token },
+	debug: true, // Enable debug logs
+});
 ```
 
 ## Заключение
 
-Это руководство предоставляет полную WebSocket интеграцию для Next.js с Odyssea Backend. Включает в себя:
-
-- ✅ **API Routes** для HTTP запросов (избежание CORS)
-- ✅ **WebSocket подключение** с автоматическим переподключением
-- ✅ **Обработку всех WebSocket событий**
-- ✅ **Компоненты для real-time чата**
-- ✅ **Индикаторы печати**
-- ✅ **TypeScript типы**
-- ✅ **Адаптацию для Next.js App Router**
-
-Для начала работы просто скопируйте код в ваш проект и настройте переменные окружения.
+Эта интеграция обеспечивает полную функциональность real-time чата с вашим NestJS бэкендом. WebSocket соединение автоматически управляется, включая переподключение и обработку ошибок. Все основные функции чата (сообщения, typing indicators, уведомления) реализованы с учетом best practices для production использования.
