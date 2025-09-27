@@ -23,9 +23,8 @@ model User {
   zip                  String?
   city                 String?
   role                 UserRole
-  status               UserStatus            @default(ACTIVE)
+  status               UserStatus            @default(INACTIVE)
   deactivateAccount    Boolean?              @default(false) // Flag to deactivate account from TMS
-  activeAccount        Boolean               @default(false) // Flag to activate account
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   lastLoginAt          DateTime?

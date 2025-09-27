@@ -63,9 +63,9 @@ DROP COLUMN "vehicleModel",
 DROP COLUMN "vehicleType",
 DROP COLUMN "vehicleYear",
 DROP COLUMN "vin",
-ADD COLUMN     "activeAccount" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN     "deactivateAccount" BOOLEAN DEFAULT false,
-ADD COLUMN     "externalId" TEXT;
+ADD COLUMN     "externalId" TEXT,
+ALTER COLUMN "status" SET DEFAULT 'INACTIVE';
 
 -- DropEnum
 DROP TYPE "public"."DistanceCoverage";
