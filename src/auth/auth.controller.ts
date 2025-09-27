@@ -18,7 +18,8 @@ import { encryption } from '../helpers/helper';
 import { StateData } from '../types/request.types';
 
 import { AuthService, AuthResponse } from './auth.service';
-import { EmailLoginDto } from './dto/email-login.dto';
+import { EmailOnlyLoginDto } from './dto/email-only-login.dto';
+import { PasswordLoginDto } from './dto/password-login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -29,7 +30,42 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 export class AuthController {
 	constructor(private readonly authService: AuthService) {}
 
-	@Post('login')
+	@Post('login_email')
+	@HttpCode(HttpStatus.OK)
+	@Throttle({ default: { ttl: 300000, limit: 5 } })
+	@ApiOperation({
+		summary:
+			'User login with email only - checks user status and sends temporary password if inactive',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'User found, redirect URL provided',
+		schema: {
+			type: 'object',
+			properties: {
+				message: { type: 'string' },
+				redirectUrl: { type: 'string' },
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'User not found',
+	})
+	async loginEmail(
+		@Body() loginDto: EmailOnlyLoginDto,
+	): Promise<{ message: string; redirectUrl?: string }> {
+		try {
+			return await this.authService.loginWithEmail(loginDto.email);
+		} catch (error) {
+			if (error instanceof UnauthorizedException) {
+				throw error;
+			}
+			throw new UnauthorizedException('Invalid credentials');
+		}
+	}
+
+	@Post('login_password')
 	@HttpCode(HttpStatus.OK)
 	@Throttle({ default: { ttl: 300000, limit: 5 } })
 	@ApiOperation({ summary: 'User login with email and password' })
@@ -47,9 +83,11 @@ export class AuthController {
 		status: 401,
 		description: 'Invalid credentials or insufficient permissions',
 	})
-	async login(@Body() loginDto: EmailLoginDto): Promise<{ message: string }> {
+	async loginPassword(
+		@Body() loginDto: PasswordLoginDto,
+	): Promise<{ message: string }> {
 		try {
-			return await this.authService.loginWithOtp(
+			return await this.authService.loginWithPassword(
 				loginDto.email,
 				loginDto.password,
 			);

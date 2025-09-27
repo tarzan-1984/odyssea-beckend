@@ -15,6 +15,7 @@ import { SocialProvider } from './dto/social-login.dto';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import { AxiosError } from '../types/request.types';
+import { generateRandomPassword } from '../helpers/helper';
 
 export interface JwtPayload {
 	sub: string;
@@ -559,5 +560,77 @@ export class AuthService {
 			firstName: 'John',
 			lastName: 'Doe',
 		};
+	}
+
+	/**
+	 * Handles email-only login: checks if user exists and sends temporary password if inactive
+	 */
+	async loginWithEmail(
+		email: string,
+	): Promise<{ message: string; redirectUrl?: string }> {
+		const user = await this.prisma.user.findUnique({
+			where: { email },
+		});
+
+		const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+		if (!user) {
+			throw new UnauthorizedException('User not found');
+		}
+
+		// If user is not active, generate temporary password and send email
+		if (user.status !== UserStatus.ACTIVE) {
+			const temporaryPassword = generateRandomPassword(8);
+			const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
+
+			// Update user password
+			await this.prisma.user.update({
+				where: { id: user.id },
+				data: { password: hashedPassword },
+			});
+
+			// Send email with temporary password
+			const emailSent = await this.mailerService.sendHtmlEmail(
+				user.email,
+				'Your Login Password',
+				`
+				<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+					<h2 style="color: #333;">Welcome to Odyssea</h2>
+					<p>Hello ${user.firstName},</p>
+					<p>Thank you for joining us, your login password is <strong style="font-size: 18px; color: #007bff;">${temporaryPassword}</strong></p>
+					<p>This password can be changed on the profile page.</p>
+					<p>If you didn't request this, please ignore this email.</p>
+					<hr>
+					<p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
+				</div>
+				`,
+			);
+
+			if (!emailSent) {
+				throw new BadRequestException('Failed to send password email');
+			}
+
+			// Return redirect URL to password login page
+			return {
+				message: 'Temporary password sent to your email',
+				redirectUrl: `${frontendUrl}/login-password`,
+			};
+		}
+
+		// If user is active, redirect to password login page
+		return {
+			message: 'User found, please enter your password',
+			redirectUrl: `${frontendUrl}/login-password`,
+		};
+	}
+
+	/**
+	 * Handles password login (same as original login logic)
+	 */
+	async loginWithPassword(
+		email: string,
+		password: string,
+	): Promise<{ message: string }> {
+		return this.loginWithOtp(email, password);
 	}
 }
