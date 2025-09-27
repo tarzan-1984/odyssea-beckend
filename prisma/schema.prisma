@@ -25,6 +25,7 @@ model User {
   role                 UserRole
   status               UserStatus            @default(ACTIVE)
   deactivateAccount    Boolean?              @default(false) // Flag to deactivate account from TMS
+  activeAccount        Boolean               @default(false) // Flag to activate account
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   lastLoginAt          DateTime?
