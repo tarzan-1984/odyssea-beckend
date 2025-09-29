@@ -3,11 +3,13 @@ import {
 	Get,
 	Put,
 	Delete,
+	Post,
 	Body,
 	Param,
 	Query,
 	UseGuards,
 } from '@nestjs/common';
+import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 import {
 	ApiTags,
 	ApiOperation,
@@ -19,6 +21,8 @@ import { AuthGuard } from '@nestjs/passport';
 
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ImportDriversDto } from './dto/import-drivers.dto';
+import { ImportDriversService } from './services/import-drivers.service';
 import { UserRole, UserStatus } from '@prisma/client';
 
 @ApiTags('Users')
@@ -26,7 +30,64 @@ import { UserRole, UserStatus } from '@prisma/client';
 @Controller('users')
 @UseGuards(AuthGuard('jwt'))
 export class UsersController {
-	constructor(private readonly usersService: UsersService) {}
+	constructor(
+		private readonly usersService: UsersService,
+		private readonly importDriversService: ImportDriversService,
+	) {}
+
+	@Post('import-drivers')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Import drivers from external TMS API (No auth required)',
+		description: `Imports drivers from external TMS API and returns import statistics. 
+		
+**Process:**
+1. Makes GET request to: https://www.endurance-tms.com/wp-json/tms/v1/users?page={page}&per_page={per_page}&search={search}
+2. Receives response with structure:
+   - success: boolean
+   - data: array of driver objects
+   - pagination: {current_page, per_page, total_count, total_pages, has_next_page, has_prev_page}
+   - filters: {status, search}
+   - timestamp, api_version
+3. Processes drivers and imports/updates them in our database
+4. Returns import statistics
+
+**Limitations:** Processes up to 5 pages per request to prevent timeouts.`,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Drivers imported successfully - returns import statistics (not the raw external API data)',
+		schema: {
+			type: 'object',
+			properties: {
+				message: { type: 'string' },
+				totalImported: { type: 'number' },
+				totalUpdated: { type: 'number' },
+				totalPages: { type: 'number' },
+				pagesProcessed: { type: 'number' },
+				hasMorePages: { type: 'boolean' },
+			},
+			example: {
+				message: 'Import session completed. Imported: 25, Updated: 5, Pages processed: 5. More pages available.',
+				totalImported: 25,
+				totalUpdated: 5,
+				totalPages: 38,
+				pagesProcessed: 5,
+				hasMorePages: true
+			}
+		},
+	})
+	@ApiResponse({
+		status: 400,
+		description: 'Import failed',
+	})
+	async importDrivers(@Body() importDriversDto: ImportDriversDto) {
+		return this.importDriversService.importDrivers(
+			importDriversDto.page,
+			importDriversDto.per_page,
+			importDriversDto.search,
+		);
+	}
 
 	@Get()
 	@ApiOperation({ summary: 'Get all users with pagination and filtering' })
