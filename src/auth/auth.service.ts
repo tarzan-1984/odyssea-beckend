@@ -158,6 +158,10 @@ export class AuthService {
 			throw new UnauthorizedException('Account is not active');
 		}
 
+		if (!user.password) {
+			throw new UnauthorizedException('No password set for this account');
+		}
+
 		const isPasswordValid = await bcrypt.compare(password, user.password);
 		if (!isPasswordValid) {
 			throw new UnauthorizedException('Invalid credentials');
