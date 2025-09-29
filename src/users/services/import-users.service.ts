@@ -1,17 +1,17 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-	ExternalDriver,
-	ExternalApiResponse,
-} from '../interfaces/external-driver.interface';
+	ExternalUser,
+	ExternalUserApiResponse,
+} from '../interfaces/external-user.interface';
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
 
 @Injectable()
-export class ImportDriversService {
-	private readonly logger = new Logger(ImportDriversService.name);
+export class ImportUsersService {
+	private readonly logger = new Logger(ImportUsersService.name);
 	private readonly EXTERNAL_API_URL =
-		'https://www.endurance-tms.com/wp-json/tms/v1/drivers';
+		'https://www.endurance-tms.com/wp-json/tms/v1/users';
 	private readonly API_KEY = 'tms_api_key_2024_driver_access';
 	private readonly REQUEST_TIMEOUT = 60000; // 60 seconds - increased for safety
 	private readonly BATCH_SIZE = 15; // Optimal batch size for database performance
@@ -20,10 +20,10 @@ export class ImportDriversService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/**
-	 * Import drivers from external API with pagination
+	 * Import users from external API with pagination
 	 * Limited to prevent timeouts - processes max MAX_PAGES_PER_REQUEST pages
 	 */
-	async importDrivers(
+	async importUsers(
 		page: number,
 		per_page: number,
 		search?: string,
@@ -55,13 +55,11 @@ export class ImportDriversService {
 				this.logger.log(`Processing page ${currentPage}...`);
 
 				// Fetch data from external API
-				const response = await this.fetchExternalDrivers(
+				const response = await this.fetchExternalUsers(
 					currentPage,
 					per_page,
 					search,
 				);
-				
-				console.log('response++++', response);
 
 				if (!response.success) {
 					throw new BadRequestException(
@@ -70,10 +68,10 @@ export class ImportDriversService {
 				}
 
 				totalPages = response.pagination.total_pages;
-				hasMorePages = response.pagination.has_next_page;
+				hasMorePages = currentPage < totalPages;
 
-				// Process drivers in batches to avoid memory issues
-				const batchResults = await this.processDriversBatch(
+				// Process users in batches to avoid memory issues
+				const batchResults = await this.processUsersBatch(
 					response.data,
 					duplicateEmails,
 				);
@@ -88,16 +86,15 @@ export class ImportDriversService {
 
 				// Check if we've reached the limit or no more pages
 				if (
-					!response.pagination.has_next_page ||
+					!hasMorePages ||
 					pagesProcessed >= this.MAX_PAGES_PER_REQUEST
 				) {
 					break;
 				}
 
 				currentPage++;
+				await this.delay(1000); // Delay between page requests
 
-				// Add a small delay between requests to avoid overwhelming the external API
-				await this.delay(1000);
 			} while (
 				currentPage <= totalPages &&
 				pagesProcessed < this.MAX_PAGES_PER_REQUEST
@@ -108,7 +105,7 @@ export class ImportDriversService {
 			);
 
 			const duplicateMessage = duplicateEmails.length > 0 
-				? ` Duplicate emails found for drivers: ${duplicateEmails.join(', ')}`
+				? ` Duplicate emails found for users: ${duplicateEmails.join(', ')}`
 				: '';
 
 			return {
@@ -128,13 +125,13 @@ export class ImportDriversService {
 	}
 
 	/**
-	 * Fetch drivers from external API
+	 * Fetch users from external API
 	 */
-	private async fetchExternalDrivers(
+	private async fetchExternalUsers(
 		page: number,
 		per_page: number,
 		search?: string,
-	): Promise<ExternalApiResponse> {
+	): Promise<ExternalUserApiResponse> {
 		const params = new URLSearchParams({
 			page: page.toString(),
 			per_page: per_page.toString(),
@@ -147,37 +144,36 @@ export class ImportDriversService {
 		const url = `${this.EXTERNAL_API_URL}?${params.toString()}`;
 
 		try {
-			const response = await axios.get<ExternalApiResponse>(url, {
+			const response = await axios.get<ExternalUserApiResponse>(url, {
 				headers: {
 					'X-API-Key': this.API_KEY,
 				},
 				timeout: this.REQUEST_TIMEOUT,
 			});
-
 			return response.data;
 		} catch (error) {
-			this.logger.error(`Failed to fetch external drivers:`, error);
+			this.logger.error(`Failed to fetch external users:`, error);
 			throw new BadRequestException(
-				`Failed to fetch drivers from external API: ${error.message}`,
+				`Failed to fetch users from external API: ${error.message}`,
 			);
 		}
 	}
 
 	/**
-	 * Process a batch of drivers individually to avoid transaction issues
+	 * Process a batch of users individually to avoid transaction issues
 	 */
-	private async processDriversBatch(
-		drivers: ExternalDriver[],
+	private async processUsersBatch(
+		users: ExternalUser[],
 		duplicateEmails: number[],
 	): Promise<{ imported: number; updated: number; skipped: number }> {
 		let imported = 0;
 		let updated = 0;
 		let skipped = 0;
 
-		// Process drivers individually to avoid transaction conflicts
-		for (const driver of drivers) {
+		// Process users individually to avoid transaction conflicts
+		for (const user of users) {
 			try {
-				const result = await this.processDriver(driver, duplicateEmails);
+				const result = await this.processUser(user, duplicateEmails);
 				if (result === 'imported') {
 					imported++;
 				} else if (result === 'updated') {
@@ -187,50 +183,50 @@ export class ImportDriversService {
 				}
 			} catch (error) {
 				this.logger.error(
-					`Failed to process driver ${driver.id}:`,
+					`Failed to process user ${user.id}:`,
 					error,
 				);
-				// Continue with other drivers even if one fails
+				// Continue with other users even if one fails
 			}
 
-			// Small delay between drivers to avoid overwhelming the database
+			// Small delay between users to avoid overwhelming the database
 			await this.delay(50);
 		}
 
 		return { imported, updated, skipped };
 	}
 
-
 	/**
-	 * Process a single driver
+	 * Process a single user
 	 */
-	private async processDriver(
-		driver: ExternalDriver,
+	private async processUser(
+		user: ExternalUser,
 		duplicateEmails: number[],
 	): Promise<'imported' | 'updated' | 'skipped'> {
-		// Split driver_name into firstName and lastName
-		const driverName = driver.driver_name || '';
-		const nameParts = driverName.trim().split(' ');
-		const firstName = nameParts[0] || '';
-		const lastName = nameParts.slice(1).join(' ') || '';
+		// Skip if no email provided
+		if (!user.user_email || user.user_email.trim() === '') {
+			this.logger.warn(`Skipping user ${user.id} - no email provided`);
+			return 'skipped';
+		}
+
+		// Map roles to UserRole enum
+		const mappedRole = this.mapRoleToUserRole(user.roles);
 
 		const userData = {
-			externalId: driver.id.toString(),
-			email: driver.driver_email || '',
-			firstName: firstName,
-			lastName: lastName,
-			phone: driver.driver_phone || '',
-			location: driver.home_location || '',
-			type: driver.type || '',
-			vin: driver.vin || '',
-			role: UserRole.DRIVER,
+			externalId: user.id.toString(),
+			email: user.user_email.trim(),
+			firstName: user.first_name || '',
+			lastName: user.last_name || '',
+			phone: user.acf_fields?.phone_number || '',
+			location: user.acf_fields?.work_location || '',
+			role: mappedRole,
 			status: UserStatus.INACTIVE, // Default status for imported users
 			password: null, // No password for imported users
 		};
 
 		// Check if user exists by externalId only
 		const existingUser = await this.prisma.user.findUnique({
-			where: { externalId: driver.id.toString() },
+			where: { externalId: user.id.toString() },
 		});
 
 		if (existingUser) {
@@ -242,8 +238,6 @@ export class ImportDriversService {
 					lastName: userData.lastName,
 					phone: userData.phone,
 					location: userData.location,
-					type: userData.type,
-					vin: userData.vin,
 					role: userData.role,
 					status: userData.status,
 					password: userData.password,
@@ -253,13 +247,13 @@ export class ImportDriversService {
 		} else {
 			// User doesn't exist - check if email is already taken
 			const userWithSameEmail = await this.prisma.user.findUnique({
-				where: { email: driver.driver_email.trim() },
+				where: { email: user.user_email.trim() },
 			});
 
 			if (userWithSameEmail) {
 				// Email already exists - add to duplicates list and skip
-				duplicateEmails.push(driver.id);
-				this.logger.warn(`Skipping driver ${driver.id} - email ${driver.driver_email} already exists for user ${userWithSameEmail.id}`);
+				duplicateEmails.push(user.id);
+				this.logger.warn(`Skipping user ${user.id} - email ${user.user_email} already exists for user ${userWithSameEmail.id}`);
 				return 'skipped';
 			}
 
@@ -269,6 +263,40 @@ export class ImportDriversService {
 			});
 			return 'imported';
 		}
+	}
+
+	/**
+	 * Map external roles to internal UserRole enum
+	 */
+	private mapRoleToUserRole(externalRoles: string[]): UserRole {
+		// Priority mapping based on role hierarchy
+		if (externalRoles.includes('administrator')) {
+			return UserRole.ADMINISTRATOR;
+		}
+		if (externalRoles.includes('moderator')) {
+			return UserRole.ADMINISTRATOR; // Map moderator to administrator
+		}
+		if (externalRoles.includes('dispatcher')) {
+			return UserRole.DISPATCHER_EXPEDITE; // Map dispatcher to dispatcher_expedite
+		}
+		if (externalRoles.includes('recruiter') || externalRoles.includes('recruiter-tl')) {
+			return UserRole.RECRUITER;
+		}
+		if (externalRoles.includes('driver_updates')) {
+			return UserRole.DRIVER;
+		}
+		if (externalRoles.includes('tracking') || externalRoles.includes('morning_tracking') || externalRoles.includes('nightshift_tracking')) {
+			return UserRole.TRACKING;
+		}
+		if (externalRoles.includes('accounting')) {
+			return UserRole.ADMINISTRATOR; // Map accounting to administrator
+		}
+		if (externalRoles.includes('billing')) {
+			return UserRole.ADMINISTRATOR; // Map billing to administrator
+		}
+		
+		// Default role for unknown roles
+		return UserRole.DRIVER;
 	}
 
 	/**

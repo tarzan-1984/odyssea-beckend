@@ -17,13 +17,16 @@ import {
 	ApiBearerAuth,
 	ApiBody,
 } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ImportDriversDto } from './dto/import-drivers.dto';
+import { ImportUsersDto } from './dto/import-users.dto';
 import { ImportDriversService } from './services/import-drivers.service';
+import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
+import { ImportUsersService } from './services/import-users.service';
+import { ImportUsersBackgroundService } from './services/import-users-background.service';
 import { UserRole, UserStatus } from '@prisma/client';
 
 @ApiTags('Users')
@@ -34,60 +37,179 @@ export class UsersController {
 	constructor(
 		private readonly usersService: UsersService,
 		private readonly importDriversService: ImportDriversService,
+		private readonly importDriversBackgroundService: ImportDriversBackgroundService,
+		private readonly importUsersService: ImportUsersService,
+		private readonly importUsersBackgroundService: ImportUsersBackgroundService,
 	) {}
 
 	@Post('import-drivers')
 	@SkipAuth()
 	@ApiOperation({
-		summary: 'Import drivers from external TMS API (No auth required)',
-		description: `Imports drivers from external TMS API and returns import statistics. 
+		summary: 'Start background import of drivers from external TMS API (No auth required)',
+		description: `Starts a background import process for drivers from external TMS API using job queues.
 		
-**Process:**
-1. Makes GET request to: https://www.endurance-tms.com/wp-json/tms/v1/users?page={page}&per_page={per_page}&search={search}
-2. Receives response with structure:
-   - success: boolean
-   - data: array of driver objects
-   - pagination: {current_page, per_page, total_count, total_pages, has_next_page, has_prev_page}
-   - filters: {status, search}
-   - timestamp, api_version
-3. Processes drivers and imports/updates them in our database
-4. Returns import statistics
+**External API:** https://www.endurance-tms.com/wp-json/tms/v1/drivers
 
-**Limitations:** Processes up to 5 pages per request to prevent timeouts.`,
+**Process:**
+1. Creates a background job to import drivers
+2. Job processes pages sequentially with delays
+3. Returns job ID for status tracking
+4. Use /v1/users/import-status/{jobId} to check progress
+
+**Benefits:**
+- No timeout issues for large datasets
+- Background processing
+- Progress tracking
+- Automatic retry on failures
+- Duplicate email tracking`,
 	})
 	@ApiResponse({
 		status: 200,
-		description: 'Drivers imported successfully - returns import statistics (not the raw external API data)',
+		description: 'Import job started successfully',
 		schema: {
 			type: 'object',
 			properties: {
+				jobId: { type: 'string' },
 				message: { type: 'string' },
-				totalImported: { type: 'number' },
-				totalUpdated: { type: 'number' },
-				totalPages: { type: 'number' },
-				pagesProcessed: { type: 'number' },
-				hasMorePages: { type: 'boolean' },
 			},
 			example: {
-				message: 'Import session completed. Imported: 25, Updated: 5, Pages processed: 5. More pages available.',
-				totalImported: 25,
-				totalUpdated: 5,
-				totalPages: 38,
-				pagesProcessed: 5,
-				hasMorePages: true
-			}
+				jobId: 'import-1695998400000',
+				message: 'Import process started. Job ID: import-1695998400000. Check status at /v1/users/import-status/import-1695998400000',
+			},
 		},
 	})
 	@ApiResponse({
 		status: 400,
-		description: 'Import failed',
+		description: 'Import failed to start',
 	})
 	async importDrivers(@Body() importDriversDto: ImportDriversDto) {
-		return this.importDriversService.importDrivers(
+		return this.importDriversBackgroundService.startImport(
 			importDriversDto.page,
 			importDriversDto.per_page,
 			importDriversDto.search,
 		);
+	}
+
+	@Get('import-status/:jobId')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Get import job status',
+		description: 'Returns the current status and progress of an import job',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Import status retrieved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				status: { type: 'string', enum: ['processing', 'completed', 'failed'] },
+				progress: { type: 'number', description: 'Progress percentage' },
+				processedPages: { type: 'number' },
+				totalImported: { type: 'number' },
+				totalUpdated: { type: 'number' },
+				totalSkipped: { type: 'number', description: 'Number of drivers skipped due to duplicate emails' },
+				duplicateEmails: { type: 'array', items: { type: 'number' }, description: 'Array of driver IDs with duplicate emails' },
+				isComplete: { type: 'boolean' },
+			},
+			example: {
+				status: 'processing',
+				progress: 45.5,
+				processedPages: 15,
+				totalImported: 450,
+				totalUpdated: 25,
+				totalSkipped: 8,
+				duplicateEmails: [3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110],
+				isComplete: false,
+			},
+		},
+	})
+	async getImportStatus(@Param('jobId') jobId: string) {
+		return this.importDriversBackgroundService.getImportStatus(jobId);
+	}
+
+	@Post('import-users')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Start background import of users from external TMS API (No auth required)',
+		description: `Starts a background import process for users from external TMS API using job queues.
+		
+**External API:** https://www.endurance-tms.com/wp-json/tms/v1/users
+
+**Process:**
+1. Creates a background job to import users
+2. Job processes pages sequentially with delays
+3. Returns job ID for status tracking
+4. Use /v1/users/import-users-status/{jobId} to check progress
+
+**Benefits:**
+- No timeout issues for large datasets
+- Background processing
+- Progress tracking
+- Automatic retry on failures
+- Duplicate email tracking`,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Import job started successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				jobId: { type: 'string' },
+				message: { type: 'string' },
+			},
+			example: {
+				jobId: 'import-users-1695998400000',
+				message: 'Background import process started. Job ID: import-users-1695998400000. Check status at /v1/users/import-users-status/import-users-1695998400000',
+			},
+		},
+	})
+	@ApiResponse({
+		status: 400,
+		description: 'Import failed to start',
+	})
+	async importUsers(@Body() importUsersDto: ImportUsersDto) {
+		return this.importUsersBackgroundService.startImport(
+			importUsersDto.page,
+			importUsersDto.per_page,
+			importUsersDto.search,
+		);
+	}
+
+	@Get('import-users-status/:jobId')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Get import users job status',
+		description: 'Returns the current status and progress of an import users job',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Import status retrieved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				status: { type: 'string', enum: ['processing', 'completed', 'failed'] },
+				progress: { type: 'number', description: 'Progress percentage' },
+				processedPages: { type: 'number' },
+				totalImported: { type: 'number' },
+				totalUpdated: { type: 'number' },
+				totalSkipped: { type: 'number', description: 'Number of users skipped due to duplicate emails' },
+				duplicateEmails: { type: 'array', items: { type: 'number' }, description: 'Array of user IDs with duplicate emails' },
+				isComplete: { type: 'boolean' },
+			},
+			example: {
+				status: 'processing',
+				progress: 45.5,
+				processedPages: 1,
+				totalImported: 25,
+				totalUpdated: 3,
+				totalSkipped: 2,
+				duplicateEmails: [82, 14],
+				isComplete: false,
+			},
+		},
+	})
+	async getImportUsersStatus(@Param('jobId') jobId: string) {
+		return this.importUsersBackgroundService.getImportStatus(jobId);
 	}
 
 	@Get()
