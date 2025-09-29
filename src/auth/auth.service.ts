@@ -583,11 +583,18 @@ export class AuthService {
 			const temporaryPassword = generateRandomPassword(8);
 			const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
 
-			// Update user password
-			await this.prisma.user.update({
+			// Update user password and status to ACTIVE
+			const updatedUser = await this.prisma.user.update({
 				where: { id: user.id },
-				data: { password: hashedPassword },
+				data: {
+					password: hashedPassword,
+					status: UserStatus.ACTIVE,
+				},
 			});
+
+			console.log(
+				`User ${user.email} status updated from ${user.status} to ${updatedUser.status}`,
+			);
 
 			// Send email with temporary password
 			const emailSent = await this.mailerService.sendHtmlEmail(
@@ -612,14 +619,14 @@ export class AuthService {
 
 			// Return redirect URL to password login page
 			return {
-				message: 'Temporary password sent to your email',
+				message: `Password for login sent to your email ${user.email}`,
 				redirectUrl: `${frontendUrl}/login-password`,
 			};
 		}
 
 		// If user is active, redirect to password login page
 		return {
-			message: 'User found, please enter your password',
+			message: 'Please enter your password to continue',
 			redirectUrl: `${frontendUrl}/login-password`,
 		};
 	}
