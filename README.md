@@ -294,12 +294,89 @@ POST /v1/auth/verify-otp
 
 ### Пользователи
 
-- `GET /v1/users/list` - Список пользователей с пагинацией и фильтрацией
+- `GET /v1/users` - Список пользователей с пагинацией и фильтрацией
 - `POST /v1/users` - Создание пользователя
 - `GET /v1/users/:id` - Получение пользователя по ID
 - `PUT /v1/users/:id` - Обновление пользователя
 - `DELETE /v1/users/:id` - Удаление пользователя
 - `PUT /v1/users/:id/status` - Изменение статуса пользователя
+
+#### Получение списка пользователей
+
+**Эндпоинт:** `GET /v1/users`
+
+**Описание:** Возвращает список пользователей с пагинацией, фильтрацией и сортировкой.
+
+**Параметры запроса:**
+- `page` (number, optional) - Номер страницы (по умолчанию: 1)
+- `limit` (number, optional) - Количество элементов на странице (по умолчанию: 10)
+- `role` (string, optional) - Фильтр по роли пользователя
+- `status` (string, optional) - Фильтр по статусу пользователя
+- `search` (string, optional) - Поиск по имени и email
+- `sort` (string, optional) - Сортировка в формате JSON
+
+**Пример запроса:**
+```bash
+GET /v1/users?page=1&limit=10&search=john&sort={"role":"asc"}
+```
+
+**Ответ:**
+```json
+{
+  "data": [
+    {
+      "id": "clx1234567890",
+      "externalId": "12345",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "phone": "+1234567890",
+      "location": "New York, NY",
+      "type": "Truck",
+      "vin": "1HGBH41JXMN109186",
+      "profilePhoto": "https://example.com/photo.jpg",
+      "role": "DRIVER",
+      "status": "ACTIVE",
+      "createdAt": "2025-01-27T10:00:00.000Z",
+      "updatedAt": "2025-01-27T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "current_page": 1,
+    "per_page": 10,
+    "total_count": 100,
+    "total_pages": 10,
+    "has_next_page": true,
+    "has_prev_page": false
+  },
+  "timestamp": "2025-01-27T10:00:00.000Z",
+  "path": "/v1/users"
+}
+```
+
+**Поля пользователя:**
+- `id` - Уникальный идентификатор пользователя
+- `externalId` - ID из внешней системы (для импортированных пользователей)
+- `firstName` - Имя пользователя
+- `lastName` - Фамилия пользователя
+- `email` - Email адрес
+- `phone` - Номер телефона
+- `location` - Местоположение
+- `type` - Тип транспортного средства
+- `vin` - VIN номер транспортного средства
+- `profilePhoto` - URL фото профиля
+- `role` - Роль пользователя (DRIVER, ADMINISTRATOR, DISPATCHER_EXPEDITE, RECRUITER, TRACKING)
+- `status` - Статус пользователя (ACTIVE, INACTIVE, SUSPENDED, PENDING)
+- `createdAt` - Дата создания
+- `updatedAt` - Дата последнего обновления
+
+**Информация о пагинации:**
+- `current_page` - Текущая страница
+- `per_page` - Количество элементов на странице
+- `total_count` - Общее количество пользователей
+- `total_pages` - Общее количество страниц
+- `has_next_page` - Есть ли следующая страница
+- `has_prev_page` - Есть ли предыдущая страница
 
 ### Импорт водителей
 

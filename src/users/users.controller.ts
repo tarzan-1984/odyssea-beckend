@@ -213,10 +213,53 @@ export class UsersController {
 	}
 
 	@Get()
-	@ApiOperation({ summary: 'Get all users with pagination and filtering' })
+	@ApiOperation({ 
+		summary: 'Get all users with pagination and filtering',
+		description: 'Returns a paginated list of users with optional filtering by role, status, and search. Supports sorting by any user field.'
+	})
 	@ApiResponse({
 		status: 200,
 		description: 'Users retrieved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				data: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							id: { type: 'string', description: 'Unique user identifier' },
+							externalId: { type: 'string', description: 'External system ID for imported users' },
+							firstName: { type: 'string', description: 'User first name' },
+							lastName: { type: 'string', description: 'User last name' },
+							email: { type: 'string', description: 'User email address' },
+							phone: { type: 'string', description: 'User phone number' },
+							location: { type: 'string', description: 'User location' },
+							type: { type: 'string', description: 'Vehicle type' },
+							vin: { type: 'string', description: 'Vehicle VIN number' },
+							profilePhoto: { type: 'string', description: 'Profile photo URL' },
+							role: { type: 'string', enum: ['DRIVER', 'ADMINISTRATOR', 'DISPATCHER_EXPEDITE', 'RECRUITER', 'TRACKING'], description: 'User role' },
+							status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'], description: 'User status' },
+							createdAt: { type: 'string', format: 'date-time', description: 'Creation timestamp' },
+							updatedAt: { type: 'string', format: 'date-time', description: 'Last update timestamp' }
+						}
+					}
+				},
+				pagination: {
+					type: 'object',
+					properties: {
+						current_page: { type: 'number', description: 'Current page number' },
+						per_page: { type: 'number', description: 'Items per page' },
+						total_count: { type: 'number', description: 'Total number of users' },
+						total_pages: { type: 'number', description: 'Total number of pages' },
+						has_next_page: { type: 'boolean', description: 'Whether there is a next page' },
+						has_prev_page: { type: 'boolean', description: 'Whether there is a previous page' }
+					}
+				},
+				timestamp: { type: 'string', format: 'date-time', description: 'Response timestamp' },
+				path: { type: 'string', description: 'API path' }
+			}
+		}
 	})
 	async findAllUsers(
 		@Query('page') page?: string,

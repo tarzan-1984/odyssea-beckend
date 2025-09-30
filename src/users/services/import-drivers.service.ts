@@ -60,7 +60,7 @@ export class ImportDriversService {
 					per_page,
 					search,
 				);
-				
+
 				console.log('response++++', response);
 
 				if (!response.success) {
@@ -107,9 +107,10 @@ export class ImportDriversService {
 				`Import session completed: ${totalImported} imported, ${totalUpdated} updated, ${totalSkipped} skipped, ${pagesProcessed} pages processed`,
 			);
 
-			const duplicateMessage = duplicateEmails.length > 0 
-				? ` Duplicate emails found for drivers: ${duplicateEmails.join(', ')}`
-				: '';
+			const duplicateMessage =
+				duplicateEmails.length > 0
+					? ` Duplicate emails found for drivers: ${duplicateEmails.join(', ')}`
+					: '';
 
 			return {
 				message: `Import session completed. Imported: ${totalImported}, Updated: ${totalUpdated}, Skipped: ${totalSkipped}, Pages processed: ${pagesProcessed}${hasMorePages ? '. More pages available.' : ''}${duplicateMessage}`,
@@ -177,7 +178,10 @@ export class ImportDriversService {
 		// Process drivers individually to avoid transaction conflicts
 		for (const driver of drivers) {
 			try {
-				const result = await this.processDriver(driver, duplicateEmails);
+				const result = await this.processDriver(
+					driver,
+					duplicateEmails,
+				);
 				if (result === 'imported') {
 					imported++;
 				} else if (result === 'updated') {
@@ -199,7 +203,6 @@ export class ImportDriversService {
 
 		return { imported, updated, skipped };
 	}
-
 
 	/**
 	 * Process a single driver
@@ -259,7 +262,9 @@ export class ImportDriversService {
 			if (userWithSameEmail) {
 				// Email already exists - add to duplicates list and skip
 				duplicateEmails.push(driver.id);
-				this.logger.warn(`Skipping driver ${driver.id} - email ${driver.driver_email} already exists for user ${userWithSameEmail.id}`);
+				this.logger.warn(
+					`Skipping driver ${driver.id} - email ${driver.driver_email} already exists for user ${userWithSameEmail.id}`,
+				);
 				return 'skipped';
 			}
 

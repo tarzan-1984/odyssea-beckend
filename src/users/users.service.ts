@@ -63,6 +63,10 @@ export class UsersService {
 					firstName: true,
 					lastName: true,
 					phone: true,
+					location: true,
+					type: true,
+					vin: true,
+					profilePhoto: true,
 					role: true,
 					status: true,
 					createdAt: true,
@@ -76,25 +80,32 @@ export class UsersService {
 		const transformedUsers = users.map((user) => ({
 			id: user.id,
 			externalId: user.externalId,
-			user: {
-				name: `${user.firstName} ${user.lastName}`,
-				role: user.role.toLowerCase(),
-			},
+			firstName: user.firstName,
+			lastName: user.lastName,
 			email: user.email,
 			phone: user.phone || '',
+			location: user.location || '',
+			type: user.type || '',
+			vin: user.vin || '',
+			profilePhoto: user.profilePhoto,
+			role: user.role,
 			status: user.status,
 			createdAt: user.createdAt,
 			updatedAt: user.updatedAt,
 		}));
 
 		return {
-			users: transformedUsers,
+			data: transformedUsers,
 			pagination: {
-				page,
-				limit,
-				total,
-				pages: Math.ceil(total / limit),
+				current_page: page,
+				per_page: limit,
+				total_count: total,
+				total_pages: Math.ceil(total / limit),
+				has_next_page: page < Math.ceil(total / limit),
+				has_prev_page: page > 1,
 			},
+			timestamp: new Date().toISOString(),
+			path: '/v1/users',
 		};
 	}
 
