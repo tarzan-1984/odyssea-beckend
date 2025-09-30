@@ -92,7 +92,7 @@ describe('LocalStrategy', () => {
 		it('should handle fleet manager role correctly', async () => {
 			const fleetManagerUser = {
 				...mockUser,
-				role: UserRole.FLEET_MANAGER,
+     role: UserRole.ADMINISTRATOR,
 			};
 			mockAuthService.validateUser.mockResolvedValue(fleetManagerUser);
 
@@ -102,13 +102,13 @@ describe('LocalStrategy', () => {
 			);
 
 			expect(result).toEqual(fleetManagerUser);
-			expect(result.role).toBe(UserRole.FLEET_MANAGER);
+    expect(result.role).toBe(UserRole.ADMINISTRATOR);
 		});
 
 		it('should handle dispatcher roles correctly', async () => {
 			const dispatcherUser = {
 				...mockUser,
-				role: UserRole.DISPATCHER_EXPEDITE,
+     role: UserRole.DISPATCHER,
 			};
 			mockAuthService.validateUser.mockResolvedValue(dispatcherUser);
 
@@ -118,7 +118,7 @@ describe('LocalStrategy', () => {
 			);
 
 			expect(result).toEqual(dispatcherUser);
-			expect(result.role).toBe(UserRole.DISPATCHER_EXPEDITE);
+    expect(result.role).toBe(UserRole.DISPATCHER);
 		});
 
 		it('should handle recruiter roles correctly', async () => {

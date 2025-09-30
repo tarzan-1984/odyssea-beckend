@@ -238,7 +238,7 @@ export class UsersController {
 							type: { type: 'string', description: 'Vehicle type' },
 							vin: { type: 'string', description: 'Vehicle VIN number' },
 							avatar: { type: 'string', description: 'User avatar URL' },
-							role: { type: 'string', enum: ['DRIVER', 'ADMINISTRATOR', 'DISPATCHER_EXPEDITE', 'RECRUITER', 'TRACKING'], description: 'User role' },
+							role: { type: 'string', enum: ['DRIVER_UPDATES', 'MODERATOR', 'RECRUITER', 'ADMINISTRATOR', 'NIGHTSHIFT_TRACKING', 'DISPATCHER', 'BILLING', 'SUBSCRIBER', 'ACCOUNTING', 'RECRUITER_TL', 'TRACKING', 'DISPATCHER_TL', 'TRACKING_TL', 'MORNING_TRACKING', 'EXPEDITE_MANAGER', 'DRIVER'], description: 'User role' },
 							status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'], description: 'User status' },
 							createdAt: { type: 'string', format: 'date-time', description: 'Creation timestamp' },
 							updatedAt: { type: 'string', format: 'date-time', description: 'Last update timestamp' }

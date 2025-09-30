@@ -365,7 +365,7 @@ GET /v1/users?page=1&limit=10&search=john&sort={"role":"asc"}
 - `type` - Тип транспортного средства
 - `vin` - VIN номер транспортного средства
 - `avatar` - URL аватара пользователя
-- `role` - Роль пользователя (DRIVER, ADMINISTRATOR, DISPATCHER_EXPEDITE, RECRUITER, TRACKING)
+- `role` - Роль пользователя (DRIVER_UPDATES, MODERATOR, RECRUITER, ADMINISTRATOR, NIGHTSHIFT_TRACKING, DISPATCHER, BILLING, SUBSCRIBER, ACCOUNTING, RECRUITER_TL, TRACKING, DISPATCHER_TL, TRACKING_TL, MORNING_TRACKING, EXPEDITE_MANAGER, DRIVER)
 - `status` - Статус пользователя (ACTIVE, INACTIVE, SUSPENDED, PENDING)
 - `createdAt` - Дата создания
 - `updatedAt` - Дата последнего обновления
@@ -528,13 +528,21 @@ GET /v1/users/import-status/import-1695998400000
 | Внешняя роль | Внутренняя роль | Описание |
 |--------------|-----------------|----------|
 | `administrator` | `ADMINISTRATOR` | Администратор |
-| `moderator` | `ADMINISTRATOR` | Модератор (маппится в администратор) |
-| `dispatcher` | `DISPATCHER_EXPEDITE` | Диспетчер |
-| `recruiter`, `recruiter-tl` | `RECRUITER` | Рекрутер |
-| `driver_updates` | `DRIVER` | Водитель |
-| `tracking`, `morning_tracking`, `nightshift_tracking` | `TRACKING` | Отслеживание |
-| `accounting` | `ADMINISTRATOR` | Бухгалтер (маппится в администратор) |
-| `billing` | `ADMINISTRATOR` | Биллинг (маппится в администратор) |
+| `moderator` | `MODERATOR` | Модератор |
+| `dispatcher` | `DISPATCHER` | Диспетчер |
+| `dispatcher-tl` | `DISPATCHER_TL` | Диспетчер-тил-лидер |
+| `recruiter` | `RECRUITER` | Рекрутер |
+| `recruiter-tl` | `RECRUITER_TL` | Рекрутер-тил-лидер |
+| `driver` | `DRIVER` | Водитель |
+| `driver_updates` | `DRIVER_UPDATES` | Обновления водителей |
+| `tracking` | `TRACKING` | Отслеживание |
+| `tracking-tl` | `TRACKING_TL` | Отслеживание-тил-лидер |
+| `morning_tracking` | `MORNING_TRACKING` | Утреннее отслеживание |
+| `nightshift_tracking` | `NIGHTSHIFT_TRACKING` | Ночное отслеживание |
+| `expedite_manager` | `EXPEDITE_MANAGER` | Менеджер экспресс-доставки |
+| `accounting` | `ACCOUNTING` | Бухгалтер |
+| `billing` | `BILLING` | Биллинг |
+| `subscriber` | `SUBSCRIBER` | Подписчик |
 
 #### Примеры запросов
 

@@ -71,7 +71,7 @@ describe('AuthController', () => {
 				message: 'OTP sent',
 			});
 
-			const result = await controller.login(loginDto);
+			const result = await controller.loginEmail(loginDto);
 
 			expect(result).toEqual({ message: 'OTP sent' });
 			expect(mockAuthService.loginWithOtp).toHaveBeenCalledWith(
@@ -84,7 +84,7 @@ describe('AuthController', () => {
 			const error = new Error('Service error');
 			mockAuthService.loginWithOtp.mockRejectedValue(error);
 
-			await expect(controller.login(loginDto)).rejects.toThrow(
+			await expect(controller.loginEmail(loginDto)).rejects.toThrow(
 				'Invalid credentials',
 			);
 		});

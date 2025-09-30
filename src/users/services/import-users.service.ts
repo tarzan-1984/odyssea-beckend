@@ -274,25 +274,49 @@ export class ImportUsersService {
 			return UserRole.ADMINISTRATOR;
 		}
 		if (externalRoles.includes('moderator')) {
-			return UserRole.ADMINISTRATOR; // Map moderator to administrator
+			return UserRole.MODERATOR;
 		}
 		if (externalRoles.includes('dispatcher')) {
-			return UserRole.DISPATCHER_EXPEDITE; // Map dispatcher to dispatcher_expedite
+			return UserRole.DISPATCHER;
 		}
-		if (externalRoles.includes('recruiter') || externalRoles.includes('recruiter-tl')) {
+		if (externalRoles.includes('dispatcher-tl')) {
+			return UserRole.DISPATCHER_TL;
+		}
+		if (externalRoles.includes('recruiter')) {
 			return UserRole.RECRUITER;
 		}
-		if (externalRoles.includes('driver_updates')) {
+		if (externalRoles.includes('recruiter-tl')) {
+			return UserRole.RECRUITER_TL;
+		}
+		if (externalRoles.includes('driver')) {
 			return UserRole.DRIVER;
 		}
-		if (externalRoles.includes('tracking') || externalRoles.includes('morning_tracking') || externalRoles.includes('nightshift_tracking')) {
+		if (externalRoles.includes('driver_updates')) {
+			return UserRole.DRIVER_UPDATES;
+		}
+		if (externalRoles.includes('tracking')) {
 			return UserRole.TRACKING;
 		}
+		if (externalRoles.includes('tracking-tl')) {
+			return UserRole.TRACKING_TL;
+		}
+		if (externalRoles.includes('morning_tracking')) {
+			return UserRole.MORNING_TRACKING;
+		}
+		if (externalRoles.includes('nightshift_tracking')) {
+			return UserRole.NIGHTSHIFT_TRACKING;
+		}
+		if (externalRoles.includes('expedite_manager')) {
+			return UserRole.EXPEDITE_MANAGER;
+		}
 		if (externalRoles.includes('accounting')) {
-			return UserRole.ADMINISTRATOR; // Map accounting to administrator
+			return UserRole.ACCOUNTING;
 		}
 		if (externalRoles.includes('billing')) {
-			return UserRole.ADMINISTRATOR; // Map billing to administrator
+			return UserRole.BILLING;
+		}
+		if (externalRoles.includes('subscriber')) {
+			return UserRole.SUBSCRIBER;
 		}
 		
 		// Default role for unknown roles

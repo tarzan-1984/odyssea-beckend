@@ -95,7 +95,7 @@ describe('JwtStrategy', () => {
 		it('should handle fleet manager role correctly', async () => {
 			const fleetManagerPayload = {
 				...mockPayload,
-				role: UserRole.FLEET_MANAGER,
+     role: UserRole.ADMINISTRATOR,
 			};
 
 			const result = await strategy.validate(fleetManagerPayload);
@@ -110,7 +110,7 @@ describe('JwtStrategy', () => {
 		it('should handle dispatcher roles correctly', async () => {
 			const dispatcherPayload = {
 				...mockPayload,
-				role: UserRole.DISPATCHER_EXPEDITE,
+     role: UserRole.DISPATCHER,
 			};
 
 			const result = await strategy.validate(dispatcherPayload);
@@ -155,15 +155,15 @@ describe('JwtStrategy', () => {
 		it('should return consistent structure for all user types', async () => {
 			const roles = [
 				UserRole.ADMINISTRATOR,
-				UserRole.DISPATCHER_EXPEDITE,
-				UserRole.DISPATCHER_TEAM_LEADER,
+				UserRole.DISPATCHER,
+				UserRole.DISPATCHER_TL,
 				UserRole.EXPEDITE_MANAGER,
-				UserRole.DISPATCHER_FTL,
+				UserRole.DISPATCHER_TL,
 				UserRole.RECRUITER,
-				UserRole.RECRUITER_TEAM_LEADER,
+				UserRole.RECRUITER_TL,
 				UserRole.TRACKING,
-				UserRole.TRACKING_TEAM_LEADER,
-				UserRole.FLEET_MANAGER,
+				UserRole.TRACKING_TL,
+				UserRole.ADMINISTRATOR,
 				UserRole.DRIVER,
 			];
 

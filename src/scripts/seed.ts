@@ -64,7 +64,7 @@ async function main() {
 			password: dispatcherPassword,
 			firstName: 'John',
 			lastName: 'Dispatcher',
-			role: UserRole.DISPATCHER_EXPEDITE,
+			role: UserRole.DISPATCHER,
 			status: UserStatus.ACTIVE,
 			phone: '+1234567891',
 		},

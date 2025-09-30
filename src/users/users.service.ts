@@ -500,7 +500,7 @@ export class UsersService {
 			const role = String(roles[0]).toLowerCase();
 			switch (role) {
 				case 'dispatcher':
-					mappedRole = UserRole.DISPATCHER_EXPEDITE;
+					mappedRole = UserRole.DISPATCHER;
 					break;
 				case 'admin':
 					mappedRole = UserRole.ADMINISTRATOR;
