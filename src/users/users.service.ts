@@ -95,7 +95,7 @@ export class UsersService {
 		}));
 
 		return {
-			data: transformedUsers,
+			users: transformedUsers,
 			pagination: {
 				current_page: page,
 				per_page: limit,

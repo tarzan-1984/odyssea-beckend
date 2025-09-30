@@ -223,7 +223,7 @@ export class UsersController {
 		schema: {
 			type: 'object',
 			properties: {
-				data: {
+				users: {
 					type: 'array',
 					items: {
 						type: 'object',

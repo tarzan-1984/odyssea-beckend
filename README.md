@@ -323,7 +323,7 @@ GET /v1/users?page=1&limit=10&search=john&sort={"role":"asc"}
 **Ответ:**
 ```json
 {
-  "data": [
+  "users": [
     {
       "id": "clx1234567890",
       "externalId": "12345",
