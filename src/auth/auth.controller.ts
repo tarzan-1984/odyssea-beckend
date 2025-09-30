@@ -14,6 +14,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { encryption } from '../helpers/helper';
 import { StateData } from '../types/request.types';
 
@@ -28,7 +29,10 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-	constructor(private readonly authService: AuthService) {}
+	constructor(
+		private readonly authService: AuthService,
+		private readonly configService: ConfigService,
+	) {}
 
 	@Post('login_email')
 	@HttpCode(HttpStatus.OK)
@@ -148,7 +152,13 @@ export class AuthController {
 		@Query('frontendUrl') frontendUrl?: string,
 	) {
 		// Use provided frontendUrl or fallback to environment variable
-		const targetFrontendUrl = frontendUrl || process.env.FRONTEND_URL;
+		const targetFrontendUrl =
+			frontendUrl || this.configService.get('app.frontendUrl');
+
+		// Validate that we have a valid frontend URL
+		if (!targetFrontendUrl || targetFrontendUrl === 'undefined') {
+			throw new Error('Frontend URL is not configured properly');
+		}
 
 		const state = encodeURIComponent(
 			JSON.stringify({
@@ -161,10 +171,6 @@ export class AuthController {
 		const scope = ['email', 'profile'].join(' ');
 
 		const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${state}`;
-
-		console.log('authUrl', authUrl);
-		console.log('frontendUrl from query:', frontendUrl);
-		console.log('targetFrontendUrl:', targetFrontendUrl);
 
 		return res.redirect(authUrl);
 	}
@@ -212,7 +218,8 @@ export class AuthController {
 		try {
 			// Extract frontendUrl from state parameter or use environment variable as fallback
 			let frontendUrl =
-				process.env.FRONTEND_URL || 'http://localhost:3000';
+				this.configService.get('app.frontendUrl') ||
+				'http://localhost:3000';
 
 			if (state) {
 				try {
@@ -229,8 +236,6 @@ export class AuthController {
 					);
 				}
 			}
-
-			console.log('Using frontend URL for redirect:', frontendUrl);
 
 			const result = await this.authService.handleGoogleCallback(code);
 
@@ -275,7 +280,8 @@ export class AuthController {
 		} catch {
 			// Extract frontendUrl from state parameter for error redirect as well
 			let frontendUrl =
-				process.env.FRONTEND_URL || 'http://localhost:3000';
+				this.configService.get('app.frontendUrl') ||
+				'http://localhost:3000';
 
 			if (state) {
 				try {
