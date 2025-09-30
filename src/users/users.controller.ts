@@ -237,7 +237,7 @@ export class UsersController {
 							location: { type: 'string', description: 'User location' },
 							type: { type: 'string', description: 'Vehicle type' },
 							vin: { type: 'string', description: 'Vehicle VIN number' },
-							profilePhoto: { type: 'string', description: 'Profile photo URL' },
+							avatar: { type: 'string', description: 'User avatar URL' },
 							role: { type: 'string', enum: ['DRIVER', 'ADMINISTRATOR', 'DISPATCHER_EXPEDITE', 'RECRUITER', 'TRACKING'], description: 'User role' },
 							status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'], description: 'User status' },
 							createdAt: { type: 'string', format: 'date-time', description: 'Creation timestamp' },

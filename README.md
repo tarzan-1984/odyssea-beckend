@@ -334,7 +334,7 @@ GET /v1/users?page=1&limit=10&search=john&sort={"role":"asc"}
       "location": "New York, NY",
       "type": "Truck",
       "vin": "1HGBH41JXMN109186",
-      "profilePhoto": "https://example.com/photo.jpg",
+      "avatar": "https://example.com/photo.jpg",
       "role": "DRIVER",
       "status": "ACTIVE",
       "createdAt": "2025-01-27T10:00:00.000Z",
@@ -364,7 +364,7 @@ GET /v1/users?page=1&limit=10&search=john&sort={"role":"asc"}
 - `location` - Местоположение
 - `type` - Тип транспортного средства
 - `vin` - VIN номер транспортного средства
-- `profilePhoto` - URL фото профиля
+- `avatar` - URL аватара пользователя
 - `role` - Роль пользователя (DRIVER, ADMINISTRATOR, DISPATCHER_EXPEDITE, RECRUITER, TRACKING)
 - `status` - Статус пользователя (ACTIVE, INACTIVE, SUSPENDED, PENDING)
 - `createdAt` - Дата создания

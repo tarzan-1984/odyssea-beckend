@@ -87,7 +87,7 @@ export class UsersService {
 			location: user.location || '',
 			type: user.type || '',
 			vin: user.vin || '',
-			profilePhoto: user.profilePhoto,
+			avatar: user.profilePhoto, // Map profilePhoto to avatar
 			role: user.role,
 			status: user.status,
 			createdAt: user.createdAt,
@@ -139,7 +139,11 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
-		return user;
+		// Transform user to match frontend format
+		return {
+			...user,
+			avatar: user.profilePhoto, // Map profilePhoto to avatar
+		};
 	}
 
 	/**

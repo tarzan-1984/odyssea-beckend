@@ -151,9 +151,17 @@ export class AuthController {
 		@Res() res: Response,
 		@Query('frontendUrl') frontendUrl?: string,
 	) {
+		// Temporary diagnostic logging for Render debugging
+		console.log('DIAGNOSTIC - FRONTEND_URL check:');
+		console.log('Query frontendUrl:', frontendUrl);
+		console.log('process.env.FRONTEND_URL:', process.env.FRONTEND_URL);
+		console.log('configService.get(app.frontendUrl):', this.configService.get('app.frontendUrl'));
+		
 		// Use provided frontendUrl or fallback to environment variable
 		const targetFrontendUrl =
 			frontendUrl || this.configService.get('app.frontendUrl');
+
+		console.log('Final targetFrontendUrl:', targetFrontendUrl);
 
 		// Validate that we have a valid frontend URL
 		if (!targetFrontendUrl || targetFrontendUrl === 'undefined') {
@@ -173,6 +181,23 @@ export class AuthController {
 		const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${state}`;
 
 		return res.redirect(authUrl);
+	}
+
+	@Get('debug-env')
+	@ApiOperation({ summary: 'Debug environment variables (temporary)' })
+	debugEnv() {
+		return {
+			processEnv: {
+				FRONTEND_URL: process.env.FRONTEND_URL,
+				NODE_ENV: process.env.NODE_ENV,
+				GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT_SET',
+				GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL,
+			},
+			configService: {
+				frontendUrl: this.configService.get('app.frontendUrl'),
+				nodeEnv: this.configService.get('app.nodeEnv'),
+			},
+		};
 	}
 
 	@Get('google/callback')
