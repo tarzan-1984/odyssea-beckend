@@ -16,6 +16,7 @@ import {
 	ApiResponse,
 	ApiBearerAuth,
 	ApiBody,
+	ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -216,6 +217,48 @@ export class UsersController {
 	@ApiOperation({ 
 		summary: 'Get all users with pagination and filtering',
 		description: 'Returns a paginated list of users with optional filtering by role, status, and search. Supports sorting by any user field.'
+	})
+	@ApiQuery({
+		name: 'page',
+		required: false,
+		description: 'Page number for pagination',
+		type: Number,
+		example: 1
+	})
+	@ApiQuery({
+		name: 'limit',
+		required: false,
+		description: 'Number of users per page',
+		type: Number,
+		example: 10
+	})
+	@ApiQuery({
+		name: 'role',
+		required: false,
+		description: 'Filter users by role',
+		enum: ['DRIVER_UPDATES', 'MODERATOR', 'RECRUITER', 'ADMINISTRATOR', 'NIGHTSHIFT_TRACKING', 'DISPATCHER', 'BILLING', 'SUBSCRIBER', 'ACCOUNTING', 'RECRUITER_TL', 'TRACKING', 'DISPATCHER_TL', 'TRACKING_TL', 'MORNING_TRACKING', 'EXPEDITE_MANAGER', 'DRIVER'],
+		example: 'ADMINISTRATOR'
+	})
+	@ApiQuery({
+		name: 'status',
+		required: false,
+		description: 'Filter users by status',
+		enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'],
+		example: 'ACTIVE'
+	})
+	@ApiQuery({
+		name: 'search',
+		required: false,
+		description: 'Search users by name or email',
+		type: String,
+		example: 'john'
+	})
+	@ApiQuery({
+		name: 'sort',
+		required: false,
+		description: 'Sort users by field (JSON format: {"field": "asc|desc"})',
+		type: String,
+		example: '{"firstName": "asc"}'
 	})
 	@ApiResponse({
 		status: 200,

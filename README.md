@@ -284,6 +284,8 @@ POST /v1/auth/verify-otp
 5. Отправляет пароль на email пользователя
 6. Перенаправляет на страницу ввода пароля
 
+**Важно:** Эта логика работает как для обычного входа через email/password, так и для входа через Google OAuth. Если пользователь входит через Google и имеет статус `INACTIVE` без пароля, ему автоматически генерируется временный пароль и отправляется на email.
+
 #### Email уведомления
 
 Система отправляет следующие типы email:
@@ -317,7 +319,7 @@ POST /v1/auth/verify-otp
 
 **Пример запроса:**
 ```bash
-GET /v1/users?page=1&limit=10&search=john&sort={"role":"asc"}
+GET /v1/users?page=1&limit=10&role=ADMINISTRATOR&search=john&sort={"firstName":"asc"}
 ```
 
 **Ответ:**

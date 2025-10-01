@@ -41,6 +41,7 @@ export interface AuthResponse {
 		role: UserRole;
 		status: UserStatus;
 		avatar: string;
+		externalId: string;
 	};
 }
 
@@ -100,20 +101,62 @@ export class AuthService {
 			);
 		}
 
-		// Update last login and profile photo if needed
-		const updateData: { lastLoginAt: Date; profilePhoto?: string } = {
-			lastLoginAt: new Date(),
-		};
+		// Check if user is inactive and has no password - generate temporary password
+		if (user.status === UserStatus.INACTIVE && !user.password) {
+			const temporaryPassword = this.generateTemporaryPassword();
+			const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
 
-		// If we have avatar from Google and user doesn't have profilePhoto, update it
-		if (avatar && !user.profilePhoto) {
-			updateData.profilePhoto = avatar;
+			// Prepare update data
+			const updateData: { 
+				password: string;
+				status: UserStatus;
+				lastLoginAt: Date;
+				profilePhoto?: string;
+			} = {
+				password: hashedPassword,
+				status: UserStatus.ACTIVE,
+				lastLoginAt: new Date(),
+			};
+
+			// Only update profilePhoto if user doesn't have one and avatar is provided
+			if (avatar && !user.profilePhoto) {
+				updateData.profilePhoto = avatar;
+			}
+
+			// Update user with temporary password and set status to ACTIVE
+			await this.prisma.user.update({
+				where: { id: user.id },
+				data: updateData,
+			});
+
+			// Send temporary password via email
+			await this.mailerService.sendTemporaryPassword(
+				user.email,
+				temporaryPassword,
+			);
+
+			// Update local user object to reflect changes
+			user.password = hashedPassword;
+			user.status = UserStatus.ACTIVE;
+			if (avatar && !user.profilePhoto) {
+				user.profilePhoto = avatar;
+			}
+		} else {
+			// Update last login and profile photo if needed
+			const updateData: { lastLoginAt: Date; profilePhoto?: string } = {
+				lastLoginAt: new Date(),
+			};
+
+			// If we have avatar from Google and user doesn't have profilePhoto, update it
+			if (avatar && !user.profilePhoto) {
+				updateData.profilePhoto = avatar;
+			}
+
+			await this.prisma.user.update({
+				where: { id: user.id },
+				data: updateData,
+			});
 		}
-
-		await this.prisma.user.update({
-			where: { id: user.id },
-			data: updateData,
-		});
 
 		// Generate JWT tokens
 		const payload: JwtPayload = {
@@ -138,6 +181,7 @@ export class AuthService {
 				role: user.role,
 				status: user.status,
 				avatar,
+				externalId: user.externalId || '', // Add externalId
 			},
 		};
 	}
@@ -284,6 +328,7 @@ export class AuthService {
 				role: user.role,
 				status: user.status,
 				avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
+				externalId: user.externalId || '', // Add externalId
 			},
 		};
 	}
@@ -354,6 +399,7 @@ export class AuthService {
 				role: user.role,
 				status: user.status,
 				avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
+				externalId: user.externalId || '', // Add externalId
 			},
 		};
 	}
