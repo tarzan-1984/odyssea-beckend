@@ -103,7 +103,7 @@ export class AuthService {
 
 		// Check if user is inactive and has no password - generate temporary password
 		if (user.status === UserStatus.INACTIVE && !user.password) {
-			const temporaryPassword = this.generateTemporaryPassword();
+			const temporaryPassword = generateRandomPassword(8);
 			const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
 
 			// Prepare update data
@@ -130,9 +130,10 @@ export class AuthService {
 			});
 
 			// Send temporary password via email
-			await this.mailerService.sendTemporaryPassword(
+			await this.mailerService.sendTextEmail(
 				user.email,
-				temporaryPassword,
+				'Your Temporary Password',
+				`Your temporary password is: ${temporaryPassword}\n\nPlease use this password to complete your login and change it in your profile settings.`,
 			);
 
 			// Update local user object to reflect changes
