@@ -101,6 +101,13 @@ export class AuthService {
 			);
 		}
 
+		// Check if user has permission to access the system
+		if (user.role.toLowerCase() === 'driver') {
+			throw new UnauthorizedException(
+				'You do not have permission to access this system. Users with your role cannot log in.',
+			);
+		}
+
 		// Check if user is inactive and has no password - generate temporary password
 		if (user.status === UserStatus.INACTIVE && !user.password) {
 			const temporaryPassword = generateRandomPassword(8);

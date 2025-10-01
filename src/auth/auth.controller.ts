@@ -264,18 +264,6 @@ export class AuthController {
 
 			const result = await this.authService.handleGoogleCallback(code);
 
-			// Check if user has permission to access the system
-			if (result.user.role.toLowerCase() === 'driver') {
-				const errorMessage =
-					'You do not have permission to access this system. Users with your role cannot log in.';
-				return res.redirect(
-					formatUrl(
-						frontendUrl,
-						`signin?error=${encodeURIComponent(errorMessage)}`,
-					),
-				);
-			}
-
 			const payloadToEncrypt = {
 				accessToken: result.accessToken,
 				refreshToken: result.refreshToken,
@@ -302,7 +290,9 @@ export class AuthController {
 					`auth-success?payload=${encodeURIComponent(encryptedPayload)}`,
 				),
 			);
-		} catch {
+		} catch (error) {
+			console.error('Google OAuth error:', error);
+
 			// Extract frontendUrl from state parameter for error redirect as well
 			let frontendUrl =
 				this.configService.get('app.frontendUrl') ||
@@ -324,7 +314,11 @@ export class AuthController {
 				}
 			}
 
-			const errorMessage = 'You are not registered in the system';
+			// For all errors, redirect to signin with error message
+			const errorMessage = error instanceof UnauthorizedException 
+				? error.message 
+				: 'You are not registered in the system';
+			
 			return res.redirect(
 				formatUrl(
 					frontendUrl,
