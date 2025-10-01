@@ -42,6 +42,8 @@ export interface AuthResponse {
 		status: UserStatus;
 		avatar: string;
 		externalId: string;
+		phone: string;
+		location: string;
 	};
 }
 
@@ -337,6 +339,8 @@ export class AuthService {
 				status: user.status,
 				avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
 				externalId: user.externalId || '', // Add externalId
+				phone: user.phone || '', // Add phone
+				location: user.location || '', // Add location
 			},
 		};
 	}
@@ -408,6 +412,8 @@ export class AuthService {
 				status: user.status,
 				avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
 				externalId: user.externalId || '', // Add externalId
+				phone: user.phone || '', // Add phone
+				location: user.location || '', // Add location
 			},
 		};
 	}
