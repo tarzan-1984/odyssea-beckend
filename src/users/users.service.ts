@@ -11,8 +11,6 @@ import {
 	WebhookSyncDto,
 	WebhookType,
 	WebhookRole,
-	DriverData,
-	UserData,
 } from './dto/webhook-sync.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 
@@ -48,7 +46,13 @@ export class UsersService {
 				{ firstName: { contains: search, mode: 'insensitive' } },
 				{ lastName: { contains: search, mode: 'insensitive' } },
 				{ email: { contains: search, mode: 'insensitive' } },
-				{ phone: { contains: search, mode: 'insensitive' } },
+				{
+					phone: {
+						not: null,
+						contains: search,
+						mode: 'insensitive',
+					},
+				},
 			];
 		}
 
@@ -280,22 +284,11 @@ export class UsersService {
 	 * Handles add, update, and delete operations for drivers and employees
 	 */
 	async processWebhookSync(webhookData: WebhookSyncDto) {
-		const { type, role, driver_data, user_data, driver_id, user_id } =
-			webhookData;
-
 		try {
-			if (role === WebhookRole.DRIVER) {
-				return await this.processDriverWebhook(
-					type,
-					driver_data,
-					driver_id,
-				);
+			if (webhookData?.role === WebhookRole.DRIVER) {
+				return await this.processDriverWebhook(webhookData);
 			} else {
-				return await this.processEmployeeWebhook(
-					type,
-					user_data,
-					user_id,
-				);
+				return await this.processEmployeeWebhook(webhookData);
 			}
 		} catch (error) {
 			const errorMessage =
@@ -309,20 +302,18 @@ export class UsersService {
 	/**
 	 * Processes driver webhook data
 	 */
-	private async processDriverWebhook(
-		type: WebhookType,
-		driverData?: DriverData,
-		driverId?: string,
-	) {
+	private async processDriverWebhook(webhookData: WebhookSyncDto) {
+		const { type, driver_data, driver_id } = webhookData;
+
 		if (type === WebhookType.DELETE) {
-			if (!driverId) {
+			if (!driver_id) {
 				throw new BadRequestException(
 					'Driver ID is required for delete operation',
 				);
 			}
 
 			const user = await this.prisma.user.findFirst({
-				where: { externalId: driverId },
+				where: { externalId: driver_id },
 			});
 
 			if (!user) {
@@ -335,24 +326,26 @@ export class UsersService {
 
 			return {
 				action: 'deleted',
-				externalId: driverId,
+				externalId: driver_id,
 				message: 'Driver deleted successfully',
 			};
 		}
 
-		if (!driverData) {
+		if (!driver_data) {
 			throw new BadRequestException(
 				'Driver data is required for add/update operations',
 			);
 		}
 
 		const {
-			driver_id,
+			driver_id: driverId,
 			driver_name,
 			driver_email,
 			driver_phone,
 			home_location,
-		} = driverData;
+			vehicle_type,
+			vin,
+		} = driver_data;
 
 		// Parse driver name
 		const nameParts = driver_name?.split(' ') || [];
@@ -363,20 +356,23 @@ export class UsersService {
 		const mappedRole = UserRole.DRIVER;
 
 		const userData = {
-			externalId: driver_id,
+			externalId: driverId,
 			email: driver_email,
 			firstName,
 			lastName,
 			phone: driver_phone,
 			location: home_location,
 			role: mappedRole,
+			vin,
+			type: vehicle_type,
+			password: undefined, // Will be set when user first logs in
 		};
 
 		if (type === WebhookType.ADD) {
 			// Check if user already exists
 			const existingUser = await this.prisma.user.findFirst({
 				where: {
-					OR: [{ externalId: driver_id }, { email: driver_email }],
+					OR: [{ externalId: driverId }, { email: driver_email }],
 				},
 			});
 
@@ -385,10 +381,8 @@ export class UsersService {
 			}
 
 			const newUser = await this.prisma.user.create({
-				data: {
-					...userData,
-					password: '', // Will be set when user first logs in
-				},
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+				data: userData as any,
 				select: {
 					id: true,
 					externalId: true,
@@ -415,7 +409,7 @@ export class UsersService {
 		} else if (type === WebhookType.UPDATE) {
 			// Find user by externalId
 			const existingUser = await this.prisma.user.findFirst({
-				where: { externalId: driver_id },
+				where: { externalId: driverId },
 			});
 
 			if (!existingUser) {
@@ -424,7 +418,8 @@ export class UsersService {
 
 			const updatedUser = await this.prisma.user.update({
 				where: { id: existingUser.id },
-				data: userData,
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+				data: userData as any,
 				select: {
 					id: true,
 					externalId: true,
@@ -454,20 +449,18 @@ export class UsersService {
 	/**
 	 * Processes employee webhook data
 	 */
-	private async processEmployeeWebhook(
-		type: WebhookType,
-		userData?: UserData,
-		userId?: number,
-	) {
+	private async processEmployeeWebhook(webhookData: WebhookSyncDto) {
+		const { type, user_data, user_id } = webhookData;
+
 		if (type === WebhookType.DELETE) {
-			if (!userId) {
+			if (!user_id) {
 				throw new BadRequestException(
 					'User ID is required for delete operation',
 				);
 			}
 
 			const user = await this.prisma.user.findFirst({
-				where: { externalId: userId.toString() },
+				where: { externalId: user_id.toString() },
 			});
 
 			if (!user) {
@@ -480,38 +473,19 @@ export class UsersService {
 
 			return {
 				action: 'deleted',
-				externalId: userId.toString(),
+				externalId: user_id.toString(),
 				message: 'Employee deleted successfully',
 			};
 		}
 
-		if (!userData) {
+		if (!user_data) {
 			throw new BadRequestException(
 				'User data is required for add/update operations',
 			);
 		}
 
 		const { id, user_email, first_name, last_name, roles, acf_fields } =
-			userData;
-
-		// Map TMS roles to our UserRole
-		let mappedRole: UserRole = UserRole.DRIVER; // Default
-		if (roles && Array.isArray(roles) && roles.length > 0) {
-			const role = String(roles[0]).toLowerCase();
-			switch (role) {
-				case 'dispatcher':
-					mappedRole = UserRole.DISPATCHER;
-					break;
-				case 'admin':
-					mappedRole = UserRole.ADMINISTRATOR;
-					break;
-				case 'manager':
-					mappedRole = UserRole.EXPEDITE_MANAGER;
-					break;
-				default:
-					mappedRole = UserRole.DRIVER;
-			}
-		}
+			user_data;
 
 		// Determine user status based on deactivate_account flag
 		const userStatus =
@@ -526,9 +500,10 @@ export class UsersService {
 			lastName: last_name,
 			phone: acf_fields?.phone_number || undefined,
 			location: acf_fields?.work_location || undefined,
-			role: mappedRole,
+			role: String(roles[0]).toUpperCase(),
 			status: userStatus,
 			deactivateAccount: acf_fields?.deactivate_account || false,
+			password: undefined, // Will be set when user first logs in
 		};
 
 		if (type === WebhookType.ADD) {
@@ -544,10 +519,8 @@ export class UsersService {
 			}
 
 			const newUser = await this.prisma.user.create({
-				data: {
-					...employeeData,
-					password: '', // Will be set when user first logs in
-				},
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+				data: employeeData as any,
 				select: {
 					id: true,
 					externalId: true,
@@ -584,7 +557,8 @@ export class UsersService {
 
 			const updatedUser = await this.prisma.user.update({
 				where: { id: existingUser.id },
-				data: employeeData,
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+				data: employeeData as any,
 				select: {
 					id: true,
 					externalId: true,

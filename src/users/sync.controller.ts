@@ -98,6 +98,7 @@ export class SyncController {
 		description: 'Unauthorized - invalid API key',
 	})
 	async processWebhook(@Body() webhookData: WebhookSyncDto) {
+		console.log('webhookData', webhookData);
 		return this.usersService.processWebhookSync(webhookData);
 	}
 }
