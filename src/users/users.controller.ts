@@ -249,7 +249,7 @@ export class UsersController {
 	@ApiQuery({
 		name: 'search',
 		required: false,
-		description: 'Search users by name or email',
+		description: 'Search users by first name, last name, email, or phone',
 		type: String,
 		example: 'john'
 	})

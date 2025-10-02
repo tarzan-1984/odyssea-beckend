@@ -45,8 +45,10 @@ export class UsersService {
 
 		if (search) {
 			where.OR = [
+				{ firstName: { contains: search, mode: 'insensitive' } },
 				{ lastName: { contains: search, mode: 'insensitive' } },
 				{ email: { contains: search, mode: 'insensitive' } },
+				{ phone: { contains: search, mode: 'insensitive' } },
 			];
 		}
 
@@ -288,14 +290,12 @@ export class UsersService {
 					driver_data,
 					driver_id,
 				);
-			} else if (role === WebhookRole.EMPLOYEE) {
+			} else {
 				return await this.processEmployeeWebhook(
 					type,
 					user_data,
 					user_id,
 				);
-			} else {
-				throw new BadRequestException('Invalid role specified');
 			}
 		} catch (error) {
 			const errorMessage =
