@@ -18,7 +18,7 @@ export class ChatRoomsService {
 		createChatRoomDto: CreateChatRoomDto,
 		creatorId: string,
 	) {
-		const { name, type, loadId, participantIds } = createChatRoomDto;
+		const { name, type, loadId, avatar, participantIds } = createChatRoomDto;
 
 		// Validate that creator is included in participants
 		if (!participantIds.includes(creatorId)) {
@@ -52,6 +52,7 @@ export class ChatRoomsService {
 					name: defaultName,
 					type,
 					loadId,
+					avatar,
 				},
 			});
 

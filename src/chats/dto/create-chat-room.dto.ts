@@ -30,6 +30,15 @@ export class CreateChatRoomDto {
 	loadId?: string;
 
 	@ApiProperty({
+		description: 'Avatar URL for the chat room',
+		example: 'https://example.com/avatar.jpg',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	avatar?: string;
+
+	@ApiProperty({
 		description: 'Array of user IDs to add to the chat room',
 		example: ['user1', 'user2'],
 		type: [String],

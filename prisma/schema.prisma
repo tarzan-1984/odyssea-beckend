@@ -105,6 +105,7 @@ model ChatRoom {
   name         String?
   type         String
   loadId       String?
+  avatar       String?
   isArchived   Boolean               @default(false)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
