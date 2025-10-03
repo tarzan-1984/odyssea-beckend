@@ -386,14 +386,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				id: string;
 				firstName: string;
 				lastName: string;
-				profilePhoto?: string | null;
+				avatar?: string | null;
 				role: string;
 			};
 			receiver?: {
 				id: string;
 				firstName: string;
 				lastName: string;
-				profilePhoto?: string | null;
+				avatar?: string | null;
 				role: string;
 			} | null;
 		},
