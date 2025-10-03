@@ -184,6 +184,7 @@ export class ChatRoomsService {
 								id: true,
 								firstName: true,
 								lastName: true,
+								profilePhoto: true,
 							},
 						},
 					},
