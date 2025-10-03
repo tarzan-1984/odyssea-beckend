@@ -62,7 +62,7 @@ export class MessagesService {
 						id: true,
 						firstName: true,
 						lastName: true,
-						avatar: true,
+						profilePhoto: true,
 						role: true,
 					},
 				},
@@ -71,7 +71,7 @@ export class MessagesService {
 						id: true,
 						firstName: true,
 						lastName: true,
-						avatar: true,
+						profilePhoto: true,
 						role: true,
 					},
 				},
@@ -84,7 +84,24 @@ export class MessagesService {
 			data: { updatedAt: new Date() },
 		});
 
-		return message;
+		// Transform profilePhoto to avatar for frontend compatibility
+		const transformedMessage = {
+			...message,
+			sender: {
+				...message.sender,
+				avatar: message.sender.profilePhoto,
+				profilePhoto: undefined,
+			},
+			receiver: message.receiver
+				? {
+						...message.receiver,
+						avatar: message.receiver.profilePhoto,
+						profilePhoto: undefined,
+					}
+				: undefined,
+		};
+
+		return transformedMessage;
 	}
 
 	/**
@@ -143,7 +160,7 @@ export class MessagesService {
 						id: true,
 						firstName: true,
 						lastName: true,
-						avatar: true,
+						profilePhoto: true,
 						role: true,
 					},
 				},
@@ -152,7 +169,7 @@ export class MessagesService {
 						id: true,
 						firstName: true,
 						lastName: true,
-						avatar: true,
+						profilePhoto: true,
 						role: true,
 					},
 				},
@@ -162,8 +179,25 @@ export class MessagesService {
 		// Mark messages as read for the current user
 		await this.markMessagesAsRead(chatRoomId, userId);
 
+		// Transform profilePhoto to avatar for frontend compatibility
+		const transformedMessages = messages.map((message) => ({
+			...message,
+			sender: {
+				...message.sender,
+				avatar: message.sender.profilePhoto,
+				profilePhoto: undefined,
+			},
+			receiver: message.receiver
+				? {
+						...message.receiver,
+						avatar: message.receiver.profilePhoto,
+						profilePhoto: undefined,
+					}
+				: undefined,
+		}));
+
 		return {
-			messages: messages,
+			messages: transformedMessages,
 			pagination: {
 				page,
 				limit,
@@ -280,7 +314,7 @@ export class MessagesService {
 							id: true,
 							firstName: true,
 							lastName: true,
-							avatar: true,
+							profilePhoto: true,
 							role: true,
 						},
 					},

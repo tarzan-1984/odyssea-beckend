@@ -73,6 +73,37 @@ npm run test:watch
 npm run test:cov
 ```
 
+## Функциональность
+
+### Система аутентификации
+
+- **Двухэтапная аутентификация**: Email + OTP код
+- **Google OAuth**: Социальная аутентификация
+- **Временные пароли**: Автоматическая генерация для неактивных пользователей
+- **JWT токены**: Access и refresh токены
+- **Сброс пароля**: Безопасный сброс через email
+
+### Чат-система
+
+- **Real-time сообщения**: WebSocket соединения
+- **Типы чатов**: DIRECT, GROUP, LOAD
+- **Файловые вложения**: Поддержка файлов в сообщениях
+- **Отслеживание прочтения**: Система статусов сообщений
+- **Трансформация данных**: Автоматическое переименование полей для совместимости
+
+### Управление пользователями
+
+- **Ролевая модель**: 16 различных ролей пользователей
+- **Импорт данных**: Автоматический импорт из внешних систем
+- **Аватары пользователей**: Поддержка загрузки и отображения аватаров
+- **Статусы аккаунтов**: ACTIVE, INACTIVE, SUSPENDED, PENDING
+
+### Система уведомлений
+
+- **Email уведомления**: OTP коды, сброс паролей
+- **Внутренние уведомления**: Система уведомлений в приложении
+- **WebSocket уведомления**: Real-time уведомления
+
 ## Git Hooks (Husky)
 
 Проект настроен с использованием Husky для автоматического запуска проверок при коммитах и push.
@@ -310,6 +341,7 @@ POST /v1/auth/verify-otp
 **Описание:** Возвращает список пользователей с пагинацией, фильтрацией и сортировкой.
 
 **Параметры запроса:**
+
 - `page` (number, optional) - Номер страницы (по умолчанию: 1)
 - `limit` (number, optional) - Количество элементов на странице (по умолчанию: 10)
 - `role` (string, optional) - Фильтр по роли пользователя
@@ -318,45 +350,48 @@ POST /v1/auth/verify-otp
 - `sort` (string, optional) - Сортировка в формате JSON
 
 **Пример запроса:**
+
 ```bash
 GET /v1/users?page=1&limit=10&role=ADMINISTRATOR&search=john&sort={"firstName":"asc"}
 ```
 
 **Ответ:**
+
 ```json
 {
-  "users": [
-    {
-      "id": "clx1234567890",
-      "externalId": "12345",
-      "firstName": "John",
-      "lastName": "Doe",
-      "email": "john.doe@example.com",
-      "phone": "+1234567890",
-      "location": "New York, NY",
-      "type": "Truck",
-      "vin": "1HGBH41JXMN109186",
-      "avatar": "https://example.com/photo.jpg",
-      "role": "DRIVER",
-      "status": "ACTIVE",
-      "createdAt": "2025-01-27T10:00:00.000Z",
-      "updatedAt": "2025-01-27T10:00:00.000Z"
-    }
-  ],
-  "pagination": {
-    "current_page": 1,
-    "per_page": 10,
-    "total_count": 100,
-    "total_pages": 10,
-    "has_next_page": true,
-    "has_prev_page": false
-  },
-  "timestamp": "2025-01-27T10:00:00.000Z",
-  "path": "/v1/users"
+	"users": [
+		{
+			"id": "clx1234567890",
+			"externalId": "12345",
+			"firstName": "John",
+			"lastName": "Doe",
+			"email": "john.doe@example.com",
+			"phone": "+1234567890",
+			"location": "New York, NY",
+			"type": "Truck",
+			"vin": "1HGBH41JXMN109186",
+			"avatar": "https://example.com/photo.jpg",
+			"role": "DRIVER",
+			"status": "ACTIVE",
+			"createdAt": "2025-01-27T10:00:00.000Z",
+			"updatedAt": "2025-01-27T10:00:00.000Z"
+		}
+	],
+	"pagination": {
+		"current_page": 1,
+		"per_page": 10,
+		"total_count": 100,
+		"total_pages": 10,
+		"has_next_page": true,
+		"has_prev_page": false
+	},
+	"timestamp": "2025-01-27T10:00:00.000Z",
+	"path": "/v1/users"
 }
 ```
 
 **Поля пользователя:**
+
 - `id` - Уникальный идентификатор пользователя
 - `externalId` - ID из внешней системы (для импортированных пользователей)
 - `firstName` - Имя пользователя
@@ -373,6 +408,7 @@ GET /v1/users?page=1&limit=10&role=ADMINISTRATOR&search=john&sort={"firstName":"
 - `updatedAt` - Дата последнего обновления
 
 **Информация о пагинации:**
+
 - `current_page` - Текущая страница
 - `per_page` - Количество элементов на странице
 - `total_count` - Общее количество пользователей
@@ -389,6 +425,7 @@ GET /v1/users?page=1&limit=10&role=ADMINISTRATOR&search=john&sort={"firstName":"
 **URL:** `https://www.endurance-tms.com/wp-json/tms/v1/drivers`
 
 **Заголовки:**
+
 - `X-API-Key: tms_api_key_2024_driver_access`
 
 #### Эндпоинты импорта
@@ -408,16 +445,16 @@ GET /v1/users?page=1&limit=10&role=ADMINISTRATOR&search=john&sort={"firstName":"
 
 #### Маппинг полей
 
-| Поле внешнего API | Поле в базе данных | Описание |
-|-------------------|-------------------|----------|
-| `id` | `externalId` | Уникальный ID водителя из внешней системы |
-| `role` | `role` | Роль пользователя |
-| `driver_name` | `firstName`, `lastName` | Имя и фамилия (разделяются по пробелу) |
-| `driver_email` | `email` | Email адрес |
-| `driver_phone` | `phone` | Номер телефона |
-| `home_location` | `location` | Местоположение |
-| `type` | `type` | Тип транспортного средства |
-| `vin` | `vin` | VIN номер транспортного средства |
+| Поле внешнего API | Поле в базе данных      | Описание                                  |
+| ----------------- | ----------------------- | ----------------------------------------- |
+| `id`              | `externalId`            | Уникальный ID водителя из внешней системы |
+| `role`            | `role`                  | Роль пользователя                         |
+| `driver_name`     | `firstName`, `lastName` | Имя и фамилия (разделяются по пробелу)    |
+| `driver_email`    | `email`                 | Email адрес                               |
+| `driver_phone`    | `phone`                 | Номер телефона                            |
+| `home_location`   | `location`              | Местоположение                            |
+| `type`            | `type`                  | Тип транспортного средства                |
+| `vin`             | `vin`                   | VIN номер транспортного средства          |
 
 #### Примеры запросов
 
@@ -436,8 +473,8 @@ POST /v1/users/import-drivers
 
 ```json
 {
-  "jobId": "import-1695998400000",
-  "message": "Background import process started. Job ID: import-1695998400000. Check status at /v1/users/import-status/import-1695998400000"
+	"jobId": "import-1695998400000",
+	"message": "Background import process started. Job ID: import-1695998400000. Check status at /v1/users/import-status/import-1695998400000"
 }
 ```
 
@@ -451,15 +488,15 @@ GET /v1/users/import-status/import-1695998400000
 
 ```json
 {
-  "status": "processing",
-  "progress": 45.5,
-  "processedPages": 15,
-  "totalImported": 450,
-  "totalUpdated": 25,
-  "totalSkipped": 8,
-  "duplicateEmails": [3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110],
-  "isComplete": false,
-  "startTime": "2025-09-29T15:00:00.000Z"
+	"status": "processing",
+	"progress": 45.5,
+	"processedPages": 15,
+	"totalImported": 450,
+	"totalUpdated": 25,
+	"totalSkipped": 8,
+	"duplicateEmails": [3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110],
+	"isComplete": false,
+	"startTime": "2025-09-29T15:00:00.000Z"
 }
 ```
 
@@ -467,16 +504,19 @@ GET /v1/users/import-status/import-1695998400000
 
 ```json
 {
-  "status": "completed",
-  "progress": 100,
-  "processedPages": 38,
-  "totalImported": 1115,
-  "totalUpdated": 0,
-  "totalSkipped": 15,
-  "duplicateEmails": [3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110, 3111, 3112, 3113, 3114, 3115, 3116, 3117],
-  "isComplete": true,
-  "startTime": "2025-09-29T15:00:00.000Z",
-  "endTime": "2025-09-29T15:05:30.000Z"
+	"status": "completed",
+	"progress": 100,
+	"processedPages": 38,
+	"totalImported": 1115,
+	"totalUpdated": 0,
+	"totalSkipped": 15,
+	"duplicateEmails": [
+		3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110, 3111, 3112, 3113, 3114,
+		3115, 3116, 3117
+	],
+	"isComplete": true,
+	"startTime": "2025-09-29T15:00:00.000Z",
+	"endTime": "2025-09-29T15:05:30.000Z"
 }
 ```
 
@@ -511,40 +551,41 @@ GET /v1/users/import-status/import-1695998400000
 **URL:** `https://www.endurance-tms.com/wp-json/tms/v1/users`
 
 **Заголовки:**
+
 - `X-API-Key: tms_api_key_2024_driver_access`
 
 #### Маппинг полей
 
-| Поле внешнего API | Поле в базе данных | Описание |
-|-------------------|-------------------|----------|
-| `id` | `externalId` | Уникальный ID пользователя из внешней системы |
-| `user_email` | `email` | Email адрес |
-| `first_name` | `firstName` | Имя пользователя |
-| `last_name` | `lastName` | Фамилия пользователя |
-| `roles` | `role` | Роль пользователя (маппинг см. ниже) |
-| `acf_fields.phone_number` | `phone` | Номер телефона |
-| `acf_fields.work_location` | `location` | Местоположение работы |
+| Поле внешнего API          | Поле в базе данных | Описание                                      |
+| -------------------------- | ------------------ | --------------------------------------------- |
+| `id`                       | `externalId`       | Уникальный ID пользователя из внешней системы |
+| `user_email`               | `email`            | Email адрес                                   |
+| `first_name`               | `firstName`        | Имя пользователя                              |
+| `last_name`                | `lastName`         | Фамилия пользователя                          |
+| `roles`                    | `role`             | Роль пользователя (маппинг см. ниже)          |
+| `acf_fields.phone_number`  | `phone`            | Номер телефона                                |
+| `acf_fields.work_location` | `location`         | Местоположение работы                         |
 
 #### Маппинг ролей
 
-| Внешняя роль | Внутренняя роль | Описание |
-|--------------|-----------------|----------|
-| `administrator` | `ADMINISTRATOR` | Администратор |
-| `moderator` | `MODERATOR` | Модератор |
-| `dispatcher` | `DISPATCHER` | Диспетчер |
-| `dispatcher-tl` | `DISPATCHER_TL` | Диспетчер-тил-лидер |
-| `recruiter` | `RECRUITER` | Рекрутер |
-| `recruiter-tl` | `RECRUITER_TL` | Рекрутер-тил-лидер |
-| `driver` | `DRIVER` | Водитель |
-| `driver_updates` | `DRIVER_UPDATES` | Обновления водителей |
-| `tracking` | `TRACKING` | Отслеживание |
-| `tracking-tl` | `TRACKING_TL` | Отслеживание-тил-лидер |
-| `morning_tracking` | `MORNING_TRACKING` | Утреннее отслеживание |
-| `nightshift_tracking` | `NIGHTSHIFT_TRACKING` | Ночное отслеживание |
-| `expedite_manager` | `EXPEDITE_MANAGER` | Менеджер экспресс-доставки |
-| `accounting` | `ACCOUNTING` | Бухгалтер |
-| `billing` | `BILLING` | Биллинг |
-| `subscriber` | `SUBSCRIBER` | Подписчик |
+| Внешняя роль          | Внутренняя роль       | Описание                   |
+| --------------------- | --------------------- | -------------------------- |
+| `administrator`       | `ADMINISTRATOR`       | Администратор              |
+| `moderator`           | `MODERATOR`           | Модератор                  |
+| `dispatcher`          | `DISPATCHER`          | Диспетчер                  |
+| `dispatcher-tl`       | `DISPATCHER_TL`       | Диспетчер-тил-лидер        |
+| `recruiter`           | `RECRUITER`           | Рекрутер                   |
+| `recruiter-tl`        | `RECRUITER_TL`        | Рекрутер-тил-лидер         |
+| `driver`              | `DRIVER`              | Водитель                   |
+| `driver_updates`      | `DRIVER_UPDATES`      | Обновления водителей       |
+| `tracking`            | `TRACKING`            | Отслеживание               |
+| `tracking-tl`         | `TRACKING_TL`         | Отслеживание-тил-лидер     |
+| `morning_tracking`    | `MORNING_TRACKING`    | Утреннее отслеживание      |
+| `nightshift_tracking` | `NIGHTSHIFT_TRACKING` | Ночное отслеживание        |
+| `expedite_manager`    | `EXPEDITE_MANAGER`    | Менеджер экспресс-доставки |
+| `accounting`          | `ACCOUNTING`          | Бухгалтер                  |
+| `billing`             | `BILLING`             | Биллинг                    |
+| `subscriber`          | `SUBSCRIBER`          | Подписчик                  |
 
 #### Примеры запросов
 
@@ -563,8 +604,8 @@ POST /v1/users/import-users
 
 ```json
 {
-  "jobId": "import-users-1695998400000",
-  "message": "Background import process started. Job ID: import-users-1695998400000. Check status at /v1/users/import-users-status/import-users-1695998400000"
+	"jobId": "import-users-1695998400000",
+	"message": "Background import process started. Job ID: import-users-1695998400000. Check status at /v1/users/import-users-status/import-users-1695998400000"
 }
 ```
 
@@ -578,15 +619,15 @@ GET /v1/users/import-users-status/import-users-1695998400000
 
 ```json
 {
-  "status": "processing",
-  "progress": 50.0,
-  "processedPages": 1,
-  "totalImported": 25,
-  "totalUpdated": 3,
-  "totalSkipped": 2,
-  "duplicateEmails": [82, 14],
-  "isComplete": false,
-  "startTime": "2025-09-29T15:00:00.000Z"
+	"status": "processing",
+	"progress": 50.0,
+	"processedPages": 1,
+	"totalImported": 25,
+	"totalUpdated": 3,
+	"totalSkipped": 2,
+	"duplicateEmails": [82, 14],
+	"isComplete": false,
+	"startTime": "2025-09-29T15:00:00.000Z"
 }
 ```
 
@@ -594,16 +635,16 @@ GET /v1/users/import-users-status/import-users-1695998400000
 
 ```json
 {
-  "status": "completed",
-  "progress": 100,
-  "processedPages": 2,
-  "totalImported": 56,
-  "totalUpdated": 0,
-  "totalSkipped": 0,
-  "duplicateEmails": [],
-  "isComplete": true,
-  "startTime": "2025-09-29T15:00:00.000Z",
-  "endTime": "2025-09-29T15:02:15.000Z"
+	"status": "completed",
+	"progress": 100,
+	"processedPages": 2,
+	"totalImported": 56,
+	"totalUpdated": 0,
+	"totalSkipped": 0,
+	"duplicateEmails": [],
+	"isComplete": true,
+	"startTime": "2025-09-29T15:00:00.000Z",
+	"endTime": "2025-09-29T15:02:15.000Z"
 }
 ```
 

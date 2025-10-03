@@ -79,7 +79,7 @@ export class ChatRoomsService {
 									firstName: true,
 									lastName: true,
 									role: true,
-									avatar: true,
+									profilePhoto: true,
 								},
 							},
 						},
@@ -119,7 +119,7 @@ export class ChatRoomsService {
 								firstName: true,
 								lastName: true,
 								role: true,
-								avatar: true,
+								profilePhoto: true,
 							},
 						},
 					},
@@ -168,7 +168,7 @@ export class ChatRoomsService {
 								firstName: true,
 								lastName: true,
 								role: true,
-								avatar: true,
+								profilePhoto: true,
 							},
 						},
 					},
@@ -208,7 +208,24 @@ export class ChatRoomsService {
 
 		return chatRooms.map((room) => ({
 			...room,
-			lastMessage: room.messages[0] || null,
+			participants: room.participants.map((participant) => ({
+				...participant,
+				user: {
+					...participant.user,
+					avatar: participant.user.profilePhoto,
+					profilePhoto: undefined,
+				},
+			})),
+			lastMessage: room.messages[0]
+				? {
+						...room.messages[0],
+						sender: {
+							...room.messages[0].sender,
+							avatar: room.messages[0].sender.profilePhoto,
+							profilePhoto: undefined,
+						},
+					}
+				: null,
 			unreadCount: room._count.messages,
 		}));
 	}
@@ -242,7 +259,7 @@ export class ChatRoomsService {
 								firstName: true,
 								lastName: true,
 								role: true,
-								avatar: true,
+								profilePhoto: true,
 							},
 						},
 					},
@@ -257,7 +274,7 @@ export class ChatRoomsService {
 								id: true,
 								firstName: true,
 								lastName: true,
-								avatar: true,
+								profilePhoto: true,
 							},
 						},
 					},
@@ -333,7 +350,7 @@ export class ChatRoomsService {
 								firstName: true,
 								lastName: true,
 								role: true,
-								avatar: true,
+								profilePhoto: true,
 							},
 						},
 					},
@@ -381,7 +398,7 @@ export class ChatRoomsService {
 								firstName: true,
 								lastName: true,
 								role: true,
-								avatar: true,
+								profilePhoto: true,
 							},
 						},
 					},
@@ -453,7 +470,7 @@ export class ChatRoomsService {
 						firstName: true,
 						lastName: true,
 						role: true,
-						avatar: true,
+						profilePhoto: true,
 					},
 				},
 			},
