@@ -10,6 +10,7 @@ import {
 	Request,
 	HttpCode,
 	HttpStatus,
+	Inject,
 } from '@nestjs/common';
 import {
 	ApiTags,
@@ -23,13 +24,17 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ChatRoomsService } from './chat-rooms.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { AuthenticatedRequest } from '../types/request.types';
+import { ChatGateway } from './chat.gateway';
 
 @ApiTags('Chat Rooms')
 @Controller('chat-rooms')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ChatRoomsController {
-	constructor(private readonly chatRoomsService: ChatRoomsService) {}
+	constructor(
+		private readonly chatRoomsService: ChatRoomsService,
+		@Inject(ChatGateway) private readonly chatGateway: ChatGateway,
+	) {}
 
 	@Post()
 	@ApiOperation({
@@ -78,10 +83,15 @@ export class ChatRoomsController {
 		@Request() req: AuthenticatedRequest,
 	) {
 		const userId = req.user.id;
-		return await this.chatRoomsService.createChatRoom(
+		const chatRoom = await this.chatRoomsService.createChatRoom(
 			createChatRoomDto,
 			userId,
 		);
+
+		// Send WebSocket notification to all participants
+		this.chatGateway.notifyChatRoomCreated(chatRoom, createChatRoomDto.participantIds);
+
+		return chatRoom;
 	}
 
 	@Get()

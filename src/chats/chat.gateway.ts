@@ -507,6 +507,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	}
 
 	/**
+	 * Notify all participants about a new chat room created via HTTP API
+	 * This method is called from the HTTP controller to send WebSocket notifications
+	 */
+	notifyChatRoomCreated(chatRoom: any, participantIds: string[]) {
+		// Notify all participants about the new chat room
+		for (const participantId of participantIds) {
+			const participantSocketId = this.userSockets.get(participantId);
+			if (participantSocketId) {
+				void this.server
+					.to(participantSocketId)
+					.emit('chatRoomCreated', chatRoom);
+			}
+		}
+
+		console.log(
+			`Chat room created via HTTP API: ${chatRoom.id}, notified ${participantIds.length} participants`,
+		);
+	}
+
+	/**
 	 * Handle updating chat room through WebSocket
 	 * This provides real-time chat room updates
 	 */

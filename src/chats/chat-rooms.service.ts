@@ -32,6 +32,13 @@ export class ChatRoomsService {
 			);
 		}
 
+		// For group chats, ensure at least 2 participants
+		if (type === 'GROUP' && participantIds.length < 2) {
+			throw new BadRequestException(
+				'Group chats must have at least 2 participants',
+			);
+		}
+
 		// Check if direct chat already exists between these users
 		if (type === 'DIRECT') {
 			const existingDirectChat = await this.findDirectChat(
