@@ -1,7 +1,7 @@
 import {
+	BadRequestException,
 	Injectable,
 	NotFoundException,
-	BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
@@ -18,7 +18,8 @@ export class ChatRoomsService {
 		createChatRoomDto: CreateChatRoomDto,
 		creatorId: string,
 	) {
-		const { name, type, loadId, avatar, participantIds } = createChatRoomDto;
+		const { name, type, loadId, avatar, participantIds } =
+			createChatRoomDto;
 
 		// Validate that creator is included in participants
 		if (!participantIds.includes(creatorId)) {
@@ -51,14 +52,14 @@ export class ChatRoomsService {
 		}
 
 		// Create chat room and participants in a transaction
-		return await this.prisma.$transaction(async (prisma) => {
+		return this.prisma.$transaction(async (prisma) => {
 			const defaultName =
 				name || (await this.generateDefaultName(type, participantIds));
 			const chatRoom = await prisma.chatRoom.create({
 				data: {
 					name: defaultName,
 					type,
-					loadId,
+					loadId: loadId && loadId.trim() !== '' ? loadId : null,
 					avatar,
 				},
 			});
@@ -98,7 +99,7 @@ export class ChatRoomsService {
 	 * Used to prevent creating duplicate direct chats
 	 */
 	private async findDirectChat(userId1: string, userId2: string) {
-		const chatRoom = await this.prisma.chatRoom.findFirst({
+		return this.prisma.chatRoom.findFirst({
 			where: {
 				type: 'DIRECT',
 				participants: {
@@ -125,8 +126,6 @@ export class ChatRoomsService {
 				},
 			},
 		});
-
-		return chatRoom;
 	}
 
 	/**
@@ -320,7 +319,7 @@ export class ChatRoomsService {
 		}
 
 		// Add new participants
-		const newParticipants = await Promise.all(
+		return await Promise.all(
 			participantIds.map((participantId) =>
 				this.prisma.chatRoomParticipant.create({
 					data: {
@@ -341,8 +340,6 @@ export class ChatRoomsService {
 				}),
 			),
 		);
-
-		return newParticipants;
 	}
 
 	/**
@@ -369,7 +366,7 @@ export class ChatRoomsService {
 		}
 
 		// Update chat room
-		const updatedChatRoom = await this.prisma.chatRoom.update({
+		return this.prisma.chatRoom.update({
 			where: { id: chatRoomId },
 			data: {
 				...updates,
@@ -391,8 +388,6 @@ export class ChatRoomsService {
 				},
 			},
 		});
-
-		return updatedChatRoom;
 	}
 
 	/**
@@ -449,7 +444,7 @@ export class ChatRoomsService {
 		}
 
 		// Get all participants
-		const participants = await this.prisma.chatRoomParticipant.findMany({
+		return this.prisma.chatRoomParticipant.findMany({
 			where: { chatRoomId },
 			include: {
 				user: {
@@ -463,7 +458,5 @@ export class ChatRoomsService {
 				},
 			},
 		});
-
-		return participants;
 	}
 }
