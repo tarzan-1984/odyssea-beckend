@@ -61,6 +61,8 @@ export class ChatRoomsService {
 					type,
 					loadId: loadId && loadId.trim() !== '' ? loadId : null,
 					avatar,
+					// for GROUP chats, set creator as admin
+					adminId: type === 'GROUP' ? creatorId : null,
 				},
 			});
 
