@@ -35,12 +35,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 	// Store user socket connections for real-time messaging
 	private userSockets = new Map<string, string>();
+	
+	// Store offline timeouts for users
+	private offlineTimeouts = new Map<string, NodeJS.Timeout>();
 
 	constructor(
 		private messagesService: MessagesService,
 		private chatRoomsService: ChatRoomsService,
 		private jwtService: JwtService,
 	) {}
+
+	/**
+	 * Clean up all timeouts when the service is destroyed
+	 */
+	onModuleDestroy() {
+		// Clear all offline timeouts
+		for (const timeout of this.offlineTimeouts.values()) {
+			clearTimeout(timeout);
+		}
+		this.offlineTimeouts.clear();
+	}
 
 	/**
 	 * Handle client connection
@@ -77,6 +91,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 			// Store socket connection for this user
 			this.userSockets.set(userId, client.id);
+			
+			// Clear any existing offline timeout for this user (user reconnected)
+			const existingTimeout = this.offlineTimeouts.get(userId);
+			if (existingTimeout) {
+				clearTimeout(existingTimeout);
+				this.offlineTimeouts.delete(userId);
+				console.log(`User ${userId} reconnected, cancelled offline timeout`);
+			}
 
 			// Join user to all their chat rooms
 			const chatRooms =
@@ -84,6 +106,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 			for (const room of chatRooms) {
 				void client.join(`chat_${room.id}`);
+				
+				// Notify other participants that user is online (for DIRECT chats)
+				if (room.type === 'DIRECT') {
+					const otherParticipant = room.participants.find(p => p.userId !== userId);
+					if (otherParticipant) {
+						void client.to(`chat_${room.id}`).emit('userOnline', {
+							userId: userId,
+							chatRoomId: room.id,
+							isOnline: true,
+						});
+					}
+				}
 			}
 
 			// Join user to role-based rooms for broadcast messages
@@ -110,13 +144,44 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 	/**
 	 * Handle client disconnection
-	 * Clean up user socket connections
+	 * Clean up user socket connections with delay
 	 */
 	handleDisconnect(client: AuthenticatedSocket) {
 		const userId = client.userId;
 		if (userId) {
-			this.userSockets.delete(userId);
-			console.log(`User ${userId} disconnected from chat gateway`);
+			// Clear any existing offline timeout for this user
+			const existingTimeout = this.offlineTimeouts.get(userId);
+			if (existingTimeout) {
+				clearTimeout(existingTimeout);
+			}
+			
+			// Set a 5-second timeout before marking user as offline
+			const offlineTimeout = setTimeout(() => {
+				this.userSockets.delete(userId);
+				this.offlineTimeouts.delete(userId);
+				console.log(`User ${userId} marked as offline after 5 seconds`);
+				
+				// Notify other participants that user is offline (for DIRECT chats)
+				this.chatRoomsService.getUserChatRooms(userId).then(chatRooms => {
+					for (const room of chatRooms) {
+						if (room.type === 'DIRECT') {
+							const otherParticipant = room.participants.find(p => p.userId !== userId);
+							if (otherParticipant) {
+								void client.to(`chat_${room.id}`).emit('userOnline', {
+									userId: userId,
+									chatRoomId: room.id,
+									isOnline: false,
+								});
+							}
+						}
+					}
+				}).catch(error => {
+					console.error('Error notifying about user offline status:', error);
+				});
+			}, 5000);
+			
+			this.offlineTimeouts.set(userId, offlineTimeout);
+			console.log(`User ${userId} disconnected, will be marked offline in 5 seconds`);
 		}
 	}
 
@@ -205,9 +270,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			return { error: 'Unauthorized' };
 		}
 
-		// Verify user has access to this chat room
+		// Verify user has access to this chat room and get user data
+		let userFirstName = 'Someone';
 		try {
-			await this.chatRoomsService.getChatRoom(chatRoomId, userId);
+			const chatRoom = await this.chatRoomsService.getChatRoom(chatRoomId, userId);
+			// Get user data from participants
+			const userParticipant = chatRoom.participants.find(p => p.userId === userId);
+			if (userParticipant?.user?.firstName) {
+				userFirstName = userParticipant.user.firstName;
+			}
 		} catch {
 			client.emit('error', {
 				message: 'Access denied to this chat room',
@@ -215,11 +286,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			return;
 		}
 
-		// Broadcast typing indicator to other participants
+		// Broadcast typing indicator to other participants with user data
 		void client.to(`chat_${chatRoomId}`).emit('userTyping', {
 			userId,
 			chatRoomId,
 			isTyping,
+			firstName: userFirstName,
 		});
 
 		// If user started typing, set a timeout to automatically stop the indicator
@@ -229,14 +301,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				clearTimeout(client.data.typingTimeout);
 			}
 
-			// Set new timeout to stop typing indicator after 3 seconds
+			// Set new timeout to stop typing indicator after 4 seconds
 			client.data.typingTimeout = setTimeout(() => {
 				void client.to(`chat_${chatRoomId}`).emit('userTyping', {
 					userId,
 					chatRoomId,
 					isTyping: false,
+					firstName: userFirstName,
 				});
-			}, 3000);
+			}, 4000);
 		} else {
 			// User stopped typing, clear the timeout
 			if (client.data.typingTimeout) {
