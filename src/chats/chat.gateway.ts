@@ -97,7 +97,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			if (existingTimeout) {
 				clearTimeout(existingTimeout);
 				this.offlineTimeouts.delete(userId);
-				console.log(`User ${userId} reconnected, cancelled offline timeout`);
 			}
 
 			// Join user to all their chat rooms
@@ -107,12 +106,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			for (const room of chatRooms) {
 				void client.join(`chat_${room.id}`);
 				
-				// Notify other participants that user is online (for DIRECT chats)
-				if (room.type === 'DIRECT') {
-					const otherParticipant = room.participants.find(p => p.userId !== userId);
-					if (otherParticipant) {
-						void client.to(`chat_${room.id}`).emit('userOnline', {
-							userId: userId,
+				// Notify other participants that user is online (for all chat types)
+				const otherParticipants = room.participants.filter(p => p.userId !== userId);
+				for (const participant of otherParticipants) {
+					void client.to(`chat_${room.id}`).emit('userOnline', {
+						userId: userId,
+						chatRoomId: room.id,
+						isOnline: true,
+					});
+				}
+				
+				// Notify the connecting user about who is already online
+				for (const participant of otherParticipants) {
+					if (this.userSockets.has(participant.userId)) {
+						void client.emit('userOnline', {
+							userId: participant.userId,
 							chatRoomId: room.id,
 							isOnline: true,
 						});
@@ -159,20 +167,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			const offlineTimeout = setTimeout(() => {
 				this.userSockets.delete(userId);
 				this.offlineTimeouts.delete(userId);
-				console.log(`User ${userId} marked as offline after 5 seconds`);
 				
-				// Notify other participants that user is offline (for DIRECT chats)
+				// Notify other participants that user is offline (for all chat types)
 				this.chatRoomsService.getUserChatRooms(userId).then(chatRooms => {
 					for (const room of chatRooms) {
-						if (room.type === 'DIRECT') {
-							const otherParticipant = room.participants.find(p => p.userId !== userId);
-							if (otherParticipant) {
-								void client.to(`chat_${room.id}`).emit('userOnline', {
-									userId: userId,
-									chatRoomId: room.id,
-									isOnline: false,
-								});
-							}
+						const otherParticipants = room.participants.filter(p => p.userId !== userId);
+						for (const participant of otherParticipants) {
+							void client.to(`chat_${room.id}`).emit('userOnline', {
+								userId: userId,
+								chatRoomId: room.id,
+								isOnline: false,
+							});
 						}
 					}
 				}).catch(error => {
@@ -181,7 +186,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			}, 5000);
 			
 			this.offlineTimeouts.set(userId, offlineTimeout);
-			console.log(`User ${userId} disconnected, will be marked offline in 5 seconds`);
 		}
 	}
 
