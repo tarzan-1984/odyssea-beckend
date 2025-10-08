@@ -176,8 +176,9 @@ export class MessagesService {
 			},
 		});
 
-		// Mark messages as read for the current user
-		await this.markMessagesAsRead(chatRoomId, userId);
+		// Note: Messages are no longer automatically marked as read when fetching
+		// They will be marked as read via WebSocket when user actually views them
+		// await this.markMessagesAsRead(chatRoomId, userId);
 
 		// Transform profilePhoto to avatar for frontend compatibility
 		const transformedMessages = messages.map((message) => ({
@@ -206,6 +207,37 @@ export class MessagesService {
 				hasMore: skip > 0, // There are more older messages if skip > 0
 			},
 		};
+	}
+
+	/**
+	 * Mark a specific message as read
+	 * This is called when user views a specific message
+	 */
+	async markMessageAsRead(messageId: string, userId: string) {
+		// Get the message to check if it's from a group chat or direct chat
+		const message = await this.prisma.message.findUnique({
+			where: { id: messageId },
+			select: { 
+				id: true, 
+				senderId: true, 
+				receiverId: true, 
+				chatRoomId: true,
+				isRead: true 
+			},
+		});
+
+		if (!message || message.senderId === userId || message.isRead) {
+			return; // Don't mark own messages or already read messages
+		}
+
+		// For direct chats (receiverId is set), check if current user is the receiver
+		// For group chats (receiverId is null), allow any participant to mark as read
+		if (message.receiverId === null || message.receiverId === userId) {
+			await this.prisma.message.update({
+				where: { id: messageId },
+				data: { isRead: true },
+			});
+		}
 	}
 
 	/**

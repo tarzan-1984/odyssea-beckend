@@ -428,8 +428,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			return { error: 'Unauthorized' };
 		}
 
-		// Mark message as read
-		await this.messagesService.markMessagesAsRead(chatRoomId, userId);
+		// Mark specific message as read
+		await this.messagesService.markMessageAsRead(messageId, userId);
 
 		// Notify sender that message was read
 		const message = await this.messagesService.getMessageById(messageId);
