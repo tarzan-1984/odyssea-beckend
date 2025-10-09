@@ -35,7 +35,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 	// Store user socket connections for real-time messaging
 	private userSockets = new Map<string, string>();
-	
+
 	// Store offline timeouts for users
 	private offlineTimeouts = new Map<string, NodeJS.Timeout>();
 
@@ -91,7 +91,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 			// Store socket connection for this user
 			this.userSockets.set(userId, client.id);
-			
+
 			// Clear any existing offline timeout for this user (user reconnected)
 			const existingTimeout = this.offlineTimeouts.get(userId);
 			if (existingTimeout) {
@@ -105,9 +105,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 			for (const room of chatRooms) {
 				void client.join(`chat_${room.id}`);
-				
+
 				// Notify other participants that user is online (for all chat types)
-				const otherParticipants = room.participants.filter(p => p.userId !== userId);
+				const otherParticipants = room.participants.filter(
+					(p) => p.userId !== userId,
+				);
 				for (const participant of otherParticipants) {
 					void client.to(`chat_${room.id}`).emit('userOnline', {
 						userId: userId,
@@ -115,7 +117,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 						isOnline: true,
 					});
 				}
-				
+
 				// Notify the connecting user about who is already online
 				for (const participant of otherParticipants) {
 					if (this.userSockets.has(participant.userId)) {
@@ -162,29 +164,39 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			if (existingTimeout) {
 				clearTimeout(existingTimeout);
 			}
-			
+
 			// Set a 5-second timeout before marking user as offline
 			const offlineTimeout = setTimeout(() => {
 				this.userSockets.delete(userId);
 				this.offlineTimeouts.delete(userId);
-				
+
 				// Notify other participants that user is offline (for all chat types)
-				this.chatRoomsService.getUserChatRooms(userId).then(chatRooms => {
-					for (const room of chatRooms) {
-						const otherParticipants = room.participants.filter(p => p.userId !== userId);
-						for (const participant of otherParticipants) {
-							void client.to(`chat_${room.id}`).emit('userOnline', {
-								userId: userId,
-								chatRoomId: room.id,
-								isOnline: false,
-							});
+				this.chatRoomsService
+					.getUserChatRooms(userId)
+					.then((chatRooms) => {
+						for (const room of chatRooms) {
+							const otherParticipants = room.participants.filter(
+								(p) => p.userId !== userId,
+							);
+							for (const participant of otherParticipants) {
+								void client
+									.to(`chat_${room.id}`)
+									.emit('userOnline', {
+										userId: userId,
+										chatRoomId: room.id,
+										isOnline: false,
+									});
+							}
 						}
-					}
-				}).catch(error => {
-					console.error('Error notifying about user offline status:', error);
-				});
+					})
+					.catch((error) => {
+						console.error(
+							'Error notifying about user offline status:',
+							error,
+						);
+					});
 			}, 5000);
-			
+
 			this.offlineTimeouts.set(userId, offlineTimeout);
 		}
 	}
@@ -212,43 +224,49 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			await this.chatRoomsService.getChatRoom(chatRoomId, userId);
 
 			// Join the specific chat room
-		void client.join(`chat_${chatRoomId}`);
+			void client.join(`chat_${chatRoomId}`);
 
-		// Mark messages as read and get the IDs of updated messages
-		const updatedMessageIds = await this.messagesService.markMessagesAsRead(chatRoomId, userId);
+			// Mark messages as read and get the IDs of updated messages
+			const updatedMessageIds =
+				await this.messagesService.markMessagesAsRead(
+					chatRoomId,
+					userId,
+				);
 
-		console.log('📖 Marked messages as read:', {
-			chatRoomId,
-			userId,
-			count: updatedMessageIds.length,
-			messageIds: updatedMessageIds,
-		});
-
-		client.emit('joinedChatRoom', { chatRoomId });
-
-		// If any messages were marked as read, notify all participants in the chat
-		if (updatedMessageIds.length > 0) {
-			console.log('✉️ Emitting messagesMarkedAsRead event to all participants');
-			// Emit to the client who joined
-			client.emit('messagesMarkedAsRead', {
+			console.log('📖 Marked messages as read:', {
 				chatRoomId,
-				messageIds: updatedMessageIds,
 				userId,
-			});
-			// Also emit to all other participants in the room (for read receipts)
-			client.to(`chat_${chatRoomId}`).emit('messagesMarkedAsRead', {
-				chatRoomId,
+				count: updatedMessageIds.length,
 				messageIds: updatedMessageIds,
-				userId,
 			});
-		} else {
-			console.log('⏭️ No messages to mark as read');
-		}
 
-		// Notify other participants that user is typing
-		void client
-			.to(`chat_${chatRoomId}`)
-			.emit('userJoined', { userId, chatRoomId });
+			client.emit('joinedChatRoom', { chatRoomId });
+
+			// If any messages were marked as read, notify all participants in the chat
+			if (updatedMessageIds.length > 0) {
+				console.log(
+					'✉️ Emitting messagesMarkedAsRead event to all participants',
+				);
+				// Emit to the client who joined
+				client.emit('messagesMarkedAsRead', {
+					chatRoomId,
+					messageIds: updatedMessageIds,
+					userId,
+				});
+				// Also emit to all other participants in the room (for read receipts)
+				client.to(`chat_${chatRoomId}`).emit('messagesMarkedAsRead', {
+					chatRoomId,
+					messageIds: updatedMessageIds,
+					userId,
+				});
+			} else {
+				console.log('⏭️ No messages to mark as read');
+			}
+
+			// Notify other participants that user is typing
+			void client
+				.to(`chat_${chatRoomId}`)
+				.emit('userJoined', { userId, chatRoomId });
 		} catch (error) {
 			console.error('❌ WebSocket joinChatRoom: Error', {
 				userId,
@@ -303,9 +321,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		// Verify user has access to this chat room and get user data
 		let userFirstName = 'Someone';
 		try {
-			const chatRoom = await this.chatRoomsService.getChatRoom(chatRoomId, userId);
+			const chatRoom = await this.chatRoomsService.getChatRoom(
+				chatRoomId,
+				userId,
+			);
 			// Get user data from participants
-			const userParticipant = chatRoom.participants.find(p => p.userId === userId);
+			const userParticipant = chatRoom.participants.find(
+				(p) => p.userId === userId,
+			);
 			if (userParticipant?.user?.firstName) {
 				userFirstName = userParticipant.user.firstName;
 			}
@@ -466,6 +489,56 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 					.to(senderSocketId)
 					.emit('messageRead', { messageId, readBy: userId });
 			}
+		}
+	}
+
+	/**
+	 * Mark all messages in a chat room as read
+	 * This is called when user explicitly opens a chat to mark all as read
+	 */
+	@SubscribeMessage('markChatRoomAsRead')
+	async handleMarkChatRoomAsRead(
+		@MessageBody() data: { chatRoomId: string },
+		@ConnectedSocket() client: AuthenticatedSocket,
+	) {
+		const { chatRoomId } = data;
+		const userId = client.userId;
+
+		if (!userId) {
+			return { error: 'Unauthorized' };
+		}
+
+		console.log('📖 markChatRoomAsRead called:', { chatRoomId, userId });
+
+		// Mark all messages as read
+		const updatedMessageIds = await this.messagesService.markMessagesAsRead(
+			chatRoomId,
+			userId,
+		);
+
+		console.log('📖 Messages marked as read:', {
+			chatRoomId,
+			userId,
+			count: updatedMessageIds.length,
+		});
+
+		// Notify all participants (including sender for UI update, and other participants for read receipts)
+		if (updatedMessageIds.length > 0) {
+			console.log('✉️ Emitting messagesMarkedAsRead to all participants');
+			// Emit to the client who requested
+			client.emit('messagesMarkedAsRead', {
+				chatRoomId,
+				messageIds: updatedMessageIds,
+				userId,
+			});
+			// Also emit to all other participants
+			client.to(`chat_${chatRoomId}`).emit('messagesMarkedAsRead', {
+				chatRoomId,
+				messageIds: updatedMessageIds,
+				userId,
+			});
+		} else {
+			console.log('⏭️ No messages to mark as read');
 		}
 	}
 
