@@ -62,6 +62,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 */
 	async handleConnection(client: AuthenticatedSocket) {
 		try {
+
 			// Authenticate user manually since WsJwtGuard doesn't work with handleConnection
 			const token = this.extractTokenFromHeader(client);
 
@@ -233,20 +234,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 					userId,
 				);
 
-			console.log('📖 Marked messages as read:', {
-				chatRoomId,
-				userId,
-				count: updatedMessageIds.length,
-				messageIds: updatedMessageIds,
-			});
-
 			client.emit('joinedChatRoom', { chatRoomId });
 
 			// If any messages were marked as read, notify all participants in the chat
 			if (updatedMessageIds.length > 0) {
-				console.log(
-					'✉️ Emitting messagesMarkedAsRead event to all participants',
-				);
 				// Emit to the client who joined
 				client.emit('messagesMarkedAsRead', {
 					chatRoomId,
@@ -259,8 +250,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 					messageIds: updatedMessageIds,
 					userId,
 				});
-			} else {
-				console.log('⏭️ No messages to mark as read');
 			}
 
 			// Notify other participants that user is typing
@@ -508,23 +497,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			return { error: 'Unauthorized' };
 		}
 
-		console.log('📖 markChatRoomAsRead called:', { chatRoomId, userId });
-
 		// Mark all messages as read
 		const updatedMessageIds = await this.messagesService.markMessagesAsRead(
 			chatRoomId,
 			userId,
 		);
 
-		console.log('📖 Messages marked as read:', {
-			chatRoomId,
-			userId,
-			count: updatedMessageIds.length,
-		});
-
 		// Notify all participants (including sender for UI update, and other participants for read receipts)
 		if (updatedMessageIds.length > 0) {
-			console.log('✉️ Emitting messagesMarkedAsRead to all participants');
 			// Emit to the client who requested
 			client.emit('messagesMarkedAsRead', {
 				chatRoomId,
@@ -537,8 +517,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				messageIds: updatedMessageIds,
 				userId,
 			});
-		} else {
-			console.log('⏭️ No messages to mark as read');
 		}
 	}
 
