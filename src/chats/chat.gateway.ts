@@ -226,10 +226,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 		client.emit('joinedChatRoom', { chatRoomId });
 
-		// If any messages were marked as read, notify the client
+		// If any messages were marked as read, notify all participants in the chat
 		if (updatedMessageIds.length > 0) {
-			console.log('✉️ Emitting messagesMarkedAsRead event to client');
+			console.log('✉️ Emitting messagesMarkedAsRead event to all participants');
+			// Emit to the client who joined
 			client.emit('messagesMarkedAsRead', {
+				chatRoomId,
+				messageIds: updatedMessageIds,
+				userId,
+			});
+			// Also emit to all other participants in the room (for read receipts)
+			client.to(`chat_${chatRoomId}`).emit('messagesMarkedAsRead', {
 				chatRoomId,
 				messageIds: updatedMessageIds,
 				userId,
