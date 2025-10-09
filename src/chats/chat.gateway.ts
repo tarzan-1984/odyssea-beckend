@@ -217,15 +217,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		// Mark messages as read and get the IDs of updated messages
 		const updatedMessageIds = await this.messagesService.markMessagesAsRead(chatRoomId, userId);
 
+		console.log('📖 Marked messages as read:', {
+			chatRoomId,
+			userId,
+			count: updatedMessageIds.length,
+			messageIds: updatedMessageIds,
+		});
+
 		client.emit('joinedChatRoom', { chatRoomId });
 
 		// If any messages were marked as read, notify the client
 		if (updatedMessageIds.length > 0) {
+			console.log('✉️ Emitting messagesMarkedAsRead event to client');
 			client.emit('messagesMarkedAsRead', {
 				chatRoomId,
 				messageIds: updatedMessageIds,
 				userId,
 			});
+		} else {
+			console.log('⏭️ No messages to mark as read');
 		}
 
 		// Notify other participants that user is typing
