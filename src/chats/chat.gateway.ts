@@ -212,17 +212,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			await this.chatRoomsService.getChatRoom(chatRoomId, userId);
 
 			// Join the specific chat room
-			void client.join(`chat_${chatRoomId}`);
+		void client.join(`chat_${chatRoomId}`);
 
-			// Mark messages as read
-			await this.messagesService.markMessagesAsRead(chatRoomId, userId);
+		// Mark messages as read and get the IDs of updated messages
+		const updatedMessageIds = await this.messagesService.markMessagesAsRead(chatRoomId, userId);
 
-			client.emit('joinedChatRoom', { chatRoomId });
+		client.emit('joinedChatRoom', { chatRoomId });
 
-			// Notify other participants that user is typing
-			void client
-				.to(`chat_${chatRoomId}`)
-				.emit('userJoined', { userId, chatRoomId });
+		// If any messages were marked as read, notify the client
+		if (updatedMessageIds.length > 0) {
+			client.emit('messagesMarkedAsRead', {
+				chatRoomId,
+				messageIds: updatedMessageIds,
+				userId,
+			});
+		}
+
+		// Notify other participants that user is typing
+		void client
+			.to(`chat_${chatRoomId}`)
+			.emit('userJoined', { userId, chatRoomId });
 		} catch (error) {
 			console.error('❌ WebSocket joinChatRoom: Error', {
 				userId,

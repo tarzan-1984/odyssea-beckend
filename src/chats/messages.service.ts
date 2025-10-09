@@ -243,18 +243,43 @@ export class MessagesService {
 	/**
 	 * Mark messages as read for a specific user in a chat room
 	 * This is called when user opens the chat or scrolls through messages
+	 * For group chats, marks all messages except user's own messages
+	 * For direct chats, marks messages where user is the receiver
 	 */
 	async markMessagesAsRead(chatRoomId: string, userId: string) {
+		// First, get the IDs of messages that will be updated
+		// Mark as read all messages in this chat that:
+		// 1. Are not sent by the current user
+		// 2. Are not already read
+		const messagesToUpdate = await this.prisma.message.findMany({
+			where: {
+				chatRoomId,
+				senderId: {
+					not: userId, // Not sent by current user
+				},
+				isRead: false,
+			},
+			select: {
+				id: true,
+			},
+		});
+
+		// Update the messages
 		await this.prisma.message.updateMany({
 			where: {
 				chatRoomId,
-				receiverId: userId,
+				senderId: {
+					not: userId,
+				},
 				isRead: false,
 			},
 			data: {
 				isRead: true,
 			},
 		});
+
+		// Return the IDs of updated messages
+		return messagesToUpdate.map(msg => msg.id);
 	}
 
 	/**
