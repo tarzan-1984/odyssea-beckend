@@ -3,6 +3,7 @@ import {
 	Get,
 	Post,
 	Put,
+	Delete,
 	Body,
 	Param,
 	Query,
@@ -375,5 +376,48 @@ export class ChatRoomsController {
 		// This method will be implemented to search users
 		// For now, return empty array
 		return [];
+	}
+
+	@Delete(':id')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Delete or hide chat room',
+		description:
+			'For DIRECT chats: hides the chat for current user. Chat is fully deleted when both users delete it. For GROUP chats: admin deletes entirely, regular users leave the chat.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Chat room ID',
+		example: 'chat_room_123',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Chat room deleted/hidden successfully',
+		schema: {
+			example: {
+				deleted: false,
+				hidden: true,
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Unauthorized - invalid or missing JWT token',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'Chat room not found or access denied',
+	})
+	async deleteChatRoom(
+		@Param('id') id: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		const result = await this.chatRoomsService.deleteChatRoom(id, userId);
+
+		// Send WebSocket notification
+		this.chatGateway.notifyChatRoomDeleted(id, userId, result);
+
+		return result;
 	}
 }

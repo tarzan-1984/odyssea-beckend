@@ -125,6 +125,7 @@ model ChatRoomParticipant {
   chatRoomId String
   userId     String
   joinedAt   DateTime @default(now())
+  isHidden   Boolean  @default(false) // For hiding DIRECT chats without full deletion
   chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

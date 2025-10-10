@@ -150,6 +150,7 @@ export class ChatRoomsService {
 	/**
 	 * Get all chat rooms for a specific user
 	 * Returns chat rooms with last message and unread count
+	 * Filters out hidden DIRECT chats
 	 */
 	async getUserChatRooms(userId: string) {
 		const chatRooms = await this.prisma.chatRoom.findMany({
@@ -157,6 +158,7 @@ export class ChatRoomsService {
 				participants: {
 					some: {
 						userId,
+						isHidden: false, // Exclude hidden chats
 					},
 				},
 				isArchived: false,
@@ -478,5 +480,120 @@ export class ChatRoomsService {
 				},
 			},
 		});
+	}
+
+	/**
+	 * Delete or hide a chat room
+	 * For DIRECT chats: hide for current user, delete completely if both users deleted
+	 * For GROUP chats: remove participant if regular user, delete completely if admin
+	 */
+	async deleteChatRoom(chatRoomId: string, userId: string) {
+		// Get chat room info
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			include: {
+				participants: true,
+			},
+		});
+
+		if (!chatRoom) {
+			throw new NotFoundException('Chat room not found');
+		}
+
+		// Check if user is participant
+		const userParticipant = chatRoom.participants.find(
+			(p) => p.userId === userId,
+		);
+		if (!userParticipant) {
+			throw new NotFoundException('Chat room not found or access denied');
+		}
+
+		if (chatRoom.type === 'DIRECT') {
+			// For DIRECT chats: hide for current user
+			await this.prisma.chatRoomParticipant.update({
+				where: {
+					chatRoomId_userId: {
+						chatRoomId,
+						userId,
+					},
+				},
+				data: {
+					isHidden: true,
+				},
+			});
+
+			// Check if both participants have hidden the chat
+			const allParticipants =
+				await this.prisma.chatRoomParticipant.findMany({
+					where: { chatRoomId },
+				});
+
+			const allHidden = allParticipants.every((p) => p.isHidden);
+
+			if (allHidden) {
+				// Delete chat room completely
+				await this.prisma.chatRoom.delete({
+					where: { id: chatRoomId },
+				});
+				return { deleted: true, hidden: false };
+			}
+
+			return { deleted: false, hidden: true };
+		} else if (chatRoom.type === 'GROUP') {
+			// For GROUP chats: check if user is admin
+			const isAdmin = chatRoom.adminId === userId;
+
+			if (isAdmin) {
+				// Admin can delete the entire chat
+				await this.prisma.chatRoom.delete({
+					where: { id: chatRoomId },
+				});
+				return { deleted: true, hidden: false };
+			} else {
+				// Regular participants just leave the chat
+				await this.prisma.chatRoomParticipant.delete({
+					where: {
+						chatRoomId_userId: {
+							chatRoomId,
+							userId,
+						},
+					},
+				});
+				return { deleted: false, hidden: false, left: true };
+			}
+		}
+
+		throw new BadRequestException('Invalid chat room type');
+	}
+
+	/**
+	 * Unhide a DIRECT chat when a new message is sent
+	 */
+	async unhideChatRoom(chatRoomId: string, userId: string) {
+		const participant = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+		});
+
+		if (participant && participant.isHidden) {
+			await this.prisma.chatRoomParticipant.update({
+				where: {
+					chatRoomId_userId: {
+						chatRoomId,
+						userId,
+					},
+				},
+				data: {
+					isHidden: false,
+				},
+			});
+			return true;
+		}
+
+		return false;
 	}
 }

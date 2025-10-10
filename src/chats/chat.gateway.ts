@@ -388,7 +388,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 		try {
 			// Verify user has access to this chat room
-			await this.chatRoomsService.getChatRoom(chatRoomId, userId);
+			const chatRoom = await this.chatRoomsService.getChatRoom(
+				chatRoomId,
+				userId,
+			);
+
+			// For DIRECT chats: unhide chat for all participants if hidden
+			if (chatRoom.type === 'DIRECT') {
+				for (const participant of chatRoom.participants) {
+					const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
+						chatRoomId,
+						participant.userId,
+					);
+					if (wasUnhidden) {
+						// Notify the user that their chat was restored
+						this.notifyChatRoomRestored(chatRoomId, participant.userId);
+					}
+				}
+			}
 
 			// Create message using the service
 			const message = await this.messagesService.sendMessage(
@@ -845,7 +862,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			}
 
 			// Send confirmation back to remover
-			client.emit('participantRemoved', { chatRoomId, result });
+			client.emit('participantRemoved', {
+				chatRoomId,
+				removedUserId: participantId,
+				removedBy: userId,
+				result,
+			});
 
 			console.log(
 				`Participant removed via WebSocket from room ${chatRoomId} by user ${userId}`,
@@ -872,6 +894,54 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	 */
 	isUserOnline(userId: string): boolean {
 		return this.userSockets.has(userId);
+	}
+
+	/**
+	 * Notify users about chat room deletion
+	 * Called from REST API controller after deletion/hiding
+	 */
+	notifyChatRoomDeleted(
+		chatRoomId: string,
+		userId: string,
+		result: { deleted: boolean; hidden?: boolean; left?: boolean },
+	) {
+		if (result.deleted) {
+			// Chat was fully deleted - notify all participants
+			void this.server.to(`chat_${chatRoomId}`).emit('chatRoomDeleted', {
+				chatRoomId,
+				deletedBy: userId,
+			});
+		} else if (result.hidden) {
+			// Chat was hidden for one user - only notify that user
+			const userSocketId = this.userSockets.get(userId);
+			if (userSocketId) {
+				void this.server.to(userSocketId).emit('chatRoomHidden', {
+					chatRoomId,
+				});
+			}
+		} else if (result.left) {
+			// User left group chat - notify all participants
+			void this.server
+				.to(`chat_${chatRoomId}`)
+				.emit('participantRemoved', {
+					chatRoomId,
+					removedUserId: userId,
+					removedBy: userId,
+				});
+		}
+	}
+
+	/**
+	 * Notify about chat room restoration
+	 * Called when a message is sent to a hidden DIRECT chat
+	 */
+	notifyChatRoomRestored(chatRoomId: string, userId: string) {
+		const userSocketId = this.userSockets.get(userId);
+		if (userSocketId) {
+			void this.server.to(userSocketId).emit('chatRoomRestored', {
+				chatRoomId,
+			});
+		}
 	}
 
 	/**
