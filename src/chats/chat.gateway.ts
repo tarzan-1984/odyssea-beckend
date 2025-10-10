@@ -387,6 +387,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		}
 
 		try {
+			// Ensure user is in the chat room for WebSocket
+			void client.join(`chat_${chatRoomId}`);
+			
 			// Verify user has access to this chat room
 			const chatRoom = await this.chatRoomsService.getChatRoom(
 				chatRoomId,
@@ -569,6 +572,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			} | null;
 		},
 	) {
+		console.log(`📤 Broadcasting newMessage to room chat_${chatRoomId}:`, {
+			chatRoomId,
+			messageId: message.id,
+			senderId: message.senderId,
+			content: message.content.substring(0, 50) + '...'
+		});
+		
 		void this.server.to(`chat_${chatRoomId}`).emit('newMessage', {
 			chatRoomId,
 			message,
