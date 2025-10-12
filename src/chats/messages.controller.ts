@@ -27,6 +27,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MessagesService } from './messages.service';
 import { FileUploadService } from './file-upload.service';
+import { ChatRoomsService } from './chat-rooms.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatGateway } from './chat.gateway';
 import { AuthenticatedRequest } from '../types/request.types';
@@ -40,6 +41,7 @@ export class MessagesController {
 		private readonly messagesService: MessagesService,
 		private readonly fileUploadService: FileUploadService,
 		private readonly chatGateway: ChatGateway,
+		private readonly chatRoomsService: ChatRoomsService,
 	) {}
 
 	@Post()
@@ -93,6 +95,26 @@ export class MessagesController {
 		@Request() req: AuthenticatedRequest,
 	) {
 		const userId = req.user.id;
+		
+		// For DIRECT chats: unhide chat for all participants if hidden
+		const chatRoom = await this.chatRoomsService.getChatRoom(
+			sendMessageDto.chatRoomId,
+			userId,
+		);
+		
+		if (chatRoom.type === 'DIRECT') {
+			for (const participant of chatRoom.participants) {
+				const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
+					sendMessageDto.chatRoomId,
+					participant.userId,
+				);
+				if (wasUnhidden) {
+					// Notify the user that their chat was restored
+					this.chatGateway.notifyChatRoomRestored(sendMessageDto.chatRoomId, participant.userId);
+				}
+			}
+		}
+		
 		const message = await this.messagesService.sendMessage(
 			sendMessageDto,
 			userId,
