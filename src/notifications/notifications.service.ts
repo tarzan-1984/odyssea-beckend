@@ -34,12 +34,16 @@ export class NotificationsService {
       });
 
       this.logger.log(`Created notification for user ${data.userId}: ${data.title}`);
+      console.log('🔔 Notification created in database:', notification.id);
       
       // Send real-time notification via WebSocket
+      console.log('🔔 Sending WebSocket notification to user:', data.userId);
       await this.notificationsWebSocketService.sendNotificationToUser(data.userId, notification);
       
       // Send updated unread count
+      console.log('🔔 Sending unread count update to user:', data.userId);
       const unreadCount = await this.getUnreadCount(data.userId);
+      console.log('🔔 Unread count for user:', data.userId, 'is:', unreadCount);
       await this.notificationsWebSocketService.sendUnreadCountToUser(data.userId, unreadCount);
       
       return notification;
@@ -110,7 +114,7 @@ export class NotificationsService {
    * Create notifications for new group chat
    */
   async createGroupChatNotifications(
-    chatRoom: { id: string; name: string; avatar?: string | null },
+    chatRoom: { id: string; name: string | null; avatar?: string | null },
     participants: { userId: string; role: string }[],
     adminUserId: string
   ): Promise<Notification[]> {
@@ -120,14 +124,15 @@ export class NotificationsService {
     for (const participant of participants) {
       if (participant.userId !== adminUserId) {
         const title = 'Added to Group Chat';
-        const message = `You were added to the group chat "${chatRoom.name}"`;
+        const chatName = chatRoom.name || 'Group Chat';
+        const message = `You were added to the group chat "${chatName}"`;
         
         // Use chat avatar if available, otherwise generate initials from chat name
         let avatar: string;
         if (chatRoom.avatar) {
           avatar = chatRoom.avatar;
         } else {
-          avatar = this.generateChatInitials(chatRoom.name);
+          avatar = this.generateChatInitials(chatName);
         }
         
         const notification = await this.createNotification({
