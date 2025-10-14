@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ChatRoomsService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private notificationsService: NotificationsService,
+	) {}
 
 	/**
 	 * Create a new chat room and add participants
@@ -88,6 +92,58 @@ export class ChatRoomsService {
 					}),
 				),
 			);
+
+			// Create notifications for chat creation
+			if (type === 'DIRECT') {
+				try {
+					// Get creator user data
+					const creator = await prisma.user.findUnique({
+						where: { id: creatorId },
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							profilePhoto: true,
+						},
+					});
+
+					// Find the recipient (the other participant)
+					const recipient = participants.find(p => p.userId !== creatorId);
+					
+					if (creator && recipient) {
+						// Create notification for the recipient
+						await this.notificationsService.createPrivateChatNotification(
+							creator,
+							recipient.userId,
+							chatRoom.id,
+						);
+					}
+				} catch (error) {
+					// Log error but don't fail the chat creation
+					console.error('Failed to create private chat notification:', error);
+				}
+			} else if (type === 'GROUP') {
+				try {
+					// Create notifications for group chat participants (except admin)
+					const participantsData = participants.map(p => ({
+						userId: p.userId,
+						role: p.user.role,
+					}));
+					
+					await this.notificationsService.createGroupChatNotifications(
+						{
+							id: chatRoom.id,
+							name: chatRoom.name,
+							avatar: chatRoom.avatar,
+						},
+						participantsData,
+						creatorId
+					);
+				} catch (error) {
+					// Log error but don't fail the chat creation
+					console.error('Failed to create group chat notifications:', error);
+				}
+			}
 
 			return {
 				...chatRoom,

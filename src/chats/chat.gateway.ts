@@ -6,6 +6,7 @@ import {
 	ConnectedSocket,
 	OnGatewayConnection,
 	OnGatewayDisconnect,
+	OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { MessagesService } from './messages.service';
 import { ChatRoomsService } from './chat-rooms.service';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 interface AuthenticatedSocket extends Socket {
 	userId?: string;
@@ -29,7 +31,7 @@ interface AuthenticatedSocket extends Socket {
 	},
 	// namespace: '/chat',  // Removed for better compatibility with hosting platforms
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
 	@WebSocketServer()
 	server: Server;
 
@@ -43,7 +45,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		private messagesService: MessagesService,
 		private chatRoomsService: ChatRoomsService,
 		private jwtService: JwtService,
+		private notificationsWebSocketService: NotificationsWebSocketService,
 	) {}
+
+	/**
+	 * Initialize WebSocket server after module initialization
+	 */
+	afterInit(server: Server) {
+		this.server = server;
+		// Initialize notifications WebSocket service with the server
+		this.notificationsWebSocketService.setServer(server);
+		console.log('✅ WebSocket server initialized');
+	}
 
 	/**
 	 * Clean up all timeouts when the service is destroyed
@@ -99,6 +112,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				clearTimeout(existingTimeout);
 				this.offlineTimeouts.delete(userId);
 			}
+
+			// Join user to notifications room for real-time notifications
+			void client.join(`user_${userId}`);
 
 			// Join user to all their chat rooms
 			const chatRooms =

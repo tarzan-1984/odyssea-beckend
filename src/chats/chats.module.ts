@@ -14,6 +14,8 @@ import { MessagesArchiveScheduler } from './messages-archive.scheduler';
 import { ArchiveBackgroundService } from './services/archive-background.service';
 import { S3Service } from '../s3/s3.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 @Module({
 	imports: [
@@ -40,6 +42,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 		S3Service,
 		ChatGateway,
 		FileUploadService,
+		NotificationsService,
+		NotificationsWebSocketService,
 	],
 	exports: [ChatRoomsService, MessagesService, MessagesArchiveService, FileUploadService],
 })
