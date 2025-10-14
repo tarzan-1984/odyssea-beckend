@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as crypto from 'crypto';
 import { ErrorWithResponse } from '../types/request.types';
@@ -90,11 +90,81 @@ export class S3Service {
 			// Path-style URL (matches your example)
 			const fileUrl = `${this.endpoint}/${this.bucket}/${Key}`;
 
-			return { uploadUrl, fileUrl, key: Key };
+		return { uploadUrl, fileUrl, key: Key };
+	} catch (error) {
+		const errorWithResponse = error as ErrorWithResponse;
+		throw new BadRequestException(
+			`Failed to create presigned URL: ${errorWithResponse.message}`,
+		);
+	}
+}
+
+	/**
+	 * Upload archive data directly to S3
+	 */
+	async uploadArchive(key: string, data: Buffer): Promise<string> {
+		try {
+			const command = new PutObjectCommand({
+				Bucket: this.bucket,
+				Key: key,
+				Body: data,
+				ContentType: 'application/json',
+			});
+
+			await this.s3.send(command);
+
+			// Return the public URL
+			return `${this.endpoint}/${this.bucket}/${key}`;
 		} catch (error) {
 			const errorWithResponse = error as ErrorWithResponse;
 			throw new BadRequestException(
-				`Failed to create presigned URL: ${errorWithResponse.message}`,
+				`Failed to upload archive: ${errorWithResponse.message}`,
+			);
+		}
+	}
+
+	/**
+	 * Delete object from S3
+	 */
+	async deleteObject(key: string): Promise<void> {
+		try {
+			const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+			const command = new DeleteObjectCommand({
+				Bucket: this.bucket,
+				Key: key,
+			});
+
+			await this.s3.send(command);
+		} catch (error) {
+			const errorWithResponse = error as ErrorWithResponse;
+			throw new BadRequestException(
+				`Failed to delete object: ${errorWithResponse.message}`,
+			);
+		}
+	}
+
+	/**
+	 * List objects in S3 with a given prefix
+	 */
+	async listObjects(prefix: string): Promise<{ Key: string; LastModified?: Date; Size?: number }[]> {
+		try {
+			const command = new ListObjectsV2Command({
+				Bucket: this.bucket,
+				Prefix: prefix,
+				MaxKeys: 1000, // Adjust as needed
+			});
+
+			const response = await this.s3.send(command);
+			
+			return response.Contents?.map(obj => ({
+				Key: obj.Key!,
+				LastModified: obj.LastModified,
+				Size: obj.Size,
+			})) || [];
+		} catch (error) {
+			const errorWithResponse = error as ErrorWithResponse;
+			throw new BadRequestException(
+				`Failed to list objects: ${errorWithResponse.message}`,
 			);
 		}
 	}
