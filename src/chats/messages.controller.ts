@@ -121,7 +121,7 @@ export class MessagesController {
 		);
 
 		// Broadcast message via WebSocket to all participants
-		this.chatGateway.broadcastMessage(sendMessageDto.chatRoomId, message);
+		void this.chatGateway.broadcastMessage(sendMessageDto.chatRoomId, message);
 
 		return message;
 	}

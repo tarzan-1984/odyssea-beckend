@@ -15,6 +15,7 @@ import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { MessagesService } from './messages.service';
 import { ChatRoomsService } from './chat-rooms.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface AuthenticatedSocket extends Socket {
 	userId?: string;
@@ -46,6 +47,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 		private chatRoomsService: ChatRoomsService,
 		private jwtService: JwtService,
 		private notificationsWebSocketService: NotificationsWebSocketService,
+		private prisma: PrismaService,
 	) {}
 
 	/**
@@ -439,7 +441,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 			);
 
 			// Broadcast message to all participants in the chat room
-			this.broadcastMessage(chatRoomId, message);
+			void this.broadcastMessage(chatRoomId, message);
 
 			// Send confirmation back to sender
 			client.emit('messageSent', { messageId: message.id, chatRoomId });
@@ -560,7 +562,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 	 * Broadcast message to all participants in a chat room
 	 * Called by MessagesService after saving message to database
 	 */
-	broadcastMessage(
+	async broadcastMessage(
 		chatRoomId: string,
 		message: {
 			id: string;
@@ -594,11 +596,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 			senderId: message.senderId,
 			content: message.content.substring(0, 50) + '...'
 		});
+
+		// Get chat room participants from database
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			include: {
+				participants: {
+					include: {
+						user: true
+					}
+				}
+			}
+		});
+
+		if (!chatRoom) {
+			console.error(`Chat room ${chatRoomId} not found`);
+			return;
+		}
+
+		const participants = chatRoom.participants;
 		
-		void this.server.to(`chat_${chatRoomId}`).emit('newMessage', {
+		// Send to all participants' personal notification rooms
+		// This ensures users receive messages even when not in the specific chat
+		const messageData = {
 			chatRoomId,
 			message,
-		});
+		};
+
+		// Send to all participants' notification rooms (including sender for confirmation)
+		for (const participant of participants) {
+			console.log(`📤 Sending message to user notification room: user_${participant.userId}`);
+			void this.server.to(`user_${participant.userId}`).emit('newMessage', messageData);
+		}
 
 		// Also emit to general chat updates for chat list updates
 		void this.server.emit('chatUpdated', { chatRoomId });
