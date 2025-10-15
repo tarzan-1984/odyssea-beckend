@@ -34,16 +34,12 @@ export class NotificationsService {
       });
 
       this.logger.log(`Created notification for user ${data.userId}: ${data.title}`);
-      console.log('🔔 Notification created in database:', notification.id);
       
       // Send real-time notification via WebSocket
-      console.log('🔔 Sending WebSocket notification to user:', data.userId);
       await this.notificationsWebSocketService.sendNotificationToUser(data.userId, notification);
       
       // Send updated unread count
-      console.log('🔔 Sending unread count update to user:', data.userId);
       const unreadCount = await this.getUnreadCount(data.userId);
-      console.log('🔔 Unread count for user:', data.userId, 'is:', unreadCount);
       await this.notificationsWebSocketService.sendUnreadCountToUser(data.userId, unreadCount);
       
       return notification;
@@ -140,6 +136,129 @@ export class NotificationsService {
           title,
           message,
           type: 'group_chat_created',
+          avatar,
+        });
+        
+        notifications.push(notification);
+      }
+    }
+    
+    return notifications;
+  }
+
+  /**
+   * Create notifications when a user leaves a group chat
+   */
+  async createUserLeftGroupNotifications(
+    leavingUser: { id: string; firstName: string; lastName: string; profilePhoto: string | null },
+    chatRoom: { id: string; name: string | null },
+    remainingParticipants: { userId: string }[]
+  ): Promise<Notification[]> {
+    const notifications: Notification[] = [];
+    
+    const title = 'User Left Group Chat';
+    const chatName = chatRoom.name || 'Group Chat';
+    const message = `${leavingUser.firstName} ${leavingUser.lastName} left the group chat "${chatName}"`;
+    
+    // Use leaving user's profile photo if available, otherwise generate initials
+    let avatar: string;
+    if (leavingUser.profilePhoto) {
+      avatar = leavingUser.profilePhoto;
+    } else {
+      avatar = this.generateInitials(leavingUser.firstName, leavingUser.lastName);
+    }
+    
+    // Create notifications for all remaining participants
+    for (const participant of remainingParticipants) {
+      const notification = await this.createNotification({
+        userId: participant.userId,
+        title,
+        message,
+        type: 'user_left_group_chat',
+        avatar,
+      });
+      
+      notifications.push(notification);
+    }
+    
+    return notifications;
+  }
+
+  /**
+   * Create notifications when participants are added to a group chat
+   */
+  async createParticipantsAddedNotifications(
+    addedUsers: { id: string; firstName: string; lastName: string }[],
+    chatRoom: { id: string; name: string | null; avatar?: string | null },
+    allParticipants: { userId: string }[],
+    adminUserId: string
+  ): Promise<Notification[]> {
+    const notifications: Notification[] = [];
+    
+    const title = 'New Members Added';
+    const chatName = chatRoom.name || 'Group Chat';
+    
+    // Create a list of added user names
+    const addedUserNames = addedUsers.map(user => `${user.firstName} ${user.lastName}`).join(', ');
+    const message = `${addedUserNames} ${addedUsers.length === 1 ? 'was' : 'were'} added to the group chat "${chatName}"`;
+    
+    // Use chat avatar if available, otherwise generate initials from chat name
+    let avatar: string;
+    if (chatRoom.avatar) {
+      avatar = chatRoom.avatar;
+    } else {
+      avatar = this.generateChatInitials(chatName);
+    }
+    
+    // Create notifications for all participants except admin
+    for (const participant of allParticipants) {
+      if (participant.userId !== adminUserId) {
+        const notification = await this.createNotification({
+          userId: participant.userId,
+          title,
+          message,
+          type: 'participants_added_to_group_chat',
+          avatar,
+        });
+        
+        notifications.push(notification);
+      }
+    }
+    
+    return notifications;
+  }
+
+  /**
+   * Create notifications when a participant is removed from a group chat by admin
+   */
+  async createParticipantRemovedNotifications(
+    removedUser: { id: string; firstName: string; lastName: string },
+    chatRoom: { id: string; name: string | null; avatar?: string | null },
+    allParticipants: { userId: string }[],
+    adminUserId: string
+  ): Promise<Notification[]> {
+    const notifications: Notification[] = [];
+    
+    const title = 'Member Removed from Group Chat';
+    const chatName = chatRoom.name || 'Group Chat';
+    const message = `${removedUser.firstName} ${removedUser.lastName} was removed from the group chat "${chatName}"`;
+    
+    // Use chat avatar if available, otherwise generate initials from chat name
+    let avatar: string;
+    if (chatRoom.avatar) {
+      avatar = chatRoom.avatar;
+    } else {
+      avatar = this.generateChatInitials(chatName);
+    }
+    
+    // Create notifications for all participants except admin
+    for (const participant of allParticipants) {
+      if (participant.userId !== adminUserId) {
+        const notification = await this.createNotification({
+          userId: participant.userId,
+          title,
+          message,
+          type: 'participant_removed_from_group_chat',
           avatar,
         });
         

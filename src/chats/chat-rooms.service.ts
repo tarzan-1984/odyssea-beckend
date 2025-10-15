@@ -262,12 +262,16 @@ export class ChatRoomsService {
 					},
 				},
 			},
-			orderBy: {
-				updatedAt: 'desc',
-			},
 		});
 
-		return chatRooms.map((room) => ({
+		// Sort chat rooms by last message date (most recent first)
+		const sortedChatRooms = chatRooms.sort((a, b) => {
+			const aLastMessageDate = a.messages[0]?.createdAt || a.createdAt;
+			const bLastMessageDate = b.messages[0]?.createdAt || b.createdAt;
+			return bLastMessageDate.getTime() - aLastMessageDate.getTime();
+		});
+
+		return sortedChatRooms.map((room) => ({
 			...room,
 			participants: room.participants.map((participant) => ({
 				...participant,
@@ -382,6 +386,18 @@ export class ChatRoomsService {
 		participantIds: string[],
 		userId: string,
 	) {
+		// Get chat room info first
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			include: {
+				participants: true,
+			},
+		});
+
+		if (!chatRoom) {
+			throw new NotFoundException('Chat room not found');
+		}
+
 		// Verify user is participant and can add others
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
@@ -396,8 +412,18 @@ export class ChatRoomsService {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
+		// Get info about users being added
+		const addedUsers = await this.prisma.user.findMany({
+			where: { id: { in: participantIds } },
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+			},
+		});
+
 		// Add new participants
-		return await Promise.all(
+		const newParticipants = await Promise.all(
 			participantIds.map((participantId) =>
 				this.prisma.chatRoomParticipant.create({
 					data: {
@@ -418,6 +444,32 @@ export class ChatRoomsService {
 				}),
 			),
 		);
+
+		// Create notifications for all participants (including newly added ones) except admin
+		if (chatRoom.type === 'GROUP' && addedUsers.length > 0) {
+			try {
+				// Get all participants (existing + newly added)
+				const allParticipants = [
+					...chatRoom.participants.map(p => ({ userId: p.userId })),
+					...participantIds.map(id => ({ userId: id }))
+				];
+
+				await this.notificationsService.createParticipantsAddedNotifications(
+					addedUsers,
+					{
+						id: chatRoom.id,
+						name: chatRoom.name,
+						avatar: chatRoom.avatar,
+					},
+					allParticipants,
+					userId
+				);
+			} catch (error) {
+				console.error('Failed to create participants added notifications:', error);
+			}
+		}
+
+		return newParticipants;
 	}
 
 	/**
@@ -476,6 +528,20 @@ export class ChatRoomsService {
 		participantId: string,
 		userId: string,
 	) {
+		// removeParticipant invoked via WebSocket
+
+		// Get chat room info first
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			include: {
+				participants: true,
+			},
+		});
+
+		if (!chatRoom) {
+			throw new NotFoundException('Chat room not found');
+		}
+
 		// Verify user is participant and can remove others
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
@@ -490,6 +556,32 @@ export class ChatRoomsService {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
+		// Check if user is removing themselves (leaving group chat)
+		const isLeavingSelf = participantId === userId;
+		const isGroupChat = chatRoom.type === 'GROUP';
+
+		// Determine if this is a self-leave in a group chat
+
+		// Get user info before deleting (for notifications)
+		const leavingUser = await this.prisma.user.findUnique({
+			where: { id: participantId },
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				profilePhoto: true,
+			},
+		});
+
+		// Leaving user is needed to build notification avatar/initials
+
+		// Get remaining participants (excluding the leaving user)
+		const remainingParticipants = chatRoom.participants
+			.filter(p => p.userId !== participantId)
+			.map(p => ({ userId: p.userId }));
+
+		// Remaining participants to notify
+
 		// Remove participant
 		await this.prisma.chatRoomParticipant.delete({
 			where: {
@@ -499,6 +591,48 @@ export class ChatRoomsService {
 				},
 			},
 		});
+
+		// Participant removed from chat
+
+		// Create notifications based on the type of removal
+		if (isGroupChat && leavingUser) {
+			try {
+				if (isLeavingSelf) {
+					// User is leaving themselves - notify remaining participants
+					if (remainingParticipants.length > 0) {
+						await this.notificationsService.createUserLeftGroupNotifications(
+							leavingUser,
+							{
+								id: chatRoom.id,
+								name: chatRoom.name,
+							},
+							remainingParticipants
+						);
+					}
+				} else {
+					// Admin is removing a participant - notify all participants (including removed one) except admin
+					const allParticipants = chatRoom.participants.map(p => ({ userId: p.userId }));
+					
+					await this.notificationsService.createParticipantRemovedNotifications(
+						{
+							id: leavingUser.id,
+							firstName: leavingUser.firstName,
+							lastName: leavingUser.lastName,
+						},
+						{
+							id: chatRoom.id,
+							name: chatRoom.name,
+							avatar: chatRoom.avatar,
+						},
+						allParticipants,
+						userId // admin who removed
+					);
+				}
+			} catch (error) {
+				// Ignore notification errors to not block removal
+				console.error('Failed to create participant removal notifications:', error);
+			}
+		}
 
 		return { success: true, removedUserId: participantId };
 	}
@@ -607,6 +741,29 @@ export class ChatRoomsService {
 				return { deleted: true, hidden: false };
 			} else {
 				// Regular participants just leave the chat
+				// User leaves group chat
+				
+				// Get user info before deleting
+				const leavingUser = await this.prisma.user.findUnique({
+					where: { id: userId },
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						profilePhoto: true,
+					},
+				});
+
+				// Leaving user info for notification
+
+				// Get remaining participants (excluding the leaving user)
+				const remainingParticipants = chatRoom.participants
+					.filter(p => p.userId !== userId)
+					.map(p => ({ userId: p.userId }));
+
+				// Remaining participants to notify
+
+				// Delete the participant
 				await this.prisma.chatRoomParticipant.delete({
 					where: {
 						chatRoomId_userId: {
@@ -615,6 +772,28 @@ export class ChatRoomsService {
 						},
 					},
 				});
+
+				// Participant removed from chat
+
+				// Create notifications for remaining participants
+				if (leavingUser && remainingParticipants.length > 0) {
+					try {
+						// Create leave notifications for remaining participants
+						await this.notificationsService.createUserLeftGroupNotifications(
+							leavingUser,
+							{
+								id: chatRoom.id,
+								name: chatRoom.name,
+							},
+							remainingParticipants
+						);
+						// Notifications created successfully
+					} catch (error) {
+						// Ignore notification errors to not block removal
+						console.error('Failed to create user left group notifications:', error);
+					}
+				}
+
 				return { deleted: false, hidden: false, left: true };
 			}
 		}

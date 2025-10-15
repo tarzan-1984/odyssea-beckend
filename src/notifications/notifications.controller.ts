@@ -20,15 +20,11 @@ export class NotificationsController {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 8;
 
-    console.log(`🔔 Backend: Getting notifications for user ${req.user.id}, page: ${pageNum}, limit: ${limitNum}`);
-
     const result = await this.notificationsService.getUserNotifications(
       req.user.id,
       pageNum,
       limitNum,
     );
-
-    console.log(`🔔 Backend: Found ${result.notifications.length} notifications, ${result.unreadCount} unread for user ${req.user.id}`);
 
     return {
       success: true,

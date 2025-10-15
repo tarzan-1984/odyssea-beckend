@@ -22,8 +22,6 @@ export class NotificationsWebSocketService {
 
       // Send notification to specific user
       this.server.to(`user_${userId}`).emit('notification', notification);
-      
-      this.logger.log(`Sent notification to user ${userId}: ${notification.title}`);
     } catch (error) {
       this.logger.error(`Failed to send notification to user ${userId}:`, error);
     }
@@ -41,8 +39,6 @@ export class NotificationsWebSocketService {
 
       // Send unread count update to specific user
       this.server.to(`user_${userId}`).emit('unreadCountUpdate', { unreadCount });
-      
-      this.logger.log(`Sent unread count update to user ${userId}: ${unreadCount}`);
     } catch (error) {
       this.logger.error(`Failed to send unread count to user ${userId}:`, error);
     }
@@ -59,7 +55,6 @@ export class NotificationsWebSocketService {
       }
 
       this.server.emit('notification', notification);
-      this.logger.log(`Broadcasted notification: ${notification.title}`);
     } catch (error) {
       this.logger.error('Failed to broadcast notification:', error);
     }

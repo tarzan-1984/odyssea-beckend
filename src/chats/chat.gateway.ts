@@ -894,10 +894,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 				removedBy: userId,
 				result,
 			});
-
-			console.log(
-				`Participant removed via WebSocket from room ${chatRoomId} by user ${userId}`,
-			);
 		} catch (error) {
 			console.error('Error removing participant via WebSocket:', error);
 			client.emit('error', {
