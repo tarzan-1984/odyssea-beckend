@@ -108,8 +108,10 @@ export class ChatRoomsService {
 					});
 
 					// Find the recipient (the other participant)
-					const recipient = participants.find(p => p.userId !== creatorId);
-					
+					const recipient = participants.find(
+						(p) => p.userId !== creatorId,
+					);
+
 					if (creator && recipient) {
 						// Create notification for the recipient
 						await this.notificationsService.createPrivateChatNotification(
@@ -120,16 +122,19 @@ export class ChatRoomsService {
 					}
 				} catch (error) {
 					// Log error but don't fail the chat creation
-					console.error('Failed to create private chat notification:', error);
+					console.error(
+						'Failed to create private chat notification:',
+						error,
+					);
 				}
 			} else if (type === 'GROUP') {
 				try {
 					// Create notifications for group chat participants (except admin)
-					const participantsData = participants.map(p => ({
+					const participantsData = participants.map((p) => ({
 						userId: p.userId,
 						role: p.user.role,
 					}));
-					
+
 					await this.notificationsService.createGroupChatNotifications(
 						{
 							id: chatRoom.id,
@@ -137,11 +142,14 @@ export class ChatRoomsService {
 							avatar: chatRoom.avatar,
 						},
 						participantsData,
-						creatorId
+						creatorId,
 					);
 				} catch (error) {
 					// Log error but don't fail the chat creation
-					console.error('Failed to create group chat notifications:', error);
+					console.error(
+						'Failed to create group chat notifications:',
+						error,
+					);
 				}
 			}
 
@@ -267,13 +275,17 @@ export class ChatRoomsService {
 		// Sort chat rooms by pin status first, then by last message date
 		const sortedChatRooms = chatRooms.sort((a, b) => {
 			// Get participant data for current user
-			const aParticipant = a.participants.find(p => p.userId === userId);
-			const bParticipant = b.participants.find(p => p.userId === userId);
-			
+			const aParticipant = a.participants.find(
+				(p) => p.userId === userId,
+			);
+			const bParticipant = b.participants.find(
+				(p) => p.userId === userId,
+			);
+
 			// Pinned chats first
 			if (aParticipant?.pin && !bParticipant?.pin) return -1;
 			if (!aParticipant?.pin && bParticipant?.pin) return 1;
-			
+
 			// If both pinned or both not pinned, sort by last message date
 			const aLastMessageDate = a.messages[0]?.createdAt || a.createdAt;
 			const bLastMessageDate = b.messages[0]?.createdAt || b.createdAt;
@@ -282,8 +294,10 @@ export class ChatRoomsService {
 
 		return sortedChatRooms.map((room) => {
 			// Get current user's participant data
-			const currentUserParticipant = room.participants.find(p => p.userId === userId);
-			
+			const currentUserParticipant = room.participants.find(
+				(p) => p.userId === userId,
+			);
+
 			return {
 				...room,
 				participants: room.participants.map((participant) => ({
@@ -467,8 +481,8 @@ export class ChatRoomsService {
 			try {
 				// Get all participants (existing + newly added)
 				const allParticipants = [
-					...chatRoom.participants.map(p => ({ userId: p.userId })),
-					...participantIds.map(id => ({ userId: id }))
+					...chatRoom.participants.map((p) => ({ userId: p.userId })),
+					...participantIds.map((id) => ({ userId: id })),
 				];
 
 				await this.notificationsService.createParticipantsAddedNotifications(
@@ -479,10 +493,13 @@ export class ChatRoomsService {
 						avatar: chatRoom.avatar,
 					},
 					allParticipants,
-					userId
+					userId,
 				);
 			} catch (error) {
-				console.error('Failed to create participants added notifications:', error);
+				console.error(
+					'Failed to create participants added notifications:',
+					error,
+				);
 			}
 		}
 
@@ -594,8 +611,8 @@ export class ChatRoomsService {
 
 		// Get remaining participants (excluding the leaving user)
 		const remainingParticipants = chatRoom.participants
-			.filter(p => p.userId !== participantId)
-			.map(p => ({ userId: p.userId }));
+			.filter((p) => p.userId !== participantId)
+			.map((p) => ({ userId: p.userId }));
 
 		// Remaining participants to notify
 
@@ -623,13 +640,15 @@ export class ChatRoomsService {
 								id: chatRoom.id,
 								name: chatRoom.name,
 							},
-							remainingParticipants
+							remainingParticipants,
 						);
 					}
 				} else {
 					// Admin is removing a participant - notify all participants (including removed one) except admin
-					const allParticipants = chatRoom.participants.map(p => ({ userId: p.userId }));
-					
+					const allParticipants = chatRoom.participants.map((p) => ({
+						userId: p.userId,
+					}));
+
 					await this.notificationsService.createParticipantRemovedNotifications(
 						{
 							id: leavingUser.id,
@@ -642,12 +661,15 @@ export class ChatRoomsService {
 							avatar: chatRoom.avatar,
 						},
 						allParticipants,
-						userId // admin who removed
+						userId, // admin who removed
 					);
 				}
 			} catch (error) {
 				// Ignore notification errors to not block removal
-				console.error('Failed to create participant removal notifications:', error);
+				console.error(
+					'Failed to create participant removal notifications:',
+					error,
+				);
 			}
 		}
 
@@ -759,7 +781,7 @@ export class ChatRoomsService {
 			} else {
 				// Regular participants just leave the chat
 				// User leaves group chat
-				
+
 				// Get user info before deleting
 				const leavingUser = await this.prisma.user.findUnique({
 					where: { id: userId },
@@ -775,8 +797,8 @@ export class ChatRoomsService {
 
 				// Get remaining participants (excluding the leaving user)
 				const remainingParticipants = chatRoom.participants
-					.filter(p => p.userId !== userId)
-					.map(p => ({ userId: p.userId }));
+					.filter((p) => p.userId !== userId)
+					.map((p) => ({ userId: p.userId }));
 
 				// Remaining participants to notify
 
@@ -802,12 +824,15 @@ export class ChatRoomsService {
 								id: chatRoom.id,
 								name: chatRoom.name,
 							},
-							remainingParticipants
+							remainingParticipants,
 						);
 						// Notifications created successfully
 					} catch (error) {
 						// Ignore notification errors to not block removal
-						console.error('Failed to create user left group notifications:', error);
+						console.error(
+							'Failed to create user left group notifications:',
+							error,
+						);
 					}
 				}
 
@@ -863,20 +888,24 @@ export class ChatRoomsService {
 		});
 
 		if (!participant) {
-			throw new NotFoundException('Participant not found in this chat room');
+			throw new NotFoundException(
+				'Participant not found in this chat room',
+			);
 		}
 
-		const updatedParticipant = await this.prisma.chatRoomParticipant.update({
-			where: {
-				chatRoomId_userId: {
-					chatRoomId,
-					userId,
+		const updatedParticipant = await this.prisma.chatRoomParticipant.update(
+			{
+				where: {
+					chatRoomId_userId: {
+						chatRoomId,
+						userId,
+					},
+				},
+				data: {
+					mute: !participant.mute,
 				},
 			},
-			data: {
-				mute: !participant.mute,
-			},
-		});
+		);
 
 		return {
 			chatRoomId,
@@ -899,20 +928,24 @@ export class ChatRoomsService {
 		});
 
 		if (!participant) {
-			throw new NotFoundException('Participant not found in this chat room');
+			throw new NotFoundException(
+				'Participant not found in this chat room',
+			);
 		}
 
-		const updatedParticipant = await this.prisma.chatRoomParticipant.update({
-			where: {
-				chatRoomId_userId: {
-					chatRoomId,
-					userId,
+		const updatedParticipant = await this.prisma.chatRoomParticipant.update(
+			{
+				where: {
+					chatRoomId_userId: {
+						chatRoomId,
+						userId,
+					},
+				},
+				data: {
+					pin: !participant.pin,
 				},
 			},
-			data: {
-				pin: !participant.pin,
-			},
-		});
+		);
 
 		return {
 			chatRoomId,
@@ -924,9 +957,11 @@ export class ChatRoomsService {
 	/**
 	 * Mute or unmute specified chat rooms for a user
 	 */
-	async muteChatRooms(userId: string, chatRoomIds: string[], action: 'mute' | 'unmute') {
-		console.log('muteChatRooms called with:', { userId, chatRoomIds, action });
-		
+	async muteChatRooms(
+		userId: string,
+		chatRoomIds: string[],
+		action: 'mute' | 'unmute',
+	) {
 		if (!chatRoomIds || chatRoomIds.length === 0) {
 			console.log('No chatRoomIds provided, returning empty result');
 			return {
@@ -953,10 +988,15 @@ export class ChatRoomsService {
 			},
 		});
 
-		console.log(`Found ${action === 'mute' ? 'unmuted' : 'muted'} participants:`, participants);
+		console.log(
+			`Found ${action === 'mute' ? 'unmuted' : 'muted'} participants:`,
+			participants,
+		);
 
 		if (participants.length === 0) {
-			console.log(`No ${action === 'mute' ? 'unmuted' : 'muted'} participants found`);
+			console.log(
+				`No ${action === 'mute' ? 'unmuted' : 'muted'} participants found`,
+			);
 			return {
 				userId,
 				mutedCount: 0,
@@ -978,7 +1018,7 @@ export class ChatRoomsService {
 			},
 		});
 
-		const updatedChatRoomIds = participants.map(p => p.chatRoomId);
+		const updatedChatRoomIds = participants.map((p) => p.chatRoomId);
 		console.log(`Successfully ${action}d chat rooms:`, updatedChatRoomIds);
 
 		return {
