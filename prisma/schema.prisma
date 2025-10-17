@@ -127,6 +127,8 @@ model ChatRoomParticipant {
   userId     String
   joinedAt   DateTime @default(now())
   isHidden   Boolean  @default(false) // For hiding DIRECT chats without full deletion
+  mute       Boolean  @default(false) // For muting chat notifications
+  pin        Boolean  @default(false) // For pinning chat to top
   chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

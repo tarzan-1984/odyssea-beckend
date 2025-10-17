@@ -420,4 +420,110 @@ export class ChatRoomsController {
 
 		return result;
 	}
+
+	@Put(':id/mute')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Toggle mute status for chat room',
+		description: 'Toggle mute status for the current user in the specified chat room. When muted, no sound notifications or preview messages will be shown.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Chat room ID',
+		example: 'chat_room_123',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Mute status toggled successfully',
+		schema: {
+			example: {
+				chatRoomId: 'chat_room_123',
+				userId: 'user_456',
+				mute: true,
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Unauthorized - invalid or missing JWT token',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'Chat room not found or user not participant',
+	})
+	async toggleMuteChatRoom(
+		@Param('id') id: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		return await this.chatRoomsService.toggleMuteChatRoom(id, userId);
+	}
+
+	@Put(':id/pin')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Toggle pin status for chat room',
+		description: 'Toggle pin status for the current user in the specified chat room. Pinned chats appear at the top of the chat list.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Chat room ID',
+		example: 'chat_room_123',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Pin status toggled successfully',
+		schema: {
+			example: {
+				chatRoomId: 'chat_room_123',
+				userId: 'user_456',
+				pin: true,
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Unauthorized - invalid or missing JWT token',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'Chat room not found or user not participant',
+	})
+	async togglePinChatRoom(
+		@Param('id') id: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		return await this.chatRoomsService.togglePinChatRoom(id, userId);
+	}
+
+	@Put('mute')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Mute or unmute chat rooms for user',
+		description: 'Mutes or unmutes specified chat rooms for the authenticated user.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Chat rooms muted/unmuted successfully',
+		schema: {
+			example: {
+				userId: 'user_456',
+				mutedCount: 3,
+				chatRoomIds: ['chat_room_1', 'chat_room_2', 'chat_room_3'],
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Unauthorized - invalid or missing JWT token',
+	})
+	async muteChatRooms(
+		@Body() body: { chatRoomIds: string[]; action: 'mute' | 'unmute' },
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		const { chatRoomIds, action } = body;
+		return await this.chatRoomsService.muteChatRooms(userId, chatRoomIds, action);
+	}
 }

@@ -254,7 +254,7 @@ export class ChatRoomsService {
 						messages: {
 							where: {
 								AND: [
-									{ receiverId: userId },
+									{ senderId: { not: userId } }, // Messages NOT from current user
 									{ isRead: false },
 								],
 							},
@@ -264,35 +264,52 @@ export class ChatRoomsService {
 			},
 		});
 
-		// Sort chat rooms by last message date (most recent first)
+		// Sort chat rooms by pin status first, then by last message date
 		const sortedChatRooms = chatRooms.sort((a, b) => {
+			// Get participant data for current user
+			const aParticipant = a.participants.find(p => p.userId === userId);
+			const bParticipant = b.participants.find(p => p.userId === userId);
+			
+			// Pinned chats first
+			if (aParticipant?.pin && !bParticipant?.pin) return -1;
+			if (!aParticipant?.pin && bParticipant?.pin) return 1;
+			
+			// If both pinned or both not pinned, sort by last message date
 			const aLastMessageDate = a.messages[0]?.createdAt || a.createdAt;
 			const bLastMessageDate = b.messages[0]?.createdAt || b.createdAt;
 			return bLastMessageDate.getTime() - aLastMessageDate.getTime();
 		});
 
-		return sortedChatRooms.map((room) => ({
-			...room,
-			participants: room.participants.map((participant) => ({
-				...participant,
-				user: {
-					...participant.user,
-					avatar: participant.user.profilePhoto,
-					profilePhoto: undefined,
-				},
-			})),
-			lastMessage: room.messages[0]
-				? {
-						...room.messages[0],
-						sender: {
-							...room.messages[0].sender,
-							avatar: room.messages[0].sender.profilePhoto,
-							profilePhoto: undefined,
-						},
-					}
-				: null,
-			unreadCount: room._count.messages,
-		}));
+		return sortedChatRooms.map((room) => {
+			// Get current user's participant data
+			const currentUserParticipant = room.participants.find(p => p.userId === userId);
+			
+			return {
+				...room,
+				participants: room.participants.map((participant) => ({
+					...participant,
+					user: {
+						...participant.user,
+						avatar: participant.user.profilePhoto,
+						profilePhoto: undefined,
+					},
+				})),
+				lastMessage: room.messages[0]
+					? {
+							...room.messages[0],
+							sender: {
+								...room.messages[0].sender,
+								avatar: room.messages[0].sender.profilePhoto,
+								profilePhoto: undefined,
+							},
+						}
+					: null,
+				unreadCount: room._count.messages,
+				// Add user-specific data
+				isMuted: currentUserParticipant?.mute || false,
+				isPinned: currentUserParticipant?.pin || false,
+			};
+		});
 	}
 
 	/**
@@ -830,5 +847,144 @@ export class ChatRoomsService {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Toggle mute status for a chat room participant
+	 */
+	async toggleMuteChatRoom(chatRoomId: string, userId: string) {
+		const participant = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+		});
+
+		if (!participant) {
+			throw new NotFoundException('Participant not found in this chat room');
+		}
+
+		const updatedParticipant = await this.prisma.chatRoomParticipant.update({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+			data: {
+				mute: !participant.mute,
+			},
+		});
+
+		return {
+			chatRoomId,
+			userId,
+			mute: updatedParticipant.mute,
+		};
+	}
+
+	/**
+	 * Toggle pin status for a chat room participant
+	 */
+	async togglePinChatRoom(chatRoomId: string, userId: string) {
+		const participant = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+		});
+
+		if (!participant) {
+			throw new NotFoundException('Participant not found in this chat room');
+		}
+
+		const updatedParticipant = await this.prisma.chatRoomParticipant.update({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+			data: {
+				pin: !participant.pin,
+			},
+		});
+
+		return {
+			chatRoomId,
+			userId,
+			pin: updatedParticipant.pin,
+		};
+	}
+
+	/**
+	 * Mute or unmute specified chat rooms for a user
+	 */
+	async muteChatRooms(userId: string, chatRoomIds: string[], action: 'mute' | 'unmute') {
+		console.log('muteChatRooms called with:', { userId, chatRoomIds, action });
+		
+		if (!chatRoomIds || chatRoomIds.length === 0) {
+			console.log('No chatRoomIds provided, returning empty result');
+			return {
+				userId,
+				mutedCount: 0,
+				chatRoomIds: [],
+			};
+		}
+
+		const muteValue = action === 'mute';
+		const oppositeMuteValue = action === 'unmute';
+
+		// Find all chat rooms for the user that match the provided IDs and current mute status
+		const participants = await this.prisma.chatRoomParticipant.findMany({
+			where: {
+				userId,
+				mute: oppositeMuteValue, // Find participants with opposite mute status
+				chatRoomId: {
+					in: chatRoomIds,
+				},
+			},
+			select: {
+				chatRoomId: true,
+			},
+		});
+
+		console.log(`Found ${action === 'mute' ? 'unmuted' : 'muted'} participants:`, participants);
+
+		if (participants.length === 0) {
+			console.log(`No ${action === 'mute' ? 'unmuted' : 'muted'} participants found`);
+			return {
+				userId,
+				mutedCount: 0,
+				chatRoomIds: [],
+			};
+		}
+
+		// Update all found participants
+		await this.prisma.chatRoomParticipant.updateMany({
+			where: {
+				userId,
+				mute: oppositeMuteValue,
+				chatRoomId: {
+					in: chatRoomIds,
+				},
+			},
+			data: {
+				mute: muteValue,
+			},
+		});
+
+		const updatedChatRoomIds = participants.map(p => p.chatRoomId);
+		console.log(`Successfully ${action}d chat rooms:`, updatedChatRoomIds);
+
+		return {
+			userId,
+			mutedCount: participants.length,
+			chatRoomIds: updatedChatRoomIds,
+		};
 	}
 }
