@@ -24,6 +24,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ChatRoomsService } from './chat-rooms.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
+import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { AuthenticatedRequest } from '../types/request.types';
 import { ChatGateway } from './chat.gateway';
 
@@ -383,7 +384,7 @@ export class ChatRoomsController {
 	@ApiOperation({
 		summary: 'Delete or hide chat room',
 		description:
-			'For DIRECT chats: hides the chat for current user. Chat is fully deleted when both users delete it. For GROUP chats: admin deletes entirely, regular users leave the chat.',
+			'For DIRECT chats: hides the chat for current user. Chat is fully deleted when both users delete it. For GROUP chats: admin deletes entirely, regular users leave the chat. For LOAD chats: only administrators can delete.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -407,6 +408,10 @@ export class ChatRoomsController {
 	@ApiResponse({
 		status: 404,
 		description: 'Chat room not found or access denied',
+	})
+	@ApiResponse({
+		status: 400,
+		description: 'Bad request - insufficient permissions (for LOAD chats)',
 	})
 	async deleteChatRoom(
 		@Param('id') id: string,

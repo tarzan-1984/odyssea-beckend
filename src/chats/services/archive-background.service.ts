@@ -56,6 +56,137 @@ export class ArchiveBackgroundService {
   }
 
   /**
+   * Start full archive for a specific chat room (all remaining messages by day) and delete chat after completion
+   */
+  async startFullArchiveAndDelete(chatRoomId: string) {
+    const jobId = `full-archive-${chatRoomId}-${Date.now()}`;
+    this.logger.log(`🚀 Starting full archive and delete for chat room: ${chatRoomId} (Job ID: ${jobId})`);
+    this.jobs.set(jobId, {
+      id: jobId,
+      status: 'processing',
+      progress: 0,
+      startTime: new Date(),
+      endTime: undefined,
+      currentChatRoom: chatRoomId,
+      chatRoomsProcessed: 0,
+      processedBatches: 0,
+      totalArchived: 0,
+      totalSkipped: 0,
+      isComplete: false,
+      tempFiles: [],
+      currentDay: '',
+      error: undefined,
+    });
+
+    // Run asynchronously
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    (async () => {
+      const job = this.jobs.get(jobId)!;
+      try {
+        this.logger.log(`📋 Beginning archive process for chat room: ${chatRoomId}`);
+        let totalArchived = 0;
+        let processedBatches = 0;
+        let dayCount = 0;
+
+        // Итеративно архивируем по самому позднему дню, пока сообщения не закончатся
+        while (true) {
+          this.logger.log(`🔍 Looking for latest message in chat room: ${chatRoomId}`);
+          const latest = await this.prisma.message.findFirst({
+            where: { chatRoomId },
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true },
+          });
+
+          if (!latest) {
+            this.logger.log(`✅ No more messages found in chat room: ${chatRoomId}. Proceeding to delete chat room.`);
+            // Сообщений больше нет — удаляем чат
+            await this.prisma.chatRoom.delete({ where: { id: chatRoomId } });
+            this.logger.log(`🗑️ Chat room deleted: ${chatRoomId}`);
+            break;
+          }
+
+          const dt = latest.createdAt;
+          const year = dt.getUTCFullYear();
+          const month = dt.getUTCMonth() + 1; // 1..12
+          const day = dt.getUTCDate();
+          job.currentDay = `${year}-${month}-${day}`;
+          dayCount++;
+          this.logger.log(`📅 Processing day ${dayCount}: ${year}-${month}-${day} (Job ID: ${jobId})`);
+
+          // Проверка — вдруг архив за этот день уже есть
+          const exists = await this.messagesArchiveService.hasArchivedMessages(
+            chatRoomId,
+            year,
+            month,
+            day,
+          );
+          if (exists) {
+            this.logger.log(`⏭️ Archive already exists for ${year}-${month}-${day}. Deleting messages from DB and skipping.`);
+            // Если архив существует, удалим сообщения этого дня из БД и перейдём дальше
+            const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+            const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+            const deletedCount = await this.prisma.message.deleteMany({
+              where: { chatRoomId, createdAt: { gte: start, lte: end } },
+            });
+            this.logger.log(`🗑️ Deleted ${deletedCount.count} messages from DB for ${year}-${month}-${day}`);
+            continue;
+          }
+
+          // Выбираем все сообщения за этот день
+          const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+          const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+          this.logger.log(`📥 Fetching messages for ${year}-${month}-${day}...`);
+          const dayMessages = await this.prisma.message.findMany({
+            where: { chatRoomId, createdAt: { gte: start, lte: end } },
+            include: {
+              sender: { select: { id: true, firstName: true, lastName: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+
+          this.logger.log(`📊 Found ${dayMessages.length} messages for ${year}-${month}-${day}`);
+
+          if (dayMessages.length === 0) {
+            this.logger.log(`⚠️ No messages found for ${year}-${month}-${day}, continuing...`);
+            // На всякий случай, если что-то странное
+            continue;
+          }
+
+          this.logger.log(`📦 Creating archive for ${year}-${month}-${day} with ${dayMessages.length} messages...`);
+          const dayResult = await this.processDayArchive(
+            jobId,
+            chatRoomId,
+            year,
+            month,
+            day,
+            dayMessages,
+            this.BATCH_SIZE,
+          );
+
+          this.logger.log(`✅ Day ${dayCount} completed: ${dayResult.archived} messages archived for ${year}-${month}-${day} in ${dayResult.processedBatches} batches`);
+          totalArchived += dayResult.archived;
+          processedBatches += dayResult.processedBatches;
+          job.processedBatches = processedBatches;
+        }
+
+        this.logger.log(`🎉 Archive process completed for chat room: ${chatRoomId}`);
+        this.logger.log(`📈 Final stats: ${totalArchived} total messages archived, ${dayCount} days processed, ${processedBatches} total batches`);
+        job.totalArchived = totalArchived;
+        job.status = 'completed';
+        job.progress = 100;
+        job.isComplete = true;
+        job.endTime = new Date();
+      } catch (error) {
+        this.logger.error(`❌ Archive process failed for chat room: ${chatRoomId}`, error);
+        job.status = 'failed';
+        job.error = (error as Error).message;
+        job.endTime = new Date();
+      }
+    })();
+
+    return { jobId, message: `Full archive started. Job ID: ${jobId}` };
+  }
+  /**
    * Start archive process in background
    */
   async startArchive(chatRoomId?: string, batchSize: number = 50): Promise<{ jobId: string; message: string }> {
@@ -275,7 +406,7 @@ export class ArchiveBackgroundService {
     
     // Initialize temporary archive file
     const tempArchive = {
-      chatRoomId,
+      
       year,
       month,
       messages: [] as any[],

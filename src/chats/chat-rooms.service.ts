@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
+import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
+import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -737,6 +739,25 @@ export class ChatRoomsService {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
+		// For LOAD chats: only ADMINISTRATOR can delete
+		if (chatRoom.type === 'LOAD') {
+			// Get user info to check role
+			const user = await this.prisma.user.findUnique({
+				where: { id: userId },
+				select: { role: true },
+			});
+
+			if (!user || user.role !== 'ADMINISTRATOR') {
+				throw new BadRequestException('Only administrators can delete LOAD chats');
+			}
+
+			// Administrator can delete the entire LOAD chat
+			await this.prisma.chatRoom.delete({
+				where: { id: chatRoomId },
+			});
+			return { deleted: true, hidden: false };
+		}
+
 		if (chatRoom.type === 'DIRECT') {
 			// For DIRECT chats: hide for current user
 			await this.prisma.chatRoomParticipant.update({
@@ -1025,6 +1046,267 @@ export class ChatRoomsService {
 			userId,
 			mutedCount: participants.length,
 			chatRoomIds: updatedChatRoomIds,
+		};
+	}
+
+	/**
+	 * Create a LOAD chat with external participants
+	 */
+	async createLoadChat(createLoadChatDto: CreateLoadChatDto) {
+		const { load_id, title, participants } = createLoadChatDto;
+
+		// Step 1: Find and verify the driver
+		const driverParticipant = participants.find((p) => p.role.toUpperCase() === 'DRIVER');
+		if (!driverParticipant) {
+			throw new BadRequestException('Driver participant is required');
+		}
+
+		const driver = await this.prisma.user.findUnique({
+			where: { externalId: driverParticipant.id },
+		});
+
+		if (!driver) {
+			throw new BadRequestException(
+				`Driver with external ID ${driverParticipant.id} not found`,
+			);
+		}
+
+		if (driver.status !== 'ACTIVE') {
+			throw new BadRequestException(
+				`Driver with external ID ${driverParticipant.id} is not active`,
+			);
+		}
+
+		// Step 2: Verify all other participants and collect valid user IDs
+		const validParticipantIds: string[] = [driver.id];
+		const hiddenParticipantIds: string[] = [];
+
+		for (const participant of participants) {
+			if (participant.role.toUpperCase() === 'DRIVER') {
+				continue; // Already processed
+			}
+
+			const user = await this.prisma.user.findUnique({
+				where: { externalId: participant.id },
+			});
+
+			if (user) {
+				validParticipantIds.push(user.id);
+			}
+		}
+
+		// Step 3: Get all ADMINISTRATOR and BILLING users
+		const adminAndBillingUsers = await this.prisma.user.findMany({
+			where: {
+				role: {
+					in: ['ADMINISTRATOR', 'BILLING'],
+				},
+			},
+			select: {
+				id: true,
+			},
+		});
+
+		// Add them to list and mark to hideParticipant flag
+		for (const user of adminAndBillingUsers) {
+			if (!validParticipantIds.includes(user.id)) {
+				validParticipantIds.push(user.id);
+				hiddenParticipantIds.push(user.id);
+			}
+		}
+
+		// Step 4: Create the chat room
+		return this.prisma.$transaction(async (prisma) => {
+			const chatRoom = await prisma.chatRoom.create({
+				data: {
+					name: title,
+					type: 'LOAD',
+					loadId: load_id,
+					avatar: null,
+					adminId: null, // No admin for LOAD chats
+				},
+			});
+
+			// Step 5: Add all participants
+			const participantsData = validParticipantIds.map((userId) => ({
+				chatRoomId: chatRoom.id,
+				userId,
+				isHidden: false, // chat visible for everyone
+				hideParticipant: hiddenParticipantIds.includes(userId), // controls UI-specific hiding logic
+			}));
+
+			await prisma.chatRoomParticipant.createMany({
+				data: participantsData,
+			});
+
+			// Step 6: Fetch the complete chat room with participants
+			const completeChatRoom = await prisma.chatRoom.findUnique({
+				where: { id: chatRoom.id },
+				include: {
+					participants: {
+						include: {
+							user: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
+									role: true,
+									profilePhoto: true,
+								},
+							},
+						},
+					},
+				},
+			});
+
+			return completeChatRoom;
+		});
+	}
+
+	/**
+	 * Update LOAD chat participants by load_id
+	 * - Roles from payload are case-insensitive
+	 * - Hidden participants (hideParticipant=true) remain untouched
+	 * - Adds missing participants and removes those not in the new list
+	 */
+	async updateLoadChatParticipants(updateDto: UpdateLoadChatDto) {
+		const loadId = updateDto.load_id;
+		const incomingExternalIds = updateDto.participants.map((p) => p.id);
+
+		// Find chat room by loadId and type LOAD
+		const chatRoom = await this.prisma.chatRoom.findFirst({
+			where: { loadId: loadId, type: 'LOAD' },
+			include: {
+				participants: {
+					include: { user: { select: { id: true, externalId: true } } },
+				},
+			},
+		});
+
+		if (!chatRoom) {
+			throw new NotFoundException('LOAD chat with specified load_id not found');
+		}
+
+		// Map current participants by externalId (skip hidden ones)
+		const visibleParticipants = chatRoom.participants.filter(
+			(p: any) => p.hideParticipant !== true,
+		);
+		const currentByExternalId = new Map<string, string>(); // externalId -> userId
+		for (const p of visibleParticipants) {
+			if (p.user?.externalId) currentByExternalId.set(p.user.externalId, p.user.id);
+		}
+
+		// Resolve incoming external IDs to user IDs (only existing users)
+		const incomingUsers = await this.prisma.user.findMany({
+			where: { externalId: { in: incomingExternalIds } },
+			select: { id: true, externalId: true },
+		});
+		const incomingByExternal = new Map(incomingUsers.map((u) => [u.externalId!, u.id]));
+		// Determine external IDs that were requested but not found in users table
+		const foundExternalSet = new Set<string>(incomingUsers.map((u) => u.externalId!).filter(Boolean));
+		const notFoundExternalIds = incomingExternalIds.filter((extId) => !foundExternalSet.has(extId));
+
+		// Determine users to add and to remove
+		const incomingUserIds = new Set<string>(incomingUsers.map((u) => u.id));
+		const currentUserIds = new Set<string>(visibleParticipants.map((p: any) => p.userId));
+
+		const toAdd: string[] = [];
+		for (const uid of incomingUserIds) {
+			if (!currentUserIds.has(uid)) toAdd.push(uid);
+		}
+
+		const toRemove: string[] = [];
+		for (const uid of currentUserIds) {
+			if (!incomingUserIds.has(uid)) toRemove.push(uid);
+		}
+
+		// Preserve original participants list for notifications (before changes)
+		const originalParticipants = chatRoom.participants.map((p: any) => ({ userId: p.userId }));
+
+		// Apply changes in a transaction
+		await this.prisma.$transaction(async (tx) => {
+			if (toAdd.length > 0) {
+				await tx.chatRoomParticipant.createMany({
+					data: toAdd.map((userId) => ({ chatRoomId: chatRoom.id, userId })),
+				});
+			}
+
+			for (const userId of toRemove) {
+				await tx.chatRoomParticipant.delete({
+					where: { chatRoomId_userId: { chatRoomId: chatRoom.id, userId } },
+				});
+			}
+		});
+
+		// Build participants payload for WebSocket events
+		const newParticipants = toAdd.length
+			? await this.prisma.chatRoomParticipant.findMany({
+				where: { chatRoomId: chatRoom.id, userId: { in: toAdd } },
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							role: true,
+							profilePhoto: true,
+						},
+					},
+				},
+			})
+			: [];
+
+		// Create DB notifications similar to GROUP chat behavior
+		try {
+			// Added participants notifications
+			if (toAdd.length > 0) {
+				const addedUsers = await this.prisma.user.findMany({
+					where: { id: { in: toAdd } },
+					select: { id: true, firstName: true, lastName: true },
+				});
+
+				const allParticipantsAfterAdd = [
+					...originalParticipants,
+					...toAdd.map((id) => ({ userId: id })),
+				];
+
+				await this.notificationsService.createParticipantsAddedNotifications(
+					addedUsers,
+					{ id: chatRoom.id, name: chatRoom.name, avatar: chatRoom.avatar },
+					allParticipantsAfterAdd,
+					'system',
+				);
+			}
+
+			// Removed participants notifications (notify all including removed, exclude none)
+			if (toRemove.length > 0) {
+				for (const removedId of toRemove) {
+					const removedUser = await this.prisma.user.findUnique({
+						where: { id: removedId },
+						select: { id: true, firstName: true, lastName: true },
+					});
+					if (removedUser) {
+						await this.notificationsService.createParticipantRemovedNotifications(
+							removedUser,
+							{ id: chatRoom.id, name: chatRoom.name, avatar: chatRoom.avatar },
+							originalParticipants, // before removal includes the removed one
+							'system',
+						);
+					}
+				}
+			}
+		} catch (e) {
+			// Do not block update on notification errors
+			console.error('Failed to create notifications for LOAD chat update:', e);
+		}
+
+		return {
+			chatRoomId: chatRoom.id,
+			addedUserIds: toAdd,
+			removedUserIds: toRemove,
+			newParticipants,
+			notFoundExternalIds,
 		};
 	}
 }
