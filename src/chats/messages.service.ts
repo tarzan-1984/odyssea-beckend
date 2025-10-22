@@ -299,31 +299,69 @@ export class MessagesService {
 	/**
 	 * Delete a message (only by sender)
 	 */
-	async deleteMessage(messageId: string, userId: string) {
+	async deleteMessage(messageId: string, userId: string, userRole?: string, chatGateway?: any) {
 		const message = await this.prisma.message.findUnique({
 			where: { id: messageId },
+			include: {
+				chatRoom: {
+					include: {
+						participants: {
+							select: { userId: true }
+						}
+					}
+				}
+			}
 		});
 
 		if (!message) {
 			throw new NotFoundException('Message not found');
 		}
 
-		if (message.senderId !== userId) {
+		// Check if user can delete the message
+		// Users can delete their own messages, admins can delete any message
+		const isAdmin = userRole === 'ADMINISTRATOR';
+		const isOwner = message.senderId === userId;
+
+		if (!isOwner && !isAdmin) {
 			throw new BadRequestException(
-				'You can only delete your own messages',
+				'You can only delete your own messages or be an administrator',
 			);
 		}
 
-		// Soft delete - mark as deleted but keep in database
-		return await this.prisma.message.update({
+		// Hard delete the message from database
+		await this.prisma.message.delete({
 			where: { id: messageId },
-			data: {
-				content: '[Message deleted]',
-				fileUrl: null,
-				fileName: null,
-				fileSize: null,
-			},
 		});
+
+		// Send WebSocket notification to all participants in the chat room
+		if (chatGateway) {
+			const participantIds = message.chatRoom.participants.map(p => p.userId);
+			
+			// Emit to all participants in the chat room
+			chatGateway.server.to(`chat_${message.chatRoomId}`).emit('messageDeleted', {
+				messageId,
+				chatRoomId: message.chatRoomId,
+				deletedBy: userId,
+				deletedByRole: userRole
+			});
+
+			// Also emit to individual users who might not be in the room
+			participantIds.forEach(participantId => {
+				chatGateway.server.emit('messageDeleted', {
+					messageId,
+					chatRoomId: message.chatRoomId,
+					deletedBy: userId,
+					deletedByRole: userRole
+				});
+			});
+		}
+
+		return { 
+			success: true, 
+			messageId, 
+			chatRoomId: message.chatRoomId,
+			deletedBy: userId 
+		};
 	}
 
 	/**

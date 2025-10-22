@@ -446,7 +446,7 @@ export class MessagesController {
 	@ApiOperation({
 		summary: 'Delete message',
 		description:
-			'Delete a message. Only the sender can delete their own messages.',
+			'Delete a message. Users can delete their own messages, administrators can delete any message. Sends WebSocket notification to all chat participants.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -456,6 +456,14 @@ export class MessagesController {
 	@ApiResponse({
 		status: 200,
 		description: 'Message deleted successfully',
+		schema: {
+			example: {
+				success: true,
+				messageId: 'message_123',
+				chatRoomId: 'chat_room_123',
+				deletedBy: 'user_1'
+			}
+		}
 	})
 	@ApiResponse({
 		status: 400,
@@ -474,6 +482,7 @@ export class MessagesController {
 		@Request() req: AuthenticatedRequest,
 	) {
 		const userId = req.user.id;
-		return await this.messagesService.deleteMessage(id, userId);
+		const userRole = req.user.role;
+		return await this.messagesService.deleteMessage(id, userId, userRole, this.chatGateway);
 	}
 }
