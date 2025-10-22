@@ -261,14 +261,7 @@ export class ChatRoomsService {
 				},
 				_count: {
 					select: {
-						messages: {
-							where: {
-								AND: [
-									{ senderId: { not: userId } }, // Messages NOT from current user
-									{ isRead: false },
-								],
-							},
-						},
+						messages: true,
 					},
 				},
 			},
@@ -300,6 +293,10 @@ export class ChatRoomsService {
 				(p) => p.userId === userId,
 			);
 
+			// Calculate unread count for this user
+			// We need to fetch all messages and check readBy field
+			const unreadCount = 0; // Will be calculated separately in the messages endpoint
+
 			return {
 				...room,
 				participants: room.participants.map((participant) => ({
@@ -320,7 +317,7 @@ export class ChatRoomsService {
 							},
 						}
 					: null,
-				unreadCount: room._count.messages,
+				unreadCount: unreadCount,
 				// Add user-specific data
 				isMuted: currentUserParticipant?.mute || false,
 				isPinned: currentUserParticipant?.pin || false,

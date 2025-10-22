@@ -40,7 +40,7 @@ export class MessagesService {
 			select: { userId: true },
 		});
 
-		// Create message
+		// Create message with sender automatically marked as read
 		const message = await this.prisma.message.create({
 			data: {
 				chatRoomId,
@@ -55,6 +55,9 @@ export class MessagesService {
 						? participants.find((p) => p.userId !== senderId)
 								?.userId
 						: null,
+				// Sender is automatically marked as having read the message
+				isRead: false, // Global read status starts as false (no one has read it yet)
+				readBy: [senderId], // Only sender is in readBy array initially
 			},
 			include: {
 				sender: {
@@ -99,6 +102,8 @@ export class MessagesService {
 						profilePhoto: undefined,
 					}
 				: undefined,
+			// Add isRead field for WebSocket compatibility (always false for new messages)
+			isRead: message.isRead,
 		};
 
 		return transformedMessage;
@@ -222,22 +227,114 @@ export class MessagesService {
 				senderId: true, 
 				receiverId: true, 
 				chatRoomId: true,
-				isRead: true 
+				readBy: true 
 			},
 		});
 
-		if (!message || message.senderId === userId || message.isRead) {
-			return; // Don't mark own messages or already read messages
+		if (!message || message.senderId === userId) {
+			return; // Don't mark own messages
 		}
 
-		// For direct chats (receiverId is set), check if current user is the receiver
-		// For group chats (receiverId is null), allow any participant to mark as read
-		if (message.receiverId === null || message.receiverId === userId) {
+		// Check if user already read this message
+		const readBy = message.readBy as string[] || [];
+		const alreadyRead = readBy.includes(userId);
+		
+		if (alreadyRead) {
+			return; // Already read
+		}
+
+		// Add user to readBy array
+		const updatedReadBy = [...readBy, userId];
+
+		// Update both isRead (global) and readBy (per-user)
+		await this.prisma.message.update({
+			where: { id: messageId },
+			data: { 
+				isRead: true, // Global read status
+				readBy: updatedReadBy // Per-user read status
+			},
+		});
+	}
+
+	/**
+	 * Mark a specific message as UNREAD
+	 * Reverts read status and notifies chat participants via WebSocket (if provided)
+	 */
+	async markMessageAsUnread(
+		messageId: string,
+		userId: string,
+		chatGateway?: any,
+	) {
+		const message = await this.prisma.message.findUnique({
+			where: { id: messageId },
+			select: {
+				id: true,
+				senderId: true,
+				chatRoomId: true,
+				readBy: true,
+				isRead: true,
+			},
+		});
+
+		if (!message) {
+			throw new NotFoundException('Message not found');
+		}
+
+		// Disallow marking own messages as unread
+		if (message.senderId === userId) {
+			throw new BadRequestException('Cannot mark your own message as unread');
+		}
+
+		// Get chat room type to determine logic
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: message.chatRoomId },
+			select: { type: true, participants: { select: { userId: true } } },
+		});
+
+		if (!chatRoom) {
+			throw new NotFoundException('Chat room not found');
+		}
+
+		// Check if user already marked as unread
+		const readBy = message.readBy as string[] || [];
+		const userReadIndex = readBy.indexOf(userId);
+		
+		if (userReadIndex === -1) {
+			return { success: true, messageId, chatRoomId: message.chatRoomId };
+		}
+
+		// Remove user from readBy array
+		const updatedReadBy = readBy.filter(id => id !== userId);
+
+		// Apply different logic based on chat type
+		if (chatRoom.type === 'DIRECT') {
+			// For DIRECT chats: set both isRead to false and remove user from readBy
 			await this.prisma.message.update({
 				where: { id: messageId },
-				data: { isRead: true },
+				data: { 
+					isRead: false, // Global read status becomes false
+					readBy: updatedReadBy // Remove user from readBy
+				},
+			});
+		} else {
+			// For GROUP and LOAD chats: only remove user from readBy, keep isRead as true
+			await this.prisma.message.update({
+				where: { id: messageId },
+				data: { readBy: updatedReadBy },
 			});
 		}
+
+		if (chatGateway) {
+			chatGateway.server
+				.to(`chat_${message.chatRoomId}`)
+				.emit('messagesMarkedAsUnread', {
+					chatRoomId: message.chatRoomId,
+					messageIds: [messageId],
+					userId,
+				});
+		}
+
+		return { success: true, messageId, chatRoomId: message.chatRoomId };
 	}
 
 	/**
@@ -246,52 +343,78 @@ export class MessagesService {
 	 * For group chats, marks all messages except user's own messages
 	 * For direct chats, marks messages where user is the receiver
 	 */
-	async markMessagesAsRead(chatRoomId: string, userId: string) {
-		// First, get the IDs of messages that will be updated
-		// Mark as read all messages in this chat that:
-		// 1. Are not sent by the current user
-		// 2. Are not already read
-		const messagesToUpdate = await this.prisma.message.findMany({
+	async markMessagesAsRead(chatRoomId: string, userId: string): Promise<string[]> {
+		// Get all messages in this chat room that the user hasn't read yet
+		const messages = await this.prisma.message.findMany({
 			where: {
 				chatRoomId,
-				senderId: {
-					not: userId, // Not sent by current user
-				},
-				isRead: false,
+				senderId: { not: userId }, // Not sent by current user
 			},
 			select: {
 				id: true,
+				readBy: true,
 			},
 		});
 
-		// Update the messages
-		await this.prisma.message.updateMany({
-			where: {
-				chatRoomId,
-				senderId: {
-					not: userId,
-				},
-				isRead: false,
-			},
-			data: {
-				isRead: true,
-			},
-		});
+		const messagesToUpdate: string[] = [];
 
-		// Return the IDs of updated messages
-		return messagesToUpdate.map(msg => msg.id);
+		// Process each message
+		for (const message of messages) {
+			const readBy = message.readBy as string[] || [];
+			const alreadyRead = readBy.includes(userId);
+			
+			if (!alreadyRead) {
+				// Add user to readBy array
+				const updatedReadBy = [...readBy, userId];
+
+				await this.prisma.message.update({
+					where: { id: message.id },
+					data: { 
+						isRead: true, // Global read status
+						readBy: updatedReadBy // Per-user read status
+					},
+				});
+
+				messagesToUpdate.push(message.id);
+			}
+		}
+
+		return messagesToUpdate;
 	}
 
 	/**
 	 * Get unread message count for a user across all chat rooms
 	 */
 	async getUnreadCount(userId: string) {
-		const unreadCount = await this.prisma.message.count({
+		// Get all chat rooms where user is a participant
+		const userChatRooms = await this.prisma.chatRoomParticipant.findMany({
+			where: { userId },
+			select: { chatRoomId: true },
+		});
+
+		const chatRoomIds = userChatRooms.map(room => room.chatRoomId);
+
+		// Get all messages not sent by user in their chat rooms
+		const messages = await this.prisma.message.findMany({
 			where: {
-				receiverId: userId,
-				isRead: false,
+				chatRoomId: { in: chatRoomIds },
+				senderId: { not: userId },
+			},
+			select: {
+				id: true,
+				readBy: true,
 			},
 		});
+
+		// Count messages where user is not in readBy array
+		let unreadCount = 0;
+		for (const message of messages) {
+			const readBy = message.readBy as string[] || [];
+			const isRead = readBy.includes(userId);
+			if (!isRead) {
+				unreadCount++;
+			}
+		}
 
 		return { unreadCount };
 	}

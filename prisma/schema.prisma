@@ -146,7 +146,8 @@ model Message {
   fileUrl    String?
   fileName   String?
   fileSize   Int?
-  isRead     Boolean  @default(false)
+  isRead     Boolean  @default(false) // Global read status (true when any participant reads)
+  readBy     Json?    // JSON array of user IDs who read the message: ["user123", "user456", ...]
   createdAt  DateTime @default(now())
   chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   receiver   User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)

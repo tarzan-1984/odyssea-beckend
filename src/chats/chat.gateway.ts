@@ -32,7 +32,9 @@ interface AuthenticatedSocket extends Socket {
 	},
 	// namespace: '/chat',  // Removed for better compatibility with hosting platforms
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+export class ChatGateway
+	implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
 	@WebSocketServer()
 	server: Server;
 
@@ -77,7 +79,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 	 */
 	async handleConnection(client: AuthenticatedSocket) {
 		try {
-
 			// Authenticate user manually since WsJwtGuard doesn't work with handleConnection
 			const token = this.extractTokenFromHeader(client);
 
@@ -126,18 +127,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 				void client.join(`chat_${room.id}`);
 
 				// Notify other participants that user is online (for all chat types)
+				// Send one event to the entire room instead of one per participant
+				void this.server.to(`chat_${room.id}`).emit('userOnline', {
+					userId: userId,
+					chatRoomId: room.id,
+					isOnline: true,
+				});
+
+				// Notify the connecting user about who is already online
 				const otherParticipants = room.participants.filter(
 					(p) => p.userId !== userId,
 				);
-				for (const participant of otherParticipants) {
-					void client.to(`chat_${room.id}`).emit('userOnline', {
-						userId: userId,
-						chatRoomId: room.id,
-						isOnline: true,
-					});
-				}
-
-				// Notify the connecting user about who is already online
 				for (const participant of otherParticipants) {
 					if (this.userSockets.has(participant.userId)) {
 						void client.emit('userOnline', {
@@ -198,7 +198,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 								(p) => p.userId !== userId,
 							);
 							for (const participant of otherParticipants) {
-								void client
+								// Use this.server instead of client since client is disconnected
+								void this.server
 									.to(`chat_${room.id}`)
 									.emit('userOnline', {
 										userId: userId,
@@ -407,7 +408,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 		try {
 			// Ensure user is in the chat room for WebSocket
 			void client.join(`chat_${chatRoomId}`);
-			
+
 			// Verify user has access to this chat room
 			const chatRoom = await this.chatRoomsService.getChatRoom(
 				chatRoomId,
@@ -417,13 +418,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 			// For DIRECT chats: unhide chat for all participants if hidden
 			if (chatRoom.type === 'DIRECT') {
 				for (const participant of chatRoom.participants) {
-					const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
-						chatRoomId,
-						participant.userId,
-					);
+					const wasUnhidden =
+						await this.chatRoomsService.unhideChatRoom(
+							chatRoomId,
+							participant.userId,
+						);
 					if (wasUnhidden) {
 						// Notify the user that their chat was restored
-						this.notifyChatRoomRestored(chatRoomId, participant.userId);
+						this.notifyChatRoomRestored(
+							chatRoomId,
+							participant.userId,
+						);
 					}
 				}
 			}
@@ -573,6 +578,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 			fileName?: string | null;
 			fileSize?: number | null;
 			isRead: boolean;
+			readBy?: any;
 			createdAt: Date;
 			sender: {
 				id: string;
@@ -594,7 +600,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 			chatRoomId,
 			messageId: message.id,
 			senderId: message.senderId,
-			content: message.content.substring(0, 50) + '...'
+			content: message.content.substring(0, 50) + '...',
 		});
 
 		// Get chat room participants from database
@@ -603,10 +609,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 			include: {
 				participants: {
 					include: {
-						user: true
-					}
-				}
-			}
+						user: true,
+					},
+				},
+			},
 		});
 
 		if (!chatRoom) {
@@ -615,7 +621,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 		}
 
 		const participants = chatRoom.participants;
-		
+
 		// Send to all participants' personal notification rooms
 		// This ensures users receive messages even when not in the specific chat
 		const messageData = {
@@ -625,8 +631,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
 		// Send to all participants' notification rooms (including sender for confirmation)
 		for (const participant of participants) {
-			console.log(`📤 Sending message to user notification room: user_${participant.userId}`);
-			void this.server.to(`user_${participant.userId}`).emit('newMessage', messageData);
+			void this.server
+				.to(`user_${participant.userId}`)
+				.emit('newMessage', messageData);
 		}
 
 		// Also emit to general chat updates for chat list updates

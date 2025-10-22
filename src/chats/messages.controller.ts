@@ -485,4 +485,29 @@ export class MessagesController {
 		const userRole = req.user.role;
 		return await this.messagesService.deleteMessage(id, userId, userRole, this.chatGateway);
 	}
+
+  @Put(':id/unread')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark message as unread',
+    description:
+      'Marks a specific message as unread by the authenticated user and broadcasts via WebSocket.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Message ID',
+    example: 'message_123',
+  })
+  @ApiResponse({ status: 200, description: 'Message marked as unread' })
+  async markUnread(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    const userId = req.user.id;
+    return await this.messagesService.markMessageAsUnread(
+      id,
+      userId,
+      this.chatGateway,
+    );
+  }
 }
