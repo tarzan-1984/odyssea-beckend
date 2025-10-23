@@ -147,7 +147,7 @@ model Message {
   createdAt  DateTime @default(now())
   readBy     Json?
   isRead     Boolean  @default(false)
-  replyData  Json?    // JSON data about the message being replied to: {avatar, time, content, senderName}
+  replyData  Json?
   chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   receiver   User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
   sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
