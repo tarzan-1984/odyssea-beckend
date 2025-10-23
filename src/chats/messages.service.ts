@@ -15,7 +15,7 @@ export class MessagesService {
 	 * This method handles text messages and file attachments
 	 */
 	async sendMessage(sendMessageDto: SendMessageDto, senderId: string) {
-		const { chatRoomId, content, fileUrl, fileName, fileSize } =
+		const { chatRoomId, content, fileUrl, fileName, fileSize, replyData } =
 			sendMessageDto;
 
 		// Verify sender is participant in the chat room
@@ -49,6 +49,7 @@ export class MessagesService {
 				fileUrl,
 				fileName,
 				fileSize,
+				replyData, // Store reply data as JSON
 				// For direct chats, set receiverId; for group chats, leave null
 				receiverId:
 					participants.length === 2

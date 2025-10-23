@@ -394,10 +394,16 @@ export class ChatGateway
 			fileUrl?: string;
 			fileName?: string;
 			fileSize?: number;
+			replyData?: {
+				avatar?: string;
+				time: string;
+				content: string;
+				senderName: string;
+			};
 		},
 		@ConnectedSocket() client: AuthenticatedSocket,
 	) {
-		const { chatRoomId, content, fileUrl, fileName, fileSize } = data;
+		const { chatRoomId, content, fileUrl, fileName, fileSize, replyData } = data;
 		const userId = client.userId;
 
 		if (!userId) {
@@ -441,6 +447,7 @@ export class ChatGateway
 					fileUrl,
 					fileName,
 					fileSize,
+					replyData,
 				},
 				userId,
 			);

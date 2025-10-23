@@ -10,35 +10,34 @@ datasource db {
 }
 
 model User {
-  id                   String                @id @default(cuid())
-  externalId           String?               @unique // ID from external service
-  email                String                @unique
-  password             String?
-  firstName            String
-  lastName             String
-  phone                String?
-  profilePhoto         String?
-  location             String?
-  state                String?
-  zip                  String?
-  city                 String?
-  role                 UserRole
-  status               UserStatus            @default(INACTIVE)
-  type                 String?               // User type
-  vin                  String?               // Vehicle Identification Number
-  deactivateAccount    Boolean?              @default(false) // Flag to deactivate account from TMS
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  lastLoginAt          DateTime?
-  chatRooms            ChatRoomParticipant[]
-  receivedMessages     Message[]             @relation("MessageReceiver")
-  sentMessages         Message[]             @relation("MessageSender")
-  notifications        Notification[]
-  notificationsSent    NotificationSent[]
-  passwordResetTokens  PasswordResetToken[]
-  refreshTokens        RefreshToken[]
-  // Chats where the user is admin/creator
-  adminOfChatRooms     ChatRoom[]            @relation("ChatRoomAdmin")
+  id                  String                @id @default(cuid())
+  email               String                @unique
+  password            String?
+  firstName           String
+  lastName            String
+  phone               String?
+  profilePhoto        String?
+  role                UserRole
+  status              UserStatus            @default(INACTIVE)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  lastLoginAt         DateTime?
+  location            String?
+  city                String?
+  state               String?
+  zip                 String?
+  deactivateAccount   Boolean?              @default(false)
+  externalId          String?               @unique
+  type                String?
+  vin                 String?
+  chatRooms           ChatRoomParticipant[]
+  adminOfChatRooms    ChatRoom[]            @relation("ChatRoomAdmin")
+  receivedMessages    Message[]             @relation("MessageReceiver")
+  sentMessages        Message[]             @relation("MessageSender")
+  notifications       Notification[]
+  notificationsSent   NotificationSent[]
+  passwordResetTokens PasswordResetToken[]
+  refreshTokens       RefreshToken[]
 
   @@map("users")
 }
@@ -83,22 +82,22 @@ model Notification {
   title     String
   message   String
   type      String
-  avatar    String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+  avatar    String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
 
 model NotificationSent {
-  id             String   @id @default(cuid())
-  userId         String
-  chatRoomId     String?
-  messageIds     String[] // Array of message IDs that were included in the notification
-  notificationType String // 'unread_messages', 'new_message', etc.
-  sentAt         DateTime @default(now())
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  userId           String
+  chatRoomId       String?
+  messageIds       String[]
+  notificationType String
+  sentAt           DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications_sent")
 }
@@ -108,30 +107,29 @@ model ChatRoom {
   name         String?
   type         String
   loadId       String?
-  avatar       String?
   isArchived   Boolean               @default(false)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
-  // Who created this chat (administrator for GROUP chats)
+  avatar       String?
   adminId      String?               @map("admin")
-  admin        User?                 @relation("ChatRoomAdmin", fields: [adminId], references: [id], onDelete: SetNull)
   participants ChatRoomParticipant[]
+  admin        User?                 @relation("ChatRoomAdmin", fields: [adminId], references: [id])
   messages     Message[]
 
   @@map("chat_rooms")
 }
 
 model ChatRoomParticipant {
-  id         String   @id @default(cuid())
-  chatRoomId String
-  userId     String
-  joinedAt   DateTime @default(now())
-  isHidden   Boolean  @default(false) // For hiding DIRECT chats without full deletion
-  hideParticipant Boolean @default(false) // For LOAD chats: hide participant in UI logic without hiding chat itself
-  mute       Boolean  @default(false) // For muting chat notifications
-  pin        Boolean  @default(false) // For pinning chat to top
-  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  chatRoomId      String
+  userId          String
+  joinedAt        DateTime @default(now())
+  isHidden        Boolean  @default(false)
+  mute            Boolean  @default(false)
+  pin             Boolean  @default(false)
+  hideParticipant Boolean  @default(false)
+  chatRoom        ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([chatRoomId, userId])
   @@map("chat_room_participants")
@@ -146,14 +144,25 @@ model Message {
   fileUrl    String?
   fileName   String?
   fileSize   Int?
-  isRead     Boolean  @default(false) // Global read status (true when any participant reads)
-  readBy     Json?    // JSON array of user IDs who read the message: ["user123", "user456", ...]
   createdAt  DateTime @default(now())
+  readBy     Json?
+  isRead     Boolean  @default(false)
+  replyData  Json?    // JSON data about the message being replied to: {avatar, time, content, senderName}
   chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   receiver   User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
   sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@map("messages")
+}
+
+model FileObject {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  url       String
+  mime      String?
+  size      Int?
+  userId    String?
+  createdAt DateTime @default(now())
 }
 
 enum UserRole {
@@ -175,20 +184,9 @@ enum UserRole {
   DRIVER
 }
 
-
 enum UserStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
   PENDING
-}
-
-model FileObject {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  url       String
-  mime      String?
-  size      Int?
-  userId    String? // if you want ownership
-  createdAt DateTime @default(now())
 }
