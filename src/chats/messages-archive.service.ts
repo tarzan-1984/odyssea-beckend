@@ -49,8 +49,42 @@ export class MessagesArchiveService {
   }
 
   /**
-   * Get archive file path for a specific chat room, year, month and day
+   * Get user's join date for a specific chat room
    */
+  private async getUserJoinDate(chatRoomId: string, userId: string): Promise<Date | null> {
+    try {
+      const participant = await this.prisma.chatRoomParticipant.findUnique({
+        where: {
+          chatRoomId_userId: {
+            chatRoomId,
+            userId,
+          },
+        },
+        select: {
+          joinedAt: true,
+        },
+      });
+
+      return participant?.joinedAt || null;
+    } catch (error) {
+      this.logger.error(`Failed to get user join date for ${userId} in chat room ${chatRoomId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Filter messages by user's join date
+   */
+  private filterMessagesByJoinDate(messages: ArchiveMessage[], joinDate: Date): ArchiveMessage[] {
+    if (!joinDate) {
+      return messages; // If no join date, return all messages
+    }
+
+    return messages.filter(message => {
+      const messageDate = new Date(message.createdAt);
+      return messageDate >= joinDate;
+    });
+  }
   private getArchiveFilePath(chatRoomId: string, year: number, month: number, day?: number): string {
     const monthStr = month.toString().padStart(2, '0');
     
@@ -763,21 +797,43 @@ export class MessagesArchiveService {
 
   /**
    * Load archived messages for a specific day
+   * Only returns messages created after the user joined the chat room
    */
   async loadArchivedMessages(
     chatRoomId: string,
     year: number,
     month: number,
     day?: number,
+    userId?: string,
   ): Promise<ArchiveFile | null> {
     try {
       const filePath = this.getArchiveFilePath(chatRoomId, year, month, day);
       const archiveFile = await this.downloadFromCloudStorage(filePath);
       
-      if (archiveFile) {
-        this.logger.log(`Loaded ${archiveFile.messages.length} archived messages for ${chatRoomId}, ${year}-${month}${day ? `-${day}` : ''}`);
+      if (!archiveFile) {
+        return null;
+      }
+
+      // If userId is provided, filter messages by user's join date
+      if (userId) {
+        const userJoinDate = await this.getUserJoinDate(chatRoomId, userId);
+        
+        if (userJoinDate) {
+          const filteredMessages = this.filterMessagesByJoinDate(archiveFile.messages, userJoinDate);
+          
+          // Update the archive file with filtered messages
+          const filteredArchiveFile: ArchiveFile = {
+            ...archiveFile,
+            messages: filteredMessages,
+            totalCount: filteredMessages.length,
+          };
+          
+          this.logger.log(`Loaded ${filteredMessages.length} archived messages (filtered by join date) for ${chatRoomId}, ${year}-${month}${day ? `-${day}` : ''}`);
+          return filteredArchiveFile;
+        }
       }
       
+      this.logger.log(`Loaded ${archiveFile.messages.length} archived messages for ${chatRoomId}, ${year}-${month}${day ? `-${day}` : ''}`);
       return archiveFile;
     } catch (error) {
       this.logger.error(`Failed to load archived messages for ${chatRoomId}, ${year}-${month}${day ? `-${day}` : ''}:`, error);

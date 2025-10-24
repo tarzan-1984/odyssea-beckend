@@ -113,6 +113,7 @@ export class MessagesService {
 	/**
 	 * Get messages for a specific chat room with pagination
 	 * For chat: gets the most recent messages first, then older ones for infinite scroll
+	 * Only shows messages created after the user joined the chat room
 	 */
 	async getChatRoomMessages(
 		chatRoomId: string,
@@ -120,7 +121,7 @@ export class MessagesService {
 		page: number = 1,
 		limit: number = 50,
 	) {
-		// Verify user is participant
+		// Verify user is participant and get their join date
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
 				chatRoomId_userId: {
@@ -134,9 +135,17 @@ export class MessagesService {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
-		// Get total count first
+		// Filter messages to only show those created after the user joined
+		const messageFilter = {
+			chatRoomId,
+			createdAt: {
+				gte: participant.joinedAt, // Only messages created after user joined
+			},
+		};
+
+		// Get total count first (filtered by join date)
 		const total = await this.prisma.message.count({
-			where: { chatRoomId },
+			where: messageFilter,
 		});
 
 		// For chat, we want to get the most recent messages
@@ -156,7 +165,7 @@ export class MessagesService {
 		}
 
 		const messages = await this.prisma.message.findMany({
-			where: { chatRoomId },
+			where: messageFilter,
 			orderBy,
 			skip,
 			take: limit,

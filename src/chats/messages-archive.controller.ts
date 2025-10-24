@@ -96,6 +96,7 @@ export class MessagesArchiveController {
         yearNum,
         monthNum,
         dayNum,
+        req.user.id, // Pass userId to filter messages by join date
       );
       
       if (!archiveFile) {
