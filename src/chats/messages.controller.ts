@@ -95,13 +95,13 @@ export class MessagesController {
 		@Request() req: AuthenticatedRequest,
 	) {
 		const userId = req.user.id;
-		
+
 		// For DIRECT chats: unhide chat for all participants if hidden
 		const chatRoom = await this.chatRoomsService.getChatRoom(
 			sendMessageDto.chatRoomId,
 			userId,
 		);
-		
+
 		if (chatRoom.type === 'DIRECT') {
 			for (const participant of chatRoom.participants) {
 				const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
@@ -110,18 +110,24 @@ export class MessagesController {
 				);
 				if (wasUnhidden) {
 					// Notify the user that their chat was restored
-					this.chatGateway.notifyChatRoomRestored(sendMessageDto.chatRoomId, participant.userId);
+					this.chatGateway.notifyChatRoomRestored(
+						sendMessageDto.chatRoomId,
+						participant.userId,
+					);
 				}
 			}
 		}
-		
+
 		const message = await this.messagesService.sendMessage(
 			sendMessageDto,
 			userId,
 		);
 
 		// Broadcast message via WebSocket to all participants
-		void this.chatGateway.broadcastMessage(sendMessageDto.chatRoomId, message);
+		void this.chatGateway.broadcastMessage(
+			sendMessageDto.chatRoomId,
+			message,
+		);
 
 		return message;
 	}
@@ -461,9 +467,9 @@ export class MessagesController {
 				success: true,
 				messageId: 'message_123',
 				chatRoomId: 'chat_room_123',
-				deletedBy: 'user_1'
-			}
-		}
+				deletedBy: 'user_1',
+			},
+		},
 	})
 	@ApiResponse({
 		status: 400,
@@ -483,31 +489,84 @@ export class MessagesController {
 	) {
 		const userId = req.user.id;
 		const userRole = req.user.role;
-		return await this.messagesService.deleteMessage(id, userId, userRole, this.chatGateway);
+		return await this.messagesService.deleteMessage(
+			id,
+			userId,
+			userRole,
+			this.chatGateway,
+		);
 	}
 
-  @Put(':id/unread')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Mark message as unread',
-    description:
-      'Marks a specific message as unread by the authenticated user and broadcasts via WebSocket.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Message ID',
-    example: 'message_123',
-  })
-  @ApiResponse({ status: 200, description: 'Message marked as unread' })
-  async markUnread(
-    @Param('id') id: string,
-    @Request() req: AuthenticatedRequest,
-  ) {
-    const userId = req.user.id;
-    return await this.messagesService.markMessageAsUnread(
-      id,
-      userId,
-      this.chatGateway,
-    );
-  }
+	@Get('chat-room/:chatRoomId/files')
+	@ApiOperation({
+		summary: 'Get files from chat room',
+		description:
+			'Get all messages with file attachments from a specific chat room with pagination. Only returns messages that have fileUrl field.',
+	})
+	@ApiParam({
+		name: 'chatRoomId',
+		description: 'Chat room ID',
+		example: 'chat_room_123',
+	})
+	@ApiQuery({
+		name: 'page',
+		description: 'Page number for pagination',
+		example: 1,
+		required: false,
+	})
+	@ApiQuery({
+		name: 'limit',
+		description: 'Number of files per page',
+		example: 10,
+		required: false,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Files retrieved successfully',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'Chat room not found or access denied',
+	})
+	async getChatRoomFiles(
+		@Param('chatRoomId') chatRoomId: string,
+		@Query('page') page: number = 1,
+		@Query('limit') limit: number = 10,
+		@Request() req: AuthenticatedRequest,
+	) {
+		console.log('Getting files for chatRoomId = ', chatRoomId);
+
+		const userId = req.user.id;
+		return await this.messagesService.getChatRoomFiles(
+			chatRoomId,
+			userId,
+			page,
+			limit,
+		);
+	}
+
+	@Put(':id/unread')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Mark message as unread',
+		description:
+			'Marks a specific message as unread by the authenticated user and broadcasts via WebSocket.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Message ID',
+		example: 'message_123',
+	})
+	@ApiResponse({ status: 200, description: 'Message marked as unread' })
+	async markUnread(
+		@Param('id') id: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		return await this.messagesService.markMessageAsUnread(
+			id,
+			userId,
+			this.chatGateway,
+		);
+	}
 }

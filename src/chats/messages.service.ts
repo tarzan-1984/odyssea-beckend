@@ -225,6 +225,106 @@ export class MessagesService {
 	}
 
 	/**
+	 * Get files (messages with fileUrl) for a specific chat room with pagination
+	 * Only shows files from messages created after the user joined the chat room
+	 */
+	async getChatRoomFiles(
+		chatRoomId: string,
+		userId: string,
+		page: number = 1,
+		limit: number = 10,
+	) {
+		// Verify user is participant and get their join date
+		const participant = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+		});
+
+		if (!participant) {
+			throw new NotFoundException('Chat room not found or access denied');
+		}
+
+		// Filter messages to only show those with files created after the user joined
+		const messageFilter = {
+			chatRoomId,
+			fileUrl: {
+				not: null, // Only messages with files
+			},
+			createdAt: {
+				gte: participant.joinedAt, // Only messages created after user joined
+			},
+		};
+
+		// Get total count of files first (filtered by join date and fileUrl)
+		const total = await this.prisma.message.count({
+			where: messageFilter,
+		});
+
+		// Calculate pagination
+		const skip = (page - 1) * limit;
+
+		// Get files with pagination (newest first)
+		const messages = await this.prisma.message.findMany({
+			where: messageFilter,
+			orderBy: { createdAt: 'desc' }, // Newest files first
+			skip,
+			take: limit,
+			include: {
+				sender: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						profilePhoto: true,
+						role: true,
+					},
+				},
+				receiver: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						profilePhoto: true,
+						role: true,
+					},
+				},
+			},
+		});
+
+		// Transform messages to match frontend interface
+		const transformedMessages = messages.map((message) => ({
+			...message,
+			sender: {
+				...message.sender,
+				avatar: message.sender.profilePhoto,
+				profilePhoto: undefined,
+			},
+			receiver: message.receiver
+				? {
+						...message.receiver,
+						avatar: message.receiver.profilePhoto,
+						profilePhoto: undefined,
+					}
+				: undefined,
+		}));
+
+		return {
+			messages: transformedMessages,
+			pagination: {
+				page,
+				limit,
+				total,
+				pages: Math.ceil(total / limit),
+				hasMore: page * limit < total, // There are more files if current page * limit < total
+			},
+		};
+	}
+
+	/**
 	 * Mark a specific message as read
 	 * This is called when user views a specific message
 	 */
@@ -232,12 +332,12 @@ export class MessagesService {
 		// Get the message to check if it's from a group chat or direct chat
 		const message = await this.prisma.message.findUnique({
 			where: { id: messageId },
-			select: { 
-				id: true, 
-				senderId: true, 
-				receiverId: true, 
+			select: {
+				id: true,
+				senderId: true,
+				receiverId: true,
 				chatRoomId: true,
-				readBy: true 
+				readBy: true,
 			},
 		});
 
@@ -246,9 +346,9 @@ export class MessagesService {
 		}
 
 		// Check if user already read this message
-		const readBy = message.readBy as string[] || [];
+		const readBy = (message.readBy as string[]) || [];
 		const alreadyRead = readBy.includes(userId);
-		
+
 		if (alreadyRead) {
 			return; // Already read
 		}
@@ -259,9 +359,9 @@ export class MessagesService {
 		// Update both isRead (global) and readBy (per-user)
 		await this.prisma.message.update({
 			where: { id: messageId },
-			data: { 
+			data: {
 				isRead: true, // Global read status
-				readBy: updatedReadBy // Per-user read status
+				readBy: updatedReadBy, // Per-user read status
 			},
 		});
 	}
@@ -292,7 +392,9 @@ export class MessagesService {
 
 		// Disallow marking own messages as unread
 		if (message.senderId === userId) {
-			throw new BadRequestException('Cannot mark your own message as unread');
+			throw new BadRequestException(
+				'Cannot mark your own message as unread',
+			);
 		}
 
 		// Get chat room type to determine logic
@@ -306,24 +408,24 @@ export class MessagesService {
 		}
 
 		// Check if user already marked as unread
-		const readBy = message.readBy as string[] || [];
+		const readBy = (message.readBy as string[]) || [];
 		const userReadIndex = readBy.indexOf(userId);
-		
+
 		if (userReadIndex === -1) {
 			return { success: true, messageId, chatRoomId: message.chatRoomId };
 		}
 
 		// Remove user from readBy array
-		const updatedReadBy = readBy.filter(id => id !== userId);
+		const updatedReadBy = readBy.filter((id) => id !== userId);
 
 		// Apply different logic based on chat type
 		if (chatRoom.type === 'DIRECT') {
 			// For DIRECT chats: set both isRead to false and remove user from readBy
 			await this.prisma.message.update({
 				where: { id: messageId },
-				data: { 
+				data: {
 					isRead: false, // Global read status becomes false
-					readBy: updatedReadBy // Remove user from readBy
+					readBy: updatedReadBy, // Remove user from readBy
 				},
 			});
 		} else {
@@ -353,7 +455,10 @@ export class MessagesService {
 	 * For group chats, marks all messages except user's own messages
 	 * For direct chats, marks messages where user is the receiver
 	 */
-	async markMessagesAsRead(chatRoomId: string, userId: string): Promise<string[]> {
+	async markMessagesAsRead(
+		chatRoomId: string,
+		userId: string,
+	): Promise<string[]> {
 		// Get all messages in this chat room that the user hasn't read yet
 		const messages = await this.prisma.message.findMany({
 			where: {
@@ -370,18 +475,18 @@ export class MessagesService {
 
 		// Process each message
 		for (const message of messages) {
-			const readBy = message.readBy as string[] || [];
+			const readBy = (message.readBy as string[]) || [];
 			const alreadyRead = readBy.includes(userId);
-			
+
 			if (!alreadyRead) {
 				// Add user to readBy array
 				const updatedReadBy = [...readBy, userId];
 
 				await this.prisma.message.update({
 					where: { id: message.id },
-					data: { 
+					data: {
 						isRead: true, // Global read status
-						readBy: updatedReadBy // Per-user read status
+						readBy: updatedReadBy, // Per-user read status
 					},
 				});
 
@@ -402,7 +507,7 @@ export class MessagesService {
 			select: { chatRoomId: true },
 		});
 
-		const chatRoomIds = userChatRooms.map(room => room.chatRoomId);
+		const chatRoomIds = userChatRooms.map((room) => room.chatRoomId);
 
 		// Get all messages not sent by user in their chat rooms
 		const messages = await this.prisma.message.findMany({
@@ -419,7 +524,7 @@ export class MessagesService {
 		// Count messages where user is not in readBy array
 		let unreadCount = 0;
 		for (const message of messages) {
-			const readBy = message.readBy as string[] || [];
+			const readBy = (message.readBy as string[]) || [];
 			const isRead = readBy.includes(userId);
 			if (!isRead) {
 				unreadCount++;
@@ -432,18 +537,23 @@ export class MessagesService {
 	/**
 	 * Delete a message (only by sender)
 	 */
-	async deleteMessage(messageId: string, userId: string, userRole?: string, chatGateway?: any) {
+	async deleteMessage(
+		messageId: string,
+		userId: string,
+		userRole?: string,
+		chatGateway?: any,
+	) {
 		const message = await this.prisma.message.findUnique({
 			where: { id: messageId },
 			include: {
 				chatRoom: {
 					include: {
 						participants: {
-							select: { userId: true }
-						}
-					}
-				}
-			}
+							select: { userId: true },
+						},
+					},
+				},
+			},
 		});
 
 		if (!message) {
@@ -468,32 +578,36 @@ export class MessagesService {
 
 		// Send WebSocket notification to all participants in the chat room
 		if (chatGateway) {
-			const participantIds = message.chatRoom.participants.map(p => p.userId);
-			
+			const participantIds = message.chatRoom.participants.map(
+				(p) => p.userId,
+			);
+
 			// Emit to all participants in the chat room
-			chatGateway.server.to(`chat_${message.chatRoomId}`).emit('messageDeleted', {
-				messageId,
-				chatRoomId: message.chatRoomId,
-				deletedBy: userId,
-				deletedByRole: userRole
-			});
+			chatGateway.server
+				.to(`chat_${message.chatRoomId}`)
+				.emit('messageDeleted', {
+					messageId,
+					chatRoomId: message.chatRoomId,
+					deletedBy: userId,
+					deletedByRole: userRole,
+				});
 
 			// Also emit to individual users who might not be in the room
-			participantIds.forEach(participantId => {
+			participantIds.forEach((_participantId) => {
 				chatGateway.server.emit('messageDeleted', {
 					messageId,
 					chatRoomId: message.chatRoomId,
 					deletedBy: userId,
-					deletedByRole: userRole
+					deletedByRole: userRole,
 				});
 			});
 		}
 
-		return { 
-			success: true, 
-			messageId, 
+		return {
+			success: true,
+			messageId,
 			chatRoomId: message.chatRoomId,
-			deletedBy: userId 
+			deletedBy: userId,
 		};
 	}
 
