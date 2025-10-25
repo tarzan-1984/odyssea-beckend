@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: odyssea-backend
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_PREFIX
+        value: v1
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: odyssea-database
+          property: connectionString
+      - key: FRONTEND_URL
+        value: https://your-frontend-url.com
+
+databases:
+  - name: odyssea-database
+    plan: starter
+    databaseName: odyssea
+    user: odyssea_user
