@@ -155,8 +155,11 @@ export class AuthController {
 		console.log('DIAGNOSTIC - FRONTEND_URL check:');
 		console.log('Query frontendUrl:', frontendUrl);
 		console.log('process.env.FRONTEND_URL:', process.env.FRONTEND_URL);
-		console.log('configService.get(app.frontendUrl):', this.configService.get('app.frontendUrl'));
-		
+		console.log(
+			'configService.get(app.frontendUrl):',
+			this.configService.get('app.frontendUrl'),
+		);
+
 		// Use provided frontendUrl or fallback to environment variable
 		const targetFrontendUrl =
 			frontendUrl || this.configService.get('app.frontendUrl');
@@ -190,7 +193,9 @@ export class AuthController {
 			processEnv: {
 				FRONTEND_URL: process.env.FRONTEND_URL,
 				NODE_ENV: process.env.NODE_ENV,
-				GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT_SET',
+				GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID
+					? 'SET'
+					: 'NOT_SET',
 				GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL,
 			},
 			configService: {
@@ -315,10 +320,11 @@ export class AuthController {
 			}
 
 			// For all errors, redirect to signin with error message
-			const errorMessage = error instanceof UnauthorizedException 
-				? error.message 
-				: 'You are not registered in the system';
-			
+			const errorMessage =
+				error instanceof UnauthorizedException
+					? error.message
+					: 'You are not registered in the system';
+
 			return res.redirect(
 				formatUrl(
 					frontendUrl,
