@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsString, MinLength, IsBoolean, IsOptional } from 'class-validator';
 
 export class PasswordLoginDto {
 	@ApiProperty({
@@ -17,4 +17,12 @@ export class PasswordLoginDto {
 	@IsString()
 	@MinLength(6)
 	password: string;
+
+  @ApiPropertyOptional({
+  description: 'Optional flag to indicate mobile client; when true, driver role is allowed',
+  default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isMobile?: boolean;
 }

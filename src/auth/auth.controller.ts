@@ -87,13 +87,14 @@ export class AuthController {
 		status: 401,
 		description: 'Invalid credentials or insufficient permissions',
 	})
-	async loginPassword(
-		@Body() loginDto: PasswordLoginDto,
-	): Promise<{ message: string }> {
+  async loginPassword(
+    @Body() loginDto: PasswordLoginDto,
+  ): Promise<{ message: string }> {
 		try {
 			return await this.authService.loginWithPassword(
 				loginDto.email,
-				loginDto.password,
+        loginDto.password,
+        loginDto.isMobile === true, // allow drivers for mobile client
 			);
 		} catch (error) {
 			if (error instanceof UnauthorizedException) {

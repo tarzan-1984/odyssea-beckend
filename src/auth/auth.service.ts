@@ -233,14 +233,15 @@ export class AuthService {
 	/**
 	 * Authenticates user with email/password and sends OTP
 	 */
-	async loginWithOtp(
-		email: string,
-		password: string,
-	): Promise<{ message: string }> {
+  async loginWithOtp(
+    email: string,
+    password: string,
+    allowDriverRole = false,
+  ): Promise<{ message: string }> {
 		const user = await this.validateUser(email, password);
 
 		// Check if user has permission to access the system
-		if (user.role.toLowerCase() === 'driver') {
+    if (!allowDriverRole && user.role.toLowerCase() === 'driver') {
 			throw new UnauthorizedException(
 				'You do not have permission to access this system. Users with your role cannot log in.',
 			);
@@ -698,10 +699,11 @@ export class AuthService {
 	/**
 	 * Handles password login (same as original login logic)
 	 */
-	async loginWithPassword(
-		email: string,
-		password: string,
-	): Promise<{ message: string }> {
-		return this.loginWithOtp(email, password);
+  async loginWithPassword(
+    email: string,
+    password: string,
+    allowDriverRole = false,
+  ): Promise<{ message: string }> {
+    return this.loginWithOtp(email, password, allowDriverRole);
 	}
 }
