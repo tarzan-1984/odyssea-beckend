@@ -403,7 +403,8 @@ export class ChatGateway
 		},
 		@ConnectedSocket() client: AuthenticatedSocket,
 	) {
-		const { chatRoomId, content, fileUrl, fileName, fileSize, replyData } = data;
+		const { chatRoomId, content, fileUrl, fileName, fileSize, replyData } =
+			data;
 		const userId = client.userId;
 
 		if (!userId) {
@@ -524,9 +525,11 @@ export class ChatGateway
 		if (message && message.senderId !== userId) {
 			const senderSocketId = this.userSockets.get(message.senderId);
 			if (senderSocketId) {
-				void this.server
-					.to(senderSocketId)
-					.emit('messageRead', { messageId, readBy: userId });
+				void this.server.to(senderSocketId).emit('messageRead', {
+					messageId,
+					readBy: userId,
+					chatRoomId: message.chatRoomId,
+				});
 			}
 		}
 	}
