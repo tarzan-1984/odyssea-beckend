@@ -4,6 +4,7 @@ import {
 	NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
@@ -267,6 +268,26 @@ export class ChatRoomsService {
 			},
 		});
 
+		// Compute unread counts per room in one query:
+		// Count messages not sent by the current user and where readBy doesn't contain the userId
+		const roomIds = chatRooms.map((r) => r.id);
+		let unreadByRoom = new Map<string, number>();
+		if (roomIds.length > 0) {
+			// Build a JSON array literal for userId: ["<userId>"]
+			const userJsonArray = JSON.stringify([userId]);
+			const rows = await this.prisma.$queryRaw<
+				{ chatRoomId: string; count: number }[]
+			>(Prisma.sql`
+				SELECT "chatRoomId", COUNT(*)::int AS "count"
+				FROM "messages"
+				WHERE "chatRoomId" IN (${Prisma.join(roomIds)})
+				  AND "senderId" <> ${userId}
+				  AND ("readBy" IS NULL OR NOT ("readBy" @> ${Prisma.raw(`'${userJsonArray}'::jsonb`)}))
+				GROUP BY "chatRoomId"
+			`);
+			unreadByRoom = new Map(rows.map((r) => [r.chatRoomId, Number(r.count)]));
+		}
+
 		// Sort chat rooms by pin status first, then by last message date
 		const sortedChatRooms = chatRooms.sort((a, b) => {
 			// Get participant data for current user
@@ -293,9 +314,8 @@ export class ChatRoomsService {
 				(p) => p.userId === userId,
 			);
 
-			// Calculate unread count for this user
-			// We need to fetch all messages and check readBy field
-			const unreadCount = 0; // Will be calculated separately in the messages endpoint
+			// Unread count computed above (0 if none)
+			const unreadCount = unreadByRoom.get(room.id) || 0;
 
 			return {
 				...room,
@@ -1006,15 +1026,9 @@ export class ChatRoomsService {
 			},
 		});
 
-		console.log(
-			`Found ${action === 'mute' ? 'unmuted' : 'muted'} participants:`,
-			participants,
-		);
+		// Found target participants to toggle mute
 
 		if (participants.length === 0) {
-			console.log(
-				`No ${action === 'mute' ? 'unmuted' : 'muted'} participants found`,
-			);
 			return {
 				userId,
 				mutedCount: 0,
@@ -1037,7 +1051,6 @@ export class ChatRoomsService {
 		});
 
 		const updatedChatRoomIds = participants.map((p) => p.chatRoomId);
-		console.log(`Successfully ${action}d chat rooms:`, updatedChatRoomIds);
 
 		return {
 			userId,
