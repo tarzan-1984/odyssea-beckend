@@ -107,7 +107,63 @@ export class MessagesService {
 			isRead: message.isRead,
 		};
 
+		// Fire-and-forget push notifications to other participants
+		this.sendPushToParticipants(transformedMessage).catch(() => {});
+
 		return transformedMessage;
+	}
+
+	/**
+	 * Send Expo push notifications to all participants, excluding sender.
+	 * Non-blocking; errors ignored.
+	 */
+	private async sendPushToParticipants(message: any): Promise<void> {
+		try {
+			// Get all participant ids
+			const participants = await this.prisma.chatRoomParticipant.findMany({
+				where: { chatRoomId: message.chatRoomId },
+				select: { userId: true },
+			});
+			const receiverIds = participants
+				.map((p) => p.userId)
+				.filter((uid) => uid !== message.senderId);
+			if (receiverIds.length === 0) return;
+
+			// Fetch tokens
+			const tokens = await this.prisma.pushToken.findMany({
+				where: { userId: { in: receiverIds } },
+				select: { token: true, platform: true },
+			});
+			if (tokens.length === 0) return;
+
+			const senderName =
+				[(message.sender?.firstName || ''), (message.sender?.lastName || '')]
+					.join(' ')
+					.trim() || 'New message';
+			const body =
+				(message.content && String(message.content).trim()) ||
+				(message.fileName ? `Sent a file: ${message.fileName}` : 'New message');
+
+			const expoMessages = tokens.map((t) => {
+				const isIos = (t.platform || '').toLowerCase().includes('ios');
+				return {
+					to: t.token,
+					title: senderName,
+					body,
+					data: { chatRoomId: message.chatRoomId, messageId: message.id },
+					channelId: 'odysseia-messages',
+					// iOS: use bundled wav; Android uses channel sound ('livechat')
+					sound: isIos ? 'livechat.wav' : undefined,
+					priority: 'high' as const,
+				};
+			});
+
+			const { ExpoPushService } = await import('../notifications/expo-push.service');
+			const svc = new ExpoPushService();
+			await svc.send(expoMessages as any);
+		} catch {
+			// ignore
+		}
 	}
 
 	/**
