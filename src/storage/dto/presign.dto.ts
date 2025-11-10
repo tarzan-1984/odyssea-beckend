@@ -26,7 +26,7 @@ export class PresignDto {
 	@IsString()
 	@MaxLength(128)
 	@Matches(
-		/^[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_]*$/,
+		/^[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_+.]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_+.]*$/,
 		{
 			message: 'Invalid MIME type format',
 		},
