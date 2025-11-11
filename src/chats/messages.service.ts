@@ -120,10 +120,12 @@ export class MessagesService {
 	private async sendPushToParticipants(message: any): Promise<void> {
 		try {
 			// Get all participant ids
-			const participants = await this.prisma.chatRoomParticipant.findMany({
-				where: { chatRoomId: message.chatRoomId },
-				select: { userId: true },
-			});
+			const participants = await this.prisma.chatRoomParticipant.findMany(
+				{
+					where: { chatRoomId: message.chatRoomId },
+					select: { userId: true },
+				},
+			);
 			const receiverIds = participants
 				.map((p) => p.userId)
 				.filter((uid) => uid !== message.senderId);
@@ -137,12 +139,17 @@ export class MessagesService {
 			if (tokens.length === 0) return;
 
 			const senderName =
-				[(message.sender?.firstName || ''), (message.sender?.lastName || '')]
+				[
+					message.sender?.firstName || '',
+					message.sender?.lastName || '',
+				]
 					.join(' ')
 					.trim() || 'New message';
 			const body =
 				(message.content && String(message.content).trim()) ||
-				(message.fileName ? `Sent a file: ${message.fileName}` : 'New message');
+				(message.fileName
+					? `Sent a file: ${message.fileName}`
+					: 'New message');
 
 			const expoMessages = tokens.map((t) => {
 				const isIos = (t.platform || '').toLowerCase().includes('ios');
@@ -150,7 +157,10 @@ export class MessagesService {
 					to: t.token,
 					title: senderName,
 					body,
-					data: { chatRoomId: message.chatRoomId, messageId: message.id },
+					data: {
+						chatRoomId: message.chatRoomId,
+						messageId: message.id,
+					},
 					channelId: 'odysseia-messages',
 					// iOS: use bundled wav; Android uses channel sound ('livechat')
 					sound: isIos ? 'livechat.wav' : undefined,
@@ -158,7 +168,9 @@ export class MessagesService {
 				};
 			});
 
-			const { ExpoPushService } = await import('../notifications/expo-push.service');
+			const { ExpoPushService } = await import(
+				'../notifications/expo-push.service'
+			);
 			const svc = new ExpoPushService();
 			await svc.send(expoMessages as any);
 		} catch {
