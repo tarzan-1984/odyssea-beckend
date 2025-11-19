@@ -114,6 +114,58 @@ export class MessagesService {
 	}
 
 	/**
+	 * Get chat room avatar URL
+	 * Uses the same logic as frontend: for DIRECT chats use other participant's avatar,
+	 * for GROUP/LOAD chats use chat avatar if available
+	 */
+	private async getChatRoomAvatar(
+		chatRoomId: string,
+		senderId: string,
+	): Promise<string | null> {
+		try {
+			const chatRoom = await this.prisma.chatRoom.findUnique({
+				where: { id: chatRoomId },
+				include: {
+					participants: {
+						include: {
+							user: {
+								select: {
+									id: true,
+									profilePhoto: true,
+								},
+							},
+						},
+					},
+				},
+			});
+
+			if (!chatRoom) {
+				return null;
+			}
+
+			// For DIRECT chats, use the other participant's avatar
+			if (chatRoom.type === 'DIRECT' && chatRoom.participants.length === 2) {
+				const otherParticipant = chatRoom.participants.find(
+					(p) => p.userId !== senderId,
+				);
+				if (otherParticipant?.user?.profilePhoto) {
+					return otherParticipant.user.profilePhoto;
+				}
+				return null;
+			}
+
+			// For GROUP/LOAD chats, use chat avatar if available
+			if (chatRoom.avatar) {
+				return chatRoom.avatar;
+			}
+
+			return null;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
 	 * Send Expo push notifications to all participants, excluding sender.
 	 * Non-blocking; errors ignored.
 	 */
@@ -151,21 +203,39 @@ export class MessagesService {
 					? `Sent a file: ${message.fileName}`
 					: 'New message');
 
+			// Get chat room avatar
+			const chatAvatar = await this.getChatRoomAvatar(
+				message.chatRoomId,
+				message.senderId,
+			);
+
 			const expoMessages = tokens.map((t) => {
 				const isIos = (t.platform || '').toLowerCase().includes('ios');
-				return {
+				const messageData: any = {
 					to: t.token,
 					title: senderName,
 					body,
 					data: {
 						chatRoomId: message.chatRoomId,
 						messageId: message.id,
+						avatarUrl: chatAvatar || undefined, // Include avatar URL in data
 					},
 					channelId: 'odysseia-messages',
 					// iOS: use bundled wav; Android uses channel sound ('livechat')
 					sound: isIos ? 'livechat.wav' : undefined,
 					priority: 'high' as const,
 				};
+
+				// Add avatar for Android (largeIcon - Expo will use it for notification icon)
+				// For Android, Expo Push API supports largeIcon in the root of the message
+				if (chatAvatar && !isIos) {
+					messageData.largeIcon = chatAvatar;
+				}
+
+				// For iOS, avatar URL is already in data.avatarUrl
+				// iOS requires attachments with local files, which needs to be handled on client side
+
+				return messageData;
 			});
 
 			const { ExpoPushService } = await import(

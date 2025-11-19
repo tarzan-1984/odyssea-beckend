@@ -8,6 +8,7 @@ type ExpoMessage = {
 	channelId?: string;
 	sound?: string | null;
 	priority?: 'default' | 'normal' | 'high';
+	largeIcon?: string; // For Android notification icon
 };
 
 @Injectable()
