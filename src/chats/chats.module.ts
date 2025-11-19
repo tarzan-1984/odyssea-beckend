@@ -19,10 +19,12 @@ import { S3Service } from '../s3/s3.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
 	imports: [
 		PrismaModule,
+		NotificationsModule, // Import NotificationsModule to get FcmPushService
 		JwtModule.registerAsync({
 			imports: [ConfigModule],
 			useFactory: (configService: ConfigService) => ({
@@ -35,7 +37,14 @@ import { NotificationsWebSocketService } from '../notifications/notifications-we
 			dest: './uploads',
 		}),
 	],
-  controllers: [ChatRoomsController, MessagesController, MessagesArchiveController, LoadChatController, UpdateLoadChatController, DeleteLoadChatController],
+	controllers: [
+		ChatRoomsController,
+		MessagesController,
+		MessagesArchiveController,
+		LoadChatController,
+		UpdateLoadChatController,
+		DeleteLoadChatController,
+	],
 	providers: [
 		ChatRoomsService,
 		MessagesService,
@@ -48,6 +57,11 @@ import { NotificationsWebSocketService } from '../notifications/notifications-we
 		NotificationsService,
 		NotificationsWebSocketService,
 	],
-	exports: [ChatRoomsService, MessagesService, MessagesArchiveService, FileUploadService],
+	exports: [
+		ChatRoomsService,
+		MessagesService,
+		MessagesArchiveService,
+		FileUploadService,
+	],
 })
 export class ChatsModule {}

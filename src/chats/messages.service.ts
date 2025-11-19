@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { FcmPushService } from '../notifications/fcm-push.service';
 
 @Injectable()
 export class MessagesService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private fcmPushService: FcmPushService,
+	) {}
 
 	/**
 	 * Send a message to a chat room
@@ -144,7 +148,10 @@ export class MessagesService {
 			}
 
 			// For DIRECT chats, use the other participant's avatar
-			if (chatRoom.type === 'DIRECT' && chatRoom.participants.length === 2) {
+			if (
+				chatRoom.type === 'DIRECT' &&
+				chatRoom.participants.length === 2
+			) {
 				const otherParticipant = chatRoom.participants.find(
 					(p) => p.userId !== senderId,
 				);
@@ -166,7 +173,7 @@ export class MessagesService {
 	}
 
 	/**
-	 * Send Expo push notifications to all participants, excluding sender.
+	 * Send FCM push notifications to all participants, excluding sender.
 	 * Non-blocking; errors ignored.
 	 */
 	private async sendPushToParticipants(message: any): Promise<void> {
@@ -183,10 +190,10 @@ export class MessagesService {
 				.map((p) => p.userId);
 			if (receiverIds.length === 0) return;
 
-			// Fetch tokens
+			// Fetch device tokens (FCM device tokens, not Expo tokens)
 			const tokens = await this.prisma.pushToken.findMany({
 				where: { userId: { in: receiverIds } },
-				select: { token: true, platform: true },
+				select: { token: true },
 			});
 			if (tokens.length === 0) return;
 
@@ -209,42 +216,26 @@ export class MessagesService {
 				message.senderId,
 			);
 
-			const expoMessages = tokens.map((t) => {
-				const isIos = (t.platform || '').toLowerCase().includes('ios');
-				const messageData: any = {
-					to: t.token,
-					title: senderName,
-					body,
-					data: {
-						chatRoomId: message.chatRoomId,
-						messageId: message.id,
-						avatarUrl: chatAvatar || undefined, // Include avatar URL in data
-					},
-					channelId: 'odysseia-messages',
-					// iOS: use bundled wav; Android uses channel sound ('livechat')
-					sound: isIos ? 'livechat.wav' : undefined,
-					priority: 'high' as const,
-				};
+			// Prepare FCM push options
+			const fcmOptions = {
+				title: senderName,
+				body,
+				imageUrl: chatAvatar || undefined, // Avatar URL for notification icon (large icon for Android, image for iOS)
+				data: {
+					chatRoomId: message.chatRoomId,
+					messageId: message.id,
+					...(chatAvatar ? { avatarUrl: chatAvatar } : {}), // Include avatar URL in data only if available
+				},
+			};
 
-				// Add avatar for Android (largeIcon - Expo will use it for notification icon)
-				// For Android, Expo Push API supports largeIcon in the root of the message
-				if (chatAvatar && !isIos) {
-					messageData.largeIcon = chatAvatar;
-				}
+			// Extract device tokens
+			const deviceTokens = tokens.map((t) => t.token).filter(Boolean);
 
-				// For iOS, avatar URL is already in data.avatarUrl
-				// iOS requires attachments with local files, which needs to be handled on client side
-
-				return messageData;
-			});
-
-			const { ExpoPushService } = await import(
-				'../notifications/expo-push.service'
-			);
-			const svc = new ExpoPushService();
-			await svc.send(expoMessages as any);
-		} catch {
-			// ignore
+			// Send FCM push notifications using batch sending
+			await this.fcmPushService.sendToTokens(deviceTokens, fcmOptions);
+		} catch (error) {
+			// Log error but don't throw (non-blocking)
+			console.error('Failed to send FCM push notifications:', error);
 		}
 	}
 

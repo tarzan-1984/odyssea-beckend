@@ -6,14 +6,17 @@ import { NotificationsCleanupService } from './notifications-cleanup.service';
 import { NotificationsCleanupController } from './notifications-cleanup.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ExpoPushService } from './expo-push.service';
+import { FcmPushService } from './fcm-push.service';
+import { FirebaseModule } from '../firebase/firebase.module';
 
 @Module({
-	imports: [PrismaModule],
+	imports: [PrismaModule, FirebaseModule],
 	providers: [
 		NotificationsService,
 		NotificationsWebSocketService,
 		NotificationsCleanupService,
 		ExpoPushService,
+		FcmPushService,
 	],
 	controllers: [NotificationsController, NotificationsCleanupController],
 	exports: [
@@ -21,6 +24,7 @@ import { ExpoPushService } from './expo-push.service';
 		NotificationsWebSocketService,
 		NotificationsCleanupService,
 		ExpoPushService,
+		FcmPushService,
 	],
 })
 export class NotificationsModule {}

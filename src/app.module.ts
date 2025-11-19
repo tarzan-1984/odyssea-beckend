@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
 import { ChatsModule } from './chats/chats.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { FirebaseModule } from './firebase/firebase.module';
 
 import {
 	databaseConfig,
@@ -36,6 +37,7 @@ import { StorageModule } from './storage/storage.module';
 		}),
 		ScheduleModule.forRoot(),
 		PrismaModule,
+		FirebaseModule, // Global module for Firebase Admin
 		AuthModule,
 		UsersModule,
 		MailerModule,
