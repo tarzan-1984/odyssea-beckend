@@ -119,16 +119,16 @@ export class MessagesService {
 	 */
 	private async sendPushToParticipants(message: any): Promise<void> {
 		try {
-			// Get all participant ids
+			// Get all participant ids with mute status and exclude sender and muted users
 			const participants = await this.prisma.chatRoomParticipant.findMany(
 				{
 					where: { chatRoomId: message.chatRoomId },
-					select: { userId: true },
+					select: { userId: true, mute: true },
 				},
 			);
 			const receiverIds = participants
-				.map((p) => p.userId)
-				.filter((uid) => uid !== message.senderId);
+				.filter((p) => p.userId !== message.senderId && !p.mute)
+				.map((p) => p.userId);
 			if (receiverIds.length === 0) return;
 
 			// Fetch tokens
