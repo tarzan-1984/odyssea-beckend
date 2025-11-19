@@ -1,42 +1,59 @@
 import { Module, Global } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 import * as path from 'path';
 import * as fs from 'fs';
 
 const firebaseAdminProvider = {
 	provide: 'FIREBASE_ADMIN',
-	useFactory: () => {
+	useFactory: (configService: ConfigService) => {
 		// Check if Firebase is already initialized
 		if (admin.apps.length > 0) {
 			return admin.app();
 		}
 
-		// Load service account from config directory
-		const serviceAccountPath = path.join(
-			__dirname,
-			'..',
-			'..',
-			'config',
-			'firebase-service-account.json',
+		let serviceAccount: admin.ServiceAccount;
+
+		// Priority 1: Try to load from environment variable (for production/Render)
+		const firebaseServiceAccountJson = configService.get<string>(
+			'FIREBASE_SERVICE_ACCOUNT_JSON',
 		);
 
-		// Check if file exists
-		if (!fs.existsSync(serviceAccountPath)) {
-			throw new Error(
-				`Firebase service account file not found at: ${serviceAccountPath}. Please add firebase-service-account.json to the config directory.`,
+		if (firebaseServiceAccountJson) {
+			try {
+				serviceAccount = JSON.parse(firebaseServiceAccountJson);
+			} catch (error) {
+				throw new Error(
+					'Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON environment variable. Make sure it contains valid JSON.',
+				);
+			}
+		} else {
+			// Priority 2: Try to load from file (for local development)
+			const serviceAccountPath = path.join(
+				__dirname,
+				'..',
+				'..',
+				'config',
+				'firebase-service-account.json',
 			);
-		}
 
-		// Load service account
-		let serviceAccount: admin.ServiceAccount;
-		try {
-			serviceAccount = JSON.parse(
-				fs.readFileSync(serviceAccountPath, 'utf8'),
-			);
-		} catch (error) {
-			throw new Error(
-				`Failed to read or parse Firebase service account file at: ${serviceAccountPath}. Error: ${error instanceof Error ? error.message : String(error)}`,
-			);
+			if (fs.existsSync(serviceAccountPath)) {
+				try {
+					serviceAccount = JSON.parse(
+						fs.readFileSync(serviceAccountPath, 'utf8'),
+					);
+				} catch (error) {
+					throw new Error(
+						`Failed to read Firebase service account file at: ${serviceAccountPath}`,
+					);
+				}
+			} else {
+				throw new Error(
+					`Firebase service account not configured. Either:
+1. Set FIREBASE_SERVICE_ACCOUNT_JSON environment variable with the JSON content, OR
+2. Add firebase-service-account.json to the config directory (${serviceAccountPath})`,
+				);
+			}
 		}
 
 		// Initialize Firebase Admin
@@ -46,6 +63,7 @@ const firebaseAdminProvider = {
 
 		return app;
 	},
+	inject: [ConfigService],
 };
 
 @Global()
