@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
-import { ANDROID_NOTIFICATION_CHANNEL_ID } from './constants/notification-channel.constants';
+import {
+	ANDROID_NOTIFICATION_CHANNEL_ID,
+	ANDROID_NOTIFICATION_ICON,
+} from './constants/notification-channel.constants';
 
 export interface FCMPushOptions {
 	title: string;
@@ -50,7 +53,8 @@ export class FcmPushService {
 				android: {
 					priority: 'high' as const,
 					notification: {
-						imageUrl: options.imageUrl, // Large icon for Android notifications
+						icon: ANDROID_NOTIFICATION_ICON, // Small icon (left side) - custom app notification icon
+						imageUrl: options.imageUrl, // Large icon (right side) - user avatar, automatically rounded by Android
 						channelId: ANDROID_NOTIFICATION_CHANNEL_ID, // Notification channel
 						sound: 'livechat', // Custom sound from app.json
 						priority: 'high' as const,
@@ -131,7 +135,8 @@ export class FcmPushService {
 					android: {
 						priority: 'high' as const,
 						notification: {
-							imageUrl: options.imageUrl, // Large icon for Android notifications
+							icon: ANDROID_NOTIFICATION_ICON, // Small icon (left side) - custom app notification icon
+							imageUrl: options.imageUrl, // Large icon (right side) - user avatar, automatically rounded by Android
 							channelId: ANDROID_NOTIFICATION_CHANNEL_ID,
 							sound: 'livechat',
 							priority: 'high' as const,
