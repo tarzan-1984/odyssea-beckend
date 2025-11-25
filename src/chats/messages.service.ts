@@ -197,13 +197,29 @@ export class MessagesService {
 			});
 			if (tokens.length === 0) return;
 
-			const senderName =
-				[
-					message.sender?.firstName || '',
-					message.sender?.lastName || '',
-				]
-					.join(' ')
-					.trim() || 'New message';
+			// Get chat room info to determine notification title
+			const chatRoom = await this.prisma.chatRoom.findUnique({
+				where: { id: message.chatRoomId },
+				select: { type: true, name: true },
+			});
+
+			// Determine notification title based on chat type
+			let notificationTitle: string;
+			if (chatRoom?.type === 'DIRECT') {
+				// For DIRECT chats, show sender's name
+				const senderName =
+					[
+						message.sender?.firstName || '',
+						message.sender?.lastName || '',
+					]
+						.join(' ')
+						.trim() || 'New message';
+				notificationTitle = senderName;
+			} else {
+				// For GROUP and LOAD chats, show chat room name
+				notificationTitle = chatRoom?.name || 'Group Chat';
+			}
+
 			const body =
 				(message.content && String(message.content).trim()) ||
 				(message.fileName
@@ -218,7 +234,7 @@ export class MessagesService {
 
 			// Prepare FCM push options
 			const fcmOptions = {
-				title: senderName,
+				title: notificationTitle,
 				body,
 				imageUrl: chatAvatar || undefined, // Avatar URL for notification icon (large icon for Android, image for iOS)
 				data: {
