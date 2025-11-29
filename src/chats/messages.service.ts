@@ -303,15 +303,18 @@ export class MessagesService {
 	}
 
 	/**
-	 * Get messages for a specific chat room with pagination
-	 * For chat: gets the most recent messages first, then older ones for infinite scroll
-	 * Only shows messages created after the user joined the chat room
+	 * Get messages for a specific chat room.
+	 * - Default mode (no afterCreatedAt): paginated history (most recent messages first, then older ones for infinite scroll)
+	 * - Smart sync mode (afterCreatedAt provided): return messages created *after* the given timestamp,
+	 *   used by clients to fetch only new messages since the last known message.
+	 * Always filters messages to those created after the user joined the chat room.
 	 */
 	async getChatRoomMessages(
 		chatRoomId: string,
 		userId: string,
 		page: number = 1,
 		limit: number = 50,
+		afterCreatedAt?: string,
 	) {
 		// Verify user is participant and get their join date
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
@@ -327,61 +330,119 @@ export class MessagesService {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
-		// Filter messages to only show those created after the user joined
-		const messageFilter = {
+		// Base filter: only messages created after the user joined
+		let messageFilter: any = {
 			chatRoomId,
 			createdAt: {
-				gte: participant.joinedAt, // Only messages created after user joined
+				gte: participant.joinedAt,
 			},
 		};
 
-		// Get total count first (filtered by join date)
-		const total = await this.prisma.message.count({
-			where: messageFilter,
-		});
-
-		// For chat, we want to get the most recent messages
-		// If page = 1, get the last 'limit' messages
-		// If page > 1, get older messages (for infinite scroll)
-		let skip: number;
-		let orderBy: { createdAt: 'asc' | 'desc' };
-
-		if (page === 1) {
-			// First page: get the most recent messages
-			skip = Math.max(0, total - limit);
-			orderBy = { createdAt: 'asc' }; // We'll reverse this later
-		} else {
-			// Subsequent pages: get older messages
-			skip = Math.max(0, total - page * limit);
-			orderBy = { createdAt: 'asc' }; // We'll reverse this later
+		// If afterCreatedAt is provided, switch to "smart sync" mode:
+		// fetch only messages created strictly after the given timestamp.
+		if (afterCreatedAt) {
+			const afterDate = new Date(afterCreatedAt);
+			if (!Number.isNaN(afterDate.getTime())) {
+				const minDate =
+					afterDate > participant.joinedAt ? afterDate : participant.joinedAt;
+				messageFilter = {
+					...messageFilter,
+					createdAt: {
+						gt: minDate,
+					},
+				};
+			}
 		}
 
-		const messages = await this.prisma.message.findMany({
-			where: messageFilter,
-			orderBy,
-			skip,
-			take: limit,
-			include: {
-				sender: {
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						profilePhoto: true,
-						role: true,
+		let messages;
+		let total = 0;
+		let pages = 1;
+		let hasMore = false;
+
+		if (afterCreatedAt) {
+			// Smart sync: fetch only new messages after the given timestamp.
+			messages = await this.prisma.message.findMany({
+				where: messageFilter,
+				orderBy: { createdAt: 'asc' },
+				take: limit,
+				include: {
+					sender: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							profilePhoto: true,
+							role: true,
+						},
+					},
+					receiver: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							profilePhoto: true,
+							role: true,
+						},
 					},
 				},
-				receiver: {
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						profilePhoto: true,
-						role: true,
+			});
+
+			total = messages.length;
+			pages = 1;
+			hasMore = messages.length === limit;
+		} else {
+			// Default paginated mode (existing behaviour).
+			// Get total count first (filtered by join date)
+			total = await this.prisma.message.count({
+				where: messageFilter,
+			});
+
+			// For chat, we want to get the most recent messages
+			// If page = 1, get the last 'limit' messages
+			// If page > 1, get older messages (for infinite scroll)
+			let skip: number;
+			let orderBy: { createdAt: 'asc' | 'desc' };
+
+			if (page === 1) {
+				// First page: get the most recent messages
+				skip = Math.max(0, total - limit);
+				orderBy = { createdAt: 'asc' }; // We'll reverse this later
+			} else {
+				// Subsequent pages: get older messages
+				skip = Math.max(0, total - page * limit);
+				orderBy = { createdAt: 'asc' }; // We'll reverse this later
+			}
+
+			messages = await this.prisma.message.findMany({
+				where: messageFilter,
+				orderBy,
+				skip,
+				take: limit,
+				include: {
+					sender: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							profilePhoto: true,
+							role: true,
+						},
+					},
+					receiver: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							profilePhoto: true,
+							role: true,
+						},
 					},
 				},
-			},
-		});
+			});
+
+			pages = Math.ceil(total / limit);
+			hasMore = Math.max(0, total - page * limit) > 0;
+		}
 
 		// Note: Messages are no longer automatically marked as read when fetching
 		// They will be marked as read via WebSocket when user actually views them
@@ -410,8 +471,8 @@ export class MessagesService {
 				page,
 				limit,
 				total,
-				pages: Math.ceil(total / limit),
-				hasMore: skip > 0, // There are more older messages if skip > 0
+				pages,
+				hasMore,
 			},
 		};
 	}

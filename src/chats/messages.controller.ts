@@ -200,6 +200,12 @@ export class MessagesController {
 		example: 50,
 		required: false,
 	})
+	@ApiQuery({
+		name: 'afterCreatedAt',
+		description:
+			'Optional ISO timestamp. When provided, returns messages created AFTER this date (used to fetch only new messages).',
+		required: false,
+	})
 	@ApiResponse({
 		status: 200,
 		description: 'Messages retrieved successfully',
@@ -251,6 +257,7 @@ export class MessagesController {
 		@Param('chatRoomId') chatRoomId: string,
 		@Query('page') page: number = 1,
 		@Query('limit') limit: number = 50,
+		@Query('afterCreatedAt') afterCreatedAt?: string,
 		@Request() req: AuthenticatedRequest,
 	) {
 		console.log('chatRoomId = ', chatRoomId);
@@ -261,6 +268,7 @@ export class MessagesController {
 			userId,
 			page,
 			limit,
+			afterCreatedAt,
 		);
 	}
 
