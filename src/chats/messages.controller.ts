@@ -257,8 +257,8 @@ export class MessagesController {
 		@Param('chatRoomId') chatRoomId: string,
 		@Query('page') page: number = 1,
 		@Query('limit') limit: number = 50,
-		@Query('afterCreatedAt') afterCreatedAt?: string,
 		@Request() req: AuthenticatedRequest,
+		@Query('afterCreatedAt') afterCreatedAt?: string,
 	) {
 		console.log('chatRoomId = ', chatRoomId);
 
