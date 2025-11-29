@@ -232,16 +232,63 @@ export class MessagesService {
 				message.senderId,
 			);
 
+			// Prepare full message data for cache update in mobile app
+			// FCM requires all data values to be strings, so we need to serialize objects
+			// This allows mobile app to update cache even when app is closed
+			const messageData: Record<string, string> = {
+				chatRoomId: message.chatRoomId,
+				messageId: message.id,
+				senderId: message.senderId,
+				receiverId: message.receiverId || '',
+				content: message.content || '',
+				fileUrl: message.fileUrl || '',
+				fileName: message.fileName || '',
+				fileSize: message.fileSize?.toString() || '0',
+				isRead: message.isRead ? 'true' : 'false',
+				readBy: JSON.stringify(
+					Array.isArray(message.readBy) ? message.readBy : [],
+				),
+				createdAt: message.createdAt.toISOString(),
+				// Serialize sender object (always present)
+				sender: JSON.stringify({
+					id: message.sender.id,
+					firstName: message.sender.firstName || '',
+					lastName: message.sender.lastName || '',
+					avatar:
+						message.sender.avatar ||
+						message.sender.profilePhoto ||
+						'',
+					role: message.sender.role || '',
+				}),
+				// Serialize receiver object if exists
+				receiver: message.receiver
+					? JSON.stringify({
+							id: message.receiver.id,
+							firstName: message.receiver.firstName || '',
+							lastName: message.receiver.lastName || '',
+							avatar:
+								message.receiver.avatar ||
+								message.receiver.profilePhoto ||
+								'',
+							role: message.receiver.role || '',
+						})
+					: '',
+				// Serialize replyData if exists (stored as JSON in DB)
+				replyData: message.replyData
+					? JSON.stringify(message.replyData)
+					: '',
+				// Flag to indicate this is a new message (for unreadCount increment)
+				isNewMessage: 'true',
+				// Include avatar URL for notification display
+				...(chatAvatar ? { avatarUrl: chatAvatar } : {}),
+			};
+
 			// Prepare FCM push options
 			const fcmOptions = {
 				title: notificationTitle,
 				body,
 				imageUrl: chatAvatar || undefined, // Avatar URL for notification icon (large icon for Android, image for iOS)
-				data: {
-					chatRoomId: message.chatRoomId,
-					messageId: message.id,
-					...(chatAvatar ? { avatarUrl: chatAvatar } : {}), // Include avatar URL in data only if available
-				},
+				data: messageData,
 			};
 
 			// Extract device tokens
