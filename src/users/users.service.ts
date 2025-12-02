@@ -7,6 +7,7 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserLocationDto } from './dto/update-user-location.dto';
 import {
 	WebhookSyncDto,
 	WebhookType,
@@ -225,6 +226,49 @@ export class UsersService {
 				createdAt: true,
 				updatedAt: true,
 				lastLoginAt: true,
+			},
+		});
+
+		return updatedUser;
+	}
+
+	/**
+	 * Updates only user location-related fields (for mobile location tracking)
+	 */
+	async updateUserLocation(
+		id: string,
+		locationDto: UpdateUserLocationDto,
+	) {
+		const user = await this.prisma.user.findUnique({
+			where: { id },
+		});
+
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+
+		const updatedUser = await this.prisma.user.update({
+			where: { id },
+			data: {
+				location: locationDto.location,
+				city: locationDto.city,
+				state: locationDto.state,
+				zip: locationDto.zip,
+				latitude: locationDto.latitude,
+				longitude: locationDto.longitude,
+			},
+			select: {
+				id: true,
+				email: true,
+				firstName: true,
+				lastName: true,
+				location: true,
+				city: true,
+				state: true,
+				zip: true,
+				latitude: true,
+				longitude: true,
+				updatedAt: true,
 			},
 		});
 

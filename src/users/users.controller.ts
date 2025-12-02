@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserLocationDto } from './dto/update-user-location.dto';
 import { ImportDriversDto } from './dto/import-drivers.dto';
 import { ImportUsersDto } from './dto/import-users.dto';
 import { ImportDriversService } from './services/import-drivers.service';
@@ -211,6 +212,23 @@ export class UsersController {
 	})
 	async getImportUsersStatus(@Param('jobId') jobId: string) {
 		return this.importUsersBackgroundService.getImportStatus(jobId);
+	}
+
+	@Put(':id/location')
+	@ApiOperation({
+		summary: 'Update user location and coordinates',
+		description:
+			'Updates location-related fields (location, city, state, zip, latitude, longitude) for given user. Intended for mobile location tracking.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'User location updated successfully',
+	})
+	async updateUserLocation(
+		@Param('id') id: string,
+		@Body() body: UpdateUserLocationDto,
+	) {
+		return this.usersService.updateUserLocation(id, body);
 	}
 
 	@Get()
