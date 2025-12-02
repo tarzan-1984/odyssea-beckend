@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserLocationDto {
   @ApiProperty({
@@ -57,12 +57,12 @@ export class UpdateUserLocationDto {
   longitude?: number;
 
   @ApiProperty({
-    description: 'Client-side timestamp of the last location update (ISO string)',
-    example: '2025-12-02T19:05:20.818Z',
+    description: 'Client-side local timestamp of the last location update (as string, without timezone shift)',
+    example: '2025-12-02T22:05:20.818',
     required: false,
   })
   @IsOptional()
-  @IsDateString()
+  @IsString()
   lastLocationUpdateAt?: string;
 }
 

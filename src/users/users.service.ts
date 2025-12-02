@@ -260,9 +260,8 @@ export class UsersService {
         zip: locationDto.zip,
         latitude: locationDto.latitude,
         longitude: locationDto.longitude,
-        lastLocationUpdateAt: locationDto.lastLocationUpdateAt
-          ? new Date(locationDto.lastLocationUpdateAt)
-          : undefined,
+        // Store client local time string as-is (no timezone normalization)
+        lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
       },
       select: {
         id: true,
