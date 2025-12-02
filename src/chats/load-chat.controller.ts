@@ -72,7 +72,7 @@ export class LoadChatController {
 			console.log(`📡 Отправляем WebSocket событие для ${chatRoom.participants.length} участников`);
 			for (const participant of chatRoom.participants) {
 				console.log(`📡 Отправляем chatRoomCreated в комнату user_${participant.userId}`);
-				// Emit to each participant's room (используем правильный формат комнаты)
+				// Emit to each participant's room (using the correct room name format)
 				this.chatGateway.server
 					.to(`user_${participant.userId}`)
 					.emit('chatRoomCreated', chatRoom);

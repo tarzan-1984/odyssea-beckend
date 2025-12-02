@@ -81,7 +81,7 @@ describe('Storage (e2e)', () => {
 				'document.pdf',
 				'image.jpg',
 				'file-name_with.extension',
-				'файл.txt', // Unicode
+				'файл.txt', // Unicode filename with non‑ASCII characters
 			];
 
 			validFilenames.forEach((filename) => {

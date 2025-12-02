@@ -88,7 +88,7 @@ export class ArchiveBackgroundService {
         let processedBatches = 0;
         let dayCount = 0;
 
-        // Итеративно архивируем по самому позднему дню, пока сообщения не закончатся
+        // Iteratively archive messages starting from the latest day until there are no messages left
         while (true) {
           this.logger.log(`🔍 Looking for latest message in chat room: ${chatRoomId}`);
           const latest = await this.prisma.message.findFirst({
@@ -99,7 +99,7 @@ export class ArchiveBackgroundService {
 
           if (!latest) {
             this.logger.log(`✅ No more messages found in chat room: ${chatRoomId}. Proceeding to delete chat room.`);
-            // Сообщений больше нет — удаляем чат
+            // No messages left — delete chat
             await this.prisma.chatRoom.delete({ where: { id: chatRoomId } });
             this.logger.log(`🗑️ Chat room deleted: ${chatRoomId}`);
             break;
@@ -113,7 +113,7 @@ export class ArchiveBackgroundService {
           dayCount++;
           this.logger.log(`📅 Processing day ${dayCount}: ${year}-${month}-${day} (Job ID: ${jobId})`);
 
-          // Проверка — вдруг архив за этот день уже есть
+          // Check if archive for this day already exists
           const exists = await this.messagesArchiveService.hasArchivedMessages(
             chatRoomId,
             year,
@@ -122,7 +122,7 @@ export class ArchiveBackgroundService {
           );
           if (exists) {
             this.logger.log(`⏭️ Archive already exists for ${year}-${month}-${day}. Deleting messages from DB and skipping.`);
-            // Если архив существует, удалим сообщения этого дня из БД и перейдём дальше
+            // If archive exists, delete messages of this day from DB and move to previous day
             const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
             const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
             const deletedCount = await this.prisma.message.deleteMany({
@@ -132,7 +132,7 @@ export class ArchiveBackgroundService {
             continue;
           }
 
-          // Выбираем все сообщения за этот день
+          // Select all messages for this day
           const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
           const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
           this.logger.log(`📥 Fetching messages for ${year}-${month}-${day}...`);
@@ -148,7 +148,7 @@ export class ArchiveBackgroundService {
 
           if (dayMessages.length === 0) {
             this.logger.log(`⚠️ No messages found for ${year}-${month}-${day}, continuing...`);
-            // На всякий случай, если что-то странное
+            // Safety check in case something unexpected happens
             continue;
           }
 
