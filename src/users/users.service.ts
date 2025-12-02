@@ -251,30 +251,34 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
-		const updatedUser = await this.prisma.user.update({
-			where: { id },
-			data: {
-				location: locationDto.location,
-				city: locationDto.city,
-				state: locationDto.state,
-				zip: locationDto.zip,
-				latitude: locationDto.latitude,
-				longitude: locationDto.longitude,
-			},
-			select: {
-				id: true,
-				email: true,
-				firstName: true,
-				lastName: true,
-				location: true,
-				city: true,
-				state: true,
-				zip: true,
-				latitude: true,
-				longitude: true,
-				updatedAt: true,
-			},
-		});
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: {
+        location: locationDto.location,
+        city: locationDto.city,
+        state: locationDto.state,
+        zip: locationDto.zip,
+        latitude: locationDto.latitude,
+        longitude: locationDto.longitude,
+        lastLocationUpdateAt: locationDto.lastLocationUpdateAt
+          ? new Date(locationDto.lastLocationUpdateAt)
+          : undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        location: true,
+        city: true,
+        state: true,
+        zip: true,
+        latitude: true,
+        longitude: true,
+        updatedAt: true,
+        lastLocationUpdateAt: true,
+      },
+    });
 
 		// Emit websocket event so Next.js/admin UI can react to location changes
 		void this.notificationsWebSocketService.sendUserLocationUpdate(id, {
@@ -285,7 +289,7 @@ export class UsersService {
 			city: updatedUser.city,
 			state: updatedUser.state,
 			zip: updatedUser.zip,
-			updatedAt: updatedUser.updatedAt,
+      updatedAt: updatedUser.lastLocationUpdateAt || updatedUser.updatedAt,
 		});
 
 		return updatedUser;

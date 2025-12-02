@@ -22,6 +22,8 @@ model User {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   lastLoginAt         DateTime?
+  // Last time when location/coordinates were updated on the mobile device (client timestamp)
+  lastLocationUpdateAt DateTime?
   // Last known coordinates of the user (from location tracking)
   latitude            Float?
   longitude           Float?
