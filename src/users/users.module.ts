@@ -8,9 +8,10 @@ import { ImportDriversBackgroundService } from './services/import-drivers-backgr
 import { ImportUsersService } from './services/import-users.service';
 import { ImportUsersBackgroundService } from './services/import-users-background.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-	imports: [PrismaModule, ConfigModule],
+	imports: [PrismaModule, ConfigModule, NotificationsModule],
 	controllers: [UsersController, SyncController],
 	providers: [
 		UsersService, 

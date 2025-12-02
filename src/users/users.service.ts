@@ -14,10 +14,14 @@ import {
 	WebhookRole,
 } from './dto/webhook-sync.dto';
 import { UserRole, UserStatus } from '@prisma/client';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 @Injectable()
 export class UsersService {
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly notificationsWebSocketService: NotificationsWebSocketService,
+	) {}
 
 	/**
 	 * Finds all users with pagination and filtering
@@ -270,6 +274,18 @@ export class UsersService {
 				longitude: true,
 				updatedAt: true,
 			},
+		});
+
+		// Emit websocket event so Next.js/admin UI can react to location changes
+		void this.notificationsWebSocketService.sendUserLocationUpdate(id, {
+			userId: updatedUser.id,
+			latitude: updatedUser.latitude,
+			longitude: updatedUser.longitude,
+			location: updatedUser.location,
+			city: updatedUser.city,
+			state: updatedUser.state,
+			zip: updatedUser.zip,
+			updatedAt: updatedUser.updatedAt,
 		});
 
 		return updatedUser;
