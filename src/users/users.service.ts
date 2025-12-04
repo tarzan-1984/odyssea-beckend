@@ -265,6 +265,7 @@ export class UsersService {
 			},
 			select: {
 				id: true,
+				externalId: true,
 				email: true,
 				firstName: true,
 				lastName: true,
@@ -282,14 +283,14 @@ export class UsersService {
 		// Emit websocket event so Next.js/admin UI can react to location changes
 		void this.notificationsWebSocketService.sendUserLocationUpdate(id, {
 			userId: updatedUser.id,
+			externalId: updatedUser.externalId,
 			latitude: updatedUser.latitude,
 			longitude: updatedUser.longitude,
 			location: updatedUser.location,
 			city: updatedUser.city,
 			state: updatedUser.state,
 			zip: updatedUser.zip,
-			updatedAt:
-				updatedUser.lastLocationUpdateAt || updatedUser.updatedAt,
+			lastLocationUpdateAt: updatedUser.lastLocationUpdateAt,
 		});
 
 		return updatedUser;
