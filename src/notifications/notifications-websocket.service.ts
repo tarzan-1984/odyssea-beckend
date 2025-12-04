@@ -5,18 +5,11 @@ import { Server } from 'socket.io';
 export class NotificationsWebSocketService {
   private readonly logger = new Logger(NotificationsWebSocketService.name);
 
-  // Private/authenticated WebSocket server (chat / admin UI)
+  // WebSocket server (chat / admin UI / public tracking)
   private server: Server;
-
-  // Public WebSocket namespace (for unauthenticated viewers, e.g. public map)
-  private publicServer: Server;
 
   setServer(server: Server) {
     this.server = server;
-  }
-
-  setPublicServer(server: Server) {
-    this.publicServer = server;
   }
 
   /**
@@ -58,18 +51,15 @@ export class NotificationsWebSocketService {
    */
   async sendUserLocationUpdate(userId: string, payload: any) {
     try {
-      // Send to authenticated user-specific room (for internal tools / admin UI)
       if (this.server) {
+        // Send to authenticated user-specific room (for internal tools / admin UI)
         this.server.to(`user_${userId}`).emit('userLocationUpdate', payload);
+        // Also broadcast publicly so anonymous viewers on tracking page can see updates
+        // Public connections (without token) can listen to this event
+        this.server.emit('userLocationUpdate', payload);
+        this.logger.log(`✅ Sent userLocationUpdate for user ${userId}, externalId: ${payload.externalId}`);
       } else {
-        this.logger.warn('Private WebSocket server not initialized for userLocationUpdate');
-      }
-
-      // Also broadcast to public namespace so any anonymous viewer can see updates
-      if (this.publicServer) {
-        this.publicServer.emit('userLocationUpdate', payload);
-      } else {
-        this.logger.warn('Public WebSocket server not initialized for userLocationUpdate');
+        this.logger.warn('WebSocket server not initialized for userLocationUpdate');
       }
     } catch (error) {
       this.logger.error(`Failed to send user location update for user ${userId}:`, error);
