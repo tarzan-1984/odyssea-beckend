@@ -60,6 +60,7 @@ export class ChatGateway
 		// Initialize notifications WebSocket service with the server
 		this.notificationsWebSocketService.setServer(server);
 		console.log('✅ WebSocket server initialized');
+		console.log('✅ NotificationsWebSocketService server set:', !!this.notificationsWebSocketService.getServer());
 	}
 
 	/**

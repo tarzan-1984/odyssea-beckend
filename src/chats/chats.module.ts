@@ -55,7 +55,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 		ChatGateway,
 		FileUploadService,
 		NotificationsService,
-		NotificationsWebSocketService,
+		// NotificationsWebSocketService is provided by NotificationsModule (imported above)
 	],
 	exports: [
 		ChatRoomsService,

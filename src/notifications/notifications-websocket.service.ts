@@ -9,7 +9,21 @@ export class NotificationsWebSocketService {
   private server: Server;
 
   setServer(server: Server) {
+    if (!server) {
+      this.logger.error('❌ NotificationsWebSocketService: Attempted to set null server');
+      return;
+    }
     this.server = server;
+    this.logger.log('✅ NotificationsWebSocketService: WebSocket server set successfully');
+    this.logger.log(`✅ Server instance: ${server.constructor.name}, has sockets: ${server.sockets ? 'yes' : 'no'}`);
+  }
+
+  getServer(): Server | null {
+    return this.server || null;
+  }
+
+  isServerInitialized(): boolean {
+    return !!this.server;
   }
 
   /**
@@ -51,16 +65,18 @@ export class NotificationsWebSocketService {
    */
   async sendUserLocationUpdate(userId: string, payload: any) {
     try {
-      if (this.server) {
-        // Send to authenticated user-specific room (for internal tools / admin UI)
-        this.server.to(`user_${userId}`).emit('userLocationUpdate', payload);
-        // Also broadcast publicly so anonymous viewers on tracking page can see updates
-        // Public connections (without token) can listen to this event
-        this.server.emit('userLocationUpdate', payload);
-        this.logger.log(`✅ Sent userLocationUpdate for user ${userId}, externalId: ${payload.externalId}`);
-      } else {
+      if (!this.server) {
         this.logger.warn('WebSocket server not initialized for userLocationUpdate');
+        this.logger.warn('Server state:', { hasServer: !!this.server, serverType: typeof this.server });
+        return;
       }
+
+      // Send to authenticated user-specific room (for internal tools / admin UI)
+      this.server.to(`user_${userId}`).emit('userLocationUpdate', payload);
+      // Also broadcast publicly so anonymous viewers on tracking page can see updates
+      // Public connections (without token) can listen to this event
+      this.server.emit('userLocationUpdate', payload);
+      this.logger.log(`✅ Sent userLocationUpdate for user ${userId}, externalId: ${payload.externalId}`);
     } catch (error) {
       this.logger.error(`Failed to send user location update for user ${userId}:`, error);
     }
