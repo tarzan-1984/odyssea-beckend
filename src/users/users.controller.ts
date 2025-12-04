@@ -508,7 +508,16 @@ export class UsersController {
 	})
 	@ApiResponse({ status: 404, description: 'User not found' })
 	async findUserByExternalIdPublic(@Param('externalId') externalId: string) {
-		return this.usersService.findUserByExternalId(externalId);
+		console.log('🔓 [Public Endpoint] Request received for externalId:', externalId);
+		const user = await this.usersService.findUserByExternalId(externalId);
+		console.log('🔓 [Public Endpoint] User found:', {
+			firstName: user.firstName,
+			lastName: user.lastName,
+			phone: user.phone,
+			latitude: user.latitude,
+			longitude: user.longitude,
+		});
+		return user;
 	}
 
 	@Get('external/:externalId')
