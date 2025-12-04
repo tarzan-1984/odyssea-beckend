@@ -83,10 +83,18 @@ export class ChatGateway
 			const token = this.extractTokenFromHeader(client);
 
 			if (!token) {
+				// Allow public connections without token (for tracking page)
+				// They can only listen to public events like userLocationUpdate
 				console.log(
-					'❌ WebSocket connection: No token provided, disconnecting',
+					'ℹ️ WebSocket connection: No token provided, allowing public connection',
+					client.id,
 				);
-				client.disconnect();
+				// Send confirmation to public client
+				client.emit('connected', {
+					public: true,
+					message: 'Public connection established',
+				});
+				// Don't disconnect - allow public connection to stay connected
 				return;
 			}
 
@@ -166,8 +174,15 @@ export class ChatGateway
 				totalOnlineUsers: this.userSockets.size,
 			});
 		} catch (error) {
-			console.error('❌ WebSocket connection error:', error);
-			client.disconnect();
+			// Only disconnect if it's not a public connection (no token)
+			const token = this.extractTokenFromHeader(client);
+			if (token) {
+				console.error('❌ WebSocket connection error (with token):', error);
+				client.disconnect();
+			} else {
+				// Public connection error - log but don't disconnect
+				console.log('ℹ️ WebSocket connection error (public, no token):', error?.message || error);
+			}
 		}
 	}
 
