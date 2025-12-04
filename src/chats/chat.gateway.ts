@@ -60,7 +60,6 @@ export class ChatGateway
 		// Initialize notifications WebSocket service with the server
 		this.notificationsWebSocketService.setServer(server);
 		console.log('✅ WebSocket server initialized');
-		console.log('✅ NotificationsWebSocketService server set:', !!this.notificationsWebSocketService.getServer());
 	}
 
 	/**
@@ -86,10 +85,6 @@ export class ChatGateway
 			if (!token) {
 				// Allow public connections without token (for tracking page)
 				// They can only listen to public events like userLocationUpdate
-				console.log(
-					'ℹ️ WebSocket connection: No token provided, allowing public connection',
-					client.id,
-				);
 				// Send confirmation to public client
 				client.emit('connected', {
 					public: true,

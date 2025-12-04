@@ -10,12 +10,10 @@ export class NotificationsWebSocketService {
 
   setServer(server: Server) {
     if (!server) {
-      this.logger.error('❌ NotificationsWebSocketService: Attempted to set null server');
+      this.logger.error('NotificationsWebSocketService: Attempted to set null server');
       return;
     }
     this.server = server;
-    this.logger.log('✅ NotificationsWebSocketService: WebSocket server set successfully');
-    this.logger.log(`✅ Server instance: ${server.constructor.name}, has sockets: ${server.sockets ? 'yes' : 'no'}`);
   }
 
   getServer(): Server | null {
@@ -67,7 +65,6 @@ export class NotificationsWebSocketService {
     try {
       if (!this.server) {
         this.logger.warn('WebSocket server not initialized for userLocationUpdate');
-        this.logger.warn('Server state:', { hasServer: !!this.server, serverType: typeof this.server });
         return;
       }
 
@@ -76,7 +73,6 @@ export class NotificationsWebSocketService {
       // Also broadcast publicly so anonymous viewers on tracking page can see updates
       // Public connections (without token) can listen to this event
       this.server.emit('userLocationUpdate', payload);
-      this.logger.log(`✅ Sent userLocationUpdate for user ${userId}, externalId: ${payload.externalId}`);
     } catch (error) {
       this.logger.error(`Failed to send user location update for user ${userId}:`, error);
     }
