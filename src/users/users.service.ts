@@ -175,6 +175,9 @@ export class UsersService {
 				state: true,
 				zip: true,
 				city: true,
+				latitude: true,
+				longitude: true,
+				lastLocationUpdateAt: true,
 				role: true,
 				status: true,
 				createdAt: true,
@@ -239,10 +242,7 @@ export class UsersService {
 	/**
 	 * Updates only user location-related fields (for mobile location tracking)
 	 */
-	async updateUserLocation(
-		id: string,
-		locationDto: UpdateUserLocationDto,
-	) {
+	async updateUserLocation(id: string, locationDto: UpdateUserLocationDto) {
 		const user = await this.prisma.user.findUnique({
 			where: { id },
 		});
@@ -251,33 +251,33 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: {
-        location: locationDto.location,
-        city: locationDto.city,
-        state: locationDto.state,
-        zip: locationDto.zip,
-        latitude: locationDto.latitude,
-        longitude: locationDto.longitude,
-        // Store client local time string as-is (no timezone normalization)
-        lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        location: true,
-        city: true,
-        state: true,
-        zip: true,
-        latitude: true,
-        longitude: true,
-        updatedAt: true,
-        lastLocationUpdateAt: true,
-      },
-    });
+		const updatedUser = await this.prisma.user.update({
+			where: { id },
+			data: {
+				location: locationDto.location,
+				city: locationDto.city,
+				state: locationDto.state,
+				zip: locationDto.zip,
+				latitude: locationDto.latitude,
+				longitude: locationDto.longitude,
+				// Store client local time string as-is (no timezone normalization)
+				lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
+			},
+			select: {
+				id: true,
+				email: true,
+				firstName: true,
+				lastName: true,
+				location: true,
+				city: true,
+				state: true,
+				zip: true,
+				latitude: true,
+				longitude: true,
+				updatedAt: true,
+				lastLocationUpdateAt: true,
+			},
+		});
 
 		// Emit websocket event so Next.js/admin UI can react to location changes
 		void this.notificationsWebSocketService.sendUserLocationUpdate(id, {
@@ -288,7 +288,8 @@ export class UsersService {
 			city: updatedUser.city,
 			state: updatedUser.state,
 			zip: updatedUser.zip,
-      updatedAt: updatedUser.lastLocationUpdateAt || updatedUser.updatedAt,
+			updatedAt:
+				updatedUser.lastLocationUpdateAt || updatedUser.updatedAt,
 		});
 
 		return updatedUser;

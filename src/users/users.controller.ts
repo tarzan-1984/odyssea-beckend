@@ -47,7 +47,8 @@ export class UsersController {
 	@Post('import-drivers')
 	@SkipAuth()
 	@ApiOperation({
-		summary: 'Start background import of drivers from external TMS API (No auth required)',
+		summary:
+			'Start background import of drivers from external TMS API (No auth required)',
 		description: `Starts a background import process for drivers from external TMS API using job queues.
 		
 **External API:** https://www.endurance-tms.com/wp-json/tms/v1/drivers
@@ -76,7 +77,8 @@ export class UsersController {
 			},
 			example: {
 				jobId: 'import-1695998400000',
-				message: 'Import process started. Job ID: import-1695998400000. Check status at /v1/users/import-status/import-1695998400000',
+				message:
+					'Import process started. Job ID: import-1695998400000. Check status at /v1/users/import-status/import-1695998400000',
 			},
 		},
 	})
@@ -104,13 +106,27 @@ export class UsersController {
 		schema: {
 			type: 'object',
 			properties: {
-				status: { type: 'string', enum: ['processing', 'completed', 'failed'] },
-				progress: { type: 'number', description: 'Progress percentage' },
+				status: {
+					type: 'string',
+					enum: ['processing', 'completed', 'failed'],
+				},
+				progress: {
+					type: 'number',
+					description: 'Progress percentage',
+				},
 				processedPages: { type: 'number' },
 				totalImported: { type: 'number' },
 				totalUpdated: { type: 'number' },
-				totalSkipped: { type: 'number', description: 'Number of drivers skipped due to duplicate emails' },
-				duplicateEmails: { type: 'array', items: { type: 'number' }, description: 'Array of driver IDs with duplicate emails' },
+				totalSkipped: {
+					type: 'number',
+					description:
+						'Number of drivers skipped due to duplicate emails',
+				},
+				duplicateEmails: {
+					type: 'array',
+					items: { type: 'number' },
+					description: 'Array of driver IDs with duplicate emails',
+				},
 				isComplete: { type: 'boolean' },
 			},
 			example: {
@@ -120,7 +136,9 @@ export class UsersController {
 				totalImported: 450,
 				totalUpdated: 25,
 				totalSkipped: 8,
-				duplicateEmails: [3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110],
+				duplicateEmails: [
+					3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110,
+				],
 				isComplete: false,
 			},
 		},
@@ -132,7 +150,8 @@ export class UsersController {
 	@Post('import-users')
 	@SkipAuth()
 	@ApiOperation({
-		summary: 'Start background import of users from external TMS API (No auth required)',
+		summary:
+			'Start background import of users from external TMS API (No auth required)',
 		description: `Starts a background import process for users from external TMS API using job queues.
 		
 **External API:** https://www.endurance-tms.com/wp-json/tms/v1/users
@@ -161,7 +180,8 @@ export class UsersController {
 			},
 			example: {
 				jobId: 'import-users-1695998400000',
-				message: 'Background import process started. Job ID: import-users-1695998400000. Check status at /v1/users/import-users-status/import-users-1695998400000',
+				message:
+					'Background import process started. Job ID: import-users-1695998400000. Check status at /v1/users/import-users-status/import-users-1695998400000',
 			},
 		},
 	})
@@ -181,7 +201,8 @@ export class UsersController {
 	@SkipAuth()
 	@ApiOperation({
 		summary: 'Get import users job status',
-		description: 'Returns the current status and progress of an import users job',
+		description:
+			'Returns the current status and progress of an import users job',
 	})
 	@ApiResponse({
 		status: 200,
@@ -189,13 +210,27 @@ export class UsersController {
 		schema: {
 			type: 'object',
 			properties: {
-				status: { type: 'string', enum: ['processing', 'completed', 'failed'] },
-				progress: { type: 'number', description: 'Progress percentage' },
+				status: {
+					type: 'string',
+					enum: ['processing', 'completed', 'failed'],
+				},
+				progress: {
+					type: 'number',
+					description: 'Progress percentage',
+				},
 				processedPages: { type: 'number' },
 				totalImported: { type: 'number' },
 				totalUpdated: { type: 'number' },
-				totalSkipped: { type: 'number', description: 'Number of users skipped due to duplicate emails' },
-				duplicateEmails: { type: 'array', items: { type: 'number' }, description: 'Array of user IDs with duplicate emails' },
+				totalSkipped: {
+					type: 'number',
+					description:
+						'Number of users skipped due to duplicate emails',
+				},
+				duplicateEmails: {
+					type: 'array',
+					items: { type: 'number' },
+					description: 'Array of user IDs with duplicate emails',
+				},
 				isComplete: { type: 'boolean' },
 			},
 			example: {
@@ -232,51 +267,69 @@ export class UsersController {
 	}
 
 	@Get()
-	@ApiOperation({ 
+	@ApiOperation({
 		summary: 'Get all users with pagination and filtering',
-		description: 'Returns a paginated list of users with optional filtering by role, status, and search. Supports sorting by any user field.'
+		description:
+			'Returns a paginated list of users with optional filtering by role, status, and search. Supports sorting by any user field.',
 	})
 	@ApiQuery({
 		name: 'page',
 		required: false,
 		description: 'Page number for pagination',
 		type: Number,
-		example: 1
+		example: 1,
 	})
 	@ApiQuery({
 		name: 'limit',
 		required: false,
 		description: 'Number of users per page',
 		type: Number,
-		example: 10
+		example: 10,
 	})
 	@ApiQuery({
 		name: 'role',
 		required: false,
 		description: 'Filter users by role',
-		enum: ['DRIVER_UPDATES', 'MODERATOR', 'RECRUITER', 'ADMINISTRATOR', 'NIGHTSHIFT_TRACKING', 'DISPATCHER', 'BILLING', 'SUBSCRIBER', 'ACCOUNTING', 'RECRUITER_TL', 'TRACKING', 'DISPATCHER_TL', 'TRACKING_TL', 'MORNING_TRACKING', 'EXPEDITE_MANAGER', 'DRIVER'],
-		example: 'ADMINISTRATOR'
+		enum: [
+			'DRIVER_UPDATES',
+			'MODERATOR',
+			'RECRUITER',
+			'ADMINISTRATOR',
+			'NIGHTSHIFT_TRACKING',
+			'DISPATCHER',
+			'BILLING',
+			'SUBSCRIBER',
+			'ACCOUNTING',
+			'RECRUITER_TL',
+			'TRACKING',
+			'DISPATCHER_TL',
+			'TRACKING_TL',
+			'MORNING_TRACKING',
+			'EXPEDITE_MANAGER',
+			'DRIVER',
+		],
+		example: 'ADMINISTRATOR',
 	})
 	@ApiQuery({
 		name: 'status',
 		required: false,
 		description: 'Filter users by status',
 		enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'],
-		example: 'ACTIVE'
+		example: 'ACTIVE',
 	})
 	@ApiQuery({
 		name: 'search',
 		required: false,
 		description: 'Search users by first name, last name, email, or phone',
 		type: String,
-		example: 'john'
+		example: 'john',
 	})
 	@ApiQuery({
 		name: 'sort',
 		required: false,
 		description: 'Sort users by field (JSON format: {"field": "asc|desc"})',
 		type: String,
-		example: '{"firstName": "asc"}'
+		example: '{"firstName": "asc"}',
 	})
 	@ApiResponse({
 		status: 200,
@@ -289,38 +342,129 @@ export class UsersController {
 					items: {
 						type: 'object',
 						properties: {
-							id: { type: 'string', description: 'Unique user identifier' },
-							externalId: { type: 'string', description: 'External system ID for imported users' },
-							firstName: { type: 'string', description: 'User first name' },
-							lastName: { type: 'string', description: 'User last name' },
-							email: { type: 'string', description: 'User email address' },
-							phone: { type: 'string', description: 'User phone number' },
-							location: { type: 'string', description: 'User location' },
-							type: { type: 'string', description: 'Vehicle type' },
-							vin: { type: 'string', description: 'Vehicle VIN number' },
-							avatar: { type: 'string', description: 'User avatar URL' },
-							role: { type: 'string', enum: ['DRIVER_UPDATES', 'MODERATOR', 'RECRUITER', 'ADMINISTRATOR', 'NIGHTSHIFT_TRACKING', 'DISPATCHER', 'BILLING', 'SUBSCRIBER', 'ACCOUNTING', 'RECRUITER_TL', 'TRACKING', 'DISPATCHER_TL', 'TRACKING_TL', 'MORNING_TRACKING', 'EXPEDITE_MANAGER', 'DRIVER'], description: 'User role' },
-							status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'], description: 'User status' },
-							createdAt: { type: 'string', format: 'date-time', description: 'Creation timestamp' },
-							updatedAt: { type: 'string', format: 'date-time', description: 'Last update timestamp' }
-						}
-					}
+							id: {
+								type: 'string',
+								description: 'Unique user identifier',
+							},
+							externalId: {
+								type: 'string',
+								description:
+									'External system ID for imported users',
+							},
+							firstName: {
+								type: 'string',
+								description: 'User first name',
+							},
+							lastName: {
+								type: 'string',
+								description: 'User last name',
+							},
+							email: {
+								type: 'string',
+								description: 'User email address',
+							},
+							phone: {
+								type: 'string',
+								description: 'User phone number',
+							},
+							location: {
+								type: 'string',
+								description: 'User location',
+							},
+							type: {
+								type: 'string',
+								description: 'Vehicle type',
+							},
+							vin: {
+								type: 'string',
+								description: 'Vehicle VIN number',
+							},
+							avatar: {
+								type: 'string',
+								description: 'User avatar URL',
+							},
+							role: {
+								type: 'string',
+								enum: [
+									'DRIVER_UPDATES',
+									'MODERATOR',
+									'RECRUITER',
+									'ADMINISTRATOR',
+									'NIGHTSHIFT_TRACKING',
+									'DISPATCHER',
+									'BILLING',
+									'SUBSCRIBER',
+									'ACCOUNTING',
+									'RECRUITER_TL',
+									'TRACKING',
+									'DISPATCHER_TL',
+									'TRACKING_TL',
+									'MORNING_TRACKING',
+									'EXPEDITE_MANAGER',
+									'DRIVER',
+								],
+								description: 'User role',
+							},
+							status: {
+								type: 'string',
+								enum: [
+									'ACTIVE',
+									'INACTIVE',
+									'SUSPENDED',
+									'PENDING',
+								],
+								description: 'User status',
+							},
+							createdAt: {
+								type: 'string',
+								format: 'date-time',
+								description: 'Creation timestamp',
+							},
+							updatedAt: {
+								type: 'string',
+								format: 'date-time',
+								description: 'Last update timestamp',
+							},
+						},
+					},
 				},
 				pagination: {
 					type: 'object',
 					properties: {
-						current_page: { type: 'number', description: 'Current page number' },
-						per_page: { type: 'number', description: 'Items per page' },
-						total_count: { type: 'number', description: 'Total number of users' },
-						total_pages: { type: 'number', description: 'Total number of pages' },
-						has_next_page: { type: 'boolean', description: 'Whether there is a next page' },
-						has_prev_page: { type: 'boolean', description: 'Whether there is a previous page' }
-					}
+						current_page: {
+							type: 'number',
+							description: 'Current page number',
+						},
+						per_page: {
+							type: 'number',
+							description: 'Items per page',
+						},
+						total_count: {
+							type: 'number',
+							description: 'Total number of users',
+						},
+						total_pages: {
+							type: 'number',
+							description: 'Total number of pages',
+						},
+						has_next_page: {
+							type: 'boolean',
+							description: 'Whether there is a next page',
+						},
+						has_prev_page: {
+							type: 'boolean',
+							description: 'Whether there is a previous page',
+						},
+					},
 				},
-				timestamp: { type: 'string', format: 'date-time', description: 'Response timestamp' },
-				path: { type: 'string', description: 'API path' }
-			}
-		}
+				timestamp: {
+					type: 'string',
+					format: 'date-time',
+					description: 'Response timestamp',
+				},
+				path: { type: 'string', description: 'API path' },
+			},
+		},
 	})
 	async findAllUsers(
 		@Query('page') page?: string,
@@ -349,6 +493,22 @@ export class UsersController {
 			search,
 			sortObj,
 		);
+	}
+
+	@Get('external/:externalId/public')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Get user by external ID (Public)',
+		description:
+			'Public endpoint to get driver information for tracking page. No authentication required.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'User retrieved successfully',
+	})
+	@ApiResponse({ status: 404, description: 'User not found' })
+	async findUserByExternalIdPublic(@Param('externalId') externalId: string) {
+		return this.usersService.findUserByExternalId(externalId);
 	}
 
 	@Get('external/:externalId')
