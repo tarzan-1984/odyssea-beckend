@@ -6,12 +6,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { FcmPushService } from '../notifications/fcm-push.service';
+import { ExpoPushService } from '../notifications/expo-push.service';
 
 @Injectable()
 export class MessagesService {
 	constructor(
 		private prisma: PrismaService,
 		private fcmPushService: FcmPushService,
+		private expoPushService: ExpoPushService,
 	) {}
 
 	/**
@@ -283,19 +285,46 @@ export class MessagesService {
 				...(chatAvatar ? { avatarUrl: chatAvatar } : {}),
 			};
 
-			// Prepare FCM push options
-			const fcmOptions = {
-				title: notificationTitle,
-				body,
-				imageUrl: chatAvatar || undefined, // Avatar URL for notification icon (large icon for Android, image for iOS)
-				data: messageData,
-			};
-
 			// Extract device tokens
-			const deviceTokens = tokens.map((t) => t.token).filter(Boolean);
+			const allTokens = tokens.map((t) => t.token).filter(Boolean);
+			
+			// Separate FCM tokens (Android) from Expo Push Tokens (iOS)
+			// Expo Push Token starts with "ExponentPushToken[...]"
+			const fcmTokens: string[] = [];
+			const expoPushTokens: string[] = [];
+			
+			for (const token of allTokens) {
+				if (token.startsWith('ExponentPushToken[')) {
+					expoPushTokens.push(token);
+				} else {
+					fcmTokens.push(token);
+				}
+			}
 
-			// Send FCM push notifications using batch sending
-			await this.fcmPushService.sendToTokens(deviceTokens, fcmOptions);
+			// Send FCM push notifications for Android devices
+			if (fcmTokens.length > 0) {
+				const fcmOptions = {
+					title: notificationTitle,
+					body,
+					imageUrl: chatAvatar || undefined, // Avatar URL for notification icon (large icon for Android, image for iOS)
+					data: messageData,
+				};
+				await this.fcmPushService.sendToTokens(fcmTokens, fcmOptions);
+			}
+
+			// Send Expo Push notifications for iOS devices
+			if (expoPushTokens.length > 0) {
+				const expoMessages = expoPushTokens.map((token) => ({
+					to: token,
+					title: notificationTitle,
+					body,
+					data: messageData,
+					sound: 'livechat.wav',
+					priority: 'high' as const,
+					...(chatAvatar ? { largeIcon: chatAvatar } : {}),
+				}));
+				await this.expoPushService.send(expoMessages);
+			}
 		} catch (error) {
 			// Log error but don't throw (non-blocking)
 			console.error('Failed to send FCM push notifications:', error);
