@@ -24,6 +24,7 @@ import { PasswordLoginDto } from './dto/password-login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResetPasswordMobileDto } from './dto/reset-password-mobile.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @ApiTags('Authentication')
@@ -370,6 +371,30 @@ export class AuthController {
 			resetPasswordDto.newPassword,
 		);
 		return { message: 'Password successfully reset' };
+	}
+
+	@Post('reset-password-mobile')
+	@HttpCode(HttpStatus.OK)
+	@Throttle({ default: { ttl: 300000, limit: 3 } })
+	@ApiOperation({ summary: 'Reset password for mobile app' })
+	@ApiResponse({
+		status: 200,
+		description: 'New password sent to email (if user exists)',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'User with this email does not exist',
+	})
+	@ApiResponse({
+		status: 400,
+		description: 'Failed to send password reset email',
+	})
+	async resetPasswordMobile(
+		@Body() resetPasswordDto: ResetPasswordMobileDto,
+	): Promise<{ message: string }> {
+		return await this.authService.resetPasswordForMobile(
+			resetPasswordDto.email,
+		);
 	}
 
 	@Post('refresh')

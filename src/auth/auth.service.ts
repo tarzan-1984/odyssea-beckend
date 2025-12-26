@@ -706,4 +706,47 @@ export class AuthService {
   ): Promise<{ message: string }> {
     return this.loginWithOtp(email, password, allowDriverRole);
 	}
+
+	/**
+	 * Resets password for mobile app: generates new password and sends it via email
+	 * Does NOT change user status (unlike loginWithEmail)
+	 */
+	async resetPasswordForMobile(email: string): Promise<{ message: string }> {
+		const user = await this.prisma.user.findUnique({
+			where: { email },
+		});
+
+		if (!user) {
+			// Return error message in English if user doesn't exist
+			throw new NotFoundException('User with this email does not exist');
+		}
+
+		// Generate new password
+		const newPassword = generateRandomPassword(8);
+		const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+		// Update user password (but NOT status)
+		await this.prisma.user.update({
+			where: { id: user.id },
+			data: {
+				password: hashedPassword,
+				// Status is NOT changed - user keeps their current status
+			},
+		});
+
+		// Send email with new password (in English)
+		const emailSent = await this.mailerService.sendTextEmail(
+			user.email,
+			'Your New Password',
+			`Your new password is: ${newPassword}\n\nPlease use this password to log in and change it in your profile settings if needed.\n\nIf you didn't request this password reset, please contact support immediately.`,
+		);
+
+		if (!emailSent) {
+			throw new BadRequestException('Failed to send password reset email');
+		}
+
+		return {
+			message: 'If an account with this email exists, a new password has been sent.',
+		};
+	}
 }
