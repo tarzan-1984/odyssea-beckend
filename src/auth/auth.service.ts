@@ -738,7 +738,7 @@ export class AuthService {
 		const emailSent = await this.mailerService.sendHtmlEmail(
 			user.email,
 			'Your New Password',
-			`<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><p>Your new password is: <strong style="font-size: 18px; color: #007bff;">${newPassword}</strong></p></div>`,
+			`<div style="font-family: Arial, sans-serif; font-size: 16px"><p>Your new password is: <strong style="font-size: 18px; color: #007bff;">${newPassword}</strong></p></div>`,
 		);
 
 		if (!emailSent) {
