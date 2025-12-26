@@ -734,11 +734,15 @@ export class AuthService {
 			},
 		});
 
-		// Send email with new password (in English)
-		const emailSent = await this.mailerService.sendTextEmail(
+		// Send email with new password (in English, styled like first password email)
+		const emailSent = await this.mailerService.sendHtmlEmail(
 			user.email,
 			'Your New Password',
-			`Your new password is: ${newPassword}\n\nPlease use this password to log in and change it in your profile settings if needed.\n\nIf you didn't request this password reset, please contact support immediately.`,
+			`
+			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+				<p>Your new password is: <strong style="font-size: 18px; color: #007bff;">${newPassword}</strong></p>
+			</div>
+			`,
 		);
 
 		if (!emailSent) {
