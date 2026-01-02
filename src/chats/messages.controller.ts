@@ -476,7 +476,6 @@ export class MessagesController {
 			const messageIds = result.messagesByChatRoom[chatRoomId] || [];
 
 			if (messageIds.length > 0) {
-				console.log('===============start=========');
 				// Emit to all participants in the chat room
 				this.chatGateway.server
 					.to(`chat_${chatRoomId}`)
