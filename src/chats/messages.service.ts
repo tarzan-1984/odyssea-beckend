@@ -817,6 +817,73 @@ export class MessagesService {
 	}
 
 	/**
+	 * Mark all unread messages as read for a user across all chat rooms
+	 * This is called when user clicks "Read all" button
+	 */
+	async markAllMessagesAsRead(userId: string): Promise<{
+		success: boolean;
+		chatRoomIds: string[];
+		messageIds: string[];
+	}> {
+		// Get all chat rooms where user is a participant
+		const userChatRooms = await this.prisma.chatRoomParticipant.findMany({
+			where: { userId },
+			select: { chatRoomId: true },
+		});
+
+		const chatRoomIds = userChatRooms.map((room) => room.chatRoomId);
+
+		if (chatRoomIds.length === 0) {
+			return { success: true, chatRoomIds: [], messageIds: [] };
+		}
+
+		// Get all unread messages across all chat rooms
+		// Messages not sent by user and where user is not in readBy array
+		const unreadMessages = await this.prisma.message.findMany({
+			where: {
+				chatRoomId: { in: chatRoomIds },
+				senderId: { not: userId },
+			},
+			select: {
+				id: true,
+				chatRoomId: true,
+				readBy: true,
+			},
+		});
+
+		const messagesToUpdate: string[] = [];
+		const affectedChatRoomIds = new Set<string>();
+
+		// Process each message
+		for (const message of unreadMessages) {
+			const readBy = (message.readBy as string[]) || [];
+			const alreadyRead = readBy.includes(userId);
+
+			if (!alreadyRead) {
+				// Add user to readBy array
+				const updatedReadBy = [...readBy, userId];
+
+				await this.prisma.message.update({
+					where: { id: message.id },
+					data: {
+						isRead: true, // Global read status
+						readBy: updatedReadBy, // Per-user read status
+					},
+				});
+
+				messagesToUpdate.push(message.id);
+				affectedChatRoomIds.add(message.chatRoomId);
+			}
+		}
+
+		return {
+			success: true,
+			chatRoomIds: Array.from(affectedChatRoomIds),
+			messageIds: messagesToUpdate,
+		};
+	}
+
+	/**
 	 * Delete a message (only by sender)
 	 */
 	async deleteMessage(

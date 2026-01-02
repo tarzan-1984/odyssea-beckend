@@ -422,6 +422,33 @@ export class MessagesController {
 		return await this.messagesService.getUnreadCount(userId);
 	}
 
+	@Put('read-all')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Mark all messages as read',
+		description:
+			'Mark all unread messages as read for the authenticated user across all chat rooms.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'All messages marked as read successfully',
+		schema: {
+			example: {
+				success: true,
+				chatRoomIds: ['chat_1', 'chat_2'],
+				messageIds: ['msg_1', 'msg_2', 'msg_3'],
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Unauthorized - invalid or missing JWT token',
+	})
+	async markAllMessagesAsRead(@Request() req: AuthenticatedRequest) {
+		const userId = req.user.id;
+		return await this.messagesService.markAllMessagesAsRead(userId);
+	}
+
 	@Put(':id/read')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
