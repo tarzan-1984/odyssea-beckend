@@ -452,9 +452,6 @@ export class MessagesController {
 		const userId = req.user.id;
 		const { chatRoomIds } = markAllReadDto;
 
-		console.log('userId===================', userId);
-		console.log('chatRoomIds===================', chatRoomIds);
-
 		if (
 			!chatRoomIds ||
 			!Array.isArray(chatRoomIds) ||
@@ -479,6 +476,7 @@ export class MessagesController {
 			const messageIds = result.messagesByChatRoom[chatRoomId] || [];
 
 			if (messageIds.length > 0) {
+				console.log('===============start=========');
 				// Emit to all participants in the chat room
 				this.chatGateway.server
 					.to(`chat_${chatRoomId}`)
