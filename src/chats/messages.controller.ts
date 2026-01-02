@@ -29,6 +29,7 @@ import { MessagesService } from './messages.service';
 import { FileUploadService } from './file-upload.service';
 import { ChatRoomsService } from './chat-rooms.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { MarkAllReadDto } from './dto/mark-all-read.dto';
 import { ChatGateway } from './chat.gateway';
 import { AuthenticatedRequest } from '../types/request.types';
 
@@ -425,9 +426,9 @@ export class MessagesController {
 	@Put('read-all')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
-		summary: 'Mark all messages as read',
+		summary: 'Mark all messages as read for specific chat rooms',
 		description:
-			'Mark all unread messages as read for the authenticated user across all chat rooms.',
+			'Mark all unread messages as read for the authenticated user in the specified chat rooms. Only marks messages created after user joined each chat room.',
 	})
 	@ApiResponse({
 		status: 200,
@@ -444,9 +445,44 @@ export class MessagesController {
 		status: 401,
 		description: 'Unauthorized - invalid or missing JWT token',
 	})
-	async markAllMessagesAsRead(@Request() req: AuthenticatedRequest) {
+	async markAllMessagesAsReadByChatRooms(
+		@Body() markAllReadDto: MarkAllReadDto,
+		@Request() req: AuthenticatedRequest,
+	) {
 		const userId = req.user.id;
-		return await this.messagesService.markAllMessagesAsRead(userId);
+		const { chatRoomIds } = markAllReadDto;
+
+		if (!chatRoomIds || !Array.isArray(chatRoomIds) || chatRoomIds.length === 0) {
+			return {
+				success: true,
+				chatRoomIds: [],
+				messageIds: [],
+			};
+		}
+
+		// Mark messages as read
+		const result = await this.messagesService.markAllMessagesAsReadByChatRooms(
+			chatRoomIds,
+			userId,
+		);
+
+		// Send WebSocket events for each affected chat room
+		for (const chatRoomId of result.chatRoomIds) {
+			const messageIds = result.messagesByChatRoom[chatRoomId] || [];
+
+			if (messageIds.length > 0) {
+				// Emit to all participants in the chat room
+				this.chatGateway.server
+					.to(`chat_${chatRoomId}`)
+					.emit('messagesMarkedAsRead', {
+						chatRoomId,
+						messageIds,
+						userId,
+					});
+			}
+		}
+
+		return result;
 	}
 
 	@Put(':id/read')

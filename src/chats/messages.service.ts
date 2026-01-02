@@ -817,69 +817,119 @@ export class MessagesService {
 	}
 
 	/**
-	 * Mark all unread messages as read for a user across all chat rooms
+	 * Mark all unread messages as read for specific chat rooms
+	 * Only marks messages created after user joined each chat room
 	 * This is called when user clicks "Read all" button
 	 */
-	async markAllMessagesAsRead(userId: string): Promise<{
+	async markAllMessagesAsReadByChatRooms(
+		chatRoomIds: string[],
+		userId: string,
+	): Promise<{
 		success: boolean;
 		chatRoomIds: string[];
 		messageIds: string[];
+		messagesByChatRoom: Record<string, string[]>;
 	}> {
-		// Get all chat rooms where user is a participant
-		const userChatRooms = await this.prisma.chatRoomParticipant.findMany({
-			where: { userId },
-			select: { chatRoomId: true },
-		});
-
-		const chatRoomIds = userChatRooms.map((room) => room.chatRoomId);
-
 		if (chatRoomIds.length === 0) {
-			return { success: true, chatRoomIds: [], messageIds: [] };
+			return {
+				success: true,
+				chatRoomIds: [],
+				messageIds: [],
+				messagesByChatRoom: {},
+			};
 		}
 
-		// Get all unread messages across all chat rooms
-		// Messages not sent by user and where user is not in readBy array
-		const unreadMessages = await this.prisma.message.findMany({
-			where: {
-				chatRoomId: { in: chatRoomIds },
-				senderId: { not: userId },
-			},
-			select: {
-				id: true,
-				chatRoomId: true,
-				readBy: true,
-			},
-		});
-
-		const messagesToUpdate: string[] = [];
 		const affectedChatRoomIds = new Set<string>();
+		const allMessageIds: string[] = [];
+		const messagesByChatRoom: Record<string, string[]> = {};
 
-		// Process each message
-		for (const message of unreadMessages) {
-			const readBy = (message.readBy as string[]) || [];
-			const alreadyRead = readBy.includes(userId);
-
-			if (!alreadyRead) {
-				// Add user to readBy array
-				const updatedReadBy = [...readBy, userId];
-
-				await this.prisma.message.update({
-					where: { id: message.id },
-					data: {
-						isRead: true, // Global read status
-						readBy: updatedReadBy, // Per-user read status
+		// Process each chat room
+		for (const chatRoomId of chatRoomIds) {
+			try {
+				// Get user's join date for this chat room
+				const participant = await this.prisma.chatRoomParticipant.findUnique({
+					where: {
+						chatRoomId_userId: {
+							chatRoomId,
+							userId,
+						},
+					},
+					select: {
+						joinedAt: true,
 					},
 				});
 
-				messagesToUpdate.push(message.id);
-				affectedChatRoomIds.add(message.chatRoomId);
+				if (!participant) {
+					// User is not a participant, skip this chat room
+					continue;
+				}
+
+				// Find all messages in this chat room created after user joined
+				// We'll filter by readBy in JavaScript since Prisma doesn't support JSON array contains easily
+				const allMessages = await this.prisma.message.findMany({
+					where: {
+						chatRoomId,
+						createdAt: {
+							gte: participant.joinedAt,
+						},
+					},
+					select: {
+						id: true,
+						readBy: true,
+						isRead: true,
+					},
+				});
+
+				// Filter messages where user is not in readBy array
+				const unreadMessages = allMessages.filter((message) => {
+					const readBy = (message.readBy as string[]) || [];
+					return !readBy.includes(userId);
+				});
+
+				// Process each message
+				for (const message of unreadMessages) {
+					const readBy = (message.readBy as string[]) || [];
+					const alreadyRead = readBy.includes(userId);
+
+					if (!alreadyRead) {
+						// Add user to readBy array
+						const updatedReadBy = [...readBy, userId];
+
+						// Update message: add userId to readBy
+						// If isRead is false, set it to true; if it's already true, keep it true
+						await this.prisma.message.update({
+							where: { id: message.id },
+							data: {
+								readBy: updatedReadBy,
+								isRead: true, // Set to true when user reads it
+							},
+						});
+
+						allMessageIds.push(message.id);
+						affectedChatRoomIds.add(chatRoomId);
+
+						// Group message IDs by chat room
+						if (!messagesByChatRoom[chatRoomId]) {
+							messagesByChatRoom[chatRoomId] = [];
+						}
+						messagesByChatRoom[chatRoomId].push(message.id);
+					}
+				}
+			} catch (error) {
+				// Continue processing other chat rooms if one fails
+				console.error(
+					`Failed to mark messages as read for chat room ${chatRoomId}:`,
+					error,
+				);
+				continue;
 			}
 		}
 
 		return {
 			success: true,
 			chatRoomIds: Array.from(affectedChatRoomIds),
-			messageIds: messagesToUpdate,
+			messageIds: allMessageIds,
+			messagesByChatRoom,
 		};
 	}
 
