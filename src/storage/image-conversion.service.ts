@@ -1,5 +1,5 @@
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import * as sharp from 'sharp';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import * as convert from 'heic-convert';
 import * as https from 'https';
 import * as http from 'http';
 
@@ -15,33 +15,46 @@ export class ImageConversionService {
 			// Download the image from URL
 			const imageBuffer = await this.downloadImage(imageUrl);
 
-			// Convert HEIC/HEIF to JPEG using sharp
-			// Note: sharp supports HEIC/HEIF if libvips is compiled with libheif support
-			// If not supported, this will throw an error
-			const jpegBuffer = await sharp(imageBuffer, {
-				// Try to handle HEIC format
-				failOn: 'none', // Don't fail on unsupported formats, try to process anyway
-			})
-				.jpeg({ quality: 92 })
-				.toBuffer();
+			console.log(
+				'[ImageConversionService] Image downloaded, size:',
+				imageBuffer.length,
+			);
 
-			return jpegBuffer;
-		} catch (error) {
-			console.error('[ImageConversionService] Failed to convert HEIC to JPEG:', error);
-			
-			// Check if error is due to unsupported format
-			if (error instanceof Error && error.message.includes('unsupported') || error.message.includes('format')) {
-				throw new BadRequestException(
-					'HEIC format is not supported. Please ensure libheif is installed and sharp is compiled with HEIC support.',
-				);
+			// Convert HEIC/HEIF to JPEG using heic-convert
+			// heic-convert is specifically designed for HEIC conversion
+			const jpegBuffer = await convert({
+				buffer: imageBuffer,
+				format: 'JPEG',
+				quality: 0.92,
+			});
+
+			console.log(
+				'[ImageConversionService] Conversion completed, JPEG size:',
+				jpegBuffer.length,
+			);
+
+			// heic-convert returns ArrayBuffer, convert to Buffer
+			if (jpegBuffer instanceof ArrayBuffer) {
+				return Buffer.from(jpegBuffer);
+			} else if (jpegBuffer instanceof Uint8Array) {
+				return Buffer.from(jpegBuffer);
+			} else {
+				return Buffer.from(jpegBuffer);
 			}
-			
+		} catch (error) {
+			console.error(
+				'[ImageConversionService] Failed to convert HEIC to JPEG:',
+				error,
+			);
+
 			if (error instanceof Error) {
 				throw new InternalServerErrorException(
 					`Failed to convert HEIC image: ${error.message}`,
 				);
 			}
-			throw new InternalServerErrorException('Failed to convert HEIC image');
+			throw new InternalServerErrorException(
+				'Failed to convert HEIC image',
+			);
 		}
 	}
 
@@ -73,21 +86,4 @@ export class ImageConversionService {
 				.on('error', reject);
 		});
 	}
-
-	/**
-	 * Check if sharp supports HEIC/HEIF format
-	 * @returns boolean indicating if HEIC is supported
-	 */
-	async checkHeicSupport(): Promise<boolean> {
-		try {
-			// Try to create a sharp instance with HEIC format
-			// This will fail if libheif is not available
-			const testBuffer = Buffer.from([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70]); // HEIC file signature
-			await sharp(testBuffer).metadata();
-			return true;
-		} catch (error) {
-			return false;
-		}
-	}
 }
-
