@@ -452,7 +452,14 @@ export class MessagesController {
 		const userId = req.user.id;
 		const { chatRoomIds } = markAllReadDto;
 
-		if (!chatRoomIds || !Array.isArray(chatRoomIds) || chatRoomIds.length === 0) {
+		console.log('userId===================', userId);
+		console.log('chatRoomIds===================', chatRoomIds);
+
+		if (
+			!chatRoomIds ||
+			!Array.isArray(chatRoomIds) ||
+			chatRoomIds.length === 0
+		) {
 			return {
 				success: true,
 				chatRoomIds: [],
@@ -461,10 +468,11 @@ export class MessagesController {
 		}
 
 		// Mark messages as read
-		const result = await this.messagesService.markAllMessagesAsReadByChatRooms(
-			chatRoomIds,
-			userId,
-		);
+		const result =
+			await this.messagesService.markAllMessagesAsReadByChatRooms(
+				chatRoomIds,
+				userId,
+			);
 
 		// Send WebSocket events for each affected chat room
 		for (const chatRoomId of result.chatRoomIds) {
