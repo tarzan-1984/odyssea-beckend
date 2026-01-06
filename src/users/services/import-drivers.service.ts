@@ -226,6 +226,9 @@ export class ImportDriversService {
 			location: driver.home_location || '',
 			type: driver.type || '',
 			vin: driver.vin || '',
+			driverStatus: driver.driver_status || null,
+			latitude: driver.latitude ? parseFloat(driver.latitude) : null,
+			longitude: driver.longitude ? parseFloat(driver.longitude) : null,
 			role: UserRole.DRIVER,
 			status: UserStatus.INACTIVE, // Default status for imported users
 			password: null, // No password for imported users
@@ -237,16 +240,20 @@ export class ImportDriversService {
 		});
 
 		if (existingUser) {
-			// User exists - update all fields except email (keep original email)
+			// User exists - update all fields including email if it changed
 			await this.prisma.user.update({
 				where: { id: existingUser.id },
 				data: {
+					email: userData.email,  // Обновляем email
 					firstName: userData.firstName,
 					lastName: userData.lastName,
 					phone: userData.phone,
 					location: userData.location,
 					type: userData.type,
 					vin: userData.vin,
+					driverStatus: userData.driverStatus,
+					latitude: userData.latitude,
+					longitude: userData.longitude,
 					role: userData.role,
 					status: userData.status,
 					password: userData.password,

@@ -7,6 +7,9 @@ export interface ExternalDriver {
   home_location: string;
   type: string;
   vin: string;
+  driver_status?: string;  // Новое поле
+  latitude?: string;       // Новое поле (приходит как строка)
+  longitude?: string;      // Новое поле (приходит как строка)
 }
 
 export interface ExternalApiResponse {

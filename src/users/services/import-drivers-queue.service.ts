@@ -216,28 +216,25 @@ export class ImportDriversQueueService {
       location: driver.home_location || '',
       type: driver.type || '',
       vin: driver.vin || '',
+      driverStatus: driver.driver_status || null,
+      latitude: driver.latitude ? parseFloat(driver.latitude) : null,
+      longitude: driver.longitude ? parseFloat(driver.longitude) : null,
       role: UserRole.DRIVER,
       status: UserStatus.INACTIVE,
       password: null,
     };
 
-    // Check if user exists by externalId OR email
-    const existingUser = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { externalId: driver.id.toString() },
-          { email: driver.driver_email || '' },
-        ],
-      },
+    // Check if user exists by externalId only
+    const existingUser = await this.prisma.user.findUnique({
+      where: { externalId: driver.id.toString() },
     });
 
     if (existingUser) {
-      // User exists - update him
+      // User exists - update all fields including email
       await this.prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          ...userData,
-          email: existingUser.email,
+          ...userData,  // Это обновит все поля включая email
         },
       });
       return 'updated';
