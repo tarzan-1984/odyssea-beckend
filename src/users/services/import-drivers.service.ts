@@ -217,6 +217,13 @@ export class ImportDriversService {
 		const firstName = nameParts[0] || '';
 		const lastName = nameParts.slice(1).join(' ') || '';
 
+		// Parse coordinates - handle empty strings and invalid values
+		const parseCoordinate = (value: string | undefined): number | null => {
+			if (!value || value.trim() === '') return null;
+			const parsed = parseFloat(value);
+			return isNaN(parsed) ? null : parsed;
+		};
+
 		const userData = {
 			externalId: driver.id.toString(),
 			email: driver.driver_email || '',
@@ -227,8 +234,8 @@ export class ImportDriversService {
 			type: driver.type || '',
 			vin: driver.vin || '',
 			driverStatus: driver.driver_status || null,
-			latitude: driver.latitude ? parseFloat(driver.latitude) : null,
-			longitude: driver.longitude ? parseFloat(driver.longitude) : null,
+			latitude: parseCoordinate(driver.latitude),
+			longitude: parseCoordinate(driver.longitude),
 			role: UserRole.DRIVER,
 			status: UserStatus.INACTIVE, // Default status for imported users
 			password: null, // No password for imported users
@@ -240,7 +247,7 @@ export class ImportDriversService {
 		});
 
 		if (existingUser) {
-			// User exists - update all fields including email if it changed
+			// User exists - update all fields including email
 			await this.prisma.user.update({
 				where: { id: existingUser.id },
 				data: {
@@ -259,6 +266,7 @@ export class ImportDriversService {
 					password: userData.password,
 				},
 			});
+			this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
 			return 'updated';
 		} else {
 			// User doesn't exist - check if email is already taken

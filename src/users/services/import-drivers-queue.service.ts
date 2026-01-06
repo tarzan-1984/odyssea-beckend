@@ -207,6 +207,13 @@ export class ImportDriversQueueService {
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
+    // Parse coordinates - handle empty strings and invalid values
+    const parseCoordinate = (value: string | undefined): number | null => {
+      if (!value || value.trim() === '') return null;
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? null : parsed;
+    };
+
     const userData = {
       externalId: driver.id.toString(),
       email: driver.driver_email || '',
@@ -217,8 +224,8 @@ export class ImportDriversQueueService {
       type: driver.type || '',
       vin: driver.vin || '',
       driverStatus: driver.driver_status || null,
-      latitude: driver.latitude ? parseFloat(driver.latitude) : null,
-      longitude: driver.longitude ? parseFloat(driver.longitude) : null,
+      latitude: parseCoordinate(driver.latitude),
+      longitude: parseCoordinate(driver.longitude),
       role: UserRole.DRIVER,
       status: UserStatus.INACTIVE,
       password: null,
@@ -234,15 +241,29 @@ export class ImportDriversQueueService {
       await this.prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          ...userData,  // Это обновит все поля включая email
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          phone: userData.phone,
+          location: userData.location,
+          type: userData.type,
+          vin: userData.vin,
+          driverStatus: userData.driverStatus,
+          latitude: userData.latitude,
+          longitude: userData.longitude,
+          role: userData.role,
+          status: userData.status,
+          password: userData.password,
         },
       });
+      this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
       return 'updated';
     } else {
       // User doesn't exist - create new one
       await this.prisma.user.create({
         data: userData,
       });
+      this.logger.log(`Created new driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
       return 'imported';
     }
   }
