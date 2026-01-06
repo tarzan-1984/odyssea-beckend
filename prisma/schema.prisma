@@ -35,6 +35,7 @@ model User {
   externalId          String?               @unique
   type                String?
   vin                 String?
+  driverStatus        String?
   chatRooms           ChatRoomParticipant[]
   adminOfChatRooms    ChatRoom[]            @relation("ChatRoomAdmin")
   receivedMessages    Message[]             @relation("MessageReceiver")
