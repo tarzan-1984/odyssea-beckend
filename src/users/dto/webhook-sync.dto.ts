@@ -7,8 +7,9 @@ import {
 	IsObject,
 	ValidateNested,
 	IsArray,
+	IsNumber,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export enum WebhookType {
 	ADD = 'add',
@@ -77,6 +78,92 @@ export class DriverData {
 	@IsOptional()
 	@IsString()
 	vin?: string;
+
+	@ApiProperty({
+		description: 'Driver status',
+		example: 'available',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	driver_status?: string;
+
+	@ApiProperty({
+		description: 'Status date',
+		example: '2025-01-07',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	status_date?: string;
+
+	@ApiProperty({
+		description: 'Current location',
+		example: 'Los Angeles',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	current_location?: string;
+
+	@ApiProperty({
+		description: 'Current city',
+		example: 'Los Angeles',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	current_city?: string;
+
+	@ApiProperty({
+		description: 'Current zipcode',
+		example: '90001',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	current_zipcode?: string;
+
+	@ApiProperty({
+		description: 'Current country',
+		example: 'USA',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	current_country?: string;
+
+	@ApiProperty({
+		description: 'Driver latitude coordinate',
+		example: 34.14633,
+		required: false,
+	})
+	@IsOptional()
+	@IsNumber()
+	@Transform(({ value }) => {
+		if (typeof value === 'string') {
+			const parsed = parseFloat(value);
+			return Number.isNaN(parsed) ? null : parsed;
+		}
+		return typeof value === 'number' ? value : null;
+	})
+	latitude?: number;
+
+	@ApiProperty({
+		description: 'Driver longitude coordinate',
+		example: -118.24864,
+		required: false,
+	})
+	@IsOptional()
+	@IsNumber()
+	@Transform(({ value }) => {
+		if (typeof value === 'string') {
+			const parsed = parseFloat(value);
+			return Number.isNaN(parsed) ? null : parsed;
+		}
+		return typeof value === 'number' ? value : null;
+	})
+	longitude?: number;
 }
 
 export class AcfFields {

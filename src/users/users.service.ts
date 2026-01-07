@@ -463,6 +463,12 @@ export class UsersService {
 			home_location,
 			vehicle_type,
 			vin,
+			driver_status,
+			current_location,
+			current_city,
+			current_zipcode,
+			latitude,
+			longitude,
 		} = driver_data;
 
 		// Parse driver name
@@ -473,16 +479,34 @@ export class UsersService {
 		// Map TMS role to our UserRole
 		const mappedRole = UserRole.DRIVER;
 
+		// Helper function to parse coordinates
+		const parseCoordinate = (coord: number | string | undefined): number | null => {
+			if (coord === undefined || coord === null) return null;
+			if (typeof coord === 'number') {
+				return Number.isNaN(coord) ? null : coord;
+			}
+			if (typeof coord === 'string') {
+				const parsed = parseFloat(coord);
+				return Number.isNaN(parsed) ? null : parsed;
+			}
+			return null;
+		};
+
 		const userData = {
 			externalId: driverId,
 			email: driver_email,
 			firstName,
 			lastName,
 			phone: driver_phone,
-			location: home_location,
+			location: current_location || home_location, // Use current_location if available, fallback to home_location
+			city: current_city || null,
+			zip: current_zipcode || null,
 			role: mappedRole,
 			vin,
 			type: vehicle_type,
+			driverStatus: driver_status || null,
+			latitude: parseCoordinate(latitude),
+			longitude: parseCoordinate(longitude),
 			password: undefined, // Will be set when user first logs in
 		};
 

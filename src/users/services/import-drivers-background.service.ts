@@ -54,7 +54,7 @@ export class ImportDriversBackgroundService {
 	/**
 	 * Start import process in background
 	 */
-	async startImport(
+	startImport(
 		page: number,
 		per_page: number,
 		search?: string,
@@ -93,10 +93,10 @@ export class ImportDriversBackgroundService {
 
 		this.logger.log(`Background import started with ID: ${jobId}`);
 
-		return {
+		return Promise.resolve({
 			jobId,
 			message: `Background import process started. Job ID: ${jobId}. Check status at /v1/users/import-status/${jobId}`,
-		};
+		});
 	}
 
 	/**
@@ -214,7 +214,7 @@ export class ImportDriversBackgroundService {
 	/**
 	 * Get import job status
 	 */
-	async getImportStatus(jobId: string): Promise<{
+	getImportStatus(jobId: string): Promise<{
 		status: string;
 		progress: number;
 		processedPages: number;
@@ -230,10 +230,10 @@ export class ImportDriversBackgroundService {
 		const job = this.jobs.get(jobId);
 
 		if (!job) {
-			throw new Error(`Job ${jobId} not found`);
+			return Promise.reject(new Error(`Job ${jobId} not found`));
 		}
 
-		return {
+		return Promise.resolve({
 			status: job.status,
 			progress: job.progress,
 			processedPages: job.processedPages,
@@ -245,7 +245,7 @@ export class ImportDriversBackgroundService {
 			error: job.error,
 			startTime: job.startTime,
 			endTime: job.endTime,
-		};
+		});
 	}
 
 	/**
@@ -377,7 +377,7 @@ export class ImportDriversBackgroundService {
 			await this.prisma.user.update({
 				where: { id: existingUser.id },
 				data: {
-					email: userData.email,  // Обновляем email
+					email: userData.email,
 					firstName: userData.firstName,
 					lastName: userData.lastName,
 					phone: userData.phone,
@@ -392,7 +392,9 @@ export class ImportDriversBackgroundService {
 					password: userData.password,
 				},
 			});
-			this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
+			this.logger.log(
+				`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`,
+			);
 			return 'updated';
 		} else {
 			// User doesn't exist - check if email is already taken
