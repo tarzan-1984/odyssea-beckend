@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -54,12 +54,35 @@ async function bootstrap() {
 		app.setGlobalPrefix(apiPrefix);
 	}
 
-	// Global pipes
+	// Global pipes with detailed validation error logging
+	const validationLogger = new Logger('ValidationPipe');
 	app.useGlobalPipes(
 		new ValidationPipe({
 			whitelist: true,
 			forbidNonWhitelisted: true,
 			transform: true,
+			exceptionFactory: (errors) => {
+				// Log detailed validation errors
+				validationLogger.error('❌ [ValidationPipe] Validation failed');
+				validationLogger.error(
+					`❌ [ValidationPipe] Number of errors: ${errors.length}`,
+				);
+				errors.forEach((error, index) => {
+					validationLogger.error(
+						`❌ [ValidationPipe] Error ${index + 1}: ${JSON.stringify(
+							{
+								property: error.property,
+								value: error.value,
+								constraints: error.constraints,
+								children: error.children,
+							},
+							null,
+							2,
+						)}`,
+					);
+				});
+				return new BadRequestException(errors);
+			},
 		}),
 	);
 
