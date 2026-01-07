@@ -5,6 +5,8 @@ import {
 	UseGuards,
 	HttpCode,
 	HttpStatus,
+	BadRequestException,
+	Logger,
 } from '@nestjs/common';
 import {
 	ApiTags,
@@ -22,6 +24,8 @@ import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 @Controller('sync-db')
 @UseGuards(ApiKeyGuard)
 export class SyncController {
+	private readonly logger = new Logger(SyncController.name);
+
 	constructor(private readonly usersService: UsersService) {}
 
 	@Post()
@@ -98,7 +102,19 @@ export class SyncController {
 		description: 'Unauthorized - invalid API key',
 	})
 	async processWebhook(@Body() webhookData: WebhookSyncDto) {
-		console.log('webhookData', webhookData);
-		return this.usersService.processWebhookSync(webhookData);
+		this.logger.log('📥 [Webhook] Received webhook request');
+		this.logger.log(`📋 [Webhook] Type: ${webhookData?.type}, Role: ${webhookData?.role}`);
+		this.logger.log(`📋 [Webhook] Full data: ${JSON.stringify(webhookData, null, 2)}`);
+		
+		try {
+			return await this.usersService.processWebhookSync(webhookData);
+		} catch (error) {
+			this.logger.error('❌ [Webhook] Error processing webhook:', error);
+			if (error instanceof BadRequestException) {
+				const errorResponse = error.getResponse();
+				this.logger.error(`❌ [Webhook] BadRequest details: ${JSON.stringify(errorResponse, null, 2)}`);
+			}
+			throw error;
+		}
 	}
 }
