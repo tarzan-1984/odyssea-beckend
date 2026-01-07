@@ -121,6 +121,59 @@ export class UsersService {
 	}
 
 	/**
+	 * Finds drivers for map display with pagination
+	 * Returns only drivers with valid coordinates and active status
+	 */
+	async findDriversForMap(page: number = 1, limit: number = 100) {
+		const skip = (page - 1) * limit;
+
+		const where = {
+			AND: [
+				{ role: UserRole.DRIVER },
+				{ driverStatus: { not: null } },
+				{ driverStatus: { notIn: ['banned', 'blocked', 'expired_documents'] } },
+				{ latitude: { not: null } },
+				{ longitude: { not: null } },
+			],
+		};
+
+		const [drivers, total] = await Promise.all([
+			this.prisma.user.findMany({
+				where,
+				skip,
+				take: limit,
+				orderBy: { updatedAt: 'desc' },
+				select: {
+					id: true,
+					externalId: true,
+					latitude: true,
+					longitude: true,
+					driverStatus: true,
+				},
+			}),
+			this.prisma.user.count({ where }),
+		]);
+
+		return {
+			drivers: drivers.map((driver) => ({
+				id: driver.id,
+				externalId: driver.externalId,
+				latitude: driver.latitude,
+				longitude: driver.longitude,
+				driverStatus: driver.driverStatus,
+			})),
+			pagination: {
+				current_page: page,
+				per_page: limit,
+				total_count: total,
+				total_pages: Math.ceil(total / limit),
+				has_next_page: page < Math.ceil(total / limit),
+				has_prev_page: page > 1,
+			},
+		};
+	}
+
+	/**
 	 * Finds user by ID
 	 */
 	async findUserById(id: string) {

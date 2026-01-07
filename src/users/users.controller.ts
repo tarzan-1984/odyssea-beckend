@@ -266,6 +266,95 @@ export class UsersController {
 		return this.usersService.updateUserLocation(id, body);
 	}
 
+	@Get('drivers/map')
+	@ApiOperation({
+		summary: 'Get drivers for map display with pagination',
+		description:
+			'Returns paginated list of drivers with valid coordinates and active status. Excludes drivers with banned, blocked, or expired_documents status.',
+	})
+	@ApiQuery({
+		name: 'page',
+		required: false,
+		description: 'Page number for pagination',
+		type: Number,
+		example: 1,
+	})
+	@ApiQuery({
+		name: 'limit',
+		required: false,
+		description: 'Number of drivers per page',
+		type: Number,
+		example: 100,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Drivers retrieved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				drivers: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							id: {
+								type: 'string',
+								description: 'Unique user identifier',
+							},
+							externalId: {
+								type: 'string',
+								description: 'External system ID',
+							},
+							latitude: {
+								type: 'number',
+								description: 'Driver latitude coordinate',
+							},
+							longitude: {
+								type: 'number',
+								description: 'Driver longitude coordinate',
+							},
+							driverStatus: {
+								type: 'string',
+								description: 'Driver status',
+							},
+						},
+					},
+				},
+				pagination: {
+					type: 'object',
+					properties: {
+						current_page: {
+							type: 'number',
+						},
+						per_page: {
+							type: 'number',
+						},
+						total_count: {
+							type: 'number',
+						},
+						total_pages: {
+							type: 'number',
+						},
+						has_next_page: {
+							type: 'boolean',
+						},
+						has_prev_page: {
+							type: 'boolean',
+						},
+					},
+				},
+			},
+		},
+	})
+	async getDriversForMap(
+		@Query('page') page?: number,
+		@Query('limit') limit?: number,
+	) {
+		const pageNum = page ? Number(page) : 1;
+		const limitNum = limit ? Number(limit) : 100;
+		return this.usersService.findDriversForMap(pageNum, limitNum);
+	}
+
 	@Get()
 	@ApiOperation({
 		summary: 'Get all users with pagination and filtering',
