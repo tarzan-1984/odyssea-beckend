@@ -28,6 +28,13 @@ export class DriverData {
 		example: '3343',
 	})
 	@IsNotEmpty()
+	@Transform(({ value }) => {
+		// Convert number to string if needed
+		if (typeof value === 'number') {
+			return value.toString();
+		}
+		return typeof value === 'string' ? value : String(value);
+	})
 	@IsString()
 	driver_id: string;
 
