@@ -44,6 +44,7 @@ export interface AuthResponse {
 		externalId: string;
 		phone: string;
 		location: string;
+		driverStatus?: string; // Driver status for DRIVER role users
 	};
 }
 
@@ -328,21 +329,29 @@ export class AuthService {
 			this.generateRefreshToken(user.id),
 		]);
 
+		// Build user object
+		const userResponse: AuthResponse['user'] = {
+			id: user.id,
+			email: user.email,
+			firstName: user.firstName,
+			lastName: user.lastName,
+			role: user.role,
+			status: user.status,
+			avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
+			externalId: user.externalId || '', // Add externalId
+			phone: user.phone || '', // Add phone
+			location: user.location || '', // Add location
+		};
+
+		// Add driverStatus for DRIVER role users
+		if (user.role === UserRole.DRIVER && user.driverStatus) {
+			userResponse.driverStatus = user.driverStatus;
+		}
+
 		return {
 			accessToken,
 			refreshToken,
-			user: {
-				id: user.id,
-				email: user.email,
-				firstName: user.firstName,
-				lastName: user.lastName,
-				role: user.role,
-				status: user.status,
-				avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
-				externalId: user.externalId || '', // Add externalId
-				phone: user.phone || '', // Add phone
-				location: user.location || '', // Add location
-			},
+			user: userResponse,
 		};
 	}
 
@@ -401,21 +410,29 @@ export class AuthService {
 			this.generateRefreshToken(user.id),
 		]);
 
+		// Build user object
+		const userResponse: AuthResponse['user'] = {
+			id: user.id,
+			email: user.email,
+			firstName: user.firstName,
+			lastName: user.lastName,
+			role: user.role,
+			status: user.status,
+			avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
+			externalId: user.externalId || '', // Add externalId
+			phone: user.phone || '', // Add phone
+			location: user.location || '', // Add location
+		};
+
+		// Add driverStatus for DRIVER role users
+		if (user.role === UserRole.DRIVER && user.driverStatus) {
+			userResponse.driverStatus = user.driverStatus;
+		}
+
 		return {
 			accessToken: jwtAccessToken,
 			refreshToken,
-			user: {
-				id: user.id,
-				email: user.email,
-				firstName: user.firstName,
-				lastName: user.lastName,
-				role: user.role,
-				status: user.status,
-				avatar: user.profilePhoto || '', // Use profilePhoto from database or empty string
-				externalId: user.externalId || '', // Add externalId
-				phone: user.phone || '', // Add phone
-				location: user.location || '', // Add location
-			},
+			user: userResponse,
 		};
 	}
 
