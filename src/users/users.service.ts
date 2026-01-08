@@ -423,6 +423,17 @@ export class UsersService {
 	private async processDriverWebhook(webhookData: WebhookSyncDto) {
 		const { type, driver_data, driver_id } = webhookData;
 
+		console.log('🚗 [Webhook Driver] Processing driver webhook update');
+		console.log(`🚗 [Webhook Driver] Type: ${type}`);
+		console.log(`🚗 [Webhook Driver] Driver ID: ${driver_id || driver_data?.driver_id || 'N/A'}`);
+		
+		if (driver_data) {
+			console.log('🚗 [Webhook Driver] Driver data received:');
+			console.log(JSON.stringify(driver_data, null, 2));
+		} else if (driver_id) {
+			console.log(`🚗 [Webhook Driver] Delete operation for driver_id: ${driver_id}`);
+		}
+
 		if (type === WebhookType.DELETE) {
 			if (!driver_id) {
 				throw new BadRequestException(
