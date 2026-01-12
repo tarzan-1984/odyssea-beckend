@@ -103,8 +103,8 @@ export class SyncController {
 	})
 	async processWebhook(@Body() webhookData: WebhookSyncDto) {
 		this.logger.log('📥 [Webhook] Received webhook request');
-		this.logger.log(`📋 [Webhook] Type: ${webhookData?.type}, Role: ${webhookData?.role}`);
-		this.logger.log(`📋 [Webhook] Full data: ${JSON.stringify(webhookData, null, 2)}`);
+		this.logger.log('📋 [Webhook] Request body:');
+		this.logger.log(JSON.stringify(webhookData, null, 2));
 		
 		try {
 			return await this.usersService.processWebhookSync(webhookData);
