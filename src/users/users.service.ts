@@ -607,6 +607,10 @@ export class UsersService {
 				throw new NotFoundException('Driver not found');
 			}
 
+			// Check if driverStatus has changed
+			const oldDriverStatus = existingUser.driverStatus;
+			const newDriverStatus = driver_status || null;
+
 			const updatedUser = await this.prisma.user.update({
 				where: { id: existingUser.id },
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -629,6 +633,14 @@ export class UsersService {
 					updatedAt: true,
 				},
 			});
+
+			// Send WebSocket notification if driverStatus changed
+			if (oldDriverStatus !== newDriverStatus) {
+				await this.notificationsWebSocketService.sendDriverStatusUpdate(
+					existingUser.id,
+					newDriverStatus,
+				);
+			}
 
 			return {
 				action: 'updated',
