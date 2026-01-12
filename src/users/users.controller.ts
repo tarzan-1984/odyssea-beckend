@@ -597,7 +597,10 @@ export class UsersController {
 	})
 	@ApiResponse({ status: 404, description: 'User not found' })
 	async findUserByExternalIdPublic(@Param('externalId') externalId: string) {
-		console.log('🔓 [Public Endpoint] Request received for externalId:', externalId);
+		console.log(
+			'🔓 [Public Endpoint] Request received for externalId:',
+			externalId,
+		);
 		const user = await this.usersService.findUserByExternalId(externalId);
 		console.log('🔓 [Public Endpoint] User found:', {
 			firstName: user.firstName,
@@ -618,6 +621,28 @@ export class UsersController {
 	@ApiResponse({ status: 404, description: 'User not found' })
 	async findUserByExternalId(@Param('externalId') externalId: string) {
 		return this.usersService.findUserByExternalId(externalId);
+	}
+
+	@Get(':id/driver-status')
+	@ApiOperation({ summary: 'Get driver status by user ID' })
+	@ApiResponse({
+		status: 200,
+		description: 'Driver status retrieved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				driverStatus: {
+					type: 'string',
+					nullable: true,
+					description: 'Driver status value',
+				},
+			},
+		},
+	})
+	@ApiResponse({ status: 404, description: 'User not found' })
+	@ApiResponse({ status: 400, description: 'User is not a driver' })
+	async getDriverStatus(@Param('id') id: string) {
+		return this.usersService.getDriverStatus(id);
 	}
 
 	@Get(':id')

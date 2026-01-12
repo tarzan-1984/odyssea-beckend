@@ -131,7 +131,11 @@ export class UsersService {
 			AND: [
 				{ role: UserRole.DRIVER },
 				{ driverStatus: { not: null } },
-				{ driverStatus: { notIn: ['banned', 'blocked', 'expired_documents'] } },
+				{
+					driverStatus: {
+						notIn: ['banned', 'blocked', 'expired_documents'],
+					},
+				},
 				{ latitude: { not: null } },
 				{ longitude: { not: null } },
 			],
@@ -170,6 +174,34 @@ export class UsersService {
 				has_next_page: page < Math.ceil(total / limit),
 				has_prev_page: page > 1,
 			},
+		};
+	}
+
+	/**
+	 * Gets driver status for a user by ID
+	 * Returns only driverStatus field for DRIVER role users
+	 */
+	async getDriverStatus(id: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				role: true,
+				driverStatus: true,
+			},
+		});
+
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+
+		// Only return driverStatus for DRIVER role users
+		if (user.role !== UserRole.DRIVER) {
+			throw new BadRequestException('User is not a driver');
+		}
+
+		return {
+			driverStatus: user.driverStatus || null,
 		};
 	}
 
@@ -425,13 +457,17 @@ export class UsersService {
 
 		console.log('🚗 [Webhook Driver] Processing driver webhook update');
 		console.log(`🚗 [Webhook Driver] Type: ${type}`);
-		console.log(`🚗 [Webhook Driver] Driver ID: ${driver_id || driver_data?.driver_id || 'N/A'}`);
-		
+		console.log(
+			`🚗 [Webhook Driver] Driver ID: ${driver_id || driver_data?.driver_id || 'N/A'}`,
+		);
+
 		if (driver_data) {
 			console.log('🚗 [Webhook Driver] Driver data received:');
 			console.log(JSON.stringify(driver_data, null, 2));
 		} else if (driver_id) {
-			console.log(`🚗 [Webhook Driver] Delete operation for driver_id: ${driver_id}`);
+			console.log(
+				`🚗 [Webhook Driver] Delete operation for driver_id: ${driver_id}`,
+			);
 		}
 
 		if (type === WebhookType.DELETE) {
@@ -491,7 +527,9 @@ export class UsersService {
 		const mappedRole = UserRole.DRIVER;
 
 		// Helper function to parse coordinates
-		const parseCoordinate = (coord: number | string | undefined): number | null => {
+		const parseCoordinate = (
+			coord: number | string | undefined,
+		): number | null => {
 			if (coord === undefined || coord === null) return null;
 			if (typeof coord === 'number') {
 				return Number.isNaN(coord) ? null : coord;
