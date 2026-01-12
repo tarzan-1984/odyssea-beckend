@@ -119,4 +119,13 @@ export class UpdateUserDto {
 	@IsOptional()
 	@IsString()
 	externalId?: string;
+
+	@ApiProperty({
+		description: 'Driver status (for DRIVER role users)',
+		example: 'available',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	driverStatus?: string;
 }
