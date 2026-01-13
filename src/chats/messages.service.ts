@@ -214,10 +214,11 @@ export class MessagesService {
 			// Filter receivers based on driver status rules
 			const allowedReceiverIds = receiverUsers
 				.filter((receiver) => {
-					// Block all push notifications for drivers with 'blocked' status
+					// Block all push notifications for drivers with 'blocked' or 'banned' status
 					if (
 						receiver.role === UserRole.DRIVER &&
-						receiver.driverStatus === 'blocked'
+						(receiver.driverStatus === 'blocked' ||
+							receiver.driverStatus === 'banned')
 					) {
 						return false;
 					}
