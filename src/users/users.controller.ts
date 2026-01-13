@@ -376,27 +376,11 @@ export class UsersController {
 		example: 10,
 	})
 	@ApiQuery({
-		name: 'role',
+		name: 'roles',
 		required: false,
-		description: 'Filter users by role',
-		enum: [
-			'DRIVER_UPDATES',
-			'MODERATOR',
-			'RECRUITER',
-			'ADMINISTRATOR',
-			'NIGHTSHIFT_TRACKING',
-			'DISPATCHER',
-			'BILLING',
-			'SUBSCRIBER',
-			'ACCOUNTING',
-			'RECRUITER_TL',
-			'TRACKING',
-			'DISPATCHER_TL',
-			'TRACKING_TL',
-			'MORNING_TRACKING',
-			'EXPEDITE_MANAGER',
-			'DRIVER',
-		],
+		description:
+			'Filter users by roles (comma-separated list or single role). Example: "ADMINISTRATOR" or "RECRUITER,RECRUITER_TL,ADMINISTRATOR"',
+		type: String,
 		example: 'ADMINISTRATOR',
 	})
 	@ApiQuery({
@@ -558,11 +542,26 @@ export class UsersController {
 	async findAllUsers(
 		@Query('page') page?: string,
 		@Query('limit') limit?: string,
-		@Query('role') role?: UserRole,
+		@Query('roles') roles?: string,
 		@Query('status') status?: UserStatus,
 		@Query('search') search?: string,
 		@Query('sort') sort?: string,
 	) {
+		// Parse roles from comma-separated string to array
+		let rolesArray: UserRole[] | undefined;
+		if (roles) {
+			const roleStrings = roles
+				.split(',')
+				.map((r) => r.trim())
+				.filter((r) => r);
+			rolesArray = roleStrings.filter((r): r is UserRole =>
+				Object.values(UserRole).includes(r as UserRole),
+			);
+			if (rolesArray.length === 0) {
+				rolesArray = undefined;
+			}
+		}
+
 		let sortObj: { [key: string]: 'asc' | 'desc' } | undefined;
 
 		if (sort) {
@@ -577,7 +576,7 @@ export class UsersController {
 		return this.usersService.findAllUsers(
 			page ? parseInt(page, 10) : 1,
 			limit ? parseInt(limit, 10) : 10,
-			role,
+			rolesArray,
 			status,
 			search,
 			sortObj,

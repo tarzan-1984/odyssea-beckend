@@ -29,7 +29,7 @@ export class UsersService {
 	async findAllUsers(
 		page: number = 1,
 		limit: number = 10,
-		role?: UserRole,
+		roles?: UserRole[],
 		status?: UserStatus,
 		search?: string,
 		sort?: { [key: string]: 'asc' | 'desc' },
@@ -38,8 +38,8 @@ export class UsersService {
 
 		const where: Record<string, unknown> = {};
 
-		if (role) {
-			where.role = role;
+		if (roles && roles.length > 0) {
+			where.role = { in: roles };
 		}
 
 		if (status) {
