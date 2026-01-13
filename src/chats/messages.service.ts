@@ -240,10 +240,11 @@ export class MessagesService {
 							UserRole.EXPEDITE_MANAGER,
 						];
 
+						const senderRole = senderUser?.role;
 						if (
-							!senderUser?.role ||
-							!allowedRolesForExpiredDocuments.includes(
-								senderUser.role,
+							!senderRole ||
+							!allowedRolesForExpiredDocuments.some(
+								(role) => role === senderRole,
 							)
 						) {
 							return false;
