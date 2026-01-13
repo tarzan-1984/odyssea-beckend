@@ -203,6 +203,21 @@ export class AuthService {
 	async validateUser(email: string, password: string) {
 		const user = await this.prisma.user.findUnique({
 			where: { email },
+			select: {
+				id: true,
+				email: true,
+				firstName: true,
+				lastName: true,
+				role: true,
+				status: true,
+				password: true,
+				driverStatus: true,
+				profilePhoto: true,
+				avatar: true,
+				externalId: true,
+				phone: true,
+				location: true,
+			},
 		});
 
 		if (!user) {
@@ -245,6 +260,17 @@ export class AuthService {
 		if (!allowDriverRole && user.role.toLowerCase() === 'driver') {
 			throw new UnauthorizedException(
 				'You do not have permission to access this system. Users with your role cannot log in.',
+			);
+		}
+
+		// Block login for drivers with "no_interview" or "no_Interview" status
+		if (
+			user.role === UserRole.DRIVER &&
+			(user.driverStatus === 'no_interview' ||
+				user.driverStatus === 'no_Interview')
+		) {
+			throw new UnauthorizedException(
+				'Users with No Interview status cannot use the application',
 			);
 		}
 
@@ -312,10 +338,35 @@ export class AuthService {
 
 		const user = await this.prisma.user.findUnique({
 			where: { email },
+			select: {
+				id: true,
+				email: true,
+				firstName: true,
+				lastName: true,
+				role: true,
+				status: true,
+				profilePhoto: true,
+				avatar: true,
+				externalId: true,
+				phone: true,
+				location: true,
+				driverStatus: true,
+			},
 		});
 
 		if (!user) {
 			throw new NotFoundException('User not found');
+		}
+
+		// Block login for drivers with "no_interview" or "no_Interview" status
+		if (
+			user.role === UserRole.DRIVER &&
+			(user.driverStatus === 'no_interview' ||
+				user.driverStatus === 'no_Interview')
+		) {
+			throw new UnauthorizedException(
+				'Users with No Interview status cannot use the application',
+			);
 		}
 
 		const payload: JwtPayload = {
@@ -652,12 +703,33 @@ export class AuthService {
 	): Promise<{ message: string; redirectUrl?: string }> {
 		const user = await this.prisma.user.findUnique({
 			where: { email },
+			select: {
+				id: true,
+				email: true,
+				firstName: true,
+				lastName: true,
+				role: true,
+				status: true,
+				driverStatus: true,
+				password: true,
+			},
 		});
 
 		const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 		if (!user) {
 			throw new UnauthorizedException('User not found');
+		}
+
+		// Block login for drivers with "no_interview" or "no_Interview" status
+		if (
+			user.role === UserRole.DRIVER &&
+			(user.driverStatus === 'no_interview' ||
+				user.driverStatus === 'no_Interview')
+		) {
+			throw new UnauthorizedException(
+				'Users with No Interview status cannot use the application',
+			);
 		}
 
 		// If user is not active, generate temporary password and send email
