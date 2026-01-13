@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { FcmPushService } from '../notifications/fcm-push.service';
 import { ExpoPushService } from '../notifications/expo-push.service';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class MessagesService {
@@ -192,18 +193,75 @@ export class MessagesService {
 				.map((p) => p.userId);
 			if (receiverIds.length === 0) return;
 
-			// Fetch device tokens (FCM device tokens, not Expo tokens)
-			const tokens = await this.prisma.pushToken.findMany({
-				where: { userId: { in: receiverIds } },
-				select: { token: true },
-			});
-			if (tokens.length === 0) return;
-
 			// Get chat room info to determine notification title
 			const chatRoom = await this.prisma.chatRoom.findUnique({
 				where: { id: message.chatRoomId },
 				select: { type: true, name: true },
 			});
+
+			// Get receiver users info (role and driverStatus) for filtering
+			const receiverUsers = await this.prisma.user.findMany({
+				where: { id: { in: receiverIds } },
+				select: { id: true, role: true, driverStatus: true },
+			});
+
+			// Get sender info (role) for filtering expired_documents drivers
+			const senderUser = await this.prisma.user.findUnique({
+				where: { id: message.senderId },
+				select: { role: true },
+			});
+
+			// Filter receivers based on driver status rules
+			const allowedReceiverIds = receiverUsers
+				.filter((receiver) => {
+					// Block all push notifications for drivers with 'blocked' status
+					if (
+						receiver.role === UserRole.DRIVER &&
+						receiver.driverStatus === 'blocked'
+					) {
+						return false;
+					}
+
+					// Filter push notifications for drivers with 'expired_documents' status
+					if (
+						receiver.role === UserRole.DRIVER &&
+						receiver.driverStatus === 'expired_documents'
+					) {
+						// Block all non-DIRECT chats
+						if (chatRoom?.type !== 'DIRECT') {
+							return false;
+						}
+
+						// For DIRECT chats, only allow if sender role is in allowed list
+						const allowedRolesForExpiredDocuments = [
+							UserRole.RECRUITER,
+							UserRole.RECRUITER_TL,
+							UserRole.ADMINISTRATOR,
+							UserRole.EXPEDITE_MANAGER,
+						];
+
+						if (
+							!senderUser?.role ||
+							!allowedRolesForExpiredDocuments.includes(
+								senderUser.role,
+							)
+						) {
+							return false;
+						}
+					}
+
+					return true;
+				})
+				.map((receiver) => receiver.id);
+
+			if (allowedReceiverIds.length === 0) return;
+
+			// Fetch device tokens (FCM device tokens, not Expo tokens) only for allowed receivers
+			const tokens = await this.prisma.pushToken.findMany({
+				where: { userId: { in: allowedReceiverIds } },
+				select: { token: true },
+			});
+			if (tokens.length === 0) return;
 
 			// Determine notification title based on chat type
 			let notificationTitle: string;
