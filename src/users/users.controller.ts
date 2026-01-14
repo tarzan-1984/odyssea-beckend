@@ -317,6 +317,22 @@ export class UsersController {
 								type: 'string',
 								description: 'Driver status',
 							},
+							firstName: {
+								type: 'string',
+								description: 'Driver first name',
+							},
+							lastName: {
+								type: 'string',
+								description: 'Driver last name',
+							},
+							email: {
+								type: 'string',
+								description: 'Driver email',
+							},
+							phone: {
+								type: 'string',
+								description: 'Driver phone number',
+							},
 						},
 					},
 				},
