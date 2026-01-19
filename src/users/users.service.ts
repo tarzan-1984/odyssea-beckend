@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailerService } from '../mailer/mailer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserLocationDto } from './dto/update-user-location.dto';
 import {
@@ -21,6 +22,7 @@ export class UsersService {
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
+		private readonly mailerService: MailerService,
 	) {}
 
 	/**
@@ -330,7 +332,7 @@ export class UsersService {
 	async changePassword(id: string, newPassword: string): Promise<void> {
 		const user = await this.prisma.user.findUnique({
 			where: { id },
-			select: { id: true },
+			select: { id: true, email: true },
 		});
 
 		if (!user) {
@@ -343,6 +345,17 @@ export class UsersService {
 			where: { id },
 			data: { password: hashedPassword },
 		});
+
+		// Send email with new password (same template as reset-password-mobile)
+		const emailSent = await this.mailerService.sendHtmlEmail(
+			user.email,
+			'Your New Password',
+			`<div style="font-family: Arial, sans-serif; font-size: 16px"><p>Your new password is: <strong style="font-size: 18px; color: #007bff;">${newPassword}</strong></p></div>`,
+		);
+
+		if (!emailSent) {
+			throw new BadRequestException('Failed to send password change email');
+		}
 	}
 
 	/**
