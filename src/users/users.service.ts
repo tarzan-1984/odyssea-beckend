@@ -325,6 +325,27 @@ export class UsersService {
 	}
 
 	/**
+	 * Changes user password (self-service or admin)
+	 */
+	async changePassword(id: string, newPassword: string): Promise<void> {
+		const user = await this.prisma.user.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+
+		const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+		await this.prisma.user.update({
+			where: { id },
+			data: { password: hashedPassword },
+		});
+	}
+
+	/**
 	 * Updates only user location-related fields (for mobile location tracking)
 	 */
 	async updateUserLocation(id: string, locationDto: UpdateUserLocationDto) {

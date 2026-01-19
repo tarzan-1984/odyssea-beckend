@@ -8,6 +8,10 @@ import {
 	Param,
 	Query,
 	UseGuards,
+	ForbiddenException,
+	HttpCode,
+	HttpStatus,
+	Request,
 } from '@nestjs/common';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 import {
@@ -25,11 +29,13 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserLocationDto } from './dto/update-user-location.dto';
 import { ImportDriversDto } from './dto/import-drivers.dto';
 import { ImportUsersDto } from './dto/import-users.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { ImportDriversService } from './services/import-drivers.service';
 import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
 import { ImportUsersService } from './services/import-users.service';
 import { ImportUsersBackgroundService } from './services/import-users-background.service';
 import { UserRole, UserStatus } from '@prisma/client';
+import { AuthenticatedRequest } from '../types/request.types';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -667,6 +673,36 @@ export class UsersController {
 		@Body() updateUserDto: UpdateUserDto,
 	) {
 		return this.usersService.updateUser(id, updateUserDto);
+	}
+
+	@Put(':id/password')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Change user password (Self or Admin)' })
+	@ApiBody({
+		schema: {
+			type: 'object',
+			properties: {
+				newPassword: { type: 'string', example: 'MyNewPassword1' },
+			},
+			required: ['newPassword'],
+		},
+	})
+	@ApiResponse({ status: 200, description: 'Password changed successfully' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'User not found' })
+	async changePassword(
+		@Param('id') id: string,
+		@Body() dto: ChangePasswordDto,
+		@Request() req: AuthenticatedRequest,
+	): Promise<{ message: string }> {
+		const canChange =
+			req.user.id === id || req.user.role === UserRole.ADMINISTRATOR;
+		if (!canChange) {
+			throw new ForbiddenException('You are not allowed to change this password');
+		}
+
+		await this.usersService.changePassword(id, dto.newPassword);
+		return { message: 'Password changed successfully' };
 	}
 
 	@Delete(':id')
