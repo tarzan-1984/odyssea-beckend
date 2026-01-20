@@ -731,22 +731,16 @@ export class AuthService {
 		}
 
 		// If user is not active, generate temporary password and send email
-		if (user.status !== UserStatus.ACTIVE) {
+		// Also handle inconsistent state: ACTIVE but no password (could happen if email sending failed previously)
+		if (user.status !== UserStatus.ACTIVE || !user.password) {
 			const temporaryPassword = generateRandomPassword(8);
 			const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
 
-			// Update user password and status to ACTIVE
-			const updatedUser = await this.prisma.user.update({
+			// 1) Update password first (keep status unchanged until email is successfully sent)
+			await this.prisma.user.update({
 				where: { id: user.id },
-				data: {
-					password: hashedPassword,
-					status: UserStatus.ACTIVE,
-				},
+				data: { password: hashedPassword },
 			});
-
-			console.log(
-				`User ${user.email} status updated from ${user.status} to ${updatedUser.status}`,
-			);
 
 			// Send email with temporary password
 			const emailSent = await this.mailerService.sendHtmlEmail(
@@ -766,7 +760,28 @@ export class AuthService {
 			);
 
 			if (!emailSent) {
+				// Best-effort rollback: restore previous password hash and keep status as-is
+				try {
+					await this.prisma.user.update({
+						where: { id: user.id },
+						data: { password: user.password ?? null },
+					});
+				} catch {
+					// Ignore rollback failures
+				}
 				throw new BadRequestException('Failed to send password email');
+			}
+
+			// 2) Mark user ACTIVE only after email was successfully sent
+			if (user.status !== UserStatus.ACTIVE) {
+				const updatedUser = await this.prisma.user.update({
+					where: { id: user.id },
+					data: { status: UserStatus.ACTIVE },
+				});
+
+				console.log(
+					`User ${user.email} status updated from ${user.status} to ${updatedUser.status}`,
+				);
 			}
 
 			// Return redirect URL to password login page
