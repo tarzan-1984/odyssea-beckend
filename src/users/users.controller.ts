@@ -397,6 +397,14 @@ export class UsersController {
 		example: 'ACTIVE',
 	})
 	@ApiQuery({
+		name: 'contactsOnly',
+		required: false,
+		description:
+			'When true, returns only users with status ACTIVE (used for contact lists).',
+		type: Boolean,
+		example: true,
+	})
+	@ApiQuery({
 		name: 'search',
 		required: false,
 		description: 'Search users by first name, last name, email, or phone',
@@ -550,6 +558,7 @@ export class UsersController {
 		@Query('limit') limit?: string,
 		@Query('roles') roles?: string,
 		@Query('status') status?: UserStatus,
+		@Query('contactsOnly') contactsOnly?: string,
 		@Query('search') search?: string,
 		@Query('sort') sort?: string,
 	) {
@@ -579,11 +588,16 @@ export class UsersController {
 			}
 		}
 
+		// contactsOnly mode: show only users who actually use the app (status ACTIVE)
+		const contactsOnlyEnabled =
+			contactsOnly === 'true' || contactsOnly === '1';
+		const effectiveStatus = contactsOnlyEnabled ? UserStatus.ACTIVE : status;
+
 		return this.usersService.findAllUsers(
 			page ? parseInt(page, 10) : 1,
 			limit ? parseInt(limit, 10) : 10,
 			rolesArray,
-			status,
+			effectiveStatus,
 			search,
 			sortObj,
 		);
