@@ -10,42 +10,44 @@ datasource db {
 }
 
 model User {
-  id                  String                @id @default(cuid())
-  email               String                @unique
-  password            String?
-  firstName           String
-  lastName            String
-  company             String?
-  phone               String?
-  profilePhoto        String?
-  role                UserRole
-  status              UserStatus            @default(INACTIVE)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  lastLoginAt         DateTime?
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  password             String?
+  firstName            String
+  lastName             String
+  // Array of company names (e.g. ["Odysseia", "Martlet"]).
+  // Prisma lists are non-nullable; default is empty array.
+  company              String[]              @default([])
+  phone                String?
+  profilePhoto         String?
+  role                 UserRole
+  status               UserStatus            @default(INACTIVE)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  lastLoginAt          DateTime?
   // Last time when location/coordinates were updated on the mobile device (client local time as string)
   lastLocationUpdateAt String?
   // Last known coordinates of the user (from location tracking)
-  latitude            Float?
-  longitude           Float?
-  location            String?
-  city                String?
-  state               String?
-  zip                 String?
-  deactivateAccount   Boolean?              @default(false)
-  externalId          String?               @unique
-  type                String?
-  vin                 String?
-  driverStatus        String?
-  chatRooms           ChatRoomParticipant[]
-  adminOfChatRooms    ChatRoom[]            @relation("ChatRoomAdmin")
-  receivedMessages    Message[]             @relation("MessageReceiver")
-  sentMessages        Message[]             @relation("MessageSender")
-  notifications       Notification[]
-  notificationsSent   NotificationSent[]
-  pushTokens          PushToken[]
-  passwordResetTokens PasswordResetToken[]
-  refreshTokens       RefreshToken[]
+  latitude             Float?
+  longitude            Float?
+  location             String?
+  city                 String?
+  state                String?
+  zip                  String?
+  deactivateAccount    Boolean?              @default(false)
+  externalId           String?               @unique
+  type                 String?
+  vin                  String?
+  driverStatus         String?
+  chatRooms            ChatRoomParticipant[]
+  adminOfChatRooms     ChatRoom[]            @relation("ChatRoomAdmin")
+  receivedMessages     Message[]             @relation("MessageReceiver")
+  sentMessages         Message[]             @relation("MessageSender")
+  notifications        Notification[]
+  notificationsSent    NotificationSent[]
+  pushTokens           PushToken[]
+  passwordResetTokens  PasswordResetToken[]
+  refreshTokens        RefreshToken[]
 
   @@map("users")
 }
