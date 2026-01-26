@@ -1105,11 +1105,11 @@ export class ChatRoomsService {
 			}
 		}
 
-		// Step 3: Get all ADMINISTRATOR and BILLING users
-		const adminAndBillingUsers = await this.prisma.user.findMany({
+		// Step 3: Get all ADMINISTRATOR users (hidden participants)
+		const adminUsers = await this.prisma.user.findMany({
 			where: {
 				role: {
-					in: ['ADMINISTRATOR', 'BILLING'],
+					in: ['ADMINISTRATOR'],
 				},
 			},
 			select: {
@@ -1118,7 +1118,7 @@ export class ChatRoomsService {
 		});
 
 		// Add them to list and mark to hideParticipant flag
-		for (const user of adminAndBillingUsers) {
+		for (const user of adminUsers) {
 			if (!validParticipantIds.includes(user.id)) {
 				validParticipantIds.push(user.id);
 				hiddenParticipantIds.push(user.id);

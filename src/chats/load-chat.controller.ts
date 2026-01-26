@@ -22,7 +22,7 @@ export class LoadChatController {
 	@ApiOperation({
 		summary: 'Create a LOAD chat',
 		description:
-			'Creates a new LOAD chat with external participants. Verifies driver exists and is active, then creates chat with all valid participants plus ADMINISTRATOR and BILLING users (hidden).',
+			'Creates a new LOAD chat with external participants. Verifies driver exists and is active, then creates chat with all valid participants plus ADMINISTRATOR users (hidden).',
 	})
 	@ApiResponse({
 		status: 201,
