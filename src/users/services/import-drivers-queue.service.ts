@@ -33,6 +33,26 @@ export class ImportDriversQueueService {
   ) {}
 
   /**
+   * Normalize permission_view to our allowed company values.
+   */
+  private normalizeCompany(value?: string[] | null): string[] {
+    if (!Array.isArray(value) || value.length === 0) return [];
+    const allowedMap = new Map<string, 'Odysseia' | 'Martlet' | 'Endurance'>([
+      ['odysseia', 'Odysseia'],
+      ['martlet', 'Martlet'],
+      ['endurance', 'Endurance'],
+    ]);
+    const normalized: Array<'Odysseia' | 'Martlet' | 'Endurance'> = [];
+    for (const item of value) {
+      if (typeof item !== 'string') continue;
+      const canon = allowedMap.get(item.trim().toLowerCase());
+      if (!canon) continue;
+      if (!normalized.includes(canon)) normalized.push(canon);
+    }
+    return normalized;
+  }
+
+  /**
    * Start import process by adding jobs to queue
    */
   async startImport(page: number, per_page: number, search?: string): Promise<{ jobId: string; message: string }> {
@@ -214,6 +234,8 @@ export class ImportDriversQueueService {
       return isNaN(parsed) ? null : parsed;
     };
 
+    const permissionView = driver.permission_view ?? [];
+
     const userData = {
       externalId: driver.id.toString(),
       email: driver.driver_email || '',
@@ -226,6 +248,7 @@ export class ImportDriversQueueService {
       driverStatus: driver.driver_status || null,
       latitude: parseCoordinate(driver.latitude),
       longitude: parseCoordinate(driver.longitude),
+      company: this.normalizeCompany(permissionView),
       role: UserRole.DRIVER,
       status: UserStatus.INACTIVE,
       password: null,
@@ -251,6 +274,7 @@ export class ImportDriversQueueService {
           driverStatus: userData.driverStatus,
           latitude: userData.latitude,
           longitude: userData.longitude,
+          company: userData.company,
           role: userData.role,
           status: userData.status,
           password: userData.password,
