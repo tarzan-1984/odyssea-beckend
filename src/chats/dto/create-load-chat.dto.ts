@@ -1,4 +1,4 @@
-import { IsString, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -32,6 +32,14 @@ export class CreateLoadChatDto {
 	})
 	@IsString()
 	title: string;
+
+	@ApiProperty({
+		description: 'Company identifier for the LOAD chat',
+		enum: ['Odysseia', 'Martlet', 'Endurance'],
+		example: 'Odysseia',
+	})
+	@IsEnum(['Odysseia', 'Martlet', 'Endurance'])
+	company: 'Odysseia' | 'Martlet' | 'Endurance';
 
 	@ApiProperty({
 		description: 'Array of participants with their IDs and roles',

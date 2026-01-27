@@ -1063,7 +1063,7 @@ export class ChatRoomsService {
 	 * Create a LOAD chat with external participants
 	 */
 	async createLoadChat(createLoadChatDto: CreateLoadChatDto) {
-		const { load_id, title, participants } = createLoadChatDto;
+		const { load_id, title, company, participants } = createLoadChatDto;
 
 		// Step 1: Find and verify the driver
 		const driverParticipant = participants.find((p) => p.role.toUpperCase() === 'DRIVER');
@@ -1132,6 +1132,7 @@ export class ChatRoomsService {
 					name: title,
 					type: 'LOAD',
 					loadId: load_id,
+					company,
 					avatar: null,
 					adminId: null, // No admin for LOAD chats
 				},

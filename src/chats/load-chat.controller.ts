@@ -33,6 +33,7 @@ export class LoadChatController {
 				name: 'Load #12345 Discussion',
 				type: 'LOAD',
 				loadId: 'load_12345',
+				company: 'Odysseia',
 				avatar: null,
 				isArchived: false,
 				adminId: null,
