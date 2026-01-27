@@ -105,14 +105,16 @@ export class SyncController {
 		this.logger.log('📥 [Webhook] Received webhook request');
 		this.logger.log('📋 [Webhook] Request body:');
 		this.logger.log(JSON.stringify(webhookData, null, 2));
-		
+
 		try {
 			return await this.usersService.processWebhookSync(webhookData);
 		} catch (error) {
 			this.logger.error('❌ [Webhook] Error processing webhook:', error);
 			if (error instanceof BadRequestException) {
 				const errorResponse = error.getResponse();
-				this.logger.error(`❌ [Webhook] BadRequest details: ${JSON.stringify(errorResponse, null, 2)}`);
+				this.logger.error(
+					`❌ [Webhook] BadRequest details: ${JSON.stringify(errorResponse, null, 2)}`,
+				);
 			}
 			throw error;
 		}

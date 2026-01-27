@@ -171,6 +171,26 @@ export class DriverData {
 		return typeof value === 'number' ? value : null;
 	})
 	longitude?: number;
+
+	@ApiProperty({
+		description: 'Permission view array (used as company list in our DB)',
+		example: ['Odysseia', 'Martlet', 'Endurance'],
+		required: false,
+	})
+	@IsOptional()
+	@Transform(({ value }) => {
+		if (value === null || value === undefined) return undefined;
+		if (Array.isArray(value)) {
+			return value.filter((v) => typeof v === 'string');
+		}
+		if (typeof value === 'string') {
+			return [value];
+		}
+		return undefined;
+	})
+	@IsArray()
+	@IsString({ each: true })
+	permission_view?: string[];
 }
 
 export class AcfFields {

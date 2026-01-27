@@ -14,7 +14,7 @@ import {
 	WebhookType,
 	WebhookRole,
 } from './dto/webhook-sync.dto';
-import { UserRole, UserStatus } from '@prisma/client';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 @Injectable()
@@ -354,7 +354,9 @@ export class UsersService {
 		);
 
 		if (!emailSent) {
-			throw new BadRequestException('Failed to send password change email');
+			throw new BadRequestException(
+				'Failed to send password change email',
+			);
 		}
 	}
 
@@ -550,7 +552,29 @@ export class UsersService {
 			current_zipcode,
 			latitude,
 			longitude,
+			permission_view,
 		} = driver_data;
+
+		// Normalize permission_view to our allowed company values.
+		const normalizeCompany = (value?: string[]): string[] => {
+			if (!Array.isArray(value) || value.length === 0) return [];
+			const allowedMap = new Map<
+				string,
+				'Odysseia' | 'Martlet' | 'Endurance'
+			>([
+				['odysseia', 'Odysseia'],
+				['martlet', 'Martlet'],
+				['endurance', 'Endurance'],
+			]);
+			const normalized: Array<'Odysseia' | 'Martlet' | 'Endurance'> = [];
+			for (const item of value) {
+				if (typeof item !== 'string') continue;
+				const canon = allowedMap.get(item.trim().toLowerCase());
+				if (!canon) continue;
+				if (!normalized.includes(canon)) normalized.push(canon);
+			}
+			return normalized;
+		};
 
 		// Parse driver name
 		const nameParts = driver_name?.split(' ') || [];
@@ -575,7 +599,7 @@ export class UsersService {
 			return null;
 		};
 
-		const userData = {
+		const userData: Prisma.UserUncheckedCreateInput = {
 			externalId: driverId,
 			email: driver_email,
 			firstName,
@@ -590,7 +614,7 @@ export class UsersService {
 			driverStatus: driver_status || null,
 			latitude: parseCoordinate(latitude),
 			longitude: parseCoordinate(longitude),
-			password: undefined, // Will be set when user first logs in
+			company: normalizeCompany(permission_view),
 		};
 
 		if (type === WebhookType.ADD) {
@@ -606,8 +630,7 @@ export class UsersService {
 			}
 
 			const newUser = await this.prisma.user.create({
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-				data: userData as any,
+				data: userData,
 				select: {
 					id: true,
 					externalId: true,
@@ -647,8 +670,7 @@ export class UsersService {
 
 			const updatedUser = await this.prisma.user.update({
 				where: { id: existingUser.id },
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-				data: userData as any,
+				data: userData as Prisma.UserUncheckedUpdateInput,
 				select: {
 					id: true,
 					externalId: true,
