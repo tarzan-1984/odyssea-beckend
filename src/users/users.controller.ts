@@ -355,10 +355,11 @@ export class UsersController {
 	async getDriversForMap(
 		@Query('page') page?: number,
 		@Query('limit') limit?: number,
+		@Query('company') company?: string,
 	) {
 		const pageNum = page ? Number(page) : 1;
 		const limitNum = limit ? Number(limit) : 100;
-		return this.usersService.findDriversForMap(pageNum, limitNum);
+		return this.usersService.findDriversForMap(pageNum, limitNum, company);
 	}
 
 	@Get()
@@ -561,6 +562,7 @@ export class UsersController {
 		@Query('contactsOnly') contactsOnly?: string,
 		@Query('search') search?: string,
 		@Query('sort') sort?: string,
+		@Query('company') company?: string,
 	) {
 		// Parse roles from comma-separated string to array
 		let rolesArray: UserRole[] | undefined;
@@ -600,6 +602,7 @@ export class UsersController {
 			effectiveStatus,
 			search,
 			sortObj,
+			company,
 		);
 	}
 

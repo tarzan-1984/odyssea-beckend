@@ -35,6 +35,7 @@ export class UsersService {
 		status?: UserStatus,
 		search?: string,
 		sort?: { [key: string]: 'asc' | 'desc' },
+		company?: string,
 	) {
 		const skip = (page - 1) * limit;
 
@@ -46,6 +47,15 @@ export class UsersService {
 
 		if (status) {
 			where.status = status;
+		}
+
+		if (company) {
+			const allowed = ['Odysseia', 'Martlet', 'Endurance'];
+			if (!allowed.includes(company)) {
+				throw new BadRequestException('Invalid company value');
+			}
+			// users.company is TEXT[] (Prisma String[])
+			where.company = { has: company };
 		}
 
 		if (search) {
@@ -126,22 +136,34 @@ export class UsersService {
 	 * Finds drivers for map display with pagination
 	 * Returns only drivers with valid coordinates and active status
 	 */
-	async findDriversForMap(page: number = 1, limit: number = 100) {
+	async findDriversForMap(
+		page: number = 1,
+		limit: number = 100,
+		company?: string,
+	) {
 		const skip = (page - 1) * limit;
 
-		const where = {
-			AND: [
-				{ role: UserRole.DRIVER },
-				{ driverStatus: { not: null } },
-				{
-					driverStatus: {
-						notIn: ['banned', 'blocked', 'expired_documents'],
-					},
+		const and: any[] = [
+			{ role: UserRole.DRIVER },
+			{ driverStatus: { not: null } },
+			{
+				driverStatus: {
+					notIn: ['banned', 'blocked', 'expired_documents'],
 				},
-				{ latitude: { not: null } },
-				{ longitude: { not: null } },
-			],
-		};
+			},
+			{ latitude: { not: null } },
+			{ longitude: { not: null } },
+		];
+
+		if (company) {
+			const allowed = ['Odysseia', 'Martlet', 'Endurance'];
+			if (!allowed.includes(company)) {
+				throw new BadRequestException('Invalid company value');
+			}
+			and.push({ company: { has: company } });
+		}
+
+		const where = { AND: and };
 
 		const [drivers, total] = await Promise.all([
 			this.prisma.user.findMany({
