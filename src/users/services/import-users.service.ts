@@ -20,6 +20,26 @@ export class ImportUsersService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/**
+	 * Normalize permission_view to our allowed company values.
+	 */
+	private normalizeCompany(value?: string[] | null): string[] {
+		if (!Array.isArray(value) || value.length === 0) return [];
+		const allowedMap = new Map<string, 'Odysseia' | 'Martlet' | 'Endurance'>([
+			['odysseia', 'Odysseia'],
+			['martlet', 'Martlet'],
+			['endurance', 'Endurance'],
+		]);
+		const normalized: Array<'Odysseia' | 'Martlet' | 'Endurance'> = [];
+		for (const item of value) {
+			if (typeof item !== 'string') continue;
+			const canon = allowedMap.get(item.trim().toLowerCase());
+			if (!canon) continue;
+			if (!normalized.includes(canon)) normalized.push(canon);
+		}
+		return normalized;
+	}
+
+	/**
 	 * Import users from external API with pagination
 	 * Limited to prevent timeouts - processes max MAX_PAGES_PER_REQUEST pages
 	 */
@@ -212,6 +232,8 @@ export class ImportUsersService {
 		// Map roles to UserRole enum
 		const mappedRole = this.mapRoleToUserRole(user.roles);
 
+		const permissionView = user.acf_fields?.permission_view ?? [];
+
 		const userData = {
 			externalId: user.id.toString(),
 			email: user.user_email.trim(),
@@ -219,6 +241,7 @@ export class ImportUsersService {
 			lastName: user.last_name || '',
 			phone: user.acf_fields?.phone_number || '',
 			location: user.acf_fields?.work_location || '',
+			company: this.normalizeCompany(permissionView),
 			role: mappedRole,
 			status: UserStatus.INACTIVE, // Default status for imported users
 			password: null, // No password for imported users
@@ -238,6 +261,7 @@ export class ImportUsersService {
 					lastName: userData.lastName,
 					phone: userData.phone,
 					location: userData.location,
+					company: userData.company,
 					role: userData.role,
 					status: userData.status,
 					password: userData.password,

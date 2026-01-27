@@ -14,14 +14,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
 	imports: [PrismaModule, ConfigModule, NotificationsModule],
 	controllers: [UsersController, SyncController],
 	providers: [
-		UsersService, 
+		UsersService,
 		ImportDriversService,
 		ImportDriversBackgroundService,
 		ImportUsersService,
 		ImportUsersBackgroundService,
 	],
 	exports: [
-		UsersService, 
+		UsersService,
 		ImportDriversService,
 		ImportDriversBackgroundService,
 		ImportUsersService,
