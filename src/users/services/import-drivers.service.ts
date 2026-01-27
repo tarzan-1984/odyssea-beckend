@@ -290,8 +290,7 @@ export class ImportDriversService {
 					longitude: userData.longitude,
 					company: userData.company,
 					role: userData.role,
-					status: userData.status,
-					password: userData.password,
+					// Do not overwrite status/password for existing users.
 				},
 			});
 			this.logger.log(

@@ -276,8 +276,7 @@ export class ImportDriversQueueService {
           longitude: userData.longitude,
           company: userData.company,
           role: userData.role,
-          status: userData.status,
-          password: userData.password,
+          // Do not overwrite status/password for existing users.
         },
       });
       this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
