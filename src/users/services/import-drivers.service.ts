@@ -248,8 +248,7 @@ export class ImportDriversService {
 		};
 
 		// permission_view can be provided either at top-level or nested under acf_fields
-		const permissionView =
-			driver.permission_view ?? driver.permission_view ?? [];
+		const permissionView = driver.permission_view ?? [];
 
 		const userData = {
 			externalId: driver.id.toString(),
