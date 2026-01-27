@@ -20,6 +20,29 @@ export class ImportDriversService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/**
+	 * Normalize permission_view to our allowed company values.
+	 */
+	private normalizeCompany(value?: string[] | null): string[] {
+		if (!Array.isArray(value) || value.length === 0) return [];
+		const allowedMap = new Map<
+			string,
+			'Odysseia' | 'Martlet' | 'Endurance'
+		>([
+			['odysseia', 'Odysseia'],
+			['martlet', 'Martlet'],
+			['endurance', 'Endurance'],
+		]);
+		const normalized: Array<'Odysseia' | 'Martlet' | 'Endurance'> = [];
+		for (const item of value) {
+			if (typeof item !== 'string') continue;
+			const canon = allowedMap.get(item.trim().toLowerCase());
+			if (!canon) continue;
+			if (!normalized.includes(canon)) normalized.push(canon);
+		}
+		return normalized;
+	}
+
+	/**
 	 * Import drivers from external API with pagination
 	 * Limited to prevent timeouts - processes max MAX_PAGES_PER_REQUEST pages
 	 */
@@ -224,6 +247,10 @@ export class ImportDriversService {
 			return isNaN(parsed) ? null : parsed;
 		};
 
+		// permission_view can be provided either at top-level or nested under acf_fields
+		const permissionView =
+			driver.permission_view ?? driver.permission_view ?? [];
+
 		const userData = {
 			externalId: driver.id.toString(),
 			email: driver.driver_email || '',
@@ -236,6 +263,7 @@ export class ImportDriversService {
 			driverStatus: driver.driver_status || null,
 			latitude: parseCoordinate(driver.latitude),
 			longitude: parseCoordinate(driver.longitude),
+			company: this.normalizeCompany(permissionView),
 			role: UserRole.DRIVER,
 			status: UserStatus.INACTIVE, // Default status for imported users
 			password: null, // No password for imported users
@@ -251,7 +279,7 @@ export class ImportDriversService {
 			await this.prisma.user.update({
 				where: { id: existingUser.id },
 				data: {
-					email: userData.email,  // Обновляем email
+					email: userData.email,
 					firstName: userData.firstName,
 					lastName: userData.lastName,
 					phone: userData.phone,
@@ -261,12 +289,15 @@ export class ImportDriversService {
 					driverStatus: userData.driverStatus,
 					latitude: userData.latitude,
 					longitude: userData.longitude,
+					company: userData.company,
 					role: userData.role,
 					status: userData.status,
 					password: userData.password,
 				},
 			});
-			this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
+			this.logger.log(
+				`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`,
+			);
 			return 'updated';
 		} else {
 			// User doesn't exist - check if email is already taken
