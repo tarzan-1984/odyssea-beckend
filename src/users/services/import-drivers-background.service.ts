@@ -412,7 +412,7 @@ export class ImportDriversBackgroundService {
 					longitude: userData.longitude,
 					company: userData.company,
 					role: userData.role,
-					// Do not overwrite status/password for existing users.
+					// Do not overwrite status, password, or profilePhoto for existing users.
 				},
 			});
 			this.logger.log(

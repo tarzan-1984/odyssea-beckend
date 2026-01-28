@@ -381,7 +381,7 @@ export class ImportUsersBackgroundService {
 					location: userData.location,
 					company: userData.company,
 					role: userData.role,
-					// Do not overwrite status/password for existing users.
+					// Do not overwrite status, password, or profilePhoto for existing users.
 				},
 			});
 			return 'updated';

@@ -173,11 +173,17 @@ export class ChatGateway
 			// Only disconnect if it's not a public connection (no token)
 			const token = this.extractTokenFromHeader(client);
 			if (token) {
-				console.error('❌ WebSocket connection error (with token):', error);
+				console.error(
+					'❌ WebSocket connection error (with token):',
+					error,
+				);
 				client.disconnect();
 			} else {
 				// Public connection error - log but don't disconnect
-				console.log('ℹ️ WebSocket connection error (public, no token):', error?.message || error);
+				console.log(
+					'ℹ️ WebSocket connection error (public, no token):',
+					error?.message || error,
+				);
 			}
 		}
 	}
@@ -204,21 +210,16 @@ export class ChatGateway
 				this.chatRoomsService
 					.getUserChatRooms(userId)
 					.then((chatRooms) => {
-						for (const room of chatRooms) {
-							const otherParticipants = room.participants.filter(
-								(p) => p.userId !== userId,
-							);
-							for (const participant of otherParticipants) {
-								// Use this.server instead of client since client is disconnected
-								void this.server
-									.to(`chat_${room.id}`)
-									.emit('userOnline', {
-										userId: userId,
-										chatRoomId: room.id,
-										isOnline: false,
-									});
-							}
-						}
+					for (const room of chatRooms) {
+						// Notify all participants in the room that user is offline
+						void this.server
+							.to(`chat_${room.id}`)
+							.emit('userOnline', {
+								userId: userId,
+								chatRoomId: room.id,
+								isOnline: false,
+							});
+					}
 					})
 					.catch((error) => {
 						console.error(
@@ -521,7 +522,7 @@ export class ChatGateway
 		@MessageBody() data: { messageId: string; chatRoomId: string },
 		@ConnectedSocket() client: AuthenticatedSocket,
 	) {
-		const { messageId, chatRoomId } = data;
+		const { messageId } = data;
 		const userId = client.userId;
 
 		if (!userId) {
@@ -765,8 +766,16 @@ export class ChatGateway
 	 * This method is called from the HTTP controller to send WebSocket notifications
 	 */
 	notifyChatRoomCreated(chatRoom: any, participantIds: string[]) {
-		// Notify all participants about the new chat room
+		// Notify all participants about the new chat room.
+		// Prefer emitting to the per-user room `user_<id>` (client always joins it on connect),
+		// and keep socketId-based emit as a fallback.
 		for (const participantId of participantIds) {
+			// Reliable path: user room
+			void this.server
+				.to(`user_${participantId}`)
+				.emit('chatRoomCreated', chatRoom);
+
+			// Fallback path: direct socket id (in case room join behavior changes)
 			const participantSocketId = this.userSockets.get(participantId);
 			if (participantSocketId) {
 				void this.server
