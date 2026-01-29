@@ -6,6 +6,7 @@ import {
 } from '../interfaces/external-driver.interface';
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
+import { logImportDuplicate } from './import-duplicate-logger';
 
 @Injectable()
 export class ImportDriversService {
@@ -306,6 +307,11 @@ export class ImportDriversService {
 			if (userWithSameEmail) {
 				// Email already exists - add to duplicates list and skip
 				duplicateEmails.push(driver.id);
+				logImportDuplicate(
+					driver.id.toString(),
+					userWithSameEmail.id,
+					driver.driver_email.trim(),
+				);
 				this.logger.warn(
 					`Skipping driver ${driver.id} - email ${driver.driver_email} already exists for user ${userWithSameEmail.id}`,
 				);

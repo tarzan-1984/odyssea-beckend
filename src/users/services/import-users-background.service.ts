@@ -6,6 +6,7 @@ import {
 } from '../interfaces/external-user.interface';
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
+import { logImportDuplicate } from './import-duplicate-logger';
 
 export interface ImportUserJobData {
 	page: number;
@@ -394,6 +395,11 @@ export class ImportUsersBackgroundService {
 			if (userWithSameEmail) {
 				// Email already exists - add to duplicates list and skip
 				duplicateEmails.push(user.id);
+				logImportDuplicate(
+					user.id.toString(),
+					userWithSameEmail.id,
+					user.user_email.trim(),
+				);
 				this.logger.warn(
 					`Skipping user ${user.id} - email ${user.user_email} already exists for user ${userWithSameEmail.id}`,
 				);
