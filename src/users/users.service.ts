@@ -177,6 +177,7 @@ export class UsersService {
 					latitude: true,
 					longitude: true,
 					driverStatus: true,
+					status: true,
 				},
 			}),
 			this.prisma.user.count({ where }),
@@ -189,6 +190,7 @@ export class UsersService {
 				latitude: driver.latitude,
 				longitude: driver.longitude,
 				driverStatus: driver.driverStatus,
+				status: driver.status,
 			})),
 			pagination: {
 				current_page: page,
