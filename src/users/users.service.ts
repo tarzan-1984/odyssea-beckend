@@ -625,6 +625,18 @@ export class UsersService {
 			return null;
 		};
 
+		// Extract only numeric zip from current_zipcode (TMS may send "City 80011" instead of just "80011")
+		const extractZipCode = (value: string | undefined): string | null => {
+			if (!value || typeof value !== 'string') return null;
+			const trimmed = value.trim();
+			// Match US zip (5 digits or 5+4) - handles "Aurora 80011", "80011", etc.
+			const match = trimmed.match(/\d{5}(-\d{4})?/);
+			if (match) return match[0];
+			// Pure digits (international postal codes)
+			if (/^\d+$/.test(trimmed)) return trimmed;
+			return null;
+		};
+
 		const userData: Prisma.UserUncheckedCreateInput = {
 			externalId: driverId,
 			email: driver_email,
@@ -633,7 +645,7 @@ export class UsersService {
 			phone: driver_phone,
 			location: current_location || home_location, // Use current_location if available, fallback to home_location
 			city: current_city || null,
-			zip: current_zipcode || null,
+			zip: extractZipCode(current_zipcode),
 			role: mappedRole,
 			vin,
 			type: vehicle_type,
