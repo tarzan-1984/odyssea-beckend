@@ -139,6 +139,7 @@ model Offer {
   deliveryTime         String       @map("delivery_time")
   loadedMiles          Float?       @map("loaded_miles")
   emptyMiles           Float?       @map("empty_miles")
+  totalMiles           Float?       @map("total_miles")
   weight               Float?
   commodity            String?
   specialRequirements  Json?        @map("special_requirements") // array
