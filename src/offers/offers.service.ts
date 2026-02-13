@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -24,8 +24,47 @@ export class OffersService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	async create(dto: CreateOfferDto) {
-		const nowNy = getNewYorkTimeString();
+		// Validate required and hidden fields before creating offer
+		const errors: string[] = [];
+		if (!dto.externalId || String(dto.externalId).trim() === '') {
+			errors.push('externalId is required');
+		}
 		const driverIds = Array.isArray(dto.driverIds) ? dto.driverIds : [];
+		if (driverIds.length === 0) {
+			errors.push('At least one driver (driverIds) is required');
+		}
+		if (!dto.pickUpLocation?.trim()) {
+			errors.push('Pick up location is required');
+		}
+		if (!dto.pickUpTime?.trim()) {
+			errors.push('Pick up time is required');
+		}
+		if (!dto.deliveryLocation?.trim()) {
+			errors.push('Delivery location is required');
+		}
+		if (!dto.deliveryTime?.trim()) {
+			errors.push('Delivery time is required');
+		}
+		const loadedMiles = dto.loadedMiles;
+		if (loadedMiles == null || (typeof loadedMiles === 'number' && Number.isNaN(loadedMiles))) {
+			errors.push('Loaded miles is required');
+		}
+		const emptyMiles = dto.emptyMiles;
+		if (emptyMiles == null || (typeof emptyMiles === 'number' && Number.isNaN(emptyMiles))) {
+			errors.push('Empty miles is required');
+		}
+		const weight = dto.weight;
+		if (weight == null || (typeof weight === 'number' && Number.isNaN(weight))) {
+			errors.push('Weight is required');
+		}
+		if (errors.length > 0) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors,
+			});
+		}
+
+		const nowNy = getNewYorkTimeString();
 		const driversJson: Prisma.InputJsonValue | undefined =
 			driverIds.length > 0 ? driverIds : undefined;
 		const specialRequirementsJson: Prisma.InputJsonValue | undefined =
