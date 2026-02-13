@@ -20,6 +20,7 @@ import {
 	externalApiConfig,
 } from './config/env.config';
 import { StorageModule } from './storage/storage.module';
+import { OffersModule } from './offers/offers.module';
 
 @Module({
 	imports: [
@@ -44,6 +45,7 @@ import { StorageModule } from './storage/storage.module';
 		ChatsModule,
 		NotificationsModule,
 		StorageModule,
+		OffersModule,
 	],
 	controllers: [AppController],
 	providers: [],
