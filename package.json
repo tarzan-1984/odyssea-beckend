@@ -13,7 +13,7 @@
 		"start": "nest start",
 		"start:dev": "nest start --watch",
 		"start:debug": "nest start --debug --watch",
-		"start:prod": "prisma db push && node dist/main",
+		"start:prod": "prisma db push --accept-data-loss && node dist/main",
 		"lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
 		"lint:fix": "eslint \"{src,apps,libs}/**/*.ts\" --fix --fix-type suggestion",
 		"test": "jest",
