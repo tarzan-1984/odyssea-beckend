@@ -3,20 +3,27 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 
-/**
- * Returns current date/time string in America/New_York timezone
- */
+const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
+	timeZone: 'America/New_York',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	hour12: false,
+};
+
+/** Returns current date/time string in America/New_York timezone */
 function getNewYorkTimeString(): string {
-	return new Date().toLocaleString('en-US', {
-		timeZone: 'America/New_York',
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hour12: false,
-	});
+	return new Date().toLocaleString('en-US', NY_FORMAT_OPTS);
+}
+
+/** Returns date/time in America/New_York: base time + minutesToAdd */
+function getNewYorkTimePlusMinutes(minutesToAdd: number): string {
+	const d = new Date();
+	d.setMinutes(d.getMinutes() + minutesToAdd);
+	return d.toLocaleString('en-US', NY_FORMAT_OPTS);
 }
 
 @Injectable()
@@ -65,6 +72,8 @@ export class OffersService {
 		}
 
 		const nowNy = getNewYorkTimeString();
+		const actionTimeMinutes = Math.max(0, parseInt(String(dto.actionTime || '15'), 10) || 15);
+		const actionTimeNy = getNewYorkTimePlusMinutes(actionTimeMinutes);
 		const driversJson: Prisma.InputJsonValue | undefined =
 			driverIds.length > 0 ? driverIds : undefined;
 		const specialRequirementsJson: Prisma.InputJsonValue | undefined =
@@ -78,6 +87,7 @@ export class OffersService {
 					externalUserId: dto.externalId || null,
 					createTime: nowNy,
 					updateTime: nowNy,
+					actionTime: actionTimeNy,
 					pickUpLocation: dto.pickUpLocation,
 					pickUpTime: dto.pickUpTime,
 					deliveryLocation: dto.deliveryLocation,
