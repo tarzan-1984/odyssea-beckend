@@ -133,6 +133,7 @@ model Offer {
   externalUserId       String?      @map("external_user_id")
   createTime           String       @map("create_time")
   updateTime           String       @map("update_time")
+  actionTime           String?      @map("action_time")
   pickUpLocation       String       @map("pick_up_location")
   pickUpTime           String       @map("pick_up_time")
   deliveryLocation     String       @map("delivery_location")
