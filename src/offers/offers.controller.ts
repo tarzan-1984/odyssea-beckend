@@ -1,14 +1,16 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import {
 	ApiTags,
 	ApiOperation,
 	ApiResponse,
 	ApiBearerAuth,
 	ApiBody,
+	ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 
 @ApiTags('Offers')
 @ApiBearerAuth()
@@ -16,6 +18,33 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 @UseGuards(JwtAuthGuard)
 export class OffersController {
 	constructor(private readonly offersService: OffersService) {}
+
+	@Get()
+	@ApiOperation({
+		summary: 'Get offers with pagination and filters',
+		description:
+			'Returns paginated offers. Filters: is_expired (true = only expired by action_time vs NY time, false = only not expired), user_id (external_user_id). Each offer includes drivers array (externalId, firstName, lastName from users).',
+	})
+	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	@ApiQuery({
+		name: 'is_expired',
+		required: false,
+		type: Boolean,
+		description:
+			'true = only expired, false = only not expired (vs NY time)',
+	})
+	@ApiQuery({ name: 'user_id', required: false, type: String })
+	@ApiQuery({
+		name: 'sort_order',
+		required: false,
+		enum: ['action_time_asc', 'action_time_desc'],
+		description: 'Default: action_time_asc (soonest to expire first)',
+	})
+	@ApiResponse({ status: 200, description: 'Paginated offers with drivers' })
+	async getOffers(@Query() query: GetOffersQueryDto) {
+		return this.offersService.findAllPaginated(query);
+	}
 
 	@Post()
 	@ApiOperation({
