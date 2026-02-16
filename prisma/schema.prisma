@@ -154,12 +154,13 @@ model Offer {
 }
 
 model RateOffer {
-  id        String   @id @default(cuid())
-  offerId   String   @map("offer_id")
-  driverId  String?  @map("driver_id")
-  rate      Float?
-  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  driver    User?    @relation(fields: [driverId], references: [externalId])
+  id         String   @id @default(cuid())
+  offerId    String   @map("offer_id")
+  driverId   String?  @map("driver_id")
+  rate       Float?
+  actionTime String?  @map("action_time")
+  offer      Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  driver     User?    @relation(fields: [driverId], references: [externalId])
 
   @@map("rate_offers")
 }

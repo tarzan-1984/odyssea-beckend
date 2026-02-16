@@ -115,7 +115,6 @@ export class OffersService {
 					externalUserId: dto.externalId || null,
 					createTime: nowNy,
 					updateTime: nowNy,
-					actionTime: actionTimeNy,
 					pickUpLocation: dto.pickUpLocation,
 					pickUpTime: dto.pickUpTime,
 					deliveryLocation: dto.deliveryLocation,
@@ -137,6 +136,7 @@ export class OffersService {
 						offerId: offer.id,
 						driverId: driverId.trim() || null,
 						rate: null,
+						actionTime: actionTimeNy,
 					})),
 				});
 			}
@@ -164,7 +164,6 @@ export class OffersService {
 			externalUserId: true,
 			createTime: true,
 			updateTime: true,
-			actionTime: true,
 			pickUpLocation: true,
 			pickUpTime: true,
 			deliveryLocation: true,
@@ -184,7 +183,7 @@ export class OffersService {
 			const [offers, total] = await Promise.all([
 				this.prisma.offer.findMany({
 					where,
-					orderBy: { actionTime: sortOrder },
+					orderBy: { updateTime: sortOrder },
 					skip,
 					take: limit,
 					select: selectOffer,
@@ -194,20 +193,24 @@ export class OffersService {
 			return this.buildPaginatedResponse(offers, page, limit, total);
 		}
 
+		// Filter by is_expired using action_time from rate_offers (first driver per offer)
 		const all = await this.prisma.offer.findMany({
 			where,
-			orderBy: { actionTime: sortOrder },
-			select: selectOffer,
+			orderBy: { updateTime: sortOrder },
+			select: { ...selectOffer, rateOffers: { select: { actionTime: true }, orderBy: { id: 'asc' }, take: 1 } },
 		});
 		const filtered = all.filter((o) => {
-			const at = parseActionTimeNy(o.actionTime);
+			const firstActionTime = o.rateOffers?.[0]?.actionTime ?? null;
+			const at = parseActionTimeNy(firstActionTime);
 			if (!at) return false;
 			const expired = at.getTime() < nowNy.getTime();
 			return isExpiredFilter === expired;
 		});
 		const total = filtered.length;
 		const paged = filtered.slice(skip, skip + limit);
-		return this.buildPaginatedResponse(paged, page, limit, total);
+		// Strip rateOffers before passing to buildPaginatedResponse
+		const pagedOffers = paged.map(({ rateOffers: _, ...rest }) => rest);
+		return this.buildPaginatedResponse(pagedOffers, page, limit, total);
 	}
 
 	private async buildPaginatedResponse(
@@ -216,7 +219,6 @@ export class OffersService {
 			externalUserId: string | null;
 			createTime: string;
 			updateTime: string;
-			actionTime: string | null;
 			pickUpLocation: string;
 			pickUpTime: string;
 			deliveryLocation: string;
@@ -233,12 +235,12 @@ export class OffersService {
 		total: number,
 	) {
 		const offerIds = offers.map((o) => o.id);
-		// rate_offers: one row per (offer_id, driver_id) with rate — filter by offer_id to get rate per driver for this offer
 		const rateOffersWithDriver = await this.prisma.rateOffer.findMany({
 			where: { offerId: { in: offerIds } },
 			select: {
 				offerId: true,
 				rate: true,
+				actionTime: true,
 				driver: {
 					select: {
 						externalId: true,
@@ -255,6 +257,7 @@ export class OffersService {
 				firstName: string;
 				lastName: string;
 				rate: number | null;
+				action_time: string | null;
 			}>
 		>();
 		for (const ro of rateOffersWithDriver) {
@@ -265,6 +268,7 @@ export class OffersService {
 				firstName: ro.driver.firstName,
 				lastName: ro.driver.lastName,
 				rate: ro.rate ?? null,
+				action_time: ro.actionTime ?? null,
 			});
 			driversByOfferId.set(ro.offerId, list);
 		}
@@ -284,7 +288,6 @@ export class OffersService {
 			commodity: o.commodity,
 			special_requirements: o.specialRequirements,
 			total_miles: o.totalMiles,
-			action_time: o.actionTime,
 			drivers: driversByOfferId.get(o.id) ?? [],
 		}));
 
