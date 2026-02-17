@@ -97,11 +97,6 @@ export class OffersService {
 		}
 
 		const nowNy = getNewYorkTimeString();
-		const actionTimeMinutes = Math.max(
-			0,
-			parseInt(String(dto.actionTime || '15'), 10) || 15,
-		);
-		const actionTimeNy = getNewYorkTimePlusMinutes(actionTimeMinutes);
 		const driversJson: Prisma.InputJsonValue | undefined =
 			driverIds.length > 0 ? driverIds : undefined;
 		const specialRequirementsJson: Prisma.InputJsonValue | undefined =
@@ -136,7 +131,6 @@ export class OffersService {
 						offerId: offer.id,
 						driverId: driverId.trim() || null,
 						rate: null,
-						actionTime: actionTimeNy,
 					})),
 				});
 			}
@@ -246,6 +240,9 @@ export class OffersService {
 						externalId: true,
 						firstName: true,
 						lastName: true,
+						email: true,
+						phone: true,
+						status: true,
 					},
 				},
 			},
@@ -256,6 +253,9 @@ export class OffersService {
 				externalId: string | null;
 				firstName: string;
 				lastName: string;
+				email: string;
+				phone: string | null;
+				status: string;
 				rate: number | null;
 				action_time: string | null;
 			}>
@@ -267,6 +267,9 @@ export class OffersService {
 				externalId: ro.driver.externalId,
 				firstName: ro.driver.firstName,
 				lastName: ro.driver.lastName,
+				email: ro.driver.email,
+				phone: ro.driver.phone ?? null,
+				status: ro.driver.status,
 				rate: ro.rate ?? null,
 				action_time: ro.actionTime ?? null,
 			});

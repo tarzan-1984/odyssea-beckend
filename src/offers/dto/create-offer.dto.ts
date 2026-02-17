@@ -111,14 +111,6 @@ export class CreateOfferDto {
 	weight?: number;
 
 	@ApiPropertyOptional({
-		description: 'Action time in minutes (15, 30, 45, 60). Used to compute action_time = update_time + this many minutes.',
-		example: '15',
-	})
-	@IsOptional()
-	@IsString()
-	actionTime?: string;
-
-	@ApiPropertyOptional({
 		description: 'Commodity description',
 	})
 	@IsOptional()
