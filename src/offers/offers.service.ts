@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
+import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 
 const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
 	timeZone: 'America/New_York',
@@ -237,6 +238,7 @@ export class OffersService {
 				actionTime: true,
 				driver: {
 					select: {
+						id: true,
 						externalId: true,
 						firstName: true,
 						lastName: true,
@@ -250,6 +252,7 @@ export class OffersService {
 		const driversByOfferId = new Map<
 			string,
 			Array<{
+				driver_id: string;
 				externalId: string | null;
 				firstName: string;
 				lastName: string;
@@ -264,6 +267,7 @@ export class OffersService {
 			if (!ro.driver) continue;
 			const list = driversByOfferId.get(ro.offerId) ?? [];
 			list.push({
+				driver_id: ro.driver.id,
 				externalId: ro.driver.externalId,
 				firstName: ro.driver.firstName,
 				lastName: ro.driver.lastName,
@@ -304,6 +308,104 @@ export class OffersService {
 				has_next_page: page < Math.ceil(total / limit),
 				has_prev_page: page > 1,
 			},
+		};
+	}
+
+	/**
+	 * Add drivers to an existing offer: creates rate_offers rows and merges driver IDs into offer.drivers.
+	 * Skips drivers already linked to the offer.
+	 * driverIds in the request can be User.externalId or User.id; they are resolved to externalId for rate_offers.
+	 */
+	async addDriversToOffer(offerId: string, dto: AddDriversToOfferDto) {
+		const driverIds = Array.isArray(dto.driverIds) ? dto.driverIds : [];
+		if (driverIds.length === 0) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['At least one driver ID is required'],
+			});
+		}
+
+		const offer = await this.prisma.offer.findUnique({
+			where: { id: offerId },
+			select: { id: true, drivers: true, updateTime: true },
+		});
+		if (!offer) {
+			throw new NotFoundException(`Offer with id ${offerId} not found`);
+		}
+
+		const existingRateOffers = await this.prisma.rateOffer.findMany({
+			where: { offerId },
+			select: { driverId: true },
+		});
+		const existingDriverIdsSet = new Set(
+			existingRateOffers.map((ro) => ro.driverId).filter(Boolean),
+		);
+
+		// Resolve each requested id to User.externalId (rate_offers.driver_id references User.externalId)
+		const users = await this.prisma.user.findMany({
+			where: {
+				OR: [
+					{ id: { in: driverIds } },
+					{ externalId: { in: driverIds } },
+				],
+			},
+			select: { id: true, externalId: true },
+		});
+		const idToExternalId = new Map<string, string>();
+		for (const u of users) {
+			if (u.externalId) {
+				idToExternalId.set(u.id, u.externalId);
+				idToExternalId.set(u.externalId, u.externalId);
+			}
+		}
+
+		const newExternalIds: string[] = [];
+		for (const id of driverIds) {
+			const externalId = idToExternalId.get(id);
+			// Only add drivers that exist in User table (rate_offers.driver_id FK to User.externalId)
+			if (externalId && !existingDriverIdsSet.has(externalId)) {
+				newExternalIds.push(externalId);
+				existingDriverIdsSet.add(externalId);
+			}
+		}
+
+		if (newExternalIds.length === 0) {
+			return {
+				success: true,
+				message: 'All selected drivers are already in the offer',
+				addedCount: 0,
+			};
+		}
+
+		const nowNy = getNewYorkTimeString();
+		const currentDriversJson = offer.drivers as string[] | null | undefined;
+		const currentDrivers = Array.isArray(currentDriversJson)
+			? [...currentDriversJson]
+			: [];
+		const mergedDrivers = Array.from(
+			new Set([...currentDrivers, ...newExternalIds]),
+		);
+
+		await this.prisma.$transaction(async (tx) => {
+			await tx.rateOffer.createMany({
+				data: newExternalIds.map((driverId) => ({
+					offerId: offer.id,
+					driverId,
+					rate: null,
+				})),
+			});
+			await tx.offer.update({
+				where: { id: offerId },
+				data: {
+					drivers: mergedDrivers as Prisma.InputJsonValue,
+					updateTime: nowNy,
+				},
+			});
+		});
+
+		return {
+			success: true,
+			addedCount: newExternalIds.length,
 		};
 	}
 }

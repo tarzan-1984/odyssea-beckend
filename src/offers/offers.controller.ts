@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Query, Param, UseGuards } from '@nestjs/common';
 import {
 	ApiTags,
 	ApiOperation,
@@ -6,11 +6,13 @@ import {
 	ApiBearerAuth,
 	ApiBody,
 	ApiQuery,
+	ApiParam,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
+import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 
 @ApiTags('Offers')
 @ApiBearerAuth()
@@ -67,5 +69,23 @@ export class OffersController {
 	})
 	async create(@Body() dto: CreateOfferDto) {
 		return this.offersService.create(dto);
+	}
+
+	@Patch(':id/drivers')
+	@ApiOperation({
+		summary: 'Add drivers to an offer',
+		description:
+			'Adds selected drivers to the offer: creates rate_offers rows and appends driver IDs to offer.drivers. Skips drivers already in the offer.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiBody({ type: AddDriversToOfferDto })
+	@ApiResponse({ status: 200, description: 'Drivers added successfully' })
+	@ApiResponse({ status: 400, description: 'Bad request' })
+	@ApiResponse({ status: 404, description: 'Offer not found' })
+	async addDriversToOffer(
+		@Param('id') id: string,
+		@Body() dto: AddDriversToOfferDto,
+	) {
+		return this.offersService.addDriversToOffer(id, dto);
 	}
 }
