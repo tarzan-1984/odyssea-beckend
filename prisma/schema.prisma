@@ -159,6 +159,7 @@ model RateOffer {
   driverId   String?  @map("driver_id")
   rate       Float?
   actionTime String?  @map("action_time")
+  active     Boolean  @default(true)
   offer      Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
   driver     User?    @relation(fields: [driverId], references: [externalId])
 
