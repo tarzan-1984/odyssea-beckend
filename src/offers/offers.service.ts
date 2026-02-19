@@ -231,7 +231,7 @@ export class OffersService {
 	) {
 		const offerIds = offers.map((o) => o.id);
 		const rateOffersWithDriver = await this.prisma.rateOffer.findMany({
-			where: { offerId: { in: offerIds } },
+			where: { offerId: { in: offerIds }, active: true },
 			select: {
 				offerId: true,
 				rate: true,
@@ -407,5 +407,25 @@ export class OffersService {
 			success: true,
 			addedCount: newExternalIds.length,
 		};
+	}
+
+	/**
+	 * Set active=false for the rate_offer row (offer_id + driver_id by externalId).
+	 * Driver will no longer appear in offer drivers list.
+	 */
+	async removeDriverFromOffer(offerId: string, driverExternalId: string) {
+		const updated = await this.prisma.rateOffer.updateMany({
+			where: {
+				offerId,
+				driverId: driverExternalId,
+			},
+			data: { active: false },
+		});
+		if (updated.count === 0) {
+			throw new NotFoundException(
+				`Rate offer not found for offer ${offerId} and driver ${driverExternalId}`,
+			);
+		}
+		return { success: true, message: 'Driver removed from offer' };
 	}
 }

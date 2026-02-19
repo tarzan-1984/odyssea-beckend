@@ -71,6 +71,23 @@ export class OffersController {
 		return this.offersService.create(dto);
 	}
 
+	@Patch(':id/drivers/:driverExternalId')
+	@ApiOperation({
+		summary: 'Deactivate driver in offer',
+		description:
+			'Sets active=false for the rate_offer row (offer_id + driver_id by externalId). Driver will no longer appear in offer drivers list.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({ name: 'driverExternalId', description: 'Driver externalId (User.externalId)' })
+	@ApiResponse({ status: 200, description: 'Driver deactivated successfully' })
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async removeDriverFromOffer(
+		@Param('id') id: string,
+		@Param('driverExternalId') driverExternalId: string,
+	) {
+		return this.offersService.removeDriverFromOffer(id, driverExternalId);
+	}
+
 	@Patch(':id/drivers')
 	@ApiOperation({
 		summary: 'Add drivers to an offer',
