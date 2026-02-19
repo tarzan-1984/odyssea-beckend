@@ -71,6 +71,18 @@ export class OffersController {
 		return this.offersService.create(dto);
 	}
 
+	@Patch(':id/deactivate-offer')
+	@ApiOperation({
+		summary: 'Deactivate offer',
+		description: 'Sets active=false for the offer. Offer will display with red header and no action buttons.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiResponse({ status: 200, description: 'Offer deactivated successfully' })
+	@ApiResponse({ status: 404, description: 'Offer not found' })
+	async deactivateOffer(@Param('id') id: string) {
+		return this.offersService.deactivateOffer(id);
+	}
+
 	@Patch(':id/drivers/:driverExternalId')
 	@ApiOperation({
 		summary: 'Deactivate driver in offer',

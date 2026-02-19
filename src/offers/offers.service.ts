@@ -156,6 +156,7 @@ export class OffersService {
 
 		const selectOffer = {
 			id: true,
+			active: true,
 			externalUserId: true,
 			createTime: true,
 			updateTime: true,
@@ -211,6 +212,7 @@ export class OffersService {
 	private async buildPaginatedResponse(
 		offers: Array<{
 			id: string;
+			active: boolean;
 			externalUserId: string | null;
 			createTime: string;
 			updateTime: string;
@@ -282,6 +284,7 @@ export class OffersService {
 
 		const results = offers.map((o) => ({
 			id: o.id,
+			active: o.active,
 			external_user_id: o.externalUserId,
 			create_time: o.createTime,
 			update_time: o.updateTime,
@@ -407,6 +410,24 @@ export class OffersService {
 			success: true,
 			addedCount: newExternalIds.length,
 		};
+	}
+
+	/**
+	 * Set active=false for the offer.
+	 */
+	async deactivateOffer(offerId: string) {
+		const offer = await this.prisma.offer.findUnique({
+			where: { id: offerId },
+			select: { id: true },
+		});
+		if (!offer) {
+			throw new NotFoundException(`Offer with id ${offerId} not found`);
+		}
+		await this.prisma.offer.update({
+			where: { id: offerId },
+			data: { active: false },
+		});
+		return { success: true, message: 'Offer deactivated' };
 	}
 
 	/**
