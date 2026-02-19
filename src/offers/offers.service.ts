@@ -153,6 +153,11 @@ export class OffersService {
 		if (dto.user_id != null && String(dto.user_id).trim() !== '') {
 			where.externalUserId = dto.user_id.trim();
 		}
+		if (dto.status === 'active') {
+			where.active = true;
+		} else if (dto.status === 'inactive') {
+			where.active = false;
+		}
 
 		const selectOffer = {
 			id: true,

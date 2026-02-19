@@ -55,4 +55,13 @@ export class GetOffersQueryDto {
 	@IsOptional()
 	@IsIn(['action_time_asc', 'action_time_desc'])
 	sort_order?: 'action_time_asc' | 'action_time_desc';
+
+	@ApiPropertyOptional({
+		description: 'Filter by offer active status: active = offers with active=true, inactive = offers with active=false',
+		example: 'active',
+		enum: ['active', 'inactive'],
+	})
+	@IsOptional()
+	@IsIn(['active', 'inactive'])
+	status?: 'active' | 'inactive';
 }
