@@ -130,6 +130,7 @@ model PushToken {
 
 model Offer {
   id                   String       @id @default(cuid())
+  active               Boolean      @default(true)
   externalUserId       String?      @map("external_user_id")
   createTime           String       @map("create_time")
   updateTime           String       @map("update_time")
