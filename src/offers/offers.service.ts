@@ -148,7 +148,6 @@ export class OffersService {
 		const page = Math.max(1, Number(dto.page) || 1);
 		const limit = Math.max(1, Math.min(100, Number(dto.limit) || 10));
 		const skip = (page - 1) * limit;
-		const sortOrder = dto.sort_order === 'action_time_desc' ? 'desc' : 'asc'; // default: asc (soonest to expire first)
 		const where: Prisma.OfferWhereInput = {};
 		if (dto.user_id != null && String(dto.user_id).trim() !== '') {
 			where.externalUserId = dto.user_id.trim();
@@ -184,7 +183,7 @@ export class OffersService {
 			const [offers, total] = await Promise.all([
 				this.prisma.offer.findMany({
 					where,
-					orderBy: { updateTime: sortOrder },
+					orderBy: { createdAt: 'desc' },
 					skip,
 					take: limit,
 					select: selectOffer,
@@ -197,7 +196,7 @@ export class OffersService {
 		// Filter by is_expired using action_time from rate_offers (first driver per offer)
 		const all = await this.prisma.offer.findMany({
 			where,
-			orderBy: { updateTime: sortOrder },
+			orderBy: { createdAt: 'desc' },
 			select: { ...selectOffer, rateOffers: { select: { actionTime: true }, orderBy: { id: 'asc' }, take: 1 } },
 		});
 		const filtered = all.filter((o) => {
