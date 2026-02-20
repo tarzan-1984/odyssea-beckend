@@ -126,4 +126,11 @@ export class CreateOfferDto {
 	@IsArray()
 	@IsString({ each: true })
 	specialRequirements?: string[];
+
+	@ApiPropertyOptional({
+		description: 'Notes (optional text)',
+	})
+	@IsOptional()
+	@IsString()
+	notes?: string;
 }

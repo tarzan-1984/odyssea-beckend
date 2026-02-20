@@ -143,6 +143,7 @@ model Offer {
   totalMiles           Float?       @map("total_miles")
   weight               Float?
   commodity            String?
+  notes                String?
   specialRequirements  Json?        @map("special_requirements") // array
   drivers              Json?        // array
   createdAt            DateTime     @default(now())

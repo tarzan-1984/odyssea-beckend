@@ -122,6 +122,7 @@ export class OffersService {
 					commodity: dto.commodity?.trim() || null,
 					specialRequirements:
 						specialRequirementsJson ?? Prisma.JsonNull,
+					notes: dto.notes?.trim() || null,
 					drivers: driversJson ?? Prisma.JsonNull,
 				},
 			});
@@ -172,6 +173,7 @@ export class OffersService {
 			emptyMiles: true,
 			weight: true,
 			commodity: true,
+			notes: true,
 			specialRequirements: true,
 			totalMiles: true,
 		} as const;
@@ -228,6 +230,7 @@ export class OffersService {
 			emptyMiles: number | null;
 			weight: number | null;
 			commodity: string | null;
+			notes: string | null;
 			specialRequirements: unknown;
 			totalMiles: number | null;
 		}>,
@@ -301,6 +304,7 @@ export class OffersService {
 			weight: o.weight,
 			commodity: o.commodity,
 			special_requirements: o.specialRequirements,
+			notes: o.notes,
 			total_miles: o.totalMiles,
 			drivers: driversByOfferId.get(o.id) ?? [],
 		}));
