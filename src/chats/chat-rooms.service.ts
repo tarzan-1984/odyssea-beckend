@@ -25,7 +25,7 @@ export class ChatRoomsService {
 		createChatRoomDto: CreateChatRoomDto,
 		creatorId: string,
 	) {
-		const { name, type, loadId, avatar, participantIds } =
+		const { name, type, loadId, offerId, avatar, participantIds } =
 			createChatRoomDto;
 
 		// Validate that creator is included in participants
@@ -33,10 +33,10 @@ export class ChatRoomsService {
 			participantIds.push(creatorId);
 		}
 
-		// For direct chats, ensure only 2 participants
-		if (type === 'DIRECT' && participantIds.length !== 2) {
+		// For direct and offer chats, ensure only 2 participants
+		if ((type === 'DIRECT' || type === 'OFFER') && participantIds.length !== 2) {
 			throw new BadRequestException(
-				'Direct chats must have exactly 2 participants',
+				'Direct and offer chats must have exactly 2 participants',
 			);
 		}
 
@@ -44,6 +44,13 @@ export class ChatRoomsService {
 		if (type === 'GROUP' && participantIds.length < 2) {
 			throw new BadRequestException(
 				'Group chats must have at least 2 participants',
+			);
+		}
+
+		// For offer chats, name (offer card title) is required
+		if (type === 'OFFER' && (!name || String(name).trim() === '')) {
+			throw new BadRequestException(
+				'Offer chats require a name (offer card title format: date pickUp - delivery (id: offerId))',
 			);
 		}
 
@@ -60,15 +67,17 @@ export class ChatRoomsService {
 
 		// Create chat room and participants in a transaction
 		return this.prisma.$transaction(async (prisma) => {
-			const defaultName =
-				name || (await this.generateDefaultName(type, participantIds));
+			// For OFFER chats, name is always passed (offer card title); for others, use passed name or generate
+			const chatName =
+				type === 'OFFER' ? name!.trim() : (name || (await this.generateDefaultName(type, participantIds)));
 			const chatRoom = await prisma.chatRoom.create({
 				data: {
-					name: defaultName,
+					name: chatName,
 					type,
 					loadId: loadId && loadId.trim() !== '' ? loadId : null,
+					offerId: type === 'OFFER' && offerId && offerId.trim() !== '' ? offerId : null,
 					avatar,
-					// for GROUP chats, set creator as admin
+					// for GROUP chats, set creator as admin; DIRECT and OFFER have no admin
 					adminId: type === 'GROUP' ? creatorId : null,
 				},
 			});
@@ -97,7 +106,7 @@ export class ChatRoomsService {
 			);
 
 			// Create notifications for chat creation
-			if (type === 'DIRECT') {
+			if (type === 'DIRECT' || type === 'OFFER') {
 				try {
 					// Get creator user data
 					const creator = await prisma.user.findUnique({
@@ -204,7 +213,7 @@ export class ChatRoomsService {
 		type: string,
 		participantIds: string[],
 	): Promise<string> {
-		if (type === 'DIRECT') {
+		if (type === 'DIRECT' || type === 'OFFER') {
 			const users = await this.prisma.user.findMany({
 				where: { id: { in: participantIds } },
 				select: { firstName: true, lastName: true },
@@ -775,8 +784,8 @@ export class ChatRoomsService {
 			return { deleted: true, hidden: false };
 		}
 
-		if (chatRoom.type === 'DIRECT') {
-			// For DIRECT chats: hide for current user
+		if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
+			// For DIRECT and OFFER chats: hide for current user
 			await this.prisma.chatRoomParticipant.update({
 				where: {
 					chatRoomId_userId: {

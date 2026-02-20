@@ -97,13 +97,13 @@ export class MessagesController {
 	) {
 		const userId = req.user.id;
 
-		// For DIRECT chats: unhide chat for all participants if hidden
+		// For DIRECT and OFFER chats: unhide chat for all participants if hidden
 		const chatRoom = await this.chatRoomsService.getChatRoom(
 			sendMessageDto.chatRoomId,
 			userId,
 		);
 
-		if (chatRoom.type === 'DIRECT') {
+		if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
 			for (const participant of chatRoom.participants) {
 				const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
 					sendMessageDto.chatRoomId,

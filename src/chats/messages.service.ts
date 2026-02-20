@@ -150,9 +150,9 @@ export class MessagesService {
 				return null;
 			}
 
-			// For DIRECT chats, use the other participant's avatar
+			// For DIRECT and OFFER chats, use the other participant's avatar
 			if (
-				chatRoom.type === 'DIRECT' &&
+				(chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') &&
 				chatRoom.participants.length === 2
 			) {
 				const otherParticipant = chatRoom.participants.find(
@@ -228,12 +228,12 @@ export class MessagesService {
 						receiver.role === UserRole.DRIVER &&
 						receiver.driverStatus === 'expired_documents'
 					) {
-						// Block all non-DIRECT chats
-						if (chatRoom?.type !== 'DIRECT') {
+						// Block all non-DIRECT and non-OFFER chats
+						if (chatRoom?.type !== 'DIRECT' && chatRoom?.type !== 'OFFER') {
 							return false;
 						}
 
-						// For DIRECT chats, only allow if sender role is in allowed list
+						// For DIRECT and OFFER chats, only allow if sender role is in allowed list
 						const allowedRolesForExpiredDocuments = [
 							UserRole.RECRUITER,
 							UserRole.RECRUITER_TL,
@@ -267,8 +267,8 @@ export class MessagesService {
 
 			// Determine notification title based on chat type
 			let notificationTitle: string;
-			if (chatRoom?.type === 'DIRECT') {
-				// For DIRECT chats, show sender's name
+			if (chatRoom?.type === 'DIRECT' || chatRoom?.type === 'OFFER') {
+				// For DIRECT and OFFER chats, show sender's name
 				const senderName =
 					[
 						message.sender?.firstName || '',
@@ -761,8 +761,8 @@ export class MessagesService {
 		const updatedReadBy = readBy.filter((id) => id !== userId);
 
 		// Apply different logic based on chat type
-		if (chatRoom.type === 'DIRECT') {
-			// For DIRECT chats: set both isRead to false and remove user from readBy
+		if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
+			// For DIRECT and OFFER chats: set both isRead to false and remove user from readBy
 			await this.prisma.message.update({
 				where: { id: messageId },
 				data: {

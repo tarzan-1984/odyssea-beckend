@@ -434,8 +434,8 @@ export class ChatGateway
 				userId,
 			);
 
-			// For DIRECT chats: unhide chat for all participants if hidden
-			if (chatRoom.type === 'DIRECT') {
+			// For DIRECT and OFFER chats: unhide chat for all participants if hidden
+			if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
 				for (const participant of chatRoom.participants) {
 					const wasUnhidden =
 						await this.chatRoomsService.unhideChatRoom(

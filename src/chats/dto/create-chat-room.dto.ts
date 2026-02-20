@@ -3,8 +3,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateChatRoomDto {
 	@ApiProperty({
-		description: 'Name of the chat room (optional for direct chats)',
-		example: 'Load #12345 Discussion',
+		description: 'Name of the chat room. For OFFER chats: required, use offer card title format (e.g. "02/16/26 pickUp - delivery (id: offerId)"). Optional for other types.',
+		example: '02/16/26 sdfsdf - sdfsdf (id: cmlp14l0d0001mo3534ns2kzo)',
 		required: false,
 	})
 	@IsOptional()
@@ -13,11 +13,11 @@ export class CreateChatRoomDto {
 
 	@ApiProperty({
 		description: 'Type of chat room',
-		enum: ['DIRECT', 'GROUP', 'LOAD'],
+		enum: ['DIRECT', 'GROUP', 'LOAD', 'OFFER'],
 		example: 'DIRECT',
 	})
 	@IsString()
-	@IsEnum(['DIRECT', 'GROUP', 'LOAD'])
+	@IsEnum(['DIRECT', 'GROUP', 'LOAD', 'OFFER'])
 	type: string;
 
 	@ApiProperty({
@@ -28,6 +28,15 @@ export class CreateChatRoomDto {
 	@IsOptional()
 	@IsString()
 	loadId?: string;
+
+	@ApiProperty({
+		description: 'Offer ID for OFFER chats (links chat to an offer)',
+		example: 'cmlp1410d0001mo3534hs2kzo',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	offerId?: string;
 
 	@ApiProperty({
 		description: 'Avatar URL for the chat room',
