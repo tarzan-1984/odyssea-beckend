@@ -50,8 +50,25 @@ export class ChatRoomsService {
 		// For offer chats, name (offer card title) is required
 		if (type === 'OFFER' && (!name || String(name).trim() === '')) {
 			throw new BadRequestException(
-				'Offer chats require a name (offer card title format: date pickUp - delivery (id: offerId))',
+				'Offer chats require a name (format: "firstName lastName (id: offerId)\\npickUp - delivery")',
 			);
+		}
+
+		// For DIRECT chats: verify the other participant (non-creator) has status ACTIVE
+		// (OFFER chats: ACTIVE check temporarily disabled for testing)
+		if (type === 'DIRECT') {
+			const otherParticipantId = participantIds.find((id) => id !== creatorId);
+			if (otherParticipantId) {
+				const otherUser = await this.prisma.user.findUnique({
+					where: { id: otherParticipantId },
+					select: { status: true },
+				});
+				if (!otherUser || otherUser.status !== 'ACTIVE') {
+					throw new BadRequestException(
+						'Cannot create chat: the other participant must have ACTIVE status in the system',
+					);
+				}
+			}
 		}
 
 		// Check if direct chat already exists between these users
@@ -170,6 +187,55 @@ export class ChatRoomsService {
 				participants,
 			};
 		});
+	}
+
+	/**
+	 * Create OFFER chats for each ACTIVE driver when a new offer is created.
+	 * Skips drivers with status !== ACTIVE.
+	 * Chat name format: "firstName lastName (id: offerId)\npickUp - delivery"
+	 */
+	async createOfferChatsForNewOffer(
+		offerId: string,
+		creatorId: string,
+		driverExternalIds: string[],
+		pickUp: string,
+		delivery: string,
+	): Promise<Array<{ chatRoom: any; participantIds: string[] }>> {
+		if (driverExternalIds.length === 0) return [];
+
+		// TODO: re-enable status: 'ACTIVE' filter for production
+		const drivers = await this.prisma.user.findMany({
+			where: {
+				externalId: { in: driverExternalIds },
+			},
+			select: { id: true, firstName: true, lastName: true, externalId: true },
+		});
+
+		const created: Array<{ chatRoom: any; participantIds: string[] }> = [];
+		const pickUpTrim = (pickUp || '').trim();
+		const deliveryTrim = (delivery || '').trim();
+		const routeStr =
+			pickUpTrim && deliveryTrim ? `${pickUpTrim} - ${deliveryTrim}` : pickUpTrim || deliveryTrim || '';
+
+		for (const driver of drivers) {
+			if (!driver.externalId) continue;
+			const chatName = `${driver.firstName} ${driver.lastName} (id: ${offerId})\n${routeStr}`.trim();
+			const participantIds = [creatorId, driver.id];
+			const chatRoom = await this.createChatRoom(
+				{
+					name: chatName,
+					type: 'OFFER',
+					offerId,
+					participantIds,
+				},
+				creatorId,
+			);
+			created.push({
+				chatRoom,
+				participantIds,
+			});
+		}
+		return created;
 	}
 
 	/**

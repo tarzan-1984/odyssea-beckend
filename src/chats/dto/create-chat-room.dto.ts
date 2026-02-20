@@ -3,8 +3,9 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateChatRoomDto {
 	@ApiProperty({
-		description: 'Name of the chat room. For OFFER chats: required, use offer card title format (e.g. "02/16/26 pickUp - delivery (id: offerId)"). Optional for other types.',
-		example: '02/16/26 sdfsdf - sdfsdf (id: cmlp14l0d0001mo3534ns2kzo)',
+		description:
+			'Name of the chat room. For OFFER chats: required, format "firstName lastName (id: offerId)\\npickUp - delivery" (two lines). Optional for other types.',
+		example: 'John Doe (id: cmlp14l0d0001mo3534ns2kzo)\nsdfsdf - sdfsdf',
 		required: false,
 	})
 	@IsOptional()

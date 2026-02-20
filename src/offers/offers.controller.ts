@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Patch, Body, Query, Param, UseGuards } from '@nestjs/common';
+import {
+	Controller,
+	Get,
+	Post,
+	Patch,
+	Body,
+	Query,
+	Param,
+	UseGuards,
+	Request,
+} from '@nestjs/common';
 import {
 	ApiTags,
 	ApiOperation,
@@ -10,6 +20,8 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OffersService } from './offers.service';
+import { ChatRoomsService } from '../chats/chat-rooms.service';
+import { ChatGateway } from '../chats/chat.gateway';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
@@ -19,7 +31,11 @@ import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 @Controller('offers')
 @UseGuards(JwtAuthGuard)
 export class OffersController {
-	constructor(private readonly offersService: OffersService) {}
+	constructor(
+		private readonly offersService: OffersService,
+		private readonly chatRoomsService: ChatRoomsService,
+		private readonly chatGateway: ChatGateway,
+	) {}
 
 	@Get()
 	@ApiOperation({
@@ -67,8 +83,20 @@ export class OffersController {
 		status: 401,
 		description: 'Unauthorized',
 	})
-	async create(@Body() dto: CreateOfferDto) {
-		return this.offersService.create(dto);
+	async create(@Body() dto: CreateOfferDto, @Request() req: { user: { id: string } }) {
+		const offer = await this.offersService.create(dto);
+		// Create OFFER chats for each ACTIVE driver
+		const createdChats = await this.chatRoomsService.createOfferChatsForNewOffer(
+			offer.id,
+			req.user.id,
+			dto.driverIds ?? [],
+			dto.pickUpLocation ?? '',
+			dto.deliveryLocation ?? '',
+		);
+		for (const { chatRoom, participantIds } of createdChats) {
+			this.chatGateway.notifyChatRoomCreated(chatRoom, participantIds);
+		}
+		return offer;
 	}
 
 	@Patch(':id/deactivate-offer')

@@ -62,6 +62,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 		MessagesService,
 		MessagesArchiveService,
 		FileUploadService,
+		ChatGateway,
 	],
 })
 export class ChatsModule {}
