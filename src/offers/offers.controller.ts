@@ -26,6 +26,18 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 
+/** Get first and last route point locations for chat name (first = pick up, last = delivery) */
+function getRouteEndpoints(route: Array<{ location?: string }> | undefined): { pickUp: string; delivery: string } {
+	if (!Array.isArray(route) || route.length === 0) {
+		return { pickUp: '', delivery: '' };
+	}
+	const first = route[0];
+	const last = route.length > 1 ? route[route.length - 1] : first;
+	const pickUp = (first?.location && String(first.location).trim()) || '';
+	const delivery = (last?.location && String(last.location).trim()) || '';
+	return { pickUp, delivery };
+}
+
 @ApiTags('Offers')
 @ApiBearerAuth()
 @Controller('offers')
@@ -85,13 +97,14 @@ export class OffersController {
 	})
 	async create(@Body() dto: CreateOfferDto, @Request() req: { user: { id: string } }) {
 		const offer = await this.offersService.create(dto);
+		const { pickUp, delivery } = getRouteEndpoints(dto.route);
 		// Create OFFER chats for each ACTIVE driver
 		const createdChats = await this.chatRoomsService.createOfferChatsForNewOffer(
 			offer.id,
 			req.user.id,
 			dto.driverIds ?? [],
-			dto.pickUpLocation ?? '',
-			dto.deliveryLocation ?? '',
+			pickUp,
+			delivery,
 		);
 		for (const { chatRoom, participantIds } of createdChats) {
 			this.chatGateway.notifyChatRoomCreated(chatRoom, participantIds);

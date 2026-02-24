@@ -134,18 +134,13 @@ model Offer {
   externalUserId       String?      @map("external_user_id")
   createTime           String       @map("create_time")
   updateTime           String       @map("update_time")
-  pickUpLocation       String       @map("pick_up_location")
-  pickUpTime           String       @map("pick_up_time")
-  deliveryLocation     String       @map("delivery_location")
-  deliveryTime         String       @map("delivery_time")
   loadedMiles          Float?       @map("loaded_miles")
-  emptyMiles           Float?       @map("empty_miles")
-  totalMiles           Float?       @map("total_miles")
   weight               Float?
   commodity            String?
   notes                String?
   specialRequirements  Json?        @map("special_requirements") // array
   drivers              Json?        // array
+  route                Json?        // array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
   creator              User?        @relation("OfferCreator", fields: [externalUserId], references: [externalId])
@@ -162,6 +157,8 @@ model RateOffer {
   rate       Float?
   actionTime String?  @map("action_time")
   active     Boolean  @default(true)
+  emptyMiles Float?   @map("empty_miles")
+  totalMiles Float?   @map("total_miles")
   offer      Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
   driver     User?    @relation(fields: [driverId], references: [externalId])
 

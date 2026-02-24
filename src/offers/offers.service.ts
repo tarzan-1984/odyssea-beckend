@@ -57,17 +57,8 @@ export class OffersService {
 		if (driverIds.length === 0) {
 			errors.push('At least one driver (driverIds) is required');
 		}
-		if (!dto.pickUpLocation?.trim()) {
-			errors.push('Pick up location is required');
-		}
-		if (!dto.pickUpTime?.trim()) {
-			errors.push('Pick up time is required');
-		}
-		if (!dto.deliveryLocation?.trim()) {
-			errors.push('Delivery location is required');
-		}
-		if (!dto.deliveryTime?.trim()) {
-			errors.push('Delivery time is required');
+		if (!Array.isArray(dto.route) || dto.route.length === 0) {
+			errors.push('Route with at least one point is required');
 		}
 		const loadedMiles = dto.loadedMiles;
 		if (
@@ -75,13 +66,6 @@ export class OffersService {
 			(typeof loadedMiles === 'number' && Number.isNaN(loadedMiles))
 		) {
 			errors.push('Loaded miles is required');
-		}
-		const emptyMiles = dto.emptyMiles;
-		if (
-			emptyMiles == null ||
-			(typeof emptyMiles === 'number' && Number.isNaN(emptyMiles))
-		) {
-			errors.push('Empty miles is required');
 		}
 		const weight = dto.weight;
 		if (
@@ -104,6 +88,10 @@ export class OffersService {
 			dto.specialRequirements && dto.specialRequirements.length > 0
 				? dto.specialRequirements
 				: undefined;
+		const routeJson: Prisma.InputJsonValue | undefined =
+			dto.route && dto.route.length > 0
+				? (dto.route as unknown as Prisma.InputJsonValue)
+				: undefined;
 
 		return this.prisma.$transaction(async (tx) => {
 			const offer = await tx.offer.create({
@@ -111,19 +99,14 @@ export class OffersService {
 					externalUserId: dto.externalId || null,
 					createTime: nowNy,
 					updateTime: nowNy,
-					pickUpLocation: dto.pickUpLocation,
-					pickUpTime: dto.pickUpTime,
-					deliveryLocation: dto.deliveryLocation,
-					deliveryTime: dto.deliveryTime,
 					loadedMiles: dto.loadedMiles ?? null,
-					emptyMiles: dto.emptyMiles ?? null,
-					totalMiles: dto.totalMiles ?? null,
 					weight: dto.weight ?? null,
 					commodity: dto.commodity?.trim() || null,
 					specialRequirements:
 						specialRequirementsJson ?? Prisma.JsonNull,
 					notes: dto.notes?.trim() || null,
 					drivers: driversJson ?? Prisma.JsonNull,
+					route: routeJson ?? Prisma.JsonNull,
 				},
 			});
 
@@ -165,17 +148,12 @@ export class OffersService {
 			externalUserId: true,
 			createTime: true,
 			updateTime: true,
-			pickUpLocation: true,
-			pickUpTime: true,
-			deliveryLocation: true,
-			deliveryTime: true,
 			loadedMiles: true,
-			emptyMiles: true,
 			weight: true,
 			commodity: true,
 			notes: true,
 			specialRequirements: true,
-			totalMiles: true,
+			route: true,
 		} as const;
 
 		const isExpiredFilter = dto.is_expired;
@@ -222,17 +200,12 @@ export class OffersService {
 			externalUserId: string | null;
 			createTime: string;
 			updateTime: string;
-			pickUpLocation: string;
-			pickUpTime: string;
-			deliveryLocation: string;
-			deliveryTime: string;
 			loadedMiles: number | null;
-			emptyMiles: number | null;
 			weight: number | null;
 			commodity: string | null;
 			notes: string | null;
 			specialRequirements: unknown;
-			totalMiles: number | null;
+			route: unknown;
 		}>,
 		page: number,
 		limit: number,
@@ -295,17 +268,12 @@ export class OffersService {
 			external_user_id: o.externalUserId,
 			create_time: o.createTime,
 			update_time: o.updateTime,
-			pick_up_location: o.pickUpLocation,
-			pick_up_time: o.pickUpTime,
-			delivery_location: o.deliveryLocation,
-			delivery_time: o.deliveryTime,
 			loaded_miles: o.loadedMiles,
-			empty_miles: o.emptyMiles,
 			weight: o.weight,
 			commodity: o.commodity,
 			special_requirements: o.specialRequirements,
 			notes: o.notes,
-			total_miles: o.totalMiles,
+			route: o.route ?? null,
 			drivers: driversByOfferId.get(o.id) ?? [],
 		}));
 

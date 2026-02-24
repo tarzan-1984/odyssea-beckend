@@ -5,8 +5,29 @@ import {
 	IsArray,
 	IsNumber,
 	Min,
+	IsIn,
+	ValidateNested,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+
+/** Single route point (pick_up_location or delivery_location) */
+export class RoutePointDto {
+	@ApiProperty({
+		description: 'Point type',
+		enum: ['pick_up_location', 'delivery_location'],
+		example: 'pick_up_location',
+	})
+	@IsIn(['pick_up_location', 'delivery_location'])
+	type: 'pick_up_location' | 'delivery_location';
+
+	@ApiProperty({ description: 'Location address', example: 'New York, NY' })
+	@IsString()
+	location: string;
+
+	@ApiProperty({ description: 'Time', example: '2025-02-15 08:00' })
+	@IsString()
+	time: string;
+}
 
 function parseNumber(value: unknown): number | undefined {
 	if (typeof value === 'number' && !Number.isNaN(value)) return value;
@@ -39,32 +60,18 @@ export class CreateOfferDto {
 	driverIds: string[];
 
 	@ApiProperty({
-		description: 'Pick up location',
-		example: 'New York, NY',
+		description:
+			'Route: array of points (pick_up_location / delivery_location) in order. Format: [{ type, location, time }, ...]',
+		type: [RoutePointDto],
+		example: [
+			{ type: 'pick_up_location', location: 'Warehouse A', time: '08:00' },
+			{ type: 'delivery_location', location: 'Site B', time: '14:00' },
+		],
 	})
-	@IsString()
-	pickUpLocation: string;
-
-	@ApiProperty({
-		description: 'Pick up time',
-		example: '2025-02-15 08:00',
-	})
-	@IsString()
-	pickUpTime: string;
-
-	@ApiProperty({
-		description: 'Delivery location',
-		example: 'Boston, MA',
-	})
-	@IsString()
-	deliveryLocation: string;
-
-	@ApiProperty({
-		description: 'Delivery time',
-		example: '2025-02-16 14:00',
-	})
-	@IsString()
-	deliveryTime: string;
+	@IsArray()
+	@ValidateNested({ each: true })
+	@Type(() => RoutePointDto)
+	route: RoutePointDto[];
 
 	@ApiPropertyOptional({
 		description: 'Loaded miles (numeric or string)',
@@ -76,28 +83,6 @@ export class CreateOfferDto {
 	@IsNumber()
 	@Min(0)
 	loadedMiles?: number;
-
-	@ApiPropertyOptional({
-		description: 'Empty miles (numeric or string)',
-		example: 50.25,
-	})
-	@IsOptional()
-	@Transform(({ value }) => parseNumber(value))
-	@Type(() => Number)
-	@IsNumber()
-	@Min(0)
-	emptyMiles?: number;
-
-	@ApiPropertyOptional({
-		description: 'Total miles (numeric, can be computed from loaded + empty)',
-		example: 200.75,
-	})
-	@IsOptional()
-	@Transform(({ value }) => parseNumber(value))
-	@Type(() => Number)
-	@IsNumber()
-	@Min(0)
-	totalMiles?: number;
 
 	@ApiPropertyOptional({
 		description: 'Weight (numeric or string like "1,000 lbs")',
