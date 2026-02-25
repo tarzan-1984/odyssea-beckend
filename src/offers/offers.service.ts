@@ -93,13 +93,19 @@ export class OffersService {
 				? (dto.route as unknown as Prisma.InputJsonValue)
 				: undefined;
 
+		const loadedMilesNum =
+			dto.loadedMiles != null && !Number.isNaN(dto.loadedMiles)
+				? Number(dto.loadedMiles)
+				: null;
+		const driverEmptyMiles = dto.driverEmptyMiles ?? {};
+
 		return this.prisma.$transaction(async (tx) => {
 			const offer = await tx.offer.create({
 				data: {
 					externalUserId: dto.externalId || null,
 					createTime: nowNy,
 					updateTime: nowNy,
-					loadedMiles: dto.loadedMiles ?? null,
+					loadedMiles: loadedMilesNum,
 					weight: dto.weight ?? null,
 					commodity: dto.commodity?.trim() || null,
 					specialRequirements:
@@ -111,12 +117,33 @@ export class OffersService {
 			});
 
 			if (driverIds.length > 0) {
-				await tx.rateOffer.createMany({
-					data: driverIds.map((driverId) => ({
+				const rateOfferData = driverIds.map((driverId) => {
+					const emptyMilesRaw = driverEmptyMiles[driverId.trim()];
+					const emptyMiles =
+						emptyMilesRaw != null && !Number.isNaN(Number(emptyMilesRaw))
+							? Number(emptyMilesRaw)
+							: null;
+					const totalMiles =
+						loadedMilesNum != null && emptyMiles != null
+							? loadedMilesNum + emptyMiles
+							: null;
+					const rec: {
+						offerId: string;
+						driverId: string | null;
+						rate: number | null;
+						emptyMiles?: number;
+						totalMiles?: number;
+					} = {
 						offerId: offer.id,
 						driverId: driverId.trim() || null,
 						rate: null,
-					})),
+					};
+					if (emptyMiles != null) rec.emptyMiles = emptyMiles;
+					if (totalMiles != null) rec.totalMiles = totalMiles;
+					return rec;
+				});
+				await tx.rateOffer.createMany({
+					data: rateOfferData,
 				});
 			}
 
