@@ -245,6 +245,8 @@ export class OffersService {
 				offerId: true,
 				rate: true,
 				actionTime: true,
+				emptyMiles: true,
+				totalMiles: true,
 				driver: {
 					select: {
 						id: true,
@@ -270,6 +272,8 @@ export class OffersService {
 				status: string;
 				rate: number | null;
 				action_time: string | null;
+				empty_miles: number | null;
+				total_miles: number | null;
 			}>
 		>();
 		for (const ro of rateOffersWithDriver) {
@@ -285,6 +289,8 @@ export class OffersService {
 				status: ro.driver.status,
 				rate: ro.rate ?? null,
 				action_time: ro.actionTime ?? null,
+				empty_miles: ro.emptyMiles ?? null,
+				total_miles: ro.totalMiles ?? null,
 			});
 			driversByOfferId.set(ro.offerId, list);
 		}
