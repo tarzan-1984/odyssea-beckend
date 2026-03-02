@@ -151,7 +151,7 @@ model Offer {
 }
 
 model RateOffer {
-  id         String   @id @default(cuid())
+  id         Int      @id @default(autoincrement())
   offerId    Int      @map("offer_id")
   driverId   String?  @map("driver_id")
   rate       Float?

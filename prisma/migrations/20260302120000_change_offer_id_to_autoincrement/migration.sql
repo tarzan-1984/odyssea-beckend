@@ -11,6 +11,10 @@ TRUNCATE TABLE "offers" CASCADE;
 ALTER TABLE "offers" DROP COLUMN "id";
 ALTER TABLE "offers" ADD COLUMN "id" SERIAL PRIMARY KEY;
 
+-- Change rate_offers.id from text (cuid) to serial (autoincrement integer)
+ALTER TABLE "rate_offers" DROP COLUMN "id";
+ALTER TABLE "rate_offers" ADD COLUMN "id" SERIAL PRIMARY KEY;
+
 -- Change rate_offers.offer_id from text to integer
 ALTER TABLE "rate_offers" DROP COLUMN "offer_id";
 ALTER TABLE "rate_offers" ADD COLUMN "offer_id" INTEGER NOT NULL;
