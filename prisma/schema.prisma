@@ -129,7 +129,7 @@ model PushToken {
 }
 
 model Offer {
-  id                   String       @id @default(cuid())
+  id                   Int          @id @default(autoincrement())
   active               Boolean      @default(true)
   externalUserId       String?      @map("external_user_id")
   createTime           String       @map("create_time")
@@ -152,7 +152,7 @@ model Offer {
 
 model RateOffer {
   id         String   @id @default(cuid())
-  offerId    String   @map("offer_id")
+  offerId    Int      @map("offer_id")
   driverId   String?  @map("driver_id")
   rate       Float?
   actionTime String?  @map("action_time")
@@ -170,7 +170,7 @@ model ChatRoom {
   name         String?
   type         String
   loadId       String?
-  offerId      String?               @map("offer_id")
+  offerId      Int?                  @map("offer_id")
   company      String?
   isArchived   Boolean               @default(false)
   createdAt    DateTime              @default(now())
@@ -179,7 +179,7 @@ model ChatRoom {
   adminId      String?               @map("admin")
   participants ChatRoomParticipant[]
   admin        User?                 @relation("ChatRoomAdmin", fields: [adminId], references: [id])
-  offer        Offer?                @relation(fields: [offerId], references: [id])
+  offer        Offer?                @relation(fields: [offerId], references: [id], onDelete: SetNull)
   messages     Message[]
 
   @@map("chat_rooms")

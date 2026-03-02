@@ -127,14 +127,14 @@ export class OffersService {
 						loadedMilesNum != null && emptyMiles != null
 							? loadedMilesNum + emptyMiles
 							: null;
-					const rec: {
-						offerId: string;
-						driverId: string | null;
-						rate: number | null;
-						emptyMiles?: number;
-						totalMiles?: number;
-					} = {
-						offerId: offer.id,
+			const rec: {
+					offerId: number;
+					driverId: string | null;
+					rate: number | null;
+					emptyMiles?: number;
+					totalMiles?: number;
+				} = {
+					offerId: offer.id,
 						driverId: driverId.trim() || null,
 						rate: null,
 					};
@@ -222,7 +222,7 @@ export class OffersService {
 
 	private async buildPaginatedResponse(
 		offers: Array<{
-			id: string;
+			id: number;
 			active: boolean;
 			externalUserId: string | null;
 			createTime: string;
@@ -240,7 +240,7 @@ export class OffersService {
 	) {
 		const offerIds = offers.map((o) => o.id);
 		const rateOffersWithDriver = await this.prisma.rateOffer.findMany({
-			where: { offerId: { in: offerIds }, active: true },
+			where: { offerId: { in: offerIds as number[] }, active: true },
 			select: {
 				offerId: true,
 				rate: true,
@@ -261,7 +261,7 @@ export class OffersService {
 			},
 		});
 		const driversByOfferId = new Map<
-			string,
+			number,
 			Array<{
 				driver_id: string;
 				externalId: string | null;
@@ -328,7 +328,7 @@ export class OffersService {
 	 * Skips drivers already linked to the offer.
 	 * driverIds in the request can be User.externalId or User.id; they are resolved to externalId for rate_offers.
 	 */
-	async addDriversToOffer(offerId: string, dto: AddDriversToOfferDto) {
+	async addDriversToOffer(offerId: number, dto: AddDriversToOfferDto) {
 		const driverIds = Array.isArray(dto.driverIds) ? dto.driverIds : [];
 		if (driverIds.length === 0) {
 			throw new BadRequestException({
@@ -424,7 +424,7 @@ export class OffersService {
 	/**
 	 * Set active=false for the offer.
 	 */
-	async deactivateOffer(offerId: string) {
+	async deactivateOffer(offerId: number) {
 		const offer = await this.prisma.offer.findUnique({
 			where: { id: offerId },
 			select: { id: true },
@@ -443,7 +443,7 @@ export class OffersService {
 	 * Set active=false for the rate_offer row (offer_id + driver_id by externalId).
 	 * Driver will no longer appear in offer drivers list.
 	 */
-	async removeDriverFromOffer(offerId: string, driverExternalId: string) {
+	async removeDriverFromOffer(offerId: number, driverExternalId: string) {
 		const updated = await this.prisma.rateOffer.updateMany({
 			where: {
 				offerId,

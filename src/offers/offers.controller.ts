@@ -6,6 +6,7 @@ import {
 	Body,
 	Query,
 	Param,
+	ParseIntPipe,
 	UseGuards,
 	Request,
 } from '@nestjs/common';
@@ -120,7 +121,7 @@ export class OffersController {
 	@ApiParam({ name: 'id', description: 'Offer id' })
 	@ApiResponse({ status: 200, description: 'Offer deactivated successfully' })
 	@ApiResponse({ status: 404, description: 'Offer not found' })
-	async deactivateOffer(@Param('id') id: string) {
+	async deactivateOffer(@Param('id', ParseIntPipe) id: number) {
 		return this.offersService.deactivateOffer(id);
 	}
 
@@ -135,7 +136,7 @@ export class OffersController {
 	@ApiResponse({ status: 200, description: 'Driver deactivated successfully' })
 	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
 	async removeDriverFromOffer(
-		@Param('id') id: string,
+		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
 	) {
 		return this.offersService.removeDriverFromOffer(id, driverExternalId);
@@ -153,7 +154,7 @@ export class OffersController {
 	@ApiResponse({ status: 400, description: 'Bad request' })
 	@ApiResponse({ status: 404, description: 'Offer not found' })
 	async addDriversToOffer(
-		@Param('id') id: string,
+		@Param('id', ParseIntPipe) id: number,
 		@Body() dto: AddDriversToOfferDto,
 	) {
 		return this.offersService.addDriversToOffer(id, dto);

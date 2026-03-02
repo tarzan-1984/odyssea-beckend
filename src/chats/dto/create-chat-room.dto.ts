@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsEnum, IsInt } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateChatRoomDto {
@@ -32,12 +32,12 @@ export class CreateChatRoomDto {
 
 	@ApiProperty({
 		description: 'Offer ID for OFFER chats (links chat to an offer)',
-		example: 'cmlp1410d0001mo3534hs2kzo',
+		example: 1,
 		required: false,
 	})
 	@IsOptional()
-	@IsString()
-	offerId?: string;
+	@IsInt()
+	offerId?: number;
 
 	@ApiProperty({
 		description: 'Avatar URL for the chat room',

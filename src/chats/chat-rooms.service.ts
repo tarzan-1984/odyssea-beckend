@@ -92,7 +92,7 @@ export class ChatRoomsService {
 					name: chatName,
 					type,
 					loadId: loadId && loadId.trim() !== '' ? loadId : null,
-					offerId: type === 'OFFER' && offerId && offerId.trim() !== '' ? offerId : null,
+					offerId: type === 'OFFER' && offerId != null ? offerId : null,
 					avatar,
 					// for GROUP chats, set creator as admin; DIRECT and OFFER have no admin
 					adminId: type === 'GROUP' ? creatorId : null,
@@ -195,7 +195,7 @@ export class ChatRoomsService {
 	 * Chat name format: "firstName lastName (id: offerId)\npickUp - delivery"
 	 */
 	async createOfferChatsForNewOffer(
-		offerId: string,
+		offerId: number,
 		creatorId: string,
 		driverExternalIds: string[],
 		pickUp: string,
