@@ -128,4 +128,13 @@ export class UpdateUserDto {
 	@IsOptional()
 	@IsString()
 	driverStatus?: string;
+
+	@ApiProperty({
+		description: 'Date/time when driver set status (e.g. "02/11/26 2:30 PM")',
+		example: '02/11/26 2:30 PM',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	statusDate?: string;
 }
