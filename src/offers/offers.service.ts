@@ -160,6 +160,21 @@ export class OffersService {
 		const limit = Math.max(1, Math.min(100, Number(dto.limit) || 10));
 		const skip = (page - 1) * limit;
 		const where: Prisma.OfferWhereInput = {};
+
+		// Filter by driver: get offer IDs from rate_offers where this driver is assigned
+		const driverId = dto.driver_id != null && String(dto.driver_id).trim() !== '' ? dto.driver_id.trim() : null;
+		if (driverId) {
+			const rateOffersForDriver = await this.prisma.rateOffer.findMany({
+				where: { driverId, active: true },
+				select: { offerId: true },
+			});
+			const offerIdsForDriver = [...new Set(rateOffersForDriver.map((ro) => ro.offerId))];
+			if (offerIdsForDriver.length === 0) {
+				return this.buildPaginatedResponse([], page, limit, 0, driverId);
+			}
+			where.id = { in: offerIdsForDriver };
+		}
+
 		if (dto.user_id != null && String(dto.user_id).trim() !== '') {
 			where.externalUserId = dto.user_id.trim();
 		}
@@ -197,7 +212,7 @@ export class OffersService {
 				}),
 				this.prisma.offer.count({ where }),
 			]);
-			return this.buildPaginatedResponse(offers, page, limit, total);
+			return this.buildPaginatedResponse(offers, page, limit, total, driverId ?? undefined);
 		}
 
 		// Filter by is_expired using action_time from rate_offers (first driver per offer)
@@ -217,7 +232,7 @@ export class OffersService {
 		const paged = filtered.slice(skip, skip + limit);
 		// Strip rateOffers before passing to buildPaginatedResponse
 		const pagedOffers = paged.map(({ rateOffers: _, ...rest }) => rest);
-		return this.buildPaginatedResponse(pagedOffers, page, limit, total);
+		return this.buildPaginatedResponse(pagedOffers, page, limit, total, driverId ?? undefined);
 	}
 
 	private async buildPaginatedResponse(
@@ -237,10 +252,15 @@ export class OffersService {
 		page: number,
 		limit: number,
 		total: number,
+		driverIdFilter?: string,
 	) {
 		const offerIds = offers.map((o) => o.id);
+		const rateOfferWhere: Prisma.RateOfferWhereInput = { offerId: { in: offerIds as number[] }, active: true };
+		if (driverIdFilter) {
+			rateOfferWhere.driverId = driverIdFilter;
+		}
 		const rateOffersWithDriver = await this.prisma.rateOffer.findMany({
-			where: { offerId: { in: offerIds as number[] }, active: true },
+			where: rateOfferWhere,
 			select: {
 				offerId: true,
 				rate: true,

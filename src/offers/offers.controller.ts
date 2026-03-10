@@ -54,7 +54,7 @@ export class OffersController {
 	@ApiOperation({
 		summary: 'Get offers with pagination and filters',
 		description:
-			'Returns paginated offers. Filters: is_expired (true = only expired by action_time vs NY time, false = only not expired), user_id (external_user_id). Each offer includes drivers array (externalId, firstName, lastName from users).',
+			'Returns paginated offers. Filters: is_expired, user_id (external_user_id), driver_id (offers where drivers contains this externalId; rate_offers filtered to this driver). Each offer includes drivers array.',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -66,6 +66,7 @@ export class OffersController {
 			'true = only expired, false = only not expired (vs NY time)',
 	})
 	@ApiQuery({ name: 'user_id', required: false, type: String })
+	@ApiQuery({ name: 'driver_id', required: false, type: String })
 	@ApiQuery({
 		name: 'sort_order',
 		required: false,

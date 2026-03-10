@@ -40,12 +40,20 @@ export class GetOffersQueryDto {
 	is_expired?: boolean;
 
 	@ApiPropertyOptional({
-		description: 'Filter by external_user_id',
+		description: 'Filter by external_user_id (creator)',
 		example: 'user-123',
 	})
 	@IsOptional()
 	@IsString()
 	user_id?: string;
+
+	@ApiPropertyOptional({
+		description: 'Filter by driver: only offers where drivers array contains this externalId (driver view)',
+		example: '3343',
+	})
+	@IsOptional()
+	@IsString()
+	driver_id?: string;
 
 	@ApiPropertyOptional({
 		description: 'Sort by action_time: action_time_asc (soonest to expire first, default), action_time_desc',
