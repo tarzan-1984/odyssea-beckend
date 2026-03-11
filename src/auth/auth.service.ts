@@ -45,6 +45,8 @@ export interface AuthResponse {
 		phone: string;
 		location: string;
 		driverStatus?: string; // Driver status for DRIVER role users
+		zip?: string;
+		statusDate?: string;
 	};
 }
 
@@ -349,6 +351,8 @@ export class AuthService {
 				phone: true,
 				location: true,
 				driverStatus: true,
+				zip: true,
+				statusDate: true,
 			},
 		});
 
@@ -390,6 +394,8 @@ export class AuthService {
 			externalId: user.externalId || '', // Add externalId
 			phone: user.phone || '', // Add phone
 			location: user.location || '', // Add location
+			zip: user.zip || '',
+			statusDate: user.statusDate || '',
 		};
 
 		// Add driverStatus for DRIVER role users
