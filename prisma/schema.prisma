@@ -161,6 +161,7 @@ model RateOffer {
   active     Boolean  @default(true)
   emptyMiles Float?   @map("empty_miles")
   totalMiles Float?   @map("total_miles")
+  driverEta  String?  @map("driver_eta") // Time set by driver in mobile app (Estimated Time of Arrival)
   offer      Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
   driver     User?    @relation(fields: [driverId], references: [externalId])
 
