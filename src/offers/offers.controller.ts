@@ -26,6 +26,7 @@ import { ChatGateway } from '../chats/chat.gateway';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
+import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 
 /** Get first and last route point locations for chat name (first = pick up, last = delivery) */
 function getRouteEndpoints(route: Array<{ location?: string }> | undefined): { pickUp: string; delivery: string } {
@@ -159,5 +160,25 @@ export class OffersController {
 		@Body() dto: AddDriversToOfferDto,
 	) {
 		return this.offersService.addDriversToOffer(id, dto);
+	}
+
+	@Patch(':id/drivers/:driverExternalId/rate')
+	@ApiOperation({
+		summary: 'Set driver rate and ETA for an offer',
+		description:
+			'Updates rate_offers row for the given offer and driver: sets rate, driver_eta and action_time (current New York time plus rateTimeMinutes).',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({ name: 'driverExternalId', description: 'Driver externalId (User.externalId)' })
+	@ApiBody({ type: SetDriverRateDto })
+	@ApiResponse({ status: 200, description: 'Rate updated successfully' })
+	@ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async setDriverRate(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('driverExternalId') driverExternalId: string,
+		@Body() dto: SetDriverRateDto,
+	) {
+		return this.offersService.setDriverRate(id, driverExternalId, dto);
 	}
 }

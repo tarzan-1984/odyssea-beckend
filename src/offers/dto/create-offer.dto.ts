@@ -39,12 +39,13 @@ function parseNumber(value: unknown): number | undefined {
 }
 
 export class CreateOfferDto {
-	@ApiProperty({
-		description: 'External ID of the user creating the offer (from hidden field)',
+	@ApiPropertyOptional({
+		description: 'External ID of the user creating the offer (optional for staff users)',
 		example: 'ext_abc123',
 	})
+	@IsOptional()
 	@IsString()
-	externalId: string;
+	externalId?: string;
 
 	@ApiProperty({
 		description:

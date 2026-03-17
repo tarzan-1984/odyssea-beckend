@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
+import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 
 const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
 	timeZone: 'America/New_York',
@@ -50,9 +51,6 @@ export class OffersService {
 	async create(dto: CreateOfferDto) {
 		// Validate required and hidden fields before creating offer
 		const errors: string[] = [];
-		if (!dto.externalId || String(dto.externalId).trim() === '') {
-			errors.push('externalId is required');
-		}
 		const driverIds = Array.isArray(dto.driverIds) ? dto.driverIds : [];
 		if (driverIds.length === 0) {
 			errors.push('At least one driver (driverIds) is required');
@@ -149,6 +147,57 @@ export class OffersService {
 
 			return offer;
 		});
+	}
+
+	/**
+	 * Set rate, driver_eta and action_time for a specific driver in an offer.
+	 * action_time is calculated as current New York time plus rateTimeMinutes.
+	 */
+	async setDriverRate(
+		offerId: number,
+		driverExternalId: string,
+		dto: SetDriverRateDto,
+	): Promise<{ offer_id: number; driver_id: string; rate: number | null; driver_eta: string | null; action_time: string | null }> {
+		const driverId = driverExternalId.trim();
+		if (!driverId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverExternalId is required'],
+			});
+		}
+
+		const rateOffer = await this.prisma.rateOffer.findFirst({
+			where: {
+				offerId,
+				driverId,
+				active: true,
+			},
+		});
+
+		if (!rateOffer) {
+			throw new NotFoundException(
+				`Active rate_offer not found for offer_id=${offerId} and driver_id=${driverId}`,
+			);
+		}
+
+		const actionTime = getNewYorkTimePlusMinutes(dto.rateTimeMinutes);
+
+		const updated = await this.prisma.rateOffer.update({
+			where: { id: rateOffer.id },
+			data: {
+				rate: dto.rate,
+				actionTime,
+				driverEta: dto.driverEta?.trim() || null,
+			},
+		});
+
+		return {
+			offer_id: offerId,
+			driver_id: driverId,
+			rate: updated.rate ?? null,
+			driver_eta: updated.driverEta ?? null,
+			action_time: updated.actionTime ?? null,
+		};
 	}
 
 	/**
