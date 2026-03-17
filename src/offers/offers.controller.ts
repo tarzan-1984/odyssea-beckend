@@ -30,7 +30,10 @@ import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 
 /** Get first and last route point locations for chat name (first = pick up, last = delivery) */
-function getRouteEndpoints(route: Array<{ location?: string }> | undefined): { pickUp: string; delivery: string } {
+function getRouteEndpoints(route: Array<{ location?: string }> | undefined): {
+	pickUp: string;
+	delivery: string;
+} {
 	if (!Array.isArray(route) || route.length === 0) {
 		return { pickUp: '', delivery: '' };
 	}
@@ -73,7 +76,8 @@ export class OffersController {
 		name: 'sort_order',
 		required: false,
 		enum: ['action_time_asc', 'action_time_desc'],
-		description: 'Default: action_time_asc (soonest to expire first)',
+		description:
+			'Default: action_time_asc (soonest to expire first by action_time_unix)',
 	})
 	@ApiResponse({ status: 200, description: 'Paginated offers with drivers' })
 	async getOffers(@Query() query: GetOffersQueryDto) {
@@ -99,17 +103,21 @@ export class OffersController {
 		status: 401,
 		description: 'Unauthorized',
 	})
-	async create(@Body() dto: CreateOfferDto, @Request() req: { user: { id: string } }) {
+	async create(
+		@Body() dto: CreateOfferDto,
+		@Request() req: { user: { id: string } },
+	) {
 		const offer = await this.offersService.create(dto);
 		const { pickUp, delivery } = getRouteEndpoints(dto.route);
 		// Create OFFER chats for each ACTIVE driver
-		const createdChats = await this.chatRoomsService.createOfferChatsForNewOffer(
-			offer.id,
-			req.user.id,
-			dto.driverIds ?? [],
-			pickUp,
-			delivery,
-		);
+		const createdChats =
+			await this.chatRoomsService.createOfferChatsForNewOffer(
+				offer.id,
+				req.user.id,
+				dto.driverIds ?? [],
+				pickUp,
+				delivery,
+			);
 		for (const { chatRoom, participantIds } of createdChats) {
 			this.chatGateway.notifyChatRoomCreated(chatRoom, participantIds);
 		}
@@ -119,7 +127,8 @@ export class OffersController {
 	@Patch(':id/deactivate-offer')
 	@ApiOperation({
 		summary: 'Deactivate offer',
-		description: 'Sets active=false for the offer. Offer will display with red header and no action buttons.',
+		description:
+			'Sets active=false for the offer. Offer will display with red header and no action buttons.',
 	})
 	@ApiParam({ name: 'id', description: 'Offer id' })
 	@ApiResponse({ status: 200, description: 'Offer deactivated successfully' })
@@ -135,8 +144,14 @@ export class OffersController {
 			'Sets active=false for the rate_offer row (offer_id + driver_id by externalId). Driver will no longer appear in offer drivers list.',
 	})
 	@ApiParam({ name: 'id', description: 'Offer id' })
-	@ApiParam({ name: 'driverExternalId', description: 'Driver externalId (User.externalId)' })
-	@ApiResponse({ status: 200, description: 'Driver deactivated successfully' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Driver deactivated successfully',
+	})
 	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
 	async removeDriverFromOffer(
 		@Param('id', ParseIntPipe) id: number,
@@ -167,13 +182,19 @@ export class OffersController {
 	@ApiOperation({
 		summary: 'Set driver rate and ETA for an offer',
 		description:
-			'Updates rate_offers row for the given offer and driver: sets rate, driver_eta and action_time (current New York time plus rateTimeMinutes).',
+			'Updates rate_offers row for the given offer and driver: sets rate, driver_eta and action_time_unix (current Unix time plus rateTimeMinutes).',
 	})
 	@ApiParam({ name: 'id', description: 'Offer id' })
-	@ApiParam({ name: 'driverExternalId', description: 'Driver externalId (User.externalId)' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
 	@ApiBody({ type: SetDriverRateDto })
 	@ApiResponse({ status: 200, description: 'Rate updated successfully' })
-	@ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+	@ApiResponse({
+		status: 400,
+		description: 'Bad request - validation failed',
+	})
 	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
 	async setDriverRate(
 		@Param('id', ParseIntPipe) id: number,
@@ -187,13 +208,22 @@ export class OffersController {
 	@ApiOperation({
 		summary: 'Extend driver action time for an offer',
 		description:
-			'Updates rate_offers row for the given offer and driver: adds extendTimeMinutes to the existing action_time in New York time.',
+			'Updates rate_offers row for the given offer and driver: adds extendTimeMinutes to the later of current action_time_unix or current time.',
 	})
 	@ApiParam({ name: 'id', description: 'Offer id' })
-	@ApiParam({ name: 'driverExternalId', description: 'Driver externalId (User.externalId)' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
 	@ApiBody({ type: ExtendDriverTimeDto })
-	@ApiResponse({ status: 200, description: 'Action time extended successfully' })
-	@ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+	@ApiResponse({
+		status: 200,
+		description: 'Action time extended successfully',
+	})
+	@ApiResponse({
+		status: 400,
+		description: 'Bad request - validation failed',
+	})
 	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
 	async extendDriverTime(
 		@Param('id', ParseIntPipe) id: number,

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+	BadRequestException,
+	Injectable,
+	NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -18,76 +22,51 @@ const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
 	hour12: false,
 };
 
+const SECONDS_IN_MINUTE = 60;
+
 /** Returns current date/time string in America/New_York timezone */
 function getNewYorkTimeString(): string {
 	return new Date().toLocaleString('en-US', NY_FORMAT_OPTS);
 }
 
-/** Returns date/time in America/New_York: base time + minutesToAdd */
-function getNewYorkTimePlusMinutes(minutesToAdd: number): string {
-	const d = new Date();
-	d.setMinutes(d.getMinutes() + minutesToAdd);
-	return d.toLocaleString('en-US', NY_FORMAT_OPTS);
+function getCurrentUnixSeconds(): bigint {
+	return BigInt(Math.floor(Date.now() / 1000));
 }
 
-/** Parse action_time string (NY format MM/DD/YYYY, HH24:MI:SS) to Date (ET). Returns null if invalid. */
-function parseActionTimeNy(actionTime: string | null | undefined): Date | null {
-	if (!actionTime || typeof actionTime !== 'string') return null;
-	const trimmed = actionTime.trim();
-	const comma = trimmed.indexOf(', ');
-	if (comma === -1) return null;
-	const datePart = trimmed.slice(0, comma);
-	const timePart = trimmed.slice(comma + 2);
-	const [mo, day, yr] = datePart.split('/');
-	if (!mo || !day || !yr || !timePart) return null;
-	const iso = `${yr}-${String(mo).padStart(2, '0')}-${String(day).padStart(2, '0')}T${timePart}-05:00`;
-	const date = new Date(iso);
-	return Number.isNaN(date.getTime()) ? null : date;
+function getUnixSecondsPlusMinutes(minutesToAdd: number): bigint {
+	return getCurrentUnixSeconds() + BigInt(minutesToAdd * SECONDS_IN_MINUTE);
 }
 
-function formatUtcWallClockAsNyString(date: Date): string {
-	const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-	const day = String(date.getUTCDate()).padStart(2, '0');
-	const year = String(date.getUTCFullYear());
-	const hour = String(date.getUTCHours()).padStart(2, '0');
-	const minute = String(date.getUTCMinutes()).padStart(2, '0');
-	const second = String(date.getUTCSeconds()).padStart(2, '0');
-
-	return `${month}/${day}/${year}, ${hour}:${minute}:${second}`;
-}
-
-function addMinutesToNyActionTime(
-	actionTime: string | null | undefined,
-	minutesToAdd: number,
+function formatActionTimeUnixToNyString(
+	actionTimeUnix: bigint | number | null | undefined,
 ): string | null {
-	if (!actionTime || typeof actionTime !== 'string') return null;
-	const trimmed = actionTime.trim();
-	const comma = trimmed.indexOf(', ');
-	if (comma === -1) return null;
+	if (actionTimeUnix == null) return null;
+	const actionTimeNumber = Number(actionTimeUnix);
+	if (!Number.isFinite(actionTimeNumber)) return null;
 
-	const datePart = trimmed.slice(0, comma);
-	const timePart = trimmed.slice(comma + 2);
-	const [mo, day, yr] = datePart.split('/');
-	const [hour, minute, second = '00'] = timePart.split(':');
-
-	if (!mo || !day || !yr || !hour || !minute) return null;
-
-	const wallClockDate = new Date(
-		Date.UTC(
-			Number(yr),
-			Number(mo) - 1,
-			Number(day),
-			Number(hour),
-			Number(minute),
-			Number(second),
-		),
+	return new Date(actionTimeNumber * 1000).toLocaleString(
+		'en-US',
+		NY_FORMAT_OPTS,
 	);
+}
 
-	if (Number.isNaN(wallClockDate.getTime())) return null;
+function extendActionTimeUnix(
+	actionTimeUnix: bigint | number | null | undefined,
+	minutesToAdd: number,
+): bigint {
+	const currentUnixSeconds = getCurrentUnixSeconds();
+	const existingUnixSeconds =
+		actionTimeUnix == null
+			? null
+			: typeof actionTimeUnix === 'bigint'
+				? actionTimeUnix
+				: BigInt(actionTimeUnix);
+	const baseUnixSeconds =
+		existingUnixSeconds != null && existingUnixSeconds > currentUnixSeconds
+			? existingUnixSeconds
+			: currentUnixSeconds;
 
-	wallClockDate.setUTCMinutes(wallClockDate.getUTCMinutes() + minutesToAdd);
-
-	return formatUtcWallClockAsNyString(wallClockDate);
+	return baseUnixSeconds + BigInt(minutesToAdd * SECONDS_IN_MINUTE);
 }
 
 @Injectable()
@@ -164,21 +143,22 @@ export class OffersService {
 				const rateOfferData = driverIds.map((driverId) => {
 					const emptyMilesRaw = driverEmptyMiles[driverId.trim()];
 					const emptyMiles =
-						emptyMilesRaw != null && !Number.isNaN(Number(emptyMilesRaw))
+						emptyMilesRaw != null &&
+						!Number.isNaN(Number(emptyMilesRaw))
 							? Number(emptyMilesRaw)
 							: null;
 					const totalMiles =
 						loadedMilesNum != null && emptyMiles != null
 							? loadedMilesNum + emptyMiles
 							: null;
-			const rec: {
-					offerId: number;
-					driverId: string | null;
-					rate: number | null;
-					emptyMiles?: number;
-					totalMiles?: number;
-				} = {
-					offerId: offer.id,
+					const rec: {
+						offerId: number;
+						driverId: string | null;
+						rate: number | null;
+						emptyMiles?: number;
+						totalMiles?: number;
+					} = {
+						offerId: offer.id,
 						driverId: driverId.trim() || null,
 						rate: null,
 					};
@@ -196,14 +176,21 @@ export class OffersService {
 	}
 
 	/**
-	 * Set rate, driver_eta and action_time for a specific driver in an offer.
-	 * action_time is calculated as current New York time plus rateTimeMinutes.
+	 * Set rate, driver_eta and action_time_unix for a specific driver in an offer.
+	 * action_time_unix is calculated as current Unix time plus rateTimeMinutes.
 	 */
 	async setDriverRate(
 		offerId: number,
 		driverExternalId: string,
 		dto: SetDriverRateDto,
-	): Promise<{ offer_id: number; driver_id: string; rate: number | null; driver_eta: string | null; action_time: string | null }> {
+	): Promise<{
+		offer_id: number;
+		driver_id: string;
+		rate: number | null;
+		driver_eta: string | null;
+		action_time: string | null;
+		action_time_unix: number | null;
+	}> {
 		const driverId = driverExternalId.trim();
 		if (!driverId) {
 			throw new BadRequestException({
@@ -226,13 +213,13 @@ export class OffersService {
 			);
 		}
 
-		const actionTime = getNewYorkTimePlusMinutes(dto.rateTimeMinutes);
+		const actionTimeUnix = getUnixSecondsPlusMinutes(dto.rateTimeMinutes);
 
 		const updated = await this.prisma.rateOffer.update({
 			where: { id: rateOffer.id },
 			data: {
 				rate: dto.rate,
-				actionTime,
+				actionTimeUnix,
 				driverEta: dto.driverEta?.trim() || null,
 			},
 		});
@@ -242,7 +229,11 @@ export class OffersService {
 			driver_id: driverId,
 			rate: updated.rate ?? null,
 			driver_eta: updated.driverEta ?? null,
-			action_time: updated.actionTime ?? null,
+			action_time: formatActionTimeUnixToNyString(updated.actionTimeUnix),
+			action_time_unix:
+				updated.actionTimeUnix != null
+					? Number(updated.actionTimeUnix)
+					: null,
 		};
 	}
 
@@ -250,7 +241,14 @@ export class OffersService {
 		offerId: number,
 		driverExternalId: string,
 		dto: ExtendDriverTimeDto,
-	): Promise<{ offer_id: number; driver_id: string; rate: number | null; driver_eta: string | null; action_time: string | null }> {
+	): Promise<{
+		offer_id: number;
+		driver_id: string;
+		rate: number | null;
+		driver_eta: string | null;
+		action_time: string | null;
+		action_time_unix: number | null;
+	}> {
 		const driverId = driverExternalId.trim();
 		if (!driverId) {
 			throw new BadRequestException({
@@ -273,22 +271,15 @@ export class OffersService {
 			);
 		}
 
-		const nextActionTime = addMinutesToNyActionTime(
-			rateOffer.actionTime ?? null,
+		const nextActionTimeUnix = extendActionTimeUnix(
+			rateOffer.actionTimeUnix ?? null,
 			dto.extendTimeMinutes,
 		);
-
-		if (!nextActionTime) {
-			throw new BadRequestException({
-				message: 'Validation failed',
-				errors: ['Current action_time is missing or invalid'],
-			});
-		}
 
 		const updated = await this.prisma.rateOffer.update({
 			where: { id: rateOffer.id },
 			data: {
-				actionTime: nextActionTime,
+				actionTimeUnix: nextActionTimeUnix,
 			},
 		});
 
@@ -297,13 +288,17 @@ export class OffersService {
 			driver_id: driverId,
 			rate: updated.rate ?? null,
 			driver_eta: updated.driverEta ?? null,
-			action_time: updated.actionTime ?? null,
+			action_time: formatActionTimeUnixToNyString(updated.actionTimeUnix),
+			action_time_unix:
+				updated.actionTimeUnix != null
+					? Number(updated.actionTimeUnix)
+					: null,
 		};
 	}
 
 	/**
 	 * Get offers with pagination, optional filters (is_expired, user_id), and drivers from users.
-	 * action_time comparison uses current time in America/New_York.
+	 * action_time_unix comparison uses current Unix time.
 	 */
 	async findAllPaginated(dto: GetOffersQueryDto) {
 		const page = Math.max(1, Number(dto.page) || 1);
@@ -312,15 +307,26 @@ export class OffersService {
 		const where: Prisma.OfferWhereInput = {};
 
 		// Filter by driver: get offer IDs from rate_offers where this driver is assigned
-		const driverId = dto.driver_id != null && String(dto.driver_id).trim() !== '' ? dto.driver_id.trim() : null;
+		const driverId =
+			dto.driver_id != null && String(dto.driver_id).trim() !== ''
+				? dto.driver_id.trim()
+				: null;
 		if (driverId) {
 			const rateOffersForDriver = await this.prisma.rateOffer.findMany({
 				where: { driverId, active: true },
 				select: { offerId: true },
 			});
-			const offerIdsForDriver = [...new Set(rateOffersForDriver.map((ro) => ro.offerId))];
+			const offerIdsForDriver = [
+				...new Set(rateOffersForDriver.map((ro) => ro.offerId)),
+			];
 			if (offerIdsForDriver.length === 0) {
-				return this.buildPaginatedResponse([], page, limit, 0, driverId);
+				return this.buildPaginatedResponse(
+					[],
+					page,
+					limit,
+					0,
+					driverId,
+				);
 			}
 			where.id = { in: offerIdsForDriver };
 		}
@@ -349,7 +355,7 @@ export class OffersService {
 		} as const;
 
 		const isExpiredFilter = dto.is_expired;
-		const nowNy = new Date();
+		const nowUnixSeconds = getCurrentUnixSeconds();
 
 		if (isExpiredFilter === undefined || isExpiredFilter === null) {
 			const [offers, total] = await Promise.all([
@@ -362,27 +368,46 @@ export class OffersService {
 				}),
 				this.prisma.offer.count({ where }),
 			]);
-			return this.buildPaginatedResponse(offers, page, limit, total, driverId ?? undefined);
+			return this.buildPaginatedResponse(
+				offers,
+				page,
+				limit,
+				total,
+				driverId ?? undefined,
+			);
 		}
 
-		// Filter by is_expired using action_time from rate_offers (first driver per offer)
+		// Filter by is_expired using action_time_unix from rate_offers (first driver per offer)
 		const all = await this.prisma.offer.findMany({
 			where,
 			orderBy: { createdAt: 'desc' },
-			select: { ...selectOffer, rateOffers: { select: { actionTime: true }, orderBy: { id: 'asc' }, take: 1 } },
+			select: {
+				...selectOffer,
+				rateOffers: {
+					select: { actionTimeUnix: true },
+					orderBy: { id: 'asc' },
+					take: 1,
+				},
+			},
 		});
 		const filtered = all.filter((o) => {
-			const firstActionTime = o.rateOffers?.[0]?.actionTime ?? null;
-			const at = parseActionTimeNy(firstActionTime);
-			if (!at) return false;
-			const expired = at.getTime() < nowNy.getTime();
+			const firstActionTimeUnix =
+				o.rateOffers?.[0]?.actionTimeUnix ?? null;
+			if (firstActionTimeUnix == null) return false;
+			const expired = firstActionTimeUnix < nowUnixSeconds;
 			return isExpiredFilter === expired;
 		});
 		const total = filtered.length;
 		const paged = filtered.slice(skip, skip + limit);
 		// Strip rateOffers before passing to buildPaginatedResponse
 		const pagedOffers = paged.map(({ rateOffers: _, ...rest }) => rest);
-		return this.buildPaginatedResponse(pagedOffers, page, limit, total, driverId ?? undefined);
+		return this.buildPaginatedResponse(
+			pagedOffers,
+			page,
+			limit,
+			total,
+			driverId ?? undefined,
+		);
 	}
 
 	private async buildPaginatedResponse(
@@ -405,7 +430,10 @@ export class OffersService {
 		driverIdFilter?: string,
 	) {
 		const offerIds = offers.map((o) => o.id);
-		const rateOfferWhere: Prisma.RateOfferWhereInput = { offerId: { in: offerIds as number[] }, active: true };
+		const rateOfferWhere: Prisma.RateOfferWhereInput = {
+			offerId: { in: offerIds },
+			active: true,
+		};
 		if (driverIdFilter) {
 			rateOfferWhere.driverId = driverIdFilter;
 		}
@@ -414,7 +442,7 @@ export class OffersService {
 			select: {
 				offerId: true,
 				rate: true,
-				actionTime: true,
+				actionTimeUnix: true,
 				emptyMiles: true,
 				totalMiles: true,
 				driver: {
@@ -442,6 +470,7 @@ export class OffersService {
 				status: string;
 				rate: number | null;
 				action_time: string | null;
+				action_time_unix: number | null;
 				empty_miles: number | null;
 				total_miles: number | null;
 			}>
@@ -458,7 +487,11 @@ export class OffersService {
 				phone: ro.driver.phone ?? null,
 				status: ro.driver.status,
 				rate: ro.rate ?? null,
-				action_time: ro.actionTime ?? null,
+				action_time: formatActionTimeUnixToNyString(ro.actionTimeUnix),
+				action_time_unix:
+					ro.actionTimeUnix != null
+						? Number(ro.actionTimeUnix)
+						: null,
 				empty_miles: ro.emptyMiles ?? null,
 				total_miles: ro.totalMiles ?? null,
 			});

@@ -158,6 +158,7 @@ model RateOffer {
   driverId   String?  @map("driver_id")
   rate       Float?
   actionTime String?  @map("action_time")
+  actionTimeUnix BigInt? @map("action_time_unix")
   active     Boolean  @default(true)
   emptyMiles Float?   @map("empty_miles")
   totalMiles Float?   @map("total_miles")

@@ -11,7 +11,8 @@ export class SetDriverRateDto {
 	rate: number;
 
 	@ApiProperty({
-		description: 'Rate time window in minutes (used to calculate action_time)',
+		description:
+			'Rate time window in minutes (used to calculate action_time_unix)',
 		example: 30,
 	})
 	@IsNumber()
@@ -19,10 +20,10 @@ export class SetDriverRateDto {
 	rateTimeMinutes: number;
 
 	@ApiProperty({
-		description: 'Driver ETA string as selected in the mobile app (local time display)',
+		description:
+			'Driver ETA string as selected in the mobile app (local time display)',
 		example: '9:00 PM',
 	})
 	@IsString()
 	driverEta: string;
 }
-

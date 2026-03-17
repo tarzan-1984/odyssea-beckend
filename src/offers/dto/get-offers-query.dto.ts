@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString, IsInt, Min } from 'class-validator';
+import {
+	IsBoolean,
+	IsIn,
+	IsOptional,
+	IsString,
+	IsInt,
+	Min,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 export class GetOffersQueryDto {
@@ -27,7 +34,7 @@ export class GetOffersQueryDto {
 
 	@ApiPropertyOptional({
 		description:
-			'Filter by expiration: true = only expired (action_time < now NY), false = only not expired (action_time >= now NY)',
+			'Filter by expiration: true = only expired (action_time_unix < now), false = only not expired (action_time_unix >= now)',
 		example: false,
 	})
 	@IsOptional()
@@ -48,7 +55,8 @@ export class GetOffersQueryDto {
 	user_id?: string;
 
 	@ApiPropertyOptional({
-		description: 'Filter by driver: only offers where drivers array contains this externalId (driver view)',
+		description:
+			'Filter by driver: only offers where drivers array contains this externalId (driver view)',
 		example: '3343',
 	})
 	@IsOptional()
@@ -56,7 +64,8 @@ export class GetOffersQueryDto {
 	driver_id?: string;
 
 	@ApiPropertyOptional({
-		description: 'Sort by action_time: action_time_asc (soonest to expire first, default), action_time_desc',
+		description:
+			'Sort by action_time_unix: action_time_asc (soonest to expire first, default), action_time_desc',
 		example: 'action_time_asc',
 		enum: ['action_time_asc', 'action_time_desc'],
 	})
@@ -65,7 +74,8 @@ export class GetOffersQueryDto {
 	sort_order?: 'action_time_asc' | 'action_time_desc';
 
 	@ApiPropertyOptional({
-		description: 'Filter by offer active status: active = offers with active=true, inactive = offers with active=false',
+		description:
+			'Filter by offer active status: active = offers with active=true, inactive = offers with active=false',
 		example: 'active',
 		enum: ['active', 'inactive'],
 	})
