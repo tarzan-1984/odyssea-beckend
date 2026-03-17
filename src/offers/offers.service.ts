@@ -214,11 +214,13 @@ export class OffersService {
 		}
 
 		const actionTimeUnix = getUnixSecondsPlusMinutes(dto.rateTimeMinutes);
+		const actionTimeDisplay = formatActionTimeUnixToNyString(actionTimeUnix);
 
 		const updated = await this.prisma.rateOffer.update({
 			where: { id: rateOffer.id },
 			data: {
 				rate: dto.rate,
+				actionTime: actionTimeDisplay,
 				actionTimeUnix,
 				driverEta: dto.driverEta?.trim() || null,
 			},
@@ -275,10 +277,12 @@ export class OffersService {
 			rateOffer.actionTimeUnix ?? null,
 			dto.extendTimeMinutes,
 		);
+		const nextActionTimeDisplay = formatActionTimeUnixToNyString(nextActionTimeUnix);
 
 		const updated = await this.prisma.rateOffer.update({
 			where: { id: rateOffer.id },
 			data: {
+				actionTime: nextActionTimeDisplay,
 				actionTimeUnix: nextActionTimeUnix,
 			},
 		});
