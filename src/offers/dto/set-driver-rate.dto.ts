@@ -12,7 +12,7 @@ export class SetDriverRateDto {
 
 	@ApiProperty({
 		description:
-			'Rate time window in minutes (used to calculate action_time_unix)',
+			'Rate time window in minutes (used to calculate action_time in Unix seconds)',
 		example: 30,
 	})
 	@IsNumber()

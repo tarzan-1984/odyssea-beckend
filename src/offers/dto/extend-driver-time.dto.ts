@@ -4,7 +4,7 @@ import { IsNumber, Min } from 'class-validator';
 export class ExtendDriverTimeDto {
 	@ApiProperty({
 		description:
-			'Additional minutes to add to the later of current action_time_unix or current Unix time',
+			'Additional minutes to add to the later of current action_time or current Unix time, where action_time is stored in Unix seconds',
 		example: 15,
 	})
 	@IsNumber()

@@ -34,7 +34,7 @@ export class GetOffersQueryDto {
 
 	@ApiPropertyOptional({
 		description:
-			'Filter by expiration: true = only expired (action_time_unix < now), false = only not expired (action_time_unix >= now)',
+			'Filter by expiration: true = only expired (action_time < now), false = only not expired (action_time >= now), where action_time is Unix seconds',
 		example: false,
 	})
 	@IsOptional()
@@ -65,7 +65,7 @@ export class GetOffersQueryDto {
 
 	@ApiPropertyOptional({
 		description:
-			'Sort by action_time_unix: action_time_asc (soonest to expire first, default), action_time_desc',
+			'Sort by action_time: action_time_asc (soonest to expire first, default), action_time_desc, where action_time is Unix seconds',
 		example: 'action_time_asc',
 		enum: ['action_time_asc', 'action_time_desc'],
 	})

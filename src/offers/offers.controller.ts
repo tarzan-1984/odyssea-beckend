@@ -77,7 +77,7 @@ export class OffersController {
 		required: false,
 		enum: ['action_time_asc', 'action_time_desc'],
 		description:
-			'Default: action_time_asc (soonest to expire first by action_time_unix)',
+			'Default: action_time_asc (soonest to expire first by action_time in Unix seconds)',
 	})
 	@ApiResponse({ status: 200, description: 'Paginated offers with drivers' })
 	async getOffers(@Query() query: GetOffersQueryDto) {
@@ -182,7 +182,7 @@ export class OffersController {
 	@ApiOperation({
 		summary: 'Set driver rate and ETA for an offer',
 		description:
-			'Updates rate_offers row for the given offer and driver: sets rate, driver_eta and action_time_unix (current Unix time plus rateTimeMinutes).',
+			'Updates rate_offers row for the given offer and driver: sets rate, driver_eta and action_time (Unix time in seconds, based on current time plus rateTimeMinutes).',
 	})
 	@ApiParam({ name: 'id', description: 'Offer id' })
 	@ApiParam({
@@ -208,7 +208,7 @@ export class OffersController {
 	@ApiOperation({
 		summary: 'Extend driver action time for an offer',
 		description:
-			'Updates rate_offers row for the given offer and driver: adds extendTimeMinutes to the later of current action_time_unix or current time.',
+			'Updates rate_offers row for the given offer and driver: adds extendTimeMinutes to the later of current action_time or current time, both as Unix seconds.',
 	})
 	@ApiParam({ name: 'id', description: 'Offer id' })
 	@ApiParam({

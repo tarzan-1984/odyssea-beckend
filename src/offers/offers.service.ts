@@ -176,8 +176,8 @@ export class OffersService {
 	}
 
 	/**
-	 * Set rate, driver_eta and action_time_unix for a specific driver in an offer.
-	 * action_time_unix is calculated as current Unix time plus rateTimeMinutes.
+	 * Set rate, driver_eta and action_time for a specific driver in an offer.
+	 * action_time is stored as Unix time in seconds.
 	 */
 	async setDriverRate(
 		offerId: number,
@@ -188,8 +188,8 @@ export class OffersService {
 		driver_id: string;
 		rate: number | null;
 		driver_eta: string | null;
-		action_time: string | null;
-		action_time_unix: number | null;
+		action_time: number | null;
+		action_time_display: string | null;
 	}> {
 		const driverId = driverExternalId.trim();
 		if (!driverId) {
@@ -214,14 +214,12 @@ export class OffersService {
 		}
 
 		const actionTimeUnix = getUnixSecondsPlusMinutes(dto.rateTimeMinutes);
-		const actionTimeDisplay = formatActionTimeUnixToNyString(actionTimeUnix);
 
 		const updated = await this.prisma.rateOffer.update({
 			where: { id: rateOffer.id },
 			data: {
 				rate: dto.rate,
-				actionTime: actionTimeDisplay,
-				actionTimeUnix,
+				actionTime: actionTimeUnix,
 				driverEta: dto.driverEta?.trim() || null,
 			},
 		});
@@ -231,11 +229,8 @@ export class OffersService {
 			driver_id: driverId,
 			rate: updated.rate ?? null,
 			driver_eta: updated.driverEta ?? null,
-			action_time: formatActionTimeUnixToNyString(updated.actionTimeUnix),
-			action_time_unix:
-				updated.actionTimeUnix != null
-					? Number(updated.actionTimeUnix)
-					: null,
+			action_time: updated.actionTime != null ? Number(updated.actionTime) : null,
+			action_time_display: formatActionTimeUnixToNyString(updated.actionTime),
 		};
 	}
 
@@ -248,8 +243,8 @@ export class OffersService {
 		driver_id: string;
 		rate: number | null;
 		driver_eta: string | null;
-		action_time: string | null;
-		action_time_unix: number | null;
+		action_time: number | null;
+		action_time_display: string | null;
 	}> {
 		const driverId = driverExternalId.trim();
 		if (!driverId) {
@@ -273,17 +268,12 @@ export class OffersService {
 			);
 		}
 
-		const nextActionTimeUnix = extendActionTimeUnix(
-			rateOffer.actionTimeUnix ?? null,
-			dto.extendTimeMinutes,
-		);
-		const nextActionTimeDisplay = formatActionTimeUnixToNyString(nextActionTimeUnix);
+		const nextActionTimeUnix = extendActionTimeUnix(rateOffer.actionTime ?? null, dto.extendTimeMinutes);
 
 		const updated = await this.prisma.rateOffer.update({
 			where: { id: rateOffer.id },
 			data: {
-				actionTime: nextActionTimeDisplay,
-				actionTimeUnix: nextActionTimeUnix,
+				actionTime: nextActionTimeUnix,
 			},
 		});
 
@@ -292,17 +282,14 @@ export class OffersService {
 			driver_id: driverId,
 			rate: updated.rate ?? null,
 			driver_eta: updated.driverEta ?? null,
-			action_time: formatActionTimeUnixToNyString(updated.actionTimeUnix),
-			action_time_unix:
-				updated.actionTimeUnix != null
-					? Number(updated.actionTimeUnix)
-					: null,
+			action_time: updated.actionTime != null ? Number(updated.actionTime) : null,
+			action_time_display: formatActionTimeUnixToNyString(updated.actionTime),
 		};
 	}
 
 	/**
 	 * Get offers with pagination, optional filters (is_expired, user_id), and drivers from users.
-	 * action_time_unix comparison uses current Unix time.
+	 * action_time comparison uses current Unix time.
 	 */
 	async findAllPaginated(dto: GetOffersQueryDto) {
 		const page = Math.max(1, Number(dto.page) || 1);
@@ -381,24 +368,23 @@ export class OffersService {
 			);
 		}
 
-		// Filter by is_expired using action_time_unix from rate_offers (first driver per offer)
+		// Filter by is_expired using action_time from rate_offers (first driver per offer)
 		const all = await this.prisma.offer.findMany({
 			where,
 			orderBy: { createdAt: 'desc' },
 			select: {
 				...selectOffer,
 				rateOffers: {
-					select: { actionTimeUnix: true },
+					select: { actionTime: true },
 					orderBy: { id: 'asc' },
 					take: 1,
 				},
 			},
 		});
 		const filtered = all.filter((o) => {
-			const firstActionTimeUnix =
-				o.rateOffers?.[0]?.actionTimeUnix ?? null;
-			if (firstActionTimeUnix == null) return false;
-			const expired = firstActionTimeUnix < nowUnixSeconds;
+			const firstActionTime = o.rateOffers?.[0]?.actionTime ?? null;
+			if (firstActionTime == null) return false;
+			const expired = firstActionTime < nowUnixSeconds;
 			return isExpiredFilter === expired;
 		});
 		const total = filtered.length;
@@ -446,7 +432,7 @@ export class OffersService {
 			select: {
 				offerId: true,
 				rate: true,
-				actionTimeUnix: true,
+				actionTime: true,
 				emptyMiles: true,
 				totalMiles: true,
 				driver: {
@@ -473,8 +459,8 @@ export class OffersService {
 				phone: string | null;
 				status: string;
 				rate: number | null;
-				action_time: string | null;
-				action_time_unix: number | null;
+				action_time: number | null;
+				action_time_display: string | null;
 				empty_miles: number | null;
 				total_miles: number | null;
 			}>
@@ -491,11 +477,8 @@ export class OffersService {
 				phone: ro.driver.phone ?? null,
 				status: ro.driver.status,
 				rate: ro.rate ?? null,
-				action_time: formatActionTimeUnixToNyString(ro.actionTimeUnix),
-				action_time_unix:
-					ro.actionTimeUnix != null
-						? Number(ro.actionTimeUnix)
-						: null,
+				action_time: ro.actionTime != null ? Number(ro.actionTime) : null,
+				action_time_display: formatActionTimeUnixToNyString(ro.actionTime),
 				empty_miles: ro.emptyMiles ?? null,
 				total_miles: ro.totalMiles ?? null,
 			});
