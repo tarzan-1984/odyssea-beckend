@@ -27,6 +27,7 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
+import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 
 /** Get first and last route point locations for chat name (first = pick up, last = delivery) */
 function getRouteEndpoints(route: Array<{ location?: string }> | undefined): { pickUp: string; delivery: string } {
@@ -180,5 +181,25 @@ export class OffersController {
 		@Body() dto: SetDriverRateDto,
 	) {
 		return this.offersService.setDriverRate(id, driverExternalId, dto);
+	}
+
+	@Patch(':id/drivers/:driverExternalId/extend-time')
+	@ApiOperation({
+		summary: 'Extend driver action time for an offer',
+		description:
+			'Updates rate_offers row for the given offer and driver: adds extendTimeMinutes to the existing action_time in New York time.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({ name: 'driverExternalId', description: 'Driver externalId (User.externalId)' })
+	@ApiBody({ type: ExtendDriverTimeDto })
+	@ApiResponse({ status: 200, description: 'Action time extended successfully' })
+	@ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async extendDriverTime(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('driverExternalId') driverExternalId: string,
+		@Body() dto: ExtendDriverTimeDto,
+	) {
+		return this.offersService.extendDriverTime(id, driverExternalId, dto);
 	}
 }

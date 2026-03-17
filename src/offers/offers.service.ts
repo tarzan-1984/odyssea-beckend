@@ -5,6 +5,7 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
+import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 
 const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
 	timeZone: 'America/New_York',
@@ -42,6 +43,51 @@ function parseActionTimeNy(actionTime: string | null | undefined): Date | null {
 	const iso = `${yr}-${String(mo).padStart(2, '0')}-${String(day).padStart(2, '0')}T${timePart}-05:00`;
 	const date = new Date(iso);
 	return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatUtcWallClockAsNyString(date: Date): string {
+	const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+	const day = String(date.getUTCDate()).padStart(2, '0');
+	const year = String(date.getUTCFullYear());
+	const hour = String(date.getUTCHours()).padStart(2, '0');
+	const minute = String(date.getUTCMinutes()).padStart(2, '0');
+	const second = String(date.getUTCSeconds()).padStart(2, '0');
+
+	return `${month}/${day}/${year}, ${hour}:${minute}:${second}`;
+}
+
+function addMinutesToNyActionTime(
+	actionTime: string | null | undefined,
+	minutesToAdd: number,
+): string | null {
+	if (!actionTime || typeof actionTime !== 'string') return null;
+	const trimmed = actionTime.trim();
+	const comma = trimmed.indexOf(', ');
+	if (comma === -1) return null;
+
+	const datePart = trimmed.slice(0, comma);
+	const timePart = trimmed.slice(comma + 2);
+	const [mo, day, yr] = datePart.split('/');
+	const [hour, minute, second = '00'] = timePart.split(':');
+
+	if (!mo || !day || !yr || !hour || !minute) return null;
+
+	const wallClockDate = new Date(
+		Date.UTC(
+			Number(yr),
+			Number(mo) - 1,
+			Number(day),
+			Number(hour),
+			Number(minute),
+			Number(second),
+		),
+	);
+
+	if (Number.isNaN(wallClockDate.getTime())) return null;
+
+	wallClockDate.setUTCMinutes(wallClockDate.getUTCMinutes() + minutesToAdd);
+
+	return formatUtcWallClockAsNyString(wallClockDate);
 }
 
 @Injectable()
@@ -188,6 +234,61 @@ export class OffersService {
 				rate: dto.rate,
 				actionTime,
 				driverEta: dto.driverEta?.trim() || null,
+			},
+		});
+
+		return {
+			offer_id: offerId,
+			driver_id: driverId,
+			rate: updated.rate ?? null,
+			driver_eta: updated.driverEta ?? null,
+			action_time: updated.actionTime ?? null,
+		};
+	}
+
+	async extendDriverTime(
+		offerId: number,
+		driverExternalId: string,
+		dto: ExtendDriverTimeDto,
+	): Promise<{ offer_id: number; driver_id: string; rate: number | null; driver_eta: string | null; action_time: string | null }> {
+		const driverId = driverExternalId.trim();
+		if (!driverId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverExternalId is required'],
+			});
+		}
+
+		const rateOffer = await this.prisma.rateOffer.findFirst({
+			where: {
+				offerId,
+				driverId,
+				active: true,
+			},
+		});
+
+		if (!rateOffer) {
+			throw new NotFoundException(
+				`Active rate_offer not found for offer_id=${offerId} and driver_id=${driverId}`,
+			);
+		}
+
+		const nextActionTime = addMinutesToNyActionTime(
+			rateOffer.actionTime ?? null,
+			dto.extendTimeMinutes,
+		);
+
+		if (!nextActionTime) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['Current action_time is missing or invalid'],
+			});
+		}
+
+		const updated = await this.prisma.rateOffer.update({
+			where: { id: rateOffer.id },
+			data: {
+				actionTime: nextActionTime,
 			},
 		});
 
