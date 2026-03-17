@@ -28,6 +28,7 @@ import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
+import { OffersRealtimeService } from './offers-realtime.service';
 
 /** Get first and last route point locations for chat name (first = pick up, last = delivery) */
 function getRouteEndpoints(route: Array<{ location?: string }> | undefined): {
@@ -53,6 +54,7 @@ export class OffersController {
 		private readonly offersService: OffersService,
 		private readonly chatRoomsService: ChatRoomsService,
 		private readonly chatGateway: ChatGateway,
+		private readonly offersRealtimeService: OffersRealtimeService,
 	) {}
 
 	@Get()
@@ -82,6 +84,23 @@ export class OffersController {
 	@ApiResponse({ status: 200, description: 'Paginated offers with drivers' })
 	async getOffers(@Query() query: GetOffersQueryDto) {
 		return this.offersService.findAllPaginated(query);
+	}
+
+	@Get(':id')
+	@ApiOperation({
+		summary: 'Get one offer by id',
+		description:
+			'Returns a single offer with drivers array. Optional driver_id filters nested driver data to one driver view.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiQuery({ name: 'driver_id', required: false, type: String })
+	@ApiResponse({ status: 200, description: 'Offer found' })
+	@ApiResponse({ status: 404, description: 'Offer not found' })
+	async getOfferById(
+		@Param('id', ParseIntPipe) id: number,
+		@Query('driver_id') driverId?: string,
+	) {
+		return this.offersService.findOneById(id, driverId);
 	}
 
 	@Post()
@@ -201,7 +220,17 @@ export class OffersController {
 		@Param('driverExternalId') driverExternalId: string,
 		@Body() dto: SetDriverRateDto,
 	) {
-		return this.offersService.setDriverRate(id, driverExternalId, dto);
+		const result = await this.offersService.setDriverRate(
+			id,
+			driverExternalId,
+			dto,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(
+			id,
+			'driver_rate_updated',
+			{ affectedExternalIds: [driverExternalId] },
+		);
+		return result;
 	}
 
 	@Patch(':id/drivers/:driverExternalId/extend-time')
@@ -230,6 +259,16 @@ export class OffersController {
 		@Param('driverExternalId') driverExternalId: string,
 		@Body() dto: ExtendDriverTimeDto,
 	) {
-		return this.offersService.extendDriverTime(id, driverExternalId, dto);
+		const result = await this.offersService.extendDriverTime(
+			id,
+			driverExternalId,
+			dto,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(
+			id,
+			'bid_time_extended',
+			{ affectedExternalIds: [driverExternalId] },
+		);
+		return result;
 	}
 }

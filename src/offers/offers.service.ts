@@ -287,6 +287,41 @@ export class OffersService {
 		};
 	}
 
+	async findOneById(offerId: number, driverIdFilter?: string | null) {
+		const offer = await this.prisma.offer.findUnique({
+			where: { id: offerId },
+			select: {
+				id: true,
+				active: true,
+				externalUserId: true,
+				createTime: true,
+				updateTime: true,
+				loadedMiles: true,
+				weight: true,
+				commodity: true,
+				specialRequirements: true,
+				notes: true,
+				route: true,
+			},
+		});
+
+		if (!offer) {
+			throw new NotFoundException(`Offer with id ${offerId} not found`);
+		}
+
+		const response = await this.buildPaginatedResponse(
+			[offer],
+			1,
+			1,
+			1,
+			driverIdFilter != null && String(driverIdFilter).trim() !== ''
+				? String(driverIdFilter).trim()
+				: undefined,
+		);
+
+		return response.results[0];
+	}
+
 	/**
 	 * Get offers with pagination, optional filters (is_expired, user_id), and drivers from users.
 	 * action_time comparison uses current Unix time.
