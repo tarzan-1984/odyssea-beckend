@@ -691,7 +691,12 @@ export class OffersService {
 				offerId,
 				driverId: driverExternalId,
 			},
-			data: { active: false },
+			data: {
+				active: false,
+				rate: null,
+				actionTime: null,
+				driverEta: null,
+			},
 		});
 		if (updated.count === 0) {
 			throw new NotFoundException(
