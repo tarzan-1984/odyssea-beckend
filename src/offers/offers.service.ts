@@ -339,7 +339,7 @@ export class OffersService {
 				: null;
 		if (driverId) {
 			const rateOffersForDriver = await this.prisma.rateOffer.findMany({
-				where: { driverId, active: true },
+				where: { driverId },
 				select: { offerId: true },
 			});
 			const offerIdsForDriver = [
@@ -457,8 +457,10 @@ export class OffersService {
 		const offerIds = offers.map((o) => o.id);
 		const rateOfferWhere: Prisma.RateOfferWhereInput = {
 			offerId: { in: offerIds },
-			active: true,
 		};
+		if (!driverIdFilter) {
+			rateOfferWhere.active = true;
+		}
 		if (driverIdFilter) {
 			rateOfferWhere.driverId = driverIdFilter;
 		}
@@ -466,6 +468,7 @@ export class OffersService {
 			where: rateOfferWhere,
 			select: {
 				offerId: true,
+				active: true,
 				rate: true,
 				actionTime: true,
 				emptyMiles: true,
@@ -493,6 +496,7 @@ export class OffersService {
 				email: string;
 				phone: string | null;
 				status: string;
+				active: boolean;
 				rate: number | null;
 				action_time: number | null;
 				action_time_display: string | null;
@@ -511,6 +515,7 @@ export class OffersService {
 				email: ro.driver.email,
 				phone: ro.driver.phone ?? null,
 				status: ro.driver.status,
+				active: ro.active,
 				rate: ro.rate ?? null,
 				action_time: ro.actionTime != null ? Number(ro.actionTime) : null,
 				action_time_display: formatActionTimeUnixToNyString(ro.actionTime),
@@ -520,20 +525,27 @@ export class OffersService {
 			driversByOfferId.set(ro.offerId, list);
 		}
 
-		const results = offers.map((o) => ({
-			id: o.id,
-			active: o.active,
-			external_user_id: o.externalUserId,
-			create_time: o.createTime,
-			update_time: o.updateTime,
-			loaded_miles: o.loadedMiles,
-			weight: o.weight,
-			commodity: o.commodity,
-			special_requirements: o.specialRequirements,
-			notes: o.notes,
-			route: o.route ?? null,
-			drivers: driversByOfferId.get(o.id) ?? [],
-		}));
+		const results = offers.map((o) => {
+			const drivers = driversByOfferId.get(o.id) ?? [];
+			const isActiveForRequestedDriver = driverIdFilter
+				? Boolean(drivers[0]?.active) && o.active
+				: o.active;
+
+			return {
+				id: o.id,
+				active: isActiveForRequestedDriver,
+				external_user_id: o.externalUserId,
+				create_time: o.createTime,
+				update_time: o.updateTime,
+				loaded_miles: o.loadedMiles,
+				weight: o.weight,
+				commodity: o.commodity,
+				special_requirements: o.specialRequirements,
+				notes: o.notes,
+				route: o.route ?? null,
+				drivers,
+			};
+		});
 
 		return {
 			results,
