@@ -611,6 +611,7 @@ export class OffersService {
 				success: true,
 				message: 'All selected drivers are already in the offer',
 				addedCount: 0,
+				addedDriverExternalIds: [] as string[],
 			};
 		}
 
@@ -643,6 +644,7 @@ export class OffersService {
 		return {
 			success: true,
 			addedCount: newExternalIds.length,
+			addedDriverExternalIds: newExternalIds,
 		};
 	}
 

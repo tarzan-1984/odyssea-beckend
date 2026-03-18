@@ -153,7 +153,12 @@ export class OffersController {
 	@ApiResponse({ status: 200, description: 'Offer deactivated successfully' })
 	@ApiResponse({ status: 404, description: 'Offer not found' })
 	async deactivateOffer(@Param('id', ParseIntPipe) id: number) {
-		return this.offersService.deactivateOffer(id);
+		const result = await this.offersService.deactivateOffer(id);
+		await this.offersRealtimeService.emitOfferUpdated(
+			id,
+			'offer_deactivated',
+		);
+		return result;
 	}
 
 	@Patch(':id/drivers/:driverExternalId')
@@ -176,7 +181,14 @@ export class OffersController {
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
 	) {
-		return this.offersService.removeDriverFromOffer(id, driverExternalId);
+		const result = await this.offersService.removeDriverFromOffer(
+			id,
+			driverExternalId,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(id, 'driver_removed', {
+			affectedExternalIds: [driverExternalId],
+		});
+		return result;
 	}
 
 	@Patch(':id/drivers')
@@ -194,7 +206,11 @@ export class OffersController {
 		@Param('id', ParseIntPipe) id: number,
 		@Body() dto: AddDriversToOfferDto,
 	) {
-		return this.offersService.addDriversToOffer(id, dto);
+		const result = await this.offersService.addDriversToOffer(id, dto);
+		await this.offersRealtimeService.emitOfferUpdated(id, 'drivers_added', {
+			affectedExternalIds: result.addedDriverExternalIds ?? [],
+		});
+		return result;
 	}
 
 	@Patch(':id/drivers/:driverExternalId/rate')
