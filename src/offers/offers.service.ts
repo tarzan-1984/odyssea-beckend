@@ -458,9 +458,6 @@ export class OffersService {
 		const rateOfferWhere: Prisma.RateOfferWhereInput = {
 			offerId: { in: offerIds },
 		};
-		if (!driverIdFilter) {
-			rateOfferWhere.active = true;
-		}
 		if (driverIdFilter) {
 			rateOfferWhere.driverId = driverIdFilter;
 		}
@@ -680,7 +677,7 @@ export class OffersService {
 
 	/**
 	 * Set active=false for the rate_offer row (offer_id + driver_id by externalId).
-	 * Driver will no longer appear in offer drivers list.
+	 * Driver remains in administrators list, but becomes inactive.
 	 */
 	async removeDriverFromOffer(offerId: number, driverExternalId: string) {
 		const updated = await this.prisma.rateOffer.updateMany({
@@ -696,5 +693,21 @@ export class OffersService {
 			);
 		}
 		return { success: true, message: 'Driver removed from offer' };
+	}
+
+	async returnDriverToOffer(offerId: number, driverExternalId: string) {
+		const updated = await this.prisma.rateOffer.updateMany({
+			where: {
+				offerId,
+				driverId: driverExternalId,
+			},
+			data: { active: true },
+		});
+		if (updated.count === 0) {
+			throw new NotFoundException(
+				`Rate offer not found for offer ${offerId} and driver ${driverExternalId}`,
+			);
+		}
+		return { success: true, message: 'Driver returned to offer' };
 	}
 }

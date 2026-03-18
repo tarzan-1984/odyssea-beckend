@@ -165,7 +165,7 @@ export class OffersController {
 	@ApiOperation({
 		summary: 'Deactivate driver in offer',
 		description:
-			'Sets active=false for the rate_offer row (offer_id + driver_id by externalId). Driver will no longer appear in offer drivers list.',
+			'Sets active=false for the rate_offer row (offer_id + driver_id by externalId). Driver remains in the list for administrators, but becomes inactive.',
 	})
 	@ApiParam({ name: 'id', description: 'Offer id' })
 	@ApiParam({
@@ -186,6 +186,36 @@ export class OffersController {
 			driverExternalId,
 		);
 		await this.offersRealtimeService.emitOfferUpdated(id, 'driver_removed', {
+			affectedExternalIds: [driverExternalId],
+		});
+		return result;
+	}
+
+	@Patch(':id/drivers/:driverExternalId/return')
+	@ApiOperation({
+		summary: 'Return driver to offer',
+		description:
+			'Sets active=true for the rate_offer row (offer_id + driver_id by externalId). Driver appears again as active in the offer drivers list.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Driver returned successfully',
+	})
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async returnDriverToOffer(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('driverExternalId') driverExternalId: string,
+	) {
+		const result = await this.offersService.returnDriverToOffer(
+			id,
+			driverExternalId,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(id, 'driver_returned', {
 			affectedExternalIds: [driverExternalId],
 		});
 		return result;
