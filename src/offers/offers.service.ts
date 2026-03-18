@@ -728,4 +728,75 @@ export class OffersService {
 		}
 		return { success: true, message: 'Driver returned to offer' };
 	}
+
+	async selectDriverForOffer(offerId: number, driverExternalId: string) {
+		const normalizedDriverExternalId = driverExternalId.trim();
+		if (!normalizedDriverExternalId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverExternalId is required'],
+			});
+		}
+
+		const offer = await this.prisma.offer.findUnique({
+			where: { id: offerId },
+			select: { id: true },
+		});
+		if (!offer) {
+			throw new NotFoundException(`Offer with id ${offerId} not found`);
+		}
+
+		const rateOffers = await this.prisma.rateOffer.findMany({
+			where: { offerId },
+			select: { id: true, driverId: true },
+		});
+		const selectedRateOffer = rateOffers.find(
+			(rateOffer) => rateOffer.driverId === normalizedDriverExternalId,
+		);
+		if (!selectedRateOffer) {
+			throw new NotFoundException(
+				`Rate offer not found for offer ${offerId} and driver ${normalizedDriverExternalId}`,
+			);
+		}
+
+		const nowNy = getNewYorkTimeString();
+		const affectedDriverExternalIds = rateOffers
+			.map((rateOffer) => String(rateOffer.driverId ?? '').trim())
+			.filter(Boolean);
+
+		await this.prisma.$transaction(async (tx) => {
+			await tx.rateOffer.updateMany({
+				where: {
+					offerId,
+					id: { not: selectedRateOffer.id },
+				},
+				data: {
+					active: false,
+					isSelected: false,
+				},
+			});
+
+			await tx.rateOffer.update({
+				where: { id: selectedRateOffer.id },
+				data: {
+					active: true,
+					isSelected: true,
+				},
+			});
+
+			await tx.offer.update({
+				where: { id: offerId },
+				data: {
+					isDriverSelected: true,
+					updateTime: nowNy,
+				},
+			});
+		});
+
+		return {
+			success: true,
+			message: 'Driver selected successfully',
+			affectedDriverExternalIds,
+		};
+	}
 }

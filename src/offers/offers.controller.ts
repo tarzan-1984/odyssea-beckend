@@ -221,6 +221,38 @@ export class OffersController {
 		return result;
 	}
 
+	@Patch(':id/drivers/:driverExternalId/select')
+	@ApiOperation({
+		summary: 'Select driver for offer',
+		description:
+			'Marks the specified driver as selected for the offer, deactivates the other offer drivers, and marks the offer as having a selected driver.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Driver selected successfully',
+	})
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async selectDriverForOffer(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('driverExternalId') driverExternalId: string,
+	) {
+		const result = await this.offersService.selectDriverForOffer(
+			id,
+			driverExternalId,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(
+			id,
+			'driver_selected',
+			{ affectedExternalIds: result.affectedDriverExternalIds },
+		);
+		return result;
+	}
+
 	@Patch(':id/drivers')
 	@ApiOperation({
 		summary: 'Add drivers to an offer',
