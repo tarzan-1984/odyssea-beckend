@@ -465,6 +465,7 @@ export class OffersService {
 			where: rateOfferWhere,
 			select: {
 				offerId: true,
+				driverId: true,
 				active: true,
 				rate: true,
 				actionTime: true,
@@ -502,16 +503,21 @@ export class OffersService {
 			}>
 		>();
 		for (const ro of rateOffersWithDriver) {
-			if (!ro.driver) continue;
 			const list = driversByOfferId.get(ro.offerId) ?? [];
+			const fallbackExternalId =
+				ro.driver?.externalId ?? ro.driverId ?? null;
+			const fallbackName =
+				!ro.driver && fallbackExternalId != null
+					? fallbackExternalId
+					: '';
 			list.push({
-				driver_id: ro.driver.id,
-				externalId: ro.driver.externalId,
-				firstName: ro.driver.firstName,
-				lastName: ro.driver.lastName,
-				email: ro.driver.email,
-				phone: ro.driver.phone ?? null,
-				status: ro.driver.status,
+				driver_id: ro.driver?.id ?? fallbackExternalId ?? '',
+				externalId: fallbackExternalId,
+				firstName: ro.driver?.firstName ?? fallbackName,
+				lastName: ro.driver?.lastName ?? '',
+				email: ro.driver?.email ?? '',
+				phone: ro.driver?.phone ?? null,
+				status: ro.driver?.status ?? 'INACTIVE',
 				active: ro.active,
 				rate: ro.rate ?? null,
 				action_time: ro.actionTime != null ? Number(ro.actionTime) : null,
