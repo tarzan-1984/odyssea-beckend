@@ -293,6 +293,7 @@ export class OffersService {
 			select: {
 				id: true,
 				active: true,
+				isDriverSelected: true,
 				externalUserId: true,
 				createTime: true,
 				updateTime: true,
@@ -369,6 +370,7 @@ export class OffersService {
 		const selectOffer = {
 			id: true,
 			active: true,
+			isDriverSelected: true,
 			externalUserId: true,
 			createTime: true,
 			updateTime: true,
@@ -439,6 +441,7 @@ export class OffersService {
 		offers: Array<{
 			id: number;
 			active: boolean;
+			isDriverSelected: boolean;
 			externalUserId: string | null;
 			createTime: string;
 			updateTime: string;
@@ -467,6 +470,7 @@ export class OffersService {
 				offerId: true,
 				driverId: true,
 				active: true,
+				isSelected: true,
 				rate: true,
 				actionTime: true,
 				emptyMiles: true,
@@ -495,6 +499,7 @@ export class OffersService {
 				phone: string | null;
 				status: string;
 				active: boolean;
+				is_selected: boolean;
 				rate: number | null;
 				action_time: number | null;
 				action_time_display: string | null;
@@ -519,6 +524,7 @@ export class OffersService {
 				phone: ro.driver?.phone ?? null,
 				status: ro.driver?.status ?? 'INACTIVE',
 				active: ro.active,
+				is_selected: ro.isSelected,
 				rate: ro.rate ?? null,
 				action_time: ro.actionTime != null ? Number(ro.actionTime) : null,
 				action_time_display: formatActionTimeUnixToNyString(ro.actionTime),
@@ -537,6 +543,7 @@ export class OffersService {
 			return {
 				id: o.id,
 				active: isActiveForRequestedDriver,
+				is_driver_selected: o.isDriverSelected,
 				external_user_id: o.externalUserId,
 				create_time: o.createTime,
 				update_time: o.updateTime,

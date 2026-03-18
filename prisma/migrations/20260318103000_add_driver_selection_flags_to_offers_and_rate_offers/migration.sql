@@ -1,0 +1,5 @@
+ALTER TABLE "offers"
+ADD COLUMN IF NOT EXISTS "is_driver_selected" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "rate_offers"
+ADD COLUMN IF NOT EXISTS "is_selected" BOOLEAN NOT NULL DEFAULT false;

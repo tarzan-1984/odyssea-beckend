@@ -133,6 +133,7 @@ model PushToken {
 model Offer {
   id                   Int          @id @default(autoincrement())
   active               Boolean      @default(true)
+  isDriverSelected     Boolean      @default(false) @map("is_driver_selected")
   externalUserId       String?      @map("external_user_id")
   createTime           String       @map("create_time")
   updateTime           String       @map("update_time")
@@ -156,6 +157,7 @@ model RateOffer {
   id         Int      @id @default(autoincrement())
   offerId    Int      @map("offer_id")
   driverId   String?  @map("driver_id")
+  isSelected Boolean  @default(false) @map("is_selected")
   rate       Float?
   actionTime BigInt?  @map("action_time")
   active     Boolean  @default(true)
