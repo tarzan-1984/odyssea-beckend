@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
@@ -69,9 +70,33 @@ function extendActionTimeUnix(
 	return baseUnixSeconds + BigInt(minutesToAdd * SECONDS_IN_MINUTE);
 }
 
+function getOfferTitleFromRoute(
+	route: unknown,
+	offerId: number,
+): string {
+	if (!Array.isArray(route) || route.length === 0) {
+		return `Offer #${offerId}`;
+	}
+
+	const points = route as Array<{ location?: unknown }>;
+	const firstLocation = String(points[0]?.location ?? '').trim();
+	const lastLocation = String(
+		points.length > 1 ? points[points.length - 1]?.location ?? '' : points[0]?.location ?? '',
+	).trim();
+
+	if (firstLocation && lastLocation) {
+		return `${firstLocation} → ${lastLocation}`;
+	}
+
+	return firstLocation || lastLocation || `Offer #${offerId}`;
+}
+
 @Injectable()
 export class OffersService {
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly notificationsService: NotificationsService,
+	) {}
 
 	async create(dto: CreateOfferDto) {
 		// Validate required and hidden fields before creating offer
@@ -122,7 +147,7 @@ export class OffersService {
 				: null;
 		const driverEmptyMiles = dto.driverEmptyMiles ?? {};
 
-		return this.prisma.$transaction(async (tx) => {
+		const offer = await this.prisma.$transaction(async (tx) => {
 			const offer = await tx.offer.create({
 				data: {
 					externalUserId: dto.externalId || null,
@@ -173,6 +198,35 @@ export class OffersService {
 
 			return offer;
 		});
+
+		if (driverIds.length > 0) {
+			const assignedUsers = await this.prisma.user.findMany({
+				where: {
+					externalId: { in: driverIds.map((driverId) => driverId.trim()).filter(Boolean) },
+				},
+				select: { id: true },
+			});
+			const offerTitle = getOfferTitleFromRoute(dto.route, offer.id);
+
+			await Promise.all(
+				assignedUsers.map((user) =>
+					this.notificationsService
+						.createOfferAddedNotification({
+							userId: user.id,
+							offerId: offer.id,
+							offerTitle,
+						})
+						.catch((error) => {
+							console.error(
+								`Failed to create new offer notification for user ${user.id}:`,
+								error,
+							);
+						}),
+				),
+			);
+		}
+
+		return offer;
 	}
 
 	/**
@@ -586,7 +640,7 @@ export class OffersService {
 
 		const offer = await this.prisma.offer.findUnique({
 			where: { id: offerId },
-			select: { id: true, drivers: true, updateTime: true },
+			select: { id: true, drivers: true, updateTime: true, route: true },
 		});
 		if (!offer) {
 			throw new NotFoundException(`Offer with id ${offerId} not found`);
@@ -663,6 +717,33 @@ export class OffersService {
 			});
 		});
 
+		if (newExternalIds.length > 0) {
+			const addedUsers = await this.prisma.user.findMany({
+				where: {
+					externalId: { in: newExternalIds },
+				},
+				select: { id: true },
+			});
+			const offerTitle = getOfferTitleFromRoute(offer.route, offer.id);
+
+			await Promise.all(
+				addedUsers.map((user) =>
+					this.notificationsService
+						.createOfferAddedNotification({
+							userId: user.id,
+							offerId: offer.id,
+							offerTitle,
+						})
+						.catch((error) => {
+							console.error(
+								`Failed to create added-to-offer notification for user ${user.id}:`,
+								error,
+							);
+						}),
+				),
+			);
+		}
+
 		return {
 			success: true,
 			addedCount: newExternalIds.length,
@@ -676,7 +757,7 @@ export class OffersService {
 	async deactivateOffer(offerId: number) {
 		const offer = await this.prisma.offer.findUnique({
 			where: { id: offerId },
-			select: { id: true },
+			select: { id: true, route: true },
 		});
 		if (!offer) {
 			throw new NotFoundException(`Offer with id ${offerId} not found`);
@@ -740,7 +821,7 @@ export class OffersService {
 
 		const offer = await this.prisma.offer.findUnique({
 			where: { id: offerId },
-			select: { id: true },
+			select: { id: true, route: true },
 		});
 		if (!offer) {
 			throw new NotFoundException(`Offer with id ${offerId} not found`);
@@ -792,6 +873,26 @@ export class OffersService {
 				},
 			});
 		});
+
+		const selectedUser = await this.prisma.user.findUnique({
+			where: { externalId: normalizedDriverExternalId },
+			select: { id: true },
+		});
+
+		if (selectedUser) {
+			try {
+				await this.notificationsService.createOfferSelectedNotification({
+					userId: selectedUser.id,
+					offerId,
+					offerTitle: getOfferTitleFromRoute(offer.route, offerId),
+				});
+			} catch (error) {
+				console.error(
+					`Failed to create selected driver notification for offer ${offerId}:`,
+					error,
+				);
+			}
+		}
 
 		return {
 			success: true,

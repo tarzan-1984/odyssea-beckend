@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsWebSocketService } from './notifications-websocket.service';
 import { Notification, User } from '@prisma/client';
+import { FcmPushService } from './fcm-push.service';
+import { ExpoPushService } from './expo-push.service';
 
 @Injectable()
 export class NotificationsService {
@@ -10,6 +12,8 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsWebSocketService: NotificationsWebSocketService,
+    private readonly fcmPushService: FcmPushService,
+    private readonly expoPushService: ExpoPushService,
   ) {}
 
   /**
@@ -75,6 +79,61 @@ export class NotificationsService {
       const firstInitial = words[0].charAt(0).toUpperCase();
       const secondInitial = words[1].charAt(0).toUpperCase();
       return firstInitial + secondInitial;
+    }
+  }
+
+  private async sendPushToUser(data: {
+    userId: string;
+    title: string;
+    body: string;
+    imageUrl?: string;
+    payload?: Record<string, string>;
+  }): Promise<void> {
+    try {
+      const tokens = await this.prisma.pushToken.findMany({
+        where: { userId: data.userId },
+        select: { token: true },
+      });
+      if (tokens.length === 0) return;
+
+      const allTokens = tokens.map((item) => item.token).filter(Boolean);
+      const fcmTokens: string[] = [];
+      const expoPushTokens: string[] = [];
+
+      for (const token of allTokens) {
+        if (token.startsWith('ExponentPushToken[')) {
+          expoPushTokens.push(token);
+        } else {
+          fcmTokens.push(token);
+        }
+      }
+
+      if (fcmTokens.length > 0) {
+        await this.fcmPushService.sendToTokens(fcmTokens, {
+          title: data.title,
+          body: data.body,
+          imageUrl: data.imageUrl,
+          data: data.payload,
+        });
+      }
+
+      if (expoPushTokens.length > 0) {
+        await this.expoPushService.send(
+          expoPushTokens.map((token) => ({
+            to: token,
+            title: data.title,
+            body: data.body,
+            data: data.payload,
+            sound: 'livechat.wav',
+            priority: 'high' as const,
+            ...(data.imageUrl ? { largeIcon: data.imageUrl } : {}),
+          })),
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to send push notification to user ${data.userId}: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -267,6 +326,72 @@ export class NotificationsService {
     }
     
     return notifications;
+  }
+
+  async createOfferSelectedNotification(data: {
+    userId: string;
+    offerId: number;
+    offerTitle: string;
+  }): Promise<Notification> {
+    const normalizedOfferTitle =
+      String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
+    const title = 'Offer Assignment Confirmed';
+    const message = `You have been selected for the offer "${normalizedOfferTitle}".`;
+    const avatar = this.generateChatInitials(normalizedOfferTitle);
+
+    const notification = await this.createNotification({
+      userId: data.userId,
+      title,
+      message,
+      type: 'offer_selected',
+      avatar,
+    });
+
+    await this.sendPushToUser({
+      userId: data.userId,
+      title,
+      body: message,
+      payload: {
+        type: 'offer_selected',
+        offerId: String(data.offerId),
+        offerTitle: normalizedOfferTitle,
+      },
+    });
+
+    return notification;
+  }
+
+  async createOfferAddedNotification(data: {
+    userId: string;
+    offerId: number;
+    offerTitle: string;
+  }): Promise<Notification> {
+    const normalizedOfferTitle =
+      String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
+    const title = 'Offer Assignment';
+    const message = `You have been added to the offer "${normalizedOfferTitle}".`;
+    const avatar = this.generateChatInitials(normalizedOfferTitle);
+
+    const notification = await this.createNotification({
+      userId: data.userId,
+      title,
+      message,
+      type: 'offer_added',
+      avatar,
+    });
+
+    await this.sendPushToUser({
+      userId: data.userId,
+      title,
+      body: message,
+      payload: {
+        type: 'offer_added',
+        offerId: String(data.offerId),
+        offerTitle: normalizedOfferTitle,
+      },
+    });
+
+    return notification;
   }
 
   /**
