@@ -75,11 +75,11 @@ export class GetOffersQueryDto {
 
 	@ApiPropertyOptional({
 		description:
-			'Filter by offer active status: active = offers with active=true, inactive = offers with active=false',
+			'Filter by offer status: active = active and not assigned, assigned = is_driver_selected=true, inactive = active=false',
 		example: 'active',
-		enum: ['active', 'inactive'],
+		enum: ['active', 'inactive', 'assigned'],
 	})
 	@IsOptional()
-	@IsIn(['active', 'inactive'])
-	status?: 'active' | 'inactive';
+	@IsIn(['active', 'inactive', 'assigned'])
+	status?: 'active' | 'inactive' | 'assigned';
 }

@@ -417,8 +417,11 @@ export class OffersService {
 		}
 		if (dto.status === 'active') {
 			where.active = true;
+			where.isDriverSelected = false;
 		} else if (dto.status === 'inactive') {
 			where.active = false;
+		} else if (dto.status === 'assigned') {
+			where.isDriverSelected = true;
 		}
 
 		const selectOffer = {
