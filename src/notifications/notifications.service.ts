@@ -328,6 +328,84 @@ export class NotificationsService {
     return notifications;
   }
 
+  /**
+   * Create notification when driver makes a bid on an offer.
+   * Creates DB record + sends via WebSocket.
+   */
+  async createOfferBidNotification(data: {
+    userId: string;
+    offerId: number;
+    offerTitle: string;
+    driverName: string;
+    driverAvatar?: string | null;
+  }): Promise<Notification> {
+    const title = data.driverName;
+    const message = `made a bid on offer "${data.offerTitle}"`;
+    const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
+
+    const notification = await this.createNotification({
+      userId: data.userId,
+      title,
+      message,
+      type: 'offer_bid',
+      avatar,
+    });
+
+    return notification;
+  }
+
+  /**
+   * Create notification when driver refuses an offer.
+   * Creates DB record + sends via WebSocket.
+   */
+  async createOfferRefusedNotification(data: {
+    userId: string;
+    offerId: number;
+    offerTitle: string;
+    driverName: string;
+    driverAvatar?: string | null;
+  }): Promise<Notification> {
+    const title = data.driverName;
+    const message = `refused offer "${data.offerTitle}"`;
+    const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
+
+    const notification = await this.createNotification({
+      userId: data.userId,
+      title,
+      message,
+      type: 'offer_refused',
+      avatar,
+    });
+
+    return notification;
+  }
+
+  /**
+   * Create notification when driver extends bid time on an offer.
+   * Creates DB record + sends via WebSocket.
+   */
+  async createOfferExtendTimeNotification(data: {
+    userId: string;
+    offerId: number;
+    offerTitle: string;
+    driverName: string;
+    driverAvatar?: string | null;
+  }): Promise<Notification> {
+    const title = data.driverName;
+    const message = `extended bid time on offer "${data.offerTitle}"`;
+    const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
+
+    const notification = await this.createNotification({
+      userId: data.userId,
+      title,
+      message,
+      type: 'offer_extend_time',
+      avatar,
+    });
+
+    return notification;
+  }
+
   async createOfferSelectedNotification(data: {
     userId: string;
     offerId: number;

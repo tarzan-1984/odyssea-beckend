@@ -4,6 +4,8 @@ import { NotificationsWebSocketService } from '../notifications/notifications-we
 
 interface EmitOfferUpdatedOptions {
 	affectedExternalIds?: Array<string | null | undefined>;
+	/** Internal user ID of the user who triggered the action (ensures they receive the event) */
+	requestingUserId?: string;
 }
 
 @Injectable()
@@ -18,6 +20,7 @@ export class OffersRealtimeService {
 	private async resolveOfferRooms(
 		offerId: number,
 		affectedExternalIds: Array<string | null | undefined> = [],
+		requestingUserId?: string,
 	): Promise<string[]> {
 		const offer = await this.prisma.offer.findUnique({
 			where: { id: offerId },
@@ -51,6 +54,10 @@ export class OffersRealtimeService {
 		}
 
 		const rooms = new Set<string>(['role_ADMINISTRATOR']);
+
+		if (requestingUserId && String(requestingUserId).trim()) {
+			rooms.add(`user_${requestingUserId.trim()}`);
+		}
 
 		if (externalIds.size > 0) {
 			const users = await this.prisma.user.findMany({
@@ -88,6 +95,7 @@ export class OffersRealtimeService {
 		const rooms = await this.resolveOfferRooms(
 			offerId,
 			options.affectedExternalIds ?? [],
+			options.requestingUserId,
 		);
 
 		server.to(rooms).emit('offerUpdated', {

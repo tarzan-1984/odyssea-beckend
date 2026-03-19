@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OffersService } from './offers.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ChatRoomsService } from '../chats/chat-rooms.service';
 import { ChatGateway } from '../chats/chat.gateway';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -52,6 +53,7 @@ function getRouteEndpoints(route: Array<{ location?: string }> | undefined): {
 export class OffersController {
 	constructor(
 		private readonly offersService: OffersService,
+		private readonly notificationsService: NotificationsService,
 		private readonly chatRoomsService: ChatRoomsService,
 		private readonly chatGateway: ChatGateway,
 		private readonly offersRealtimeService: OffersRealtimeService,
@@ -152,12 +154,14 @@ export class OffersController {
 	@ApiParam({ name: 'id', description: 'Offer id' })
 	@ApiResponse({ status: 200, description: 'Offer deactivated successfully' })
 	@ApiResponse({ status: 404, description: 'Offer not found' })
-	async deactivateOffer(@Param('id', ParseIntPipe) id: number) {
+	async deactivateOffer(
+		@Param('id', ParseIntPipe) id: number,
+		@Request() req: { user: { id: string } },
+	) {
 		const result = await this.offersService.deactivateOffer(id);
-		await this.offersRealtimeService.emitOfferUpdated(
-			id,
-			'offer_deactivated',
-		);
+		await this.offersRealtimeService.emitOfferUpdated(id, 'offer_deactivated', {
+			requestingUserId: req.user?.id,
+		});
 		return result;
 	}
 
@@ -180,6 +184,7 @@ export class OffersController {
 	async removeDriverFromOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
+		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.removeDriverFromOffer(
 			id,
@@ -187,7 +192,19 @@ export class OffersController {
 		);
 		await this.offersRealtimeService.emitOfferUpdated(id, 'driver_removed', {
 			affectedExternalIds: [driverExternalId],
+			requestingUserId: req.user?.id,
 		});
+		const ctx = await this.offersService.getOfferNotificationContext(id, driverExternalId);
+		if (ctx) {
+			const payload = { offerId: id, offerTitle: ctx.offerTitle, driverName: ctx.driverName, driverAvatar: ctx.driverAvatar };
+			await Promise.all(
+				ctx.recipientUserIds.map((userId) =>
+					this.notificationsService
+						.createOfferRefusedNotification({ userId, ...payload })
+						.catch((err) => console.error(`Failed to send offer_declined notification to ${userId}:`, err)),
+				),
+			);
+		}
 		return result;
 	}
 
@@ -210,6 +227,7 @@ export class OffersController {
 	async returnDriverToOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
+		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.returnDriverToOffer(
 			id,
@@ -217,6 +235,7 @@ export class OffersController {
 		);
 		await this.offersRealtimeService.emitOfferUpdated(id, 'driver_returned', {
 			affectedExternalIds: [driverExternalId],
+			requestingUserId: req.user?.id,
 		});
 		return result;
 	}
@@ -240,6 +259,7 @@ export class OffersController {
 	async selectDriverForOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
+		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.selectDriverForOffer(
 			id,
@@ -248,7 +268,10 @@ export class OffersController {
 		await this.offersRealtimeService.emitOfferUpdated(
 			id,
 			'driver_selected',
-			{ affectedExternalIds: result.affectedDriverExternalIds },
+			{
+				affectedExternalIds: result.affectedDriverExternalIds,
+				requestingUserId: req.user?.id,
+			},
 		);
 		return result;
 	}
@@ -267,10 +290,12 @@ export class OffersController {
 	async addDriversToOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Body() dto: AddDriversToOfferDto,
+		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.addDriversToOffer(id, dto);
 		await this.offersRealtimeService.emitOfferUpdated(id, 'drivers_added', {
 			affectedExternalIds: result.addedDriverExternalIds ?? [],
+			requestingUserId: req.user?.id,
 		});
 		return result;
 	}
@@ -297,6 +322,7 @@ export class OffersController {
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
 		@Body() dto: SetDriverRateDto,
+		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.setDriverRate(
 			id,
@@ -306,8 +332,22 @@ export class OffersController {
 		await this.offersRealtimeService.emitOfferUpdated(
 			id,
 			'driver_rate_updated',
-			{ affectedExternalIds: [driverExternalId] },
+			{
+				affectedExternalIds: [driverExternalId],
+				requestingUserId: req.user?.id,
+			},
 		);
+		const ctx = await this.offersService.getOfferNotificationContext(id, driverExternalId);
+		if (ctx) {
+			const payload = { offerId: id, offerTitle: ctx.offerTitle, driverName: ctx.driverName, driverAvatar: ctx.driverAvatar };
+			await Promise.all(
+				ctx.recipientUserIds.map((userId) =>
+					this.notificationsService
+						.createOfferBidNotification({ userId, ...payload })
+						.catch((err) => console.error(`Failed to send offer_bid notification to ${userId}:`, err)),
+				),
+			);
+		}
 		return result;
 	}
 
@@ -336,6 +376,7 @@ export class OffersController {
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
 		@Body() dto: ExtendDriverTimeDto,
+		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.extendDriverTime(
 			id,
@@ -345,8 +386,22 @@ export class OffersController {
 		await this.offersRealtimeService.emitOfferUpdated(
 			id,
 			'bid_time_extended',
-			{ affectedExternalIds: [driverExternalId] },
+			{
+				affectedExternalIds: [driverExternalId],
+				requestingUserId: req.user?.id,
+			},
 		);
+		const ctx = await this.offersService.getOfferNotificationContext(id, driverExternalId);
+		if (ctx) {
+			const payload = { offerId: id, offerTitle: ctx.offerTitle, driverName: ctx.driverName, driverAvatar: ctx.driverAvatar };
+			await Promise.all(
+				ctx.recipientUserIds.map((userId) =>
+					this.notificationsService
+						.createOfferExtendTimeNotification({ userId, ...payload })
+						.catch((err) => console.error(`Failed to send offer_extended notification to ${userId}:`, err)),
+				),
+			);
+		}
 		return result;
 	}
 }

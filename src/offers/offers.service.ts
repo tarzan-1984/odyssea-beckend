@@ -791,7 +791,63 @@ export class OffersService {
 				`Rate offer not found for offer ${offerId} and driver ${driverExternalId}`,
 			);
 		}
+
 		return { success: true, message: 'Driver removed from offer' };
+	}
+
+	/**
+	 * Get offer notification context for creator and admins.
+	 * Returns recipient user IDs (creator + admins, deduplicated), offer title, and driver info.
+	 */
+	async getOfferNotificationContext(
+		offerId: number,
+		driverExternalId: string,
+	): Promise<{
+		recipientUserIds: string[];
+		offerTitle: string;
+		driverName: string;
+		driverAvatar: string | null;
+	} | null> {
+		const offer = await this.prisma.offer.findUnique({
+			where: { id: offerId },
+			select: { externalUserId: true, route: true },
+		});
+		if (!offer) return null;
+
+		const driver = await this.prisma.user.findUnique({
+			where: { externalId: driverExternalId },
+			select: { firstName: true, lastName: true, profilePhoto: true },
+		});
+		const driverName = driver
+			? `${driver.firstName} ${driver.lastName}`.trim() || 'Driver'
+			: 'Driver';
+		const driverAvatar = driver?.profilePhoto ?? null;
+		const offerTitle = getOfferTitleFromRoute(offer.route, offerId);
+
+		const recipientIds = new Set<string>();
+
+		if (offer.externalUserId) {
+			const creator = await this.prisma.user.findUnique({
+				where: { externalId: offer.externalUserId },
+				select: { id: true },
+			});
+			if (creator) recipientIds.add(creator.id);
+		}
+
+		const admins = await this.prisma.user.findMany({
+			where: { role: 'ADMINISTRATOR' },
+			select: { id: true },
+		});
+		if (admins.length > 0) {
+			admins.forEach((a) => recipientIds.add(a.id));
+		}
+
+		return {
+			recipientUserIds: Array.from(recipientIds),
+			offerTitle,
+			driverName,
+			driverAvatar,
+		};
 	}
 
 	async returnDriverToOffer(offerId: number, driverExternalId: string) {
