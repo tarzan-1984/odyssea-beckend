@@ -88,6 +88,19 @@ export class OffersController {
 		return this.offersService.findAllPaginated(query);
 	}
 
+	@Get('driver-participation-count')
+	@ApiOperation({
+		summary: 'Get driver participation count',
+		description:
+			'Returns count of offers where the authenticated driver has placed a bid (rate set) but is not yet selected. Used for participation limit (max 2) in mobile app. Only counts active offers and active driver entries.',
+	})
+	@ApiResponse({ status: 200, description: 'Participation count' })
+	async getDriverParticipationCount(
+		@Request() req: { user: { id: string } },
+	) {
+		return this.offersService.getDriverParticipationCount(req.user?.id ?? '');
+	}
+
 	@Get(':id')
 	@ApiOperation({
 		summary: 'Get one offer by id',

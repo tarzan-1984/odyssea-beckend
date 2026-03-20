@@ -381,6 +381,34 @@ export class OffersService {
 	 * Get offers with pagination, optional filters (is_expired, user_id), and drivers from users.
 	 * action_time comparison uses current Unix time.
 	 */
+	/**
+	 * Count offers where the driver participates (rate set, not selected).
+	 * Only counts active offers (offer.active=true) with active driver (rate_offer.active=true).
+	 * Used for participation limit (max 2) in mobile app.
+	 */
+	async getDriverParticipationCount(userId: string): Promise<{ count: number }> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		const driverExternalId = user?.externalId?.trim();
+		if (!driverExternalId) {
+			return { count: 0 };
+		}
+
+		const count = await this.prisma.rateOffer.count({
+			where: {
+				driverId: driverExternalId,
+				rate: { not: null },
+				isSelected: false,
+				active: true,
+				offer: { active: true },
+			},
+		});
+
+		return { count };
+	}
+
 	async findAllPaginated(dto: GetOffersQueryDto) {
 		const page = Math.max(1, Number(dto.page) || 1);
 		const limit = Math.max(1, Math.min(100, Number(dto.limit) || 10));
