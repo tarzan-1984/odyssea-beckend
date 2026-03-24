@@ -71,7 +71,9 @@ export class ChatRoomsService {
 			}
 		}
 
-		// Check if direct chat already exists between these users
+		// Check if direct chat already exists between these users.
+		// For OFFER chats: we intentionally allow multiple chats with the same user (one per offer).
+		// Each offer needs its own chat with each driver, so we never check for existing OFFER chats.
 		if (type === 'DIRECT') {
 			const existingDirectChat = await this.findDirectChat(
 				participantIds[0],

@@ -306,6 +306,25 @@ export class OffersController {
 		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.addDriversToOffer(id, dto);
+		// Create OFFER chats for newly added drivers (same as when creating a new offer)
+		if (
+			result.addedDriverExternalIds &&
+			result.addedDriverExternalIds.length > 0 &&
+			result.route
+		) {
+			const { pickUp, delivery } = getRouteEndpoints(result.route);
+			const createdChats =
+				await this.chatRoomsService.createOfferChatsForNewOffer(
+					id,
+					req.user.id,
+					result.addedDriverExternalIds,
+					pickUp,
+					delivery,
+				);
+			for (const { chatRoom, participantIds } of createdChats) {
+				this.chatGateway.notifyChatRoomCreated(chatRoom, participantIds);
+			}
+		}
 		await this.offersRealtimeService.emitOfferUpdated(id, 'drivers_added', {
 			affectedExternalIds: result.addedDriverExternalIds ?? [],
 			requestingUserId: req.user?.id,

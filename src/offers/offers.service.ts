@@ -775,11 +775,20 @@ export class OffersService {
 			);
 		}
 
-		return {
+		const result: {
+			success: boolean;
+			addedCount: number;
+			addedDriverExternalIds: string[];
+			route?: Array<{ location?: string }>;
+		} = {
 			success: true,
 			addedCount: newExternalIds.length,
 			addedDriverExternalIds: newExternalIds,
 		};
+		if (newExternalIds.length > 0 && offer.route) {
+			result.route = offer.route as Array<{ location?: string }>;
+		}
+		return result;
 	}
 
 	/**

@@ -34,6 +34,7 @@ export interface MailerConfig {
 
 export interface ExternalApiConfig {
 	apiKey: string | undefined;
+	tmsApiKey: string | undefined;
 }
 
 export const databaseConfig = registerAs(
@@ -43,25 +44,22 @@ export const databaseConfig = registerAs(
 	}),
 );
 
-export const appConfig = registerAs(
-	'app',
-	(): AppConfig => {
-		// Temporary diagnostic logging
-		console.log('DIAGNOSTIC - env.config.ts loading:');
-		console.log('process.env.FRONTEND_URL:', process.env.FRONTEND_URL);
-		console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
-		
-		const config = {
-			port: process.env.PORT ? parseInt(process.env.PORT, 10) : undefined,
-			nodeEnv: process.env.NODE_ENV,
-			apiPrefix: process.env.API_PREFIX,
-			frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
-		};
-		
-		console.log('Final app config:', config);
-		return config;
-	},
-);
+export const appConfig = registerAs('app', (): AppConfig => {
+	// Temporary diagnostic logging
+	console.log('DIAGNOSTIC - env.config.ts loading:');
+	console.log('process.env.FRONTEND_URL:', process.env.FRONTEND_URL);
+	console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
+
+	const config = {
+		port: process.env.PORT ? parseInt(process.env.PORT, 10) : undefined,
+		nodeEnv: process.env.NODE_ENV,
+		apiPrefix: process.env.API_PREFIX,
+		frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+	};
+
+	console.log('Final app config:', config);
+	return config;
+});
 
 export const jwtConfig = registerAs(
 	'jwt',
@@ -97,5 +95,6 @@ export const externalApiConfig = registerAs(
 	'externalApi',
 	(): ExternalApiConfig => ({
 		apiKey: process.env.EXTERNAL_API_KEY,
+		tmsApiKey: process.env.TMS_API_KEY || 'tms_api_key_2024_driver_access',
 	}),
 );
