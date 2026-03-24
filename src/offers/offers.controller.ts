@@ -310,6 +310,7 @@ export class OffersController {
 		if (
 			result.addedDriverExternalIds &&
 			result.addedDriverExternalIds.length > 0 &&
+			'route' in result &&
 			result.route
 		) {
 			const { pickUp, delivery } = getRouteEndpoints(result.route);
