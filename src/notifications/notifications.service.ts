@@ -339,8 +339,10 @@ export class NotificationsService {
     driverName: string;
     driverAvatar?: string | null;
   }): Promise<Notification> {
-    const title = data.driverName;
-    const message = `made a bid on offer "${data.offerTitle}"`;
+    const normalizedOfferTitle =
+      String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
+    const title = 'New offer bid';
+    const message = `${data.driverName} placed a bid for offer "${normalizedOfferTitle}".`;
     const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
 
     const notification = await this.createNotification({
@@ -349,6 +351,17 @@ export class NotificationsService {
       message,
       type: 'offer_bid',
       avatar,
+    });
+
+    await this.sendPushToUser({
+      userId: data.userId,
+      title,
+      body: message,
+      payload: {
+        type: 'offer_bid',
+        offerId: String(data.offerId),
+        offerTitle: normalizedOfferTitle,
+      },
     });
 
     return notification;
@@ -365,8 +378,10 @@ export class NotificationsService {
     driverName: string;
     driverAvatar?: string | null;
   }): Promise<Notification> {
-    const title = data.driverName;
-    const message = `refused offer "${data.offerTitle}"`;
+    const normalizedOfferTitle =
+      String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
+    const title = 'Offer declined';
+    const message = `${data.driverName} declined the offer "${normalizedOfferTitle}".`;
     const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
 
     const notification = await this.createNotification({
@@ -375,6 +390,17 @@ export class NotificationsService {
       message,
       type: 'offer_refused',
       avatar,
+    });
+
+    await this.sendPushToUser({
+      userId: data.userId,
+      title,
+      body: message,
+      payload: {
+        type: 'offer_refused',
+        offerId: String(data.offerId),
+        offerTitle: normalizedOfferTitle,
+      },
     });
 
     return notification;

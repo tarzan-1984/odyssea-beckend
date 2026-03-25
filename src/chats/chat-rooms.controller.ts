@@ -3,6 +3,7 @@ import {
 	Get,
 	Post,
 	Put,
+	Patch,
 	Delete,
 	Body,
 	Param,
@@ -23,6 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ChatRoomsService } from './chat-rooms.service';
+import { MessagesService } from './messages.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { AuthenticatedRequest } from '../types/request.types';
@@ -35,8 +37,29 @@ import { ChatGateway } from './chat.gateway';
 export class ChatRoomsController {
 	constructor(
 		private readonly chatRoomsService: ChatRoomsService,
+		private readonly messagesService: MessagesService,
 		@Inject(ChatGateway) private readonly chatGateway: ChatGateway,
 	) {}
+
+	@Patch(':id/read')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Mark all messages in chat room as read',
+		description:
+			'Marks all unread messages in the chat room as read for the authenticated user. Works for DIRECT, GROUP, LOAD, and OFFER chats.',
+	})
+	@ApiParam({ name: 'id', description: 'Chat room ID' })
+	@ApiResponse({ status: 200, description: 'Messages marked as read' })
+	@ApiResponse({ status: 401, description: 'Unauthorized' })
+	@ApiResponse({ status: 404, description: 'Chat room not found or access denied' })
+	async markChatRoomAsRead(
+		@Param('id') id: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		await this.messagesService.markMessagesAsRead(id, userId);
+		return { success: true };
+	}
 
 	@Post()
 	@ApiOperation({

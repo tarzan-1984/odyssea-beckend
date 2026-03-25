@@ -568,15 +568,16 @@ export class ChatGateway
 			userId,
 		);
 
-		// Notify all participants (including sender for UI update, and other participants for read receipts)
+		// Always notify the requesting client so unread UI can sync even when nothing
+		// changed in DB (already in readBy) — otherwise the frontend keeps a stale count.
+		client.emit('messagesMarkedAsRead', {
+			chatRoomId,
+			messageIds: updatedMessageIds,
+			userId,
+		});
+
+		// Other participants only need updates when read receipts actually changed
 		if (updatedMessageIds.length > 0) {
-			// Emit to the client who requested
-			client.emit('messagesMarkedAsRead', {
-				chatRoomId,
-				messageIds: updatedMessageIds,
-				userId,
-			});
-			// Also emit to all other participants
 			client.to(`chat_${chatRoomId}`).emit('messagesMarkedAsRead', {
 				chatRoomId,
 				messageIds: updatedMessageIds,

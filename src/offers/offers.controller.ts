@@ -142,6 +142,11 @@ export class OffersController {
 		@Request() req: { user: { id: string } },
 	) {
 		const offer = await this.offersService.create(dto);
+		// Real-time refresh for admins + affected drivers (same pattern as other offer mutations)
+		await this.offersRealtimeService.emitOfferUpdated(offer.id, 'offer_created', {
+			affectedExternalIds: dto.driverIds ?? [],
+			requestingUserId: req.user.id,
+		});
 		const { pickUp, delivery } = getRouteEndpoints(dto.route);
 		// Create OFFER chats for each ACTIVE driver
 		const createdChats =
