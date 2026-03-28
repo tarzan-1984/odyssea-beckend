@@ -206,8 +206,7 @@ export class UsersService {
 	}
 
 	/**
-	 * Gets driver status for a user by ID
-	 * Returns only driverStatus field for DRIVER role users
+	 * Gets driver profile fields for mobile sync (DRIVER role only).
 	 */
 	async getDriverStatus(id: string) {
 		const user = await this.prisma.user.findUnique({
@@ -216,6 +215,11 @@ export class UsersService {
 				id: true,
 				role: true,
 				driverStatus: true,
+				zip: true,
+				city: true,
+				state: true,
+				location: true,
+				statusDate: true,
 			},
 		});
 
@@ -229,7 +233,12 @@ export class UsersService {
 		}
 
 		return {
-			driverStatus: user.driverStatus || null,
+			driverStatus: user.driverStatus ?? null,
+			zip: user.zip ?? null,
+			city: user.city ?? null,
+			state: user.state ?? null,
+			location: user.location ?? null,
+			statusDate: user.statusDate ?? null,
 		};
 	}
 
@@ -573,6 +582,7 @@ export class UsersService {
 			vehicle_type,
 			vin,
 			driver_status,
+			status_date,
 			current_location,
 			current_city,
 			current_zipcode,
@@ -649,7 +659,8 @@ export class UsersService {
 			role: mappedRole,
 			vin,
 			type: vehicle_type,
-			driverStatus: driver_status || null,
+			driverStatus: driver_status ?? null,
+			statusDate: status_date ?? null,
 			latitude: parseCoordinate(latitude),
 			longitude: parseCoordinate(longitude),
 			company: normalizeCompany(permission_view),
@@ -702,13 +713,57 @@ export class UsersService {
 				throw new NotFoundException('Driver not found');
 			}
 
-			// Check if driverStatus has changed
 			const oldDriverStatus = existingUser.driverStatus;
-			const newDriverStatus = driver_status || null;
+
+			// Partial update: only set fields present in the webhook payload so we do not
+			// wipe driverStatus/zip/etc. when TMS omits them (was: driver_status || null).
+			const updateData: Prisma.UserUpdateInput = {
+				email: driver_email,
+				firstName,
+				lastName,
+			};
+
+			if (driver_phone !== undefined) {
+				updateData.phone = driver_phone || null;
+			}
+			if (driver_status !== undefined) {
+				updateData.driverStatus = driver_status || null;
+			}
+			if (status_date !== undefined) {
+				updateData.statusDate = status_date || null;
+			}
+			if (
+				home_location !== undefined ||
+				current_location !== undefined
+			) {
+				const loc = current_location ?? home_location;
+				updateData.location = loc ?? null;
+			}
+			if (current_city !== undefined) {
+				updateData.city = current_city || null;
+			}
+			if (current_zipcode !== undefined) {
+				updateData.zip = extractZipCode(current_zipcode);
+			}
+			if (vehicle_type !== undefined) {
+				updateData.type = vehicle_type || null;
+			}
+			if (vin !== undefined) {
+				updateData.vin = vin || null;
+			}
+			if (latitude !== undefined) {
+				updateData.latitude = parseCoordinate(latitude);
+			}
+			if (longitude !== undefined) {
+				updateData.longitude = parseCoordinate(longitude);
+			}
+			if (permission_view !== undefined) {
+				updateData.company = normalizeCompany(permission_view);
+			}
 
 			const updatedUser = await this.prisma.user.update({
 				where: { id: existingUser.id },
-				data: userData as Prisma.UserUncheckedUpdateInput,
+				data: updateData,
 				select: {
 					id: true,
 					externalId: true,
@@ -725,10 +780,24 @@ export class UsersService {
 					status: true,
 					createdAt: true,
 					updatedAt: true,
+					driverStatus: true,
+					statusDate: true,
 				},
 			});
 
-			// Send WebSocket notification if driverStatus changed
+			await this.notificationsWebSocketService.sendDriverProfileSync(
+				existingUser.id,
+				{
+					driverStatus: updatedUser.driverStatus ?? null,
+					zip: updatedUser.zip ?? null,
+					city: updatedUser.city ?? null,
+					state: updatedUser.state ?? null,
+					location: updatedUser.location ?? null,
+					statusDate: updatedUser.statusDate ?? null,
+				},
+			);
+
+			const newDriverStatus = updatedUser.driverStatus ?? null;
 			if (oldDriverStatus !== newDriverStatus) {
 				await this.notificationsWebSocketService.sendDriverStatusUpdate(
 					existingUser.id,

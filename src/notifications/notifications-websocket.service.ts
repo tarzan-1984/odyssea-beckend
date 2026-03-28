@@ -136,4 +136,37 @@ export class NotificationsWebSocketService {
 			);
 		}
 	}
+
+	/**
+	 * Full driver profile fields after TMS/webhook sync (mobile uses this to refresh UI + TMS payload).
+	 */
+	async sendDriverProfileSync(
+		userId: string,
+		payload: {
+			driverStatus: string | null;
+			zip: string | null;
+			city: string | null;
+			state: string | null;
+			location: string | null;
+			statusDate: string | null;
+		},
+	) {
+		try {
+			if (!this.server) {
+				this.logger.warn('WebSocket server not initialized');
+				return;
+			}
+
+			this.server.to(`user_${userId}`).emit('driverProfileSync', payload);
+
+			this.logger.log(
+				`Driver profile sync sent to user ${userId}: status=${payload.driverStatus || 'null'}`,
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to send driver profile sync to user ${userId}:`,
+				error,
+			);
+		}
+	}
 }
