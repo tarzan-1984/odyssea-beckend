@@ -16,6 +16,7 @@ import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import { AxiosError } from '../types/request.types';
 import { generateRandomPassword } from '../helpers/helper';
+import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 
 export interface JwtPayload {
 	sub: string;
@@ -57,6 +58,7 @@ export class AuthService {
 		private readonly jwtService: JwtService,
 		private readonly mailerService: MailerService,
 		private readonly configService: ConfigService,
+		private readonly tmsDriverApplication: TmsDriverApplicationService,
 	) {}
 
 	async handleGoogleCallback(code: string) {
@@ -726,6 +728,7 @@ export class AuthService {
 				status: true,
 				driverStatus: true,
 				password: true,
+				externalId: true,
 			},
 		});
 
@@ -798,6 +801,16 @@ export class AuthService {
 				console.log(
 					`User ${user.email} status updated from ${user.status} to ${updatedUser.status}`,
 				);
+
+				if (
+					user.role === UserRole.DRIVER &&
+					user.externalId &&
+					user.externalId.trim() !== ''
+				) {
+					void this.tmsDriverApplication.notifyDriverApplicationActivated(
+						user.externalId,
+					);
+				}
 			}
 
 			// Return redirect URL to password login page

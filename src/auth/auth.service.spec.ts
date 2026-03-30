@@ -11,6 +11,7 @@ import { MailerService } from '../mailer/mailer.service';
 import { UserRole, UserStatus } from '@prisma/client';
 import { SocialProvider } from './dto/social-login.dto';
 import { ConfigService } from '@nestjs/config';
+import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 
 describe('AuthService', () => {
 	let service: AuthService;
@@ -51,6 +52,10 @@ describe('AuthService', () => {
 		sendMail: jest.fn(),
 	};
 
+	const mockTmsDriverApplicationService = {
+		notifyDriverApplicationActivated: jest.fn().mockResolvedValue(undefined),
+	};
+
 	beforeEach(async () => {
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
@@ -80,6 +85,10 @@ describe('AuthService', () => {
 							return config[key];
 						}),
 					},
+				},
+				{
+					provide: TmsDriverApplicationService,
+					useValue: mockTmsDriverApplicationService,
 				},
 			],
 		}).compile();

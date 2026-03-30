@@ -16,6 +16,7 @@ import {
 } from './dto/webhook-sync.dto';
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
+import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 
 @Injectable()
 export class UsersService {
@@ -23,6 +24,7 @@ export class UsersService {
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly mailerService: MailerService,
+		private readonly tmsDriverApplication: TmsDriverApplicationService,
 	) {}
 
 	/**
@@ -483,6 +485,8 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
+		const wasActive = user.status === UserStatus.ACTIVE;
+
 		const updatedUser = await this.prisma.user.update({
 			where: { id },
 			data: { status },
@@ -496,6 +500,18 @@ export class UsersService {
 				status: true,
 			},
 		});
+
+		if (
+			status === UserStatus.ACTIVE &&
+			!wasActive &&
+			user.role === UserRole.DRIVER &&
+			user.externalId &&
+			user.externalId.trim() !== ''
+		) {
+			void this.tmsDriverApplication.notifyDriverApplicationActivated(
+				user.externalId,
+			);
+		}
 
 		return updatedUser;
 	}

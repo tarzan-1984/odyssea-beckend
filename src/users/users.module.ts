@@ -9,9 +9,10 @@ import { ImportUsersService } from './services/import-users.service';
 import { ImportUsersBackgroundService } from './services/import-users-background.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { TmsModule } from '../tms/tms.module';
 
 @Module({
-	imports: [PrismaModule, ConfigModule, NotificationsModule],
+	imports: [PrismaModule, ConfigModule, NotificationsModule, TmsModule],
 	controllers: [UsersController, SyncController],
 	providers: [
 		UsersService,
