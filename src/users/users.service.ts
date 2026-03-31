@@ -3,6 +3,8 @@ import {
 	NotFoundException,
 	BadRequestException,
 	ConflictException,
+	HttpException,
+	HttpStatus,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +19,7 @@ import {
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
+import { TmsDriverLocationService } from '../tms/tms-driver-location.service';
 
 @Injectable()
 export class UsersService {
@@ -25,6 +28,7 @@ export class UsersService {
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly mailerService: MailerService,
 		private readonly tmsDriverApplication: TmsDriverApplicationService,
+		private readonly tmsDriverLocation: TmsDriverLocationService,
 	) {}
 
 	/**
@@ -398,7 +402,41 @@ export class UsersService {
 	}
 
 	/**
-	 * Updates only user location-related fields (for mobile location tracking)
+	 * Format status date for TMS (aligned with legacy mobile formatStatusDate).
+	 */
+	private formatTmsStatusDate(statusDate?: string | null): string {
+		const now = new Date();
+		const hours = now.getHours();
+		const minutes = String(now.getMinutes()).padStart(2, '0');
+		const ampm = hours >= 12 ? 'PM' : 'AM';
+		const displayHours = hours % 12 || 12;
+
+		if (!statusDate || statusDate.trim() === '') {
+			const month = String(now.getMonth() + 1).padStart(2, '0');
+			const day = String(now.getDate()).padStart(2, '0');
+			const year = now.getFullYear();
+			return `${month}/${day}/${year} ${displayHours}:${minutes} ${ampm}`;
+		}
+
+		const trimmed = statusDate.trim();
+		const timeMatch = trimmed.match(
+			/(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
+		);
+		if (timeMatch) {
+			const datePart = timeMatch[1];
+			const timePart = timeMatch[2];
+			const dateSegments = datePart.split('/');
+			if (dateSegments.length === 3) {
+				let year = parseInt(dateSegments[2], 10);
+				if (year < 100) year += 2000;
+				return `${dateSegments[0]}/${dateSegments[1]}/${year} ${timePart}`;
+			}
+		}
+		return `${trimmed} ${displayHours}:${minutes} ${ampm}`;
+	}
+
+	/**
+	 * Updates user location fields (and optional driver status). After DB save, DRIVER users sync to TMS.
 	 */
 	async updateUserLocation(id: string, locationDto: UpdateUserLocationDto) {
 		const user = await this.prisma.user.findUnique({
@@ -409,24 +447,33 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
+		const data: Prisma.UserUpdateInput = {
+			location: locationDto.location,
+			city: locationDto.city,
+			state: locationDto.state,
+			zip: locationDto.zip,
+			latitude: locationDto.latitude,
+			longitude: locationDto.longitude,
+			lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
+		};
+
+		if (locationDto.driverStatus !== undefined) {
+			data.driverStatus = locationDto.driverStatus;
+		}
+		if (locationDto.statusDate !== undefined) {
+			data.statusDate = locationDto.statusDate;
+		}
+
 		const updatedUser = await this.prisma.user.update({
 			where: { id },
-			data: {
-				location: locationDto.location,
-				city: locationDto.city,
-				state: locationDto.state,
-				zip: locationDto.zip,
-				latitude: locationDto.latitude,
-				longitude: locationDto.longitude,
-				// Store client local time string as-is (no timezone normalization)
-				lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
-			},
+			data,
 			select: {
 				id: true,
 				externalId: true,
 				email: true,
 				firstName: true,
 				lastName: true,
+				role: true,
 				location: true,
 				city: true,
 				state: true,
@@ -435,6 +482,8 @@ export class UsersService {
 				longitude: true,
 				updatedAt: true,
 				lastLocationUpdateAt: true,
+				driverStatus: true,
+				statusDate: true,
 			},
 		});
 
@@ -450,6 +499,52 @@ export class UsersService {
 			zip: updatedUser.zip,
 			lastLocationUpdateAt: updatedUser.lastLocationUpdateAt,
 		});
+
+		const shouldSyncTms =
+			updatedUser.role === UserRole.DRIVER &&
+			!!updatedUser.externalId?.trim();
+
+		if (!shouldSyncTms) {
+			return updatedUser;
+		}
+
+		const tmsCountry = (locationDto.country || 'USA').trim() || 'USA';
+		const tmsStatus =
+			locationDto.driverStatus !== undefined
+				? locationDto.driverStatus
+				: updatedUser.driverStatus ?? '';
+		const statusDateForFormat =
+			locationDto.statusDate !== undefined
+				? locationDto.statusDate
+				: updatedUser.statusDate;
+		const statusDateFormatted = this.formatTmsStatusDate(statusDateForFormat);
+
+		try {
+			await this.tmsDriverLocation.sendDriverLocationUpdate({
+				externalId: updatedUser.externalId as string,
+				driverStatus: tmsStatus ?? '',
+				statusDateFormatted,
+				state: locationDto.state ?? updatedUser.state ?? 'NY',
+				city: locationDto.city ?? updatedUser.city ?? 'New York',
+				zip: locationDto.zip ?? updatedUser.zip ?? '',
+				latitude: locationDto.latitude ?? updatedUser.latitude ?? 0,
+				longitude: locationDto.longitude ?? updatedUser.longitude ?? 0,
+				country: tmsCountry,
+			});
+		} catch (err) {
+			const tmsError =
+				err instanceof Error ? err.message : String(err);
+			throw new HttpException(
+				{
+					statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+					message: 'Location saved but TMS sync failed',
+					databaseUpdated: true,
+					tmsError,
+					user: updatedUser,
+				},
+				HttpStatus.SERVICE_UNAVAILABLE,
+			);
+		}
 
 		return updatedUser;
 	}

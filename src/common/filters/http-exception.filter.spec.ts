@@ -112,7 +112,8 @@ describe('HttpExceptionFilter', () => {
 		expect(mockResponse.json).toHaveBeenCalledWith(
 			expect.objectContaining({
 				statusCode: HttpStatus.BAD_REQUEST,
-				message: { error: 'Complex error', details: 'Some details' },
+				error: 'Complex error',
+				details: 'Some details',
 				path: '/test',
 			}),
 		);

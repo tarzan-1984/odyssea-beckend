@@ -39,14 +39,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
 			this.logger.error(`❌ [Error] Message: ${JSON.stringify(message, null, 2)}`);
 		}
 
+		if (typeof message === 'object' && message !== null && !Array.isArray(message)) {
+			const body = message as Record<string, unknown>;
+			response.status(status).json({
+				statusCode: (body['statusCode'] as number) ?? status,
+				timestamp: new Date().toISOString(),
+				path: request.url,
+				...body,
+			});
+			return;
+		}
+
 		const errorResponse = {
 			statusCode: status,
 			timestamp: new Date().toISOString(),
 			path: request.url,
-			message:
-				typeof message === 'string'
-					? message
-					: (message as { message?: string }).message || message,
+			message: typeof message === 'string' ? message : String(message),
 		};
 
 		response.status(status).json(errorResponse);

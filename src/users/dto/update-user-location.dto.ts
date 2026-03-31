@@ -64,6 +64,34 @@ export class UpdateUserLocationDto {
   @IsOptional()
   @IsString()
   lastLocationUpdateAt?: string;
+
+  @ApiProperty({
+    description:
+      'Driver status for DB + TMS (omit on background-only pings to avoid overwriting)',
+    example: 'available',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  driverStatus?: string;
+
+  @ApiProperty({
+    description:
+      'Status date/time string for DB + TMS (e.g. MM/DD/YY h:mm AM/PM); omit with driverStatus if unchanged',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  statusDate?: string;
+
+  @ApiProperty({
+    description: 'Country for TMS payload (default USA)',
+    example: 'USA',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  country?: string;
 }
 
 

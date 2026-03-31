@@ -7,6 +7,10 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
+import { MailerService } from '../mailer/mailer.service';
+import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
+import { TmsDriverLocationService } from '../tms/tms-driver-location.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import {
 	WebhookSyncDto,
@@ -57,6 +61,22 @@ describe('UsersService', () => {
 				{
 					provide: PrismaService,
 					useValue: mockPrismaService,
+				},
+				{
+					provide: NotificationsWebSocketService,
+					useValue: { sendUserLocationUpdate: jest.fn() },
+				},
+				{
+					provide: MailerService,
+					useValue: {},
+				},
+				{
+					provide: TmsDriverApplicationService,
+					useValue: {},
+				},
+				{
+					provide: TmsDriverLocationService,
+					useValue: { sendDriverLocationUpdate: jest.fn().mockResolvedValue(undefined) },
 				},
 			],
 		}).compile();

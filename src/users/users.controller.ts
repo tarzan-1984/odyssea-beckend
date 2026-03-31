@@ -263,7 +263,12 @@ export class UsersController {
 	})
 	@ApiResponse({
 		status: 200,
-		description: 'User location updated successfully',
+		description: 'User location updated successfully (and TMS synced for drivers)',
+	})
+	@ApiResponse({
+		status: 503,
+		description:
+			'Database updated but TMS sync failed — body includes databaseUpdated, tmsError, user',
 	})
 	async updateUserLocation(
 		@Param('id') id: string,
