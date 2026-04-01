@@ -21,6 +21,7 @@ import {
 } from './config/env.config';
 import { StorageModule } from './storage/storage.module';
 import { OffersModule } from './offers/offers.module';
+import { AppSettingsModule } from './app-settings/app-settings.module';
 
 @Module({
 	imports: [
@@ -46,6 +47,7 @@ import { OffersModule } from './offers/offers.module';
 		NotificationsModule,
 		StorageModule,
 		OffersModule,
+		AppSettingsModule,
 	],
 	controllers: [AppController],
 	providers: [],
