@@ -41,6 +41,7 @@ model User {
   driverStatus         String?
   // Date/time when driver set status (e.g. "02/11/26 2:30 PM")
   statusDate           String?
+  isAutoupdate         Boolean               @default(false) @map("is_autoupdate")
   chatRooms            ChatRoomParticipant[]
   adminOfChatRooms     ChatRoom[]            @relation("ChatRoomAdmin")
   receivedMessages     Message[]             @relation("MessageReceiver")
