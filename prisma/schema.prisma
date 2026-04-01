@@ -95,11 +95,12 @@ model AppSetting {
   /**
    * Singleton row (use id = "global").
    */
-  id                    String   @id @default("global")
-  locationMinIntervalMs Int      @default(60000) @map("location_min_interval_ms")
-  locationMinDistanceM  Int      @default(1000)  @map("location_min_distance_m")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt      @map("updated_at")
+  id                         String   @id @default("global")
+  locationMinIntervalMs      Int      @default(60000) @map("location_min_interval_ms")
+  locationMinDistanceM       Int      @default(1000)  @map("location_min_distance_m")
+  reverseGeocodeMinDistanceM Int      @default(5000)  @map("reverse_geocode_min_distance_m")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt      @map("updated_at")
 
   @@map("app_settings")
 }

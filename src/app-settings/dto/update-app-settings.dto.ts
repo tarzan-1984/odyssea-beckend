@@ -36,4 +36,15 @@ export class UpdateAppSettingsDto {
 		},
 	})
 	locationMinDistanceM!: number;
+
+	@ApiProperty({
+		description:
+			'Minimum straight-line meters from last successful reverse geocode before resolving ZIP/city/state again (background task)',
+		example: 5000,
+		minimum: 100,
+	})
+	@IsInt()
+	@Min(100)
+	@Max(500_000)
+	reverseGeocodeMinDistanceM!: number;
 }

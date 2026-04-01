@@ -18,6 +18,7 @@ export class AppSettingsService {
 				id: GLOBAL_APP_SETTINGS_ID,
 				locationMinIntervalMs: 60_000,
 				locationMinDistanceM: 1000,
+				reverseGeocodeMinDistanceM: 5000,
 			},
 			update: {},
 		});
@@ -30,6 +31,7 @@ export class AppSettingsService {
 			data: {
 				locationMinIntervalMs: dto.locationMinIntervalMs,
 				locationMinDistanceM: dto.locationMinDistanceM,
+				reverseGeocodeMinDistanceM: dto.reverseGeocodeMinDistanceM,
 			},
 		});
 	}
