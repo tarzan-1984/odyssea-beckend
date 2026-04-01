@@ -18,6 +18,7 @@ import {
 	WebhookRole,
 } from './dto/webhook-sync.dto';
 import { UserRole, UserStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 
 describe('UsersService', () => {
 	let service: UsersService;
@@ -77,6 +78,17 @@ describe('UsersService', () => {
 				{
 					provide: TmsDriverLocationService,
 					useValue: { sendDriverLocationUpdate: jest.fn().mockResolvedValue(undefined) },
+				},
+				{
+					provide: ConfigService,
+					useValue: {
+						get: jest.fn((key: string) => {
+							if (key === 'externalApi') {
+								return { skipTmsDriverLocationSync: false };
+							}
+							return undefined;
+						}),
+					},
 				},
 			],
 		}).compile();

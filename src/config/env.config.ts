@@ -35,6 +35,11 @@ export interface MailerConfig {
 export interface ExternalApiConfig {
 	apiKey: string | undefined;
 	tmsApiKey: string | undefined;
+	/**
+	 * When true, driver location updates persist to DB only; TMS reverse sync is skipped (200 instead of 503).
+	 * Set SKIP_TMS_DRIVER_LOCATION_SYNC=true when TMS endpoint is unavailable.
+	 */
+	skipTmsDriverLocationSync: boolean;
 }
 
 export const databaseConfig = registerAs(
@@ -96,5 +101,7 @@ export const externalApiConfig = registerAs(
 	(): ExternalApiConfig => ({
 		apiKey: process.env.EXTERNAL_API_KEY,
 		tmsApiKey: process.env.TMS_API_KEY || 'tms_api_key_2024_driver_access',
+		skipTmsDriverLocationSync:
+			process.env.SKIP_TMS_DRIVER_LOCATION_SYNC === 'true',
 	}),
 );

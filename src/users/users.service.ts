@@ -6,6 +6,7 @@ import {
 	HttpException,
 	HttpStatus,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailerService } from '../mailer/mailer.service';
@@ -20,6 +21,7 @@ import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 import { TmsDriverLocationService } from '../tms/tms-driver-location.service';
+import type { ExternalApiConfig } from '../config/env.config';
 
 @Injectable()
 export class UsersService {
@@ -29,6 +31,7 @@ export class UsersService {
 		private readonly mailerService: MailerService,
 		private readonly tmsDriverApplication: TmsDriverApplicationService,
 		private readonly tmsDriverLocation: TmsDriverLocationService,
+		private readonly configService: ConfigService,
 	) {}
 
 	/**
@@ -511,6 +514,11 @@ export class UsersService {
 			!!updatedUser.externalId?.trim();
 
 		if (!shouldSyncTms) {
+			return updatedUser;
+		}
+
+		const extApi = this.configService.get<ExternalApiConfig>('externalApi');
+		if (extApi?.skipTmsDriverLocationSync) {
 			return updatedUser;
 		}
 
