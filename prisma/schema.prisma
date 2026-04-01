@@ -91,6 +91,19 @@ model OtpCode {
   @@map("otp_codes")
 }
 
+model AppSetting {
+  /**
+   * Singleton row (use id = "global").
+   */
+  id                    String   @id @default("global")
+  locationMinIntervalMs Int      @default(60000) @map("location_min_interval_ms")
+  locationMinDistanceM  Int      @default(1000)  @map("location_min_distance_m")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt      @map("updated_at")
+
+  @@map("app_settings")
+}
+
 model Notification {
   id        String   @id @default(cuid())
   userId    String
