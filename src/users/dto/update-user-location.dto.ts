@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserLocationDto {
   @ApiProperty({
@@ -92,6 +92,16 @@ export class UpdateUserLocationDto {
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiProperty({
+    description:
+      'Auto-update toggle state (mirrors app automaticLocationSharing setting)',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isAutoupdate?: boolean;
 }
 
 

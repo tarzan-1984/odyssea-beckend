@@ -226,6 +226,7 @@ export class UsersService {
 				state: true,
 				location: true,
 				statusDate: true,
+				isAutoupdate: true,
 			},
 		});
 
@@ -245,6 +246,7 @@ export class UsersService {
 			state: user.state ?? null,
 			location: user.location ?? null,
 			statusDate: user.statusDate ?? null,
+			isAutoupdate: user.isAutoupdate ?? false,
 		};
 	}
 
@@ -463,6 +465,9 @@ export class UsersService {
 		if (locationDto.statusDate !== undefined) {
 			data.statusDate = locationDto.statusDate;
 		}
+		if (locationDto.isAutoupdate !== undefined) {
+			data.isAutoupdate = locationDto.isAutoupdate;
+		}
 
 		const updatedUser = await this.prisma.user.update({
 			where: { id },
@@ -484,6 +489,7 @@ export class UsersService {
 				lastLocationUpdateAt: true,
 				driverStatus: true,
 				statusDate: true,
+				isAutoupdate: true,
 			},
 		});
 
