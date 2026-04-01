@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, Max, Min, ValidateBy } from 'class-validator';
 
 export class UpdateAppSettingsDto {
 	@ApiProperty({
@@ -15,12 +15,25 @@ export class UpdateAppSettingsDto {
 
 	@ApiProperty({
 		description:
-			'Minimum distance (meters) the driver must move before a location send is allowed',
+			'Minimum distance (meters) the driver must move before a location send is allowed; must be a multiple of 5',
 		example: 3000,
-		minimum: 1,
+		minimum: 5,
 	})
 	@IsInt()
-	@Min(1)
+	@Min(5)
 	@Max(1_000_000)
+	@ValidateBy({
+		name: 'locationMinDistanceM_multipleOf5',
+		validator: {
+			validate: (value: unknown): boolean =>
+				typeof value === 'number' &&
+				Number.isInteger(value) &&
+				value >= 5 &&
+				value <= 1_000_000 &&
+				value % 5 === 0,
+			defaultMessage: () =>
+				'locationMinDistanceM must be between 5 and 1000000 and a multiple of 5',
+		},
+	})
 	locationMinDistanceM!: number;
 }
