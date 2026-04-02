@@ -891,7 +891,44 @@ export class UsersService {
 			});
 
 			if (!existingUser) {
-				throw new NotFoundException('Driver not found');
+				// TMS may send "update" before our DB has the driver (desync) — create instead of 404
+				this.logger.warn(
+					`[Webhook Driver] UPDATE for unknown externalId=${driverId} — creating user (sync recovery)`,
+				);
+				const conflict = await this.prisma.user.findFirst({
+					where: {
+						OR: [{ externalId: driverId }, { email: driver_email }],
+					},
+				});
+				if (conflict) {
+					throw new ConflictException('Driver already exists');
+				}
+				const newUser = await this.prisma.user.create({
+					data: userData,
+					select: {
+						id: true,
+						externalId: true,
+						email: true,
+						firstName: true,
+						lastName: true,
+						phone: true,
+						profilePhoto: true,
+						location: true,
+						state: true,
+						zip: true,
+						city: true,
+						role: true,
+						status: true,
+						createdAt: true,
+						updatedAt: true,
+					},
+				});
+				return {
+					action: 'created',
+					user: newUser,
+					message:
+						'Driver created (update webhook; external id was missing locally)',
+				};
 			}
 
 			const oldDriverStatus = existingUser.driverStatus;
