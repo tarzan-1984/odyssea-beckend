@@ -97,7 +97,7 @@ export class TmsLocationBatchScheduler {
 		);
 
 		try {
-			const drivers = await this.prisma.user.findMany({
+			const driversFromDb = await this.prisma.user.findMany({
 				where: {
 					role: UserRole.DRIVER,
 					isAutoupdate: true,
@@ -117,6 +117,21 @@ export class TmsLocationBatchScheduler {
 				},
 				orderBy: { id: 'asc' },
 			});
+
+			const globalRow = await this.appSettingsService.getGlobal();
+			const isTestEnv = globalRow.locationEnvironmentMode === 'test';
+			const testExtId = globalRow.locationTestDriverExternalId.trim();
+			const drivers = isTestEnv
+				? driversFromDb.filter(
+						(u) => u.externalId?.trim() === testExtId,
+					)
+				: driversFromDb;
+
+			if (isTestEnv) {
+				this.logger.log(
+					`[${runId}] TMS batch: test mode — only externalId=${testExtId} (${drivers.length} row(s), ${driversFromDb.length} before filter)`,
+				);
+			}
 
 			this.logger.log(
 				`[${runId}] TMS batch: ${drivers.length} driver row(s) from DB (isAutoupdate, has coords, has externalId)`,

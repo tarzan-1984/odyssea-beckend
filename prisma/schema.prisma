@@ -104,6 +104,12 @@ model AppSetting {
   tmsBatchCronIntervalSeconds Int     @default(300)   @map("tms_batch_cron_interval_seconds")
   /** Max drivers per TMS batch POST request. */
   tmsBatchChunkSize          Int      @default(150)   @map("tms_batch_chunk_size")
+  /**
+   * live = normal; test = only `locationTestDriverExternalId` may update location (API + TMS batch).
+   */
+  locationEnvironmentMode      String   @default("live") @map("location_environment_mode")
+  /** Allowed TMS/driver external id when mode is test (string, e.g. "3343"). */
+  locationTestDriverExternalId String   @default("3343") @map("location_test_driver_external_id")
   createdAt                  DateTime @default(now()) @map("created_at")
   updatedAt                  DateTime @updatedAt      @map("updated_at")
 

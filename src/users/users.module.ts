@@ -10,9 +10,16 @@ import { ImportUsersBackgroundService } from './services/import-users-background
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TmsModule } from '../tms/tms.module';
+import { AppSettingsModule } from '../app-settings/app-settings.module';
 
 @Module({
-	imports: [PrismaModule, ConfigModule, NotificationsModule, TmsModule],
+	imports: [
+		PrismaModule,
+		ConfigModule,
+		NotificationsModule,
+		TmsModule,
+		AppSettingsModule,
+	],
 	controllers: [UsersController, SyncController],
 	providers: [
 		UsersService,

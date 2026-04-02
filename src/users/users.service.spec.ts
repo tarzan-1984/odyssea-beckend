@@ -19,6 +19,7 @@ import {
 } from './dto/webhook-sync.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../app-settings/app-settings.service';
 
 describe('UsersService', () => {
 	let service: UsersService;
@@ -90,6 +91,15 @@ describe('UsersService', () => {
 								};
 							}
 							return undefined;
+						}),
+					},
+				},
+				{
+					provide: AppSettingsService,
+					useValue: {
+						getLocationEnvironmentAppSettings: jest.fn().mockResolvedValue({
+							locationEnvironmentMode: 'live',
+							locationTestDriverExternalId: '3343',
 						}),
 					},
 				},

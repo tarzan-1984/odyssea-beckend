@@ -4,6 +4,7 @@ import {
 	NotFoundException,
 	BadRequestException,
 	ConflictException,
+	ForbiddenException,
 	HttpException,
 	HttpStatus,
 } from '@nestjs/common';
@@ -27,6 +28,7 @@ import {
 } from '../tms/tms-driver-location-batch.service';
 import { formatTmsStatusDate } from '../tms/tms-status-date.util';
 import type { ExternalApiConfig } from '../config/env.config';
+import { AppSettingsService } from '../app-settings/app-settings.service';
 
 @Injectable()
 export class UsersService {
@@ -39,6 +41,7 @@ export class UsersService {
 		private readonly tmsDriverApplication: TmsDriverApplicationService,
 		private readonly tmsDriverLocationBatch: TmsDriverLocationBatchService,
 		private readonly configService: ConfigService,
+		private readonly appSettingsService: AppSettingsService,
 	) {}
 
 	/**
@@ -425,6 +428,16 @@ export class UsersService {
 
 		if (!user) {
 			throw new NotFoundException('User not found');
+		}
+
+		const env = await this.appSettingsService.getLocationEnvironmentAppSettings();
+		if (env.locationEnvironmentMode === 'test') {
+			const allowed = env.locationTestDriverExternalId.trim();
+			if (user.externalId?.trim() !== allowed) {
+				throw new ForbiddenException(
+					'Location updates are disabled for this account (server is in test mode; only the configured test driver may update location).',
+				);
+			}
 		}
 
 		const isBackgroundPing =

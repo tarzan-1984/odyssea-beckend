@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAppSettingsDto } from './dto/update-app-settings.dto';
 import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-settings.dto';
+import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
 
 const GLOBAL_APP_SETTINGS_ID = 'global';
 
@@ -22,6 +23,8 @@ export class AppSettingsService {
 				reverseGeocodeMinDistanceM: 5000,
 				tmsBatchCronIntervalSeconds: 300,
 				tmsBatchChunkSize: 150,
+				locationEnvironmentMode: 'live',
+				locationTestDriverExternalId: '3343',
 			},
 			update: {},
 		});
@@ -68,6 +71,16 @@ export class AppSettingsService {
 		};
 	}
 
+	async getLocationEnvironmentAppSettings() {
+		const row = await this.getGlobal();
+		return {
+			id: row.id,
+			locationEnvironmentMode: row.locationEnvironmentMode as 'live' | 'test',
+			locationTestDriverExternalId: row.locationTestDriverExternalId,
+			updatedAt: row.updatedAt,
+		};
+	}
+
 	/**
 	 * Backend TMS batch cron only — does not touch mobile throttling fields.
 	 */
@@ -81,5 +94,20 @@ export class AppSettingsService {
 			},
 		});
 		return this.getTmsBatchAppSettings();
+	}
+
+	async updateLocationEnvironmentAppSettings(
+		dto: UpdateLocationEnvironmentAppSettingsDto,
+	) {
+		await this.getGlobal();
+		await this.prisma.appSetting.update({
+			where: { id: GLOBAL_APP_SETTINGS_ID },
+			data: {
+				locationEnvironmentMode: dto.locationEnvironmentMode,
+				locationTestDriverExternalId:
+					dto.locationTestDriverExternalId.trim(),
+			},
+		});
+		return this.getLocationEnvironmentAppSettings();
 	}
 }
