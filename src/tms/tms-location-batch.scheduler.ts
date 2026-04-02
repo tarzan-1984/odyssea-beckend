@@ -25,6 +25,8 @@ export class TmsLocationBatchScheduler {
 	private readonly logger = new Logger(TmsLocationBatchScheduler.name);
 	/** Last time a full batch run completed (ms). */
 	private lastRunAtMs = 0;
+	/** Throttle "cooldown" logs so operators see the scheduler is alive between runs. */
+	private lastCooldownLogAtMs = 0;
 
 	constructor(
 		private readonly prisma: PrismaService,
@@ -53,6 +55,15 @@ export class TmsLocationBatchScheduler {
 			this.lastRunAtMs > 0 &&
 			now - this.lastRunAtMs < intervalSec * 1000
 		) {
+			const remainingSec = Math.ceil(
+				(intervalSec * 1000 - (now - this.lastRunAtMs)) / 1000,
+			);
+			if (now - this.lastCooldownLogAtMs >= 90_000) {
+				this.lastCooldownLogAtMs = now;
+				this.logger.log(
+					`TMS batch: cooldown — next sync run in ~${remainingSec}s (tick every 15s, interval=${intervalSec}s from last run end)`,
+				);
+			}
 			return;
 		}
 
