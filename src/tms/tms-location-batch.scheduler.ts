@@ -11,6 +11,7 @@ import {
 	parseTmsDriverIdFromExternalId,
 } from './tms-driver-location-batch.service';
 import type { ExternalApiConfig } from '../config/env.config';
+import { normalizeTmsCurrentLocation } from './tms-current-location.util';
 
 /** Advisory lock keys — only this job uses them. */
 const ADV_LOCK_KEY1 = 872_001;
@@ -155,7 +156,7 @@ export class TmsLocationBatchScheduler {
 					latitude: String(lat),
 					longitude: String(lng),
 					current_city: u.city?.trim() || 'New York',
-					current_location: u.state?.trim() || 'NY',
+					current_location: normalizeTmsCurrentLocation(u.state),
 					current_zipcode: u.zip?.trim() || '',
 					driver_status: u.driverStatus?.trim() ?? '',
 					status_date: formatTmsStatusDate(u.statusDate),

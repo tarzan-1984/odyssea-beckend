@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { normalizeTmsCurrentLocation } from './tms-current-location.util';
 
 const TMS_DRIVER_LOCATION_BATCH_URL =
 	'https://www.endurance-tms.com/wp-json/tms/v1/driver/location/update/batch';
@@ -133,7 +134,7 @@ export function buildTmsBatchLocationItem(params: {
 		latitude: String(params.latitude),
 		longitude: String(params.longitude),
 		current_city: params.city?.trim() || 'New York',
-		current_location: params.state?.trim() || 'NY',
+		current_location: normalizeTmsCurrentLocation(params.state),
 		current_zipcode: params.zip?.trim() || '',
 		driver_status: params.driverStatus ?? '',
 		status_date: params.statusDateFormatted,
