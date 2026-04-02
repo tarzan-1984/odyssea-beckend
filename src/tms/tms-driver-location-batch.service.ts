@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
@@ -21,8 +21,6 @@ export type TmsBatchLocationItem = {
 
 @Injectable()
 export class TmsDriverLocationBatchService {
-	private readonly logger = new Logger(TmsDriverLocationBatchService.name);
-
 	constructor(private readonly configService: ConfigService) {}
 
 	/**
@@ -59,9 +57,6 @@ export class TmsDriverLocationBatchService {
 			);
 
 			if (res.status >= 200 && res.status < 300) {
-				this.logger.log(
-					`TMS batch OK: ${items.length} driver(s), HTTP ${res.status}`,
-				);
 				return;
 			}
 
@@ -71,9 +66,6 @@ export class TmsDriverLocationBatchService {
 			if (axios.isAxiosError(error) && error.response) {
 				const status = error.response.status;
 				const msg = this.extractErrorMessage(status, error.response.data);
-				this.logger.error(
-					`TMS batch HTTP ${status} (attempt ${attempt}/${maxAttempts}): ${msg}`,
-				);
 				if (attempt < maxAttempts) {
 					await this.delay(2000);
 					return this.sendBatch(items, attempt + 1, maxAttempts);
@@ -81,9 +73,6 @@ export class TmsDriverLocationBatchService {
 				throw new Error(`TMS batch HTTP ${status}: ${msg}`);
 			}
 			if (error instanceof Error) {
-				this.logger.error(
-					`TMS batch error (attempt ${attempt}/${maxAttempts}): ${error.message}`,
-				);
 				if (attempt < maxAttempts) {
 					await this.delay(2000);
 					return this.sendBatch(items, attempt + 1, maxAttempts);

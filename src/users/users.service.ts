@@ -426,24 +426,13 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
-		this.logger.log(
-			`Location update received userId=${id} role=${user.role} externalId=${user.externalId ?? ''} ` +
-				JSON.stringify({
-					location: locationDto.location,
-					city: locationDto.city,
-					state: locationDto.state,
-					zip: locationDto.zip,
-					latitude: locationDto.latitude,
-					longitude: locationDto.longitude,
-					lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
-					driverStatus: locationDto.driverStatus,
-					statusDate: locationDto.statusDate,
-					country: locationDto.country,
-					isAutoupdate: locationDto.isAutoupdate,
-					isBackgroundTaskLocationUpdate:
-						locationDto.isBackgroundTaskLocationUpdate,
-				}),
-		);
+		const isBackgroundPing =
+			locationDto.isBackgroundTaskLocationUpdate === true;
+		if (isBackgroundPing) {
+			this.logger.log(
+				`Location update [background] userId=${id} role=${user.role} externalId=${user.externalId ?? ''}`,
+			);
+		}
 
 		const data: Prisma.UserUpdateInput = {
 			location: locationDto.location,
@@ -502,21 +491,59 @@ export class UsersService {
 			lastLocationUpdateAt: updatedUser.lastLocationUpdateAt,
 		});
 
+		const requestSnapshot = {
+			location: locationDto.location,
+			city: locationDto.city,
+			state: locationDto.state,
+			zip: locationDto.zip,
+			latitude: locationDto.latitude,
+			longitude: locationDto.longitude,
+			lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
+			driverStatus: locationDto.driverStatus,
+			statusDate: locationDto.statusDate,
+			country: locationDto.country,
+			isAutoupdate: locationDto.isAutoupdate,
+		};
+
+		const logManual = (payload: {
+			tmsPayload: ReturnType<typeof buildTmsBatchLocationItem>;
+			tmsSkipReason?: string;
+		}) => {
+			this.logger.log(
+				`Location update [manual] userId=${id} ` +
+					JSON.stringify({
+						request: requestSnapshot,
+						tmsPayload: payload.tmsPayload,
+						tmsSkipReason: payload.tmsSkipReason,
+					}),
+			);
+		};
+
 		const shouldSyncTms =
 			updatedUser.role === UserRole.DRIVER &&
 			!!updatedUser.externalId?.trim();
 
 		if (!shouldSyncTms) {
+			if (!isBackgroundPing) {
+				logManual({
+					tmsPayload: null,
+					tmsSkipReason: 'not_driver_or_no_external_id',
+				});
+			}
 			return updatedUser;
 		}
 
-		// Automatic background pings: persist location only; TMS sync will use a separate flow later.
-		if (locationDto.isBackgroundTaskLocationUpdate === true) {
+		// Automatic background pings: persist location only; TMS sync uses cron batch.
+		if (isBackgroundPing) {
 			return updatedUser;
 		}
 
 		const extApi = this.configService.get<ExternalApiConfig>('externalApi');
 		if (extApi?.skipTmsDriverLocationSync) {
+			logManual({
+				tmsPayload: null,
+				tmsSkipReason: 'skipTmsDriverLocationSync',
+			});
 			return updatedUser;
 		}
 
@@ -544,11 +571,14 @@ export class UsersService {
 		});
 
 		if (!batchItem) {
-			this.logger.warn(
-				`TMS batch sync skipped: externalId is not numeric (${updatedUser.externalId})`,
-			);
+			logManual({
+				tmsPayload: null,
+				tmsSkipReason: `non_numeric_external_id:${updatedUser.externalId ?? ''}`,
+			});
 			return updatedUser;
 		}
+
+		logManual({ tmsPayload: batchItem });
 
 		try {
 			await this.tmsDriverLocationBatch.sendBatch([batchItem]);
