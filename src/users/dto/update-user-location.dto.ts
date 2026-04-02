@@ -112,6 +112,16 @@ export class UpdateUserLocationDto {
   @IsOptional()
   @IsBoolean()
   isBackgroundTaskLocationUpdate?: boolean;
+
+  @ApiProperty({
+    description:
+      'True only when the driver explicitly submitted the status form or pressed Share location. Used for server logs; omit for automatic/legacy client sends.',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isManualDriverLocationAction?: boolean;
 }
 
 

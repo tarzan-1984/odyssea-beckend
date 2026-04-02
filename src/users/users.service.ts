@@ -416,6 +416,7 @@ export class UsersService {
 	/**
 	 * Updates user location fields (and optional driver status). After DB save, DRIVER users sync to TMS
 	 * unless `isBackgroundTaskLocationUpdate` is true (background task pings — DB + WebSocket only).
+	 * Verbose `[manual]` logs only when `isManualDriverLocationAction` is true (status submit / Share location from app).
 	 */
 	async updateUserLocation(id: string, locationDto: UpdateUserLocationDto) {
 		const user = await this.prisma.user.findUnique({
@@ -428,6 +429,8 @@ export class UsersService {
 
 		const isBackgroundPing =
 			locationDto.isBackgroundTaskLocationUpdate === true;
+		const isManualAction =
+			locationDto.isManualDriverLocationAction === true;
 		if (isBackgroundPing) {
 			this.logger.log(
 				`Location update [background] userId=${id} role=${user.role} externalId=${user.externalId ?? ''}`,
@@ -509,6 +512,9 @@ export class UsersService {
 			tmsPayload: ReturnType<typeof buildTmsBatchLocationItem>;
 			tmsSkipReason?: string;
 		}) => {
+			if (!isManualAction) {
+				return;
+			}
 			this.logger.log(
 				`Location update [manual] userId=${id} ` +
 					JSON.stringify({
