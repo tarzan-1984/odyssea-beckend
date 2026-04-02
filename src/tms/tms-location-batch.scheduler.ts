@@ -59,7 +59,11 @@ export class TmsLocationBatchScheduler {
 			Math.max(1, settings.tmsBatchChunkSize),
 		);
 
-		const ran = await this.runTmsLocationBatch(chunkSize);
+		this.logger.log(
+			`TMS batch: starting sync run (interval=${intervalSec}s, chunkSize=${chunkSize}, next runs every ${intervalSec}s after this run completes)`,
+		);
+
+		const ran = await this.runTmsLocationBatch(chunkSize, intervalSec);
 		if (ran) {
 			this.lastRunAtMs = Date.now();
 		}
@@ -68,7 +72,12 @@ export class TmsLocationBatchScheduler {
 	/**
 	 * @returns true if a run was attempted (including empty driver list after acquiring lock).
 	 */
-	private async runTmsLocationBatch(chunkSize: number): Promise<boolean> {
+	private async runTmsLocationBatch(
+		chunkSize: number,
+		intervalSec: number,
+	): Promise<boolean> {
+		const runId = `tms-batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 		const rows = await this.prisma.$queryRawUnsafe<{ got: boolean }[]>(
 			'SELECT pg_try_advisory_lock($1::int, $2::int) AS got',
 			ADV_LOCK_KEY1,
@@ -77,10 +86,14 @@ export class TmsLocationBatchScheduler {
 		const gotLock = rows[0]?.got === true;
 		if (!gotLock) {
 			this.logger.warn(
-				'TMS batch cron skipped: another instance is already running this job',
+				`[${runId}] TMS batch: skipped — another instance holds the lock (this job already running elsewhere)`,
 			);
 			return false;
 		}
+
+		this.logger.log(
+			`[${runId}] TMS batch: lock acquired — loading drivers (chunkSize=${chunkSize}, interval=${intervalSec}s)`,
+		);
 
 		try {
 			const drivers = await this.prisma.user.findMany({
@@ -104,6 +117,10 @@ export class TmsLocationBatchScheduler {
 				orderBy: { id: 'asc' },
 			});
 
+			this.logger.log(
+				`[${runId}] TMS batch: ${drivers.length} driver row(s) from DB (isAutoupdate, has coords, has externalId)`,
+			);
+
 			const items: TmsBatchLocationItem[] = [];
 			for (const u of drivers) {
 				const ext = u.externalId?.trim();
@@ -111,7 +128,7 @@ export class TmsLocationBatchScheduler {
 				const driverId = this.parseDriverId(ext);
 				if (driverId === null) {
 					this.logger.warn(
-						`TMS batch: skip driver externalId not numeric: ${ext}`,
+						`[${runId}] TMS batch: skip driver externalId not numeric: ${ext}`,
 					);
 					continue;
 				}
@@ -133,7 +150,9 @@ export class TmsLocationBatchScheduler {
 			}
 
 			if (items.length === 0) {
-				this.logger.log('TMS batch: no drivers with autoupdate + coordinates');
+				this.logger.log(
+					`[${runId}] TMS batch: no items to send (0 drivers with numeric externalId after filter) — run complete`,
+				);
 				return true;
 			}
 
@@ -142,24 +161,35 @@ export class TmsLocationBatchScheduler {
 				chunks.push(items.slice(i, i + chunkSize));
 			}
 
+			this.logger.log(
+				`[${runId}] TMS batch: sending ${items.length} driver(s) in ${chunks.length} HTTP batch(es) to TMS (max ${chunkSize} per request)`,
+			);
+
 			let ok = 0;
 			let failed = 0;
 			for (let i = 0; i < chunks.length; i++) {
 				const batch = chunks[i];
+				const chunkNum = i + 1;
+				this.logger.log(
+					`[${runId}] TMS batch: chunk ${chunkNum}/${chunks.length} — POST ${batch.length} driver(s) to TMS batch endpoint…`,
+				);
 				try {
 					await this.batchService.sendBatch(batch);
 					ok++;
+					this.logger.log(
+						`[${runId}] TMS batch: chunk ${chunkNum}/${chunks.length} OK (${batch.length} driver(s))`,
+					);
 				} catch (e) {
 					failed++;
 					const msg = e instanceof Error ? e.message : String(e);
 					this.logger.error(
-						`TMS batch chunk ${i + 1}/${chunks.length} failed (${batch.length} drivers): ${msg}`,
+						`[${runId}] TMS batch: chunk ${chunkNum}/${chunks.length} FAILED (${batch.length} drivers): ${msg}`,
 					);
 				}
 			}
 
 			this.logger.log(
-				`TMS batch cron finished: ${items.length} drivers, ${chunks.length} chunk(s), ${ok} OK, ${failed} failed`,
+				`[${runId}] TMS batch: run finished — ${items.length} drivers, ${chunks.length} chunk(s), ${ok} succeeded, ${failed} failed`,
 			);
 			return true;
 		} finally {
@@ -168,6 +198,7 @@ export class TmsLocationBatchScheduler {
 				ADV_LOCK_KEY1,
 				ADV_LOCK_KEY2,
 			);
+			this.logger.log(`[${runId}] TMS batch: lock released`);
 		}
 	}
 
