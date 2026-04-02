@@ -8,6 +8,7 @@ import { formatTmsStatusDate } from './tms-status-date.util';
 import {
 	TmsBatchLocationItem,
 	TmsDriverLocationBatchService,
+	parseTmsDriverIdFromExternalId,
 } from './tms-driver-location-batch.service';
 import type { ExternalApiConfig } from '../config/env.config';
 
@@ -125,7 +126,7 @@ export class TmsLocationBatchScheduler {
 			for (const u of drivers) {
 				const ext = u.externalId?.trim();
 				if (!ext) continue;
-				const driverId = this.parseDriverId(ext);
+				const driverId = parseTmsDriverIdFromExternalId(ext);
 				if (driverId === null) {
 					this.logger.warn(
 						`[${runId}] TMS batch: skip driver externalId not numeric: ${ext}`,
@@ -200,12 +201,5 @@ export class TmsLocationBatchScheduler {
 			);
 			this.logger.log(`[${runId}] TMS batch: lock released`);
 		}
-	}
-
-	private parseDriverId(externalId: string): number | null {
-		if (/^\d+$/.test(externalId)) {
-			return parseInt(externalId, 10);
-		}
-		return null;
 	}
 }

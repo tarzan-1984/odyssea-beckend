@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { MailerService } from '../mailer/mailer.service';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
-import { TmsDriverLocationService } from '../tms/tms-driver-location.service';
+import { TmsDriverLocationBatchService } from '../tms/tms-driver-location-batch.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import {
 	WebhookSyncDto,
@@ -76,8 +76,8 @@ describe('UsersService', () => {
 					useValue: {},
 				},
 				{
-					provide: TmsDriverLocationService,
-					useValue: { sendDriverLocationUpdate: jest.fn().mockResolvedValue(undefined) },
+					provide: TmsDriverLocationBatchService,
+					useValue: { sendBatch: jest.fn().mockResolvedValue(undefined) },
 				},
 				{
 					provide: ConfigService,

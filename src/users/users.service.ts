@@ -1,5 +1,6 @@
 import {
 	Injectable,
+	Logger,
 	NotFoundException,
 	BadRequestException,
 	ConflictException,
@@ -20,18 +21,23 @@ import {
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
-import { TmsDriverLocationService } from '../tms/tms-driver-location.service';
+import {
+	buildTmsBatchLocationItem,
+	TmsDriverLocationBatchService,
+} from '../tms/tms-driver-location-batch.service';
 import { formatTmsStatusDate } from '../tms/tms-status-date.util';
 import type { ExternalApiConfig } from '../config/env.config';
 
 @Injectable()
 export class UsersService {
+	private readonly logger = new Logger(UsersService.name);
+
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly mailerService: MailerService,
 		private readonly tmsDriverApplication: TmsDriverApplicationService,
-		private readonly tmsDriverLocation: TmsDriverLocationService,
+		private readonly tmsDriverLocationBatch: TmsDriverLocationBatchService,
 		private readonly configService: ConfigService,
 	) {}
 
@@ -420,6 +426,25 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
+		this.logger.log(
+			`Location update received userId=${id} role=${user.role} externalId=${user.externalId ?? ''} ` +
+				JSON.stringify({
+					location: locationDto.location,
+					city: locationDto.city,
+					state: locationDto.state,
+					zip: locationDto.zip,
+					latitude: locationDto.latitude,
+					longitude: locationDto.longitude,
+					lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
+					driverStatus: locationDto.driverStatus,
+					statusDate: locationDto.statusDate,
+					country: locationDto.country,
+					isAutoupdate: locationDto.isAutoupdate,
+					isBackgroundTaskLocationUpdate:
+						locationDto.isBackgroundTaskLocationUpdate,
+				}),
+		);
+
 		const data: Prisma.UserUpdateInput = {
 			location: locationDto.location,
 			city: locationDto.city,
@@ -506,18 +531,27 @@ export class UsersService {
 				: updatedUser.statusDate;
 		const statusDateFormatted = formatTmsStatusDate(statusDateForFormat);
 
+		const batchItem = buildTmsBatchLocationItem({
+			externalId: updatedUser.externalId as string,
+			driverStatus: tmsStatus ?? '',
+			statusDateFormatted,
+			state: locationDto.state ?? updatedUser.state ?? 'NY',
+			city: locationDto.city ?? updatedUser.city ?? 'New York',
+			zip: locationDto.zip ?? updatedUser.zip ?? '',
+			latitude: locationDto.latitude ?? updatedUser.latitude ?? 0,
+			longitude: locationDto.longitude ?? updatedUser.longitude ?? 0,
+			country: tmsCountry,
+		});
+
+		if (!batchItem) {
+			this.logger.warn(
+				`TMS batch sync skipped: externalId is not numeric (${updatedUser.externalId})`,
+			);
+			return updatedUser;
+		}
+
 		try {
-			await this.tmsDriverLocation.sendDriverLocationUpdate({
-				externalId: updatedUser.externalId as string,
-				driverStatus: tmsStatus ?? '',
-				statusDateFormatted,
-				state: locationDto.state ?? updatedUser.state ?? 'NY',
-				city: locationDto.city ?? updatedUser.city ?? 'New York',
-				zip: locationDto.zip ?? updatedUser.zip ?? '',
-				latitude: locationDto.latitude ?? updatedUser.latitude ?? 0,
-				longitude: locationDto.longitude ?? updatedUser.longitude ?? 0,
-				country: tmsCountry,
-			});
+			await this.tmsDriverLocationBatch.sendBatch([batchItem]);
 		} catch (err) {
 			const tmsError =
 				err instanceof Error ? err.message : String(err);

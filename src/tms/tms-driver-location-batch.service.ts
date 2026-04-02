@@ -108,3 +108,48 @@ export class TmsDriverLocationBatchService {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 }
+
+/** TMS batch API expects numeric driver_id; returns null if externalId is not a digit string. */
+export function parseTmsDriverIdFromExternalId(
+	externalId: string | null | undefined,
+): number | null {
+	const trimmed = externalId?.trim();
+	if (!trimmed || !/^\d+$/.test(trimmed)) {
+		return null;
+	}
+	const n = parseInt(trimmed, 10);
+	return Number.isFinite(n) ? n : null;
+}
+
+/** Build one batch item for manual/driver location sync (same shape as cron batch). */
+export function buildTmsBatchLocationItem(params: {
+	externalId: string;
+	driverStatus: string;
+	statusDateFormatted: string;
+	state: string;
+	city: string;
+	zip: string;
+	latitude: number;
+	longitude: number;
+	country: string;
+	notes?: string;
+}): TmsBatchLocationItem | null {
+	const driverId = parseTmsDriverIdFromExternalId(params.externalId);
+	if (driverId === null) {
+		return null;
+	}
+	const country = params.country.trim() || 'USA';
+	return {
+		driver_id: driverId,
+		latitude: String(params.latitude),
+		longitude: String(params.longitude),
+		current_city: params.city?.trim() || 'New York',
+		current_location: params.state?.trim() || 'NY',
+		current_zipcode: params.zip?.trim() || '',
+		driver_status: params.driverStatus ?? '',
+		status_date: params.statusDateFormatted,
+		country,
+		current_country: country,
+		notes: params.notes ?? 'Driver is available for new loads',
+	};
+}
