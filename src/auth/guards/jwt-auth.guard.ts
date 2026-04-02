@@ -21,7 +21,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 			console.log('🔓 [JwtAuthGuard] Public endpoint detected, skipping auth:', path);
 			return true;
 		}
-		console.log('🔒 [JwtAuthGuard] Protected endpoint, checking auth:', path);
+		// High-frequency driver location pings — skip log to avoid console spam (e.g. test mode 403s).
+		if (!path.includes('/location')) {
+			console.log('🔒 [JwtAuthGuard] Protected endpoint, checking auth:', path);
+		}
 		return super.canActivate(context);
 	}
 }
