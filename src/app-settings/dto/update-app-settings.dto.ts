@@ -15,12 +15,12 @@ export class UpdateAppSettingsDto {
 
 	@ApiProperty({
 		description:
-			'Minimum distance (meters) the driver must move before a location send is allowed',
+			'Minimum distance (meters) the driver must move before a location send is allowed. Use 0 to disable the distance gate (time gate still applies if set).',
 		example: 3000,
-		minimum: 1,
+		minimum: 0,
 	})
 	@IsInt()
-	@Min(1)
+	@Min(0)
 	@Max(1_000_000)
 	locationMinDistanceM!: number;
 

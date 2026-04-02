@@ -102,6 +102,16 @@ export class UpdateUserLocationDto {
   @IsOptional()
   @IsBoolean()
   isAutoupdate?: boolean;
+
+  @ApiProperty({
+    description:
+      'True when the request is from the mobile background location task (automatic pings). Skips TMS driver/location sync on the server; DB and WebSocket still update.',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isBackgroundTaskLocationUpdate?: boolean;
 }
 
 

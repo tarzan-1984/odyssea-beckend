@@ -40,6 +40,10 @@ export interface ExternalApiConfig {
 	 * Set SKIP_TMS_DRIVER_LOCATION_SYNC=true when TMS endpoint is unavailable.
 	 */
 	skipTmsDriverLocationSync: boolean;
+	/**
+	 * When false, the every-5-min TMS batch location cron is disabled. Default true.
+	 */
+	tmsLocationBatchCronEnabled: boolean;
 }
 
 export const databaseConfig = registerAs(
@@ -103,5 +107,7 @@ export const externalApiConfig = registerAs(
 		tmsApiKey: process.env.TMS_API_KEY || 'tms_api_key_2024_driver_access',
 		skipTmsDriverLocationSync:
 			process.env.SKIP_TMS_DRIVER_LOCATION_SYNC === 'true',
+		tmsLocationBatchCronEnabled:
+			process.env.TMS_LOCATION_BATCH_CRON_ENABLED !== 'false',
 	}),
 );

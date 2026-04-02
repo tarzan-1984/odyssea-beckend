@@ -84,7 +84,10 @@ describe('UsersService', () => {
 					useValue: {
 						get: jest.fn((key: string) => {
 							if (key === 'externalApi') {
-								return { skipTmsDriverLocationSync: false };
+								return {
+									skipTmsDriverLocationSync: false,
+									tmsLocationBatchCronEnabled: true,
+								};
 							}
 							return undefined;
 						}),

@@ -54,6 +54,7 @@ model User {
   offersCreated        Offer[]               @relation("OfferCreator")
   rateOffersAsDriver   RateOffer[]
 
+  @@index([role, isAutoupdate])
   @@map("users")
 }
 
@@ -99,6 +100,10 @@ model AppSetting {
   locationMinIntervalMs      Int      @default(60000) @map("location_min_interval_ms")
   locationMinDistanceM       Int      @default(1000)  @map("location_min_distance_m")
   reverseGeocodeMinDistanceM Int      @default(5000)  @map("reverse_geocode_min_distance_m")
+  /** Minimum seconds between TMS batch location sync runs (server cron). */
+  tmsBatchCronIntervalSeconds Int     @default(300)   @map("tms_batch_cron_interval_seconds")
+  /** Max drivers per TMS batch POST request. */
+  tmsBatchChunkSize          Int      @default(150)   @map("tms_batch_chunk_size")
   createdAt                  DateTime @default(now()) @map("created_at")
   updatedAt                  DateTime @updatedAt      @map("updated_at")
 

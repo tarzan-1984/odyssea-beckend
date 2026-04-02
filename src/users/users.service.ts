@@ -21,6 +21,7 @@ import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 import { TmsDriverLocationService } from '../tms/tms-driver-location.service';
+import { formatTmsStatusDate } from '../tms/tms-status-date.util';
 import type { ExternalApiConfig } from '../config/env.config';
 
 @Injectable()
@@ -407,41 +408,8 @@ export class UsersService {
 	}
 
 	/**
-	 * Format status date for TMS (aligned with legacy mobile formatStatusDate).
-	 */
-	private formatTmsStatusDate(statusDate?: string | null): string {
-		const now = new Date();
-		const hours = now.getHours();
-		const minutes = String(now.getMinutes()).padStart(2, '0');
-		const ampm = hours >= 12 ? 'PM' : 'AM';
-		const displayHours = hours % 12 || 12;
-
-		if (!statusDate || statusDate.trim() === '') {
-			const month = String(now.getMonth() + 1).padStart(2, '0');
-			const day = String(now.getDate()).padStart(2, '0');
-			const year = now.getFullYear();
-			return `${month}/${day}/${year} ${displayHours}:${minutes} ${ampm}`;
-		}
-
-		const trimmed = statusDate.trim();
-		const timeMatch = trimmed.match(
-			/(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
-		);
-		if (timeMatch) {
-			const datePart = timeMatch[1];
-			const timePart = timeMatch[2];
-			const dateSegments = datePart.split('/');
-			if (dateSegments.length === 3) {
-				let year = parseInt(dateSegments[2], 10);
-				if (year < 100) year += 2000;
-				return `${dateSegments[0]}/${dateSegments[1]}/${year} ${timePart}`;
-			}
-		}
-		return `${trimmed} ${displayHours}:${minutes} ${ampm}`;
-	}
-
-	/**
-	 * Updates user location fields (and optional driver status). After DB save, DRIVER users sync to TMS.
+	 * Updates user location fields (and optional driver status). After DB save, DRIVER users sync to TMS
+	 * unless `isBackgroundTaskLocationUpdate` is true (background task pings — DB + WebSocket only).
 	 */
 	async updateUserLocation(id: string, locationDto: UpdateUserLocationDto) {
 		const user = await this.prisma.user.findUnique({
@@ -517,6 +485,11 @@ export class UsersService {
 			return updatedUser;
 		}
 
+		// Automatic background pings: persist location only; TMS sync will use a separate flow later.
+		if (locationDto.isBackgroundTaskLocationUpdate === true) {
+			return updatedUser;
+		}
+
 		const extApi = this.configService.get<ExternalApiConfig>('externalApi');
 		if (extApi?.skipTmsDriverLocationSync) {
 			return updatedUser;
@@ -531,7 +504,7 @@ export class UsersService {
 			locationDto.statusDate !== undefined
 				? locationDto.statusDate
 				: updatedUser.statusDate;
-		const statusDateFormatted = this.formatTmsStatusDate(statusDateForFormat);
+		const statusDateFormatted = formatTmsStatusDate(statusDateForFormat);
 
 		try {
 			await this.tmsDriverLocation.sendDriverLocationUpdate({
