@@ -53,6 +53,7 @@ model User {
   refreshTokens        RefreshToken[]
   offersCreated        Offer[]               @relation("OfferCreator")
   rateOffersAsDriver   RateOffer[]
+  userDevices          UserDevice[]
 
   @@index([role, isAutoupdate])
   @@map("users")
@@ -154,6 +155,24 @@ model PushToken {
 
   @@unique([userId, token])
   @@map("push_tokens")
+}
+
+/// Mobile client snapshot after login (analytics). Push delivery still uses push_tokens.
+model UserDevice {
+  id             String   @id @default(cuid())
+  userExternalId String
+  platform       String
+  appVersion     String?
+  deviceName     String?
+  model          String?
+  osVersion      String?
+  pushToken      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userExternalId], references: [externalId], onDelete: Cascade)
+
+  @@index([userExternalId])
+  @@map("user_devices")
 }
 
 model Offer {

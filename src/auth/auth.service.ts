@@ -17,6 +17,7 @@ import { jwtDecode } from 'jwt-decode';
 import { AxiosError } from '../types/request.types';
 import { generateRandomPassword } from '../helpers/helper';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
+import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
 
 export interface JwtPayload {
 	sub: string;
@@ -882,5 +883,33 @@ export class AuthService {
 			message:
 				'If an account with this email exists, a new password has been sent.',
 		};
+	}
+
+	/**
+	 * Store a mobile device snapshot for analytics (linked to users.externalId).
+	 * Does not replace push_tokens for FCM/Expo delivery.
+	 */
+	async registerMobileDevice(
+		userId: string,
+		dto: RegisterMobileDeviceDto,
+	): Promise<void> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		if (!user?.externalId || user.externalId.trim() === '') {
+			throw new BadRequestException('User has no externalId');
+		}
+		await this.prisma.userDevice.create({
+			data: {
+				userExternalId: user.externalId,
+				platform: dto.platform,
+				appVersion: dto.appVersion ?? null,
+				deviceName: dto.deviceName ?? null,
+				model: dto.model ?? null,
+				osVersion: dto.osVersion ?? null,
+				pushToken: dto.pushToken ?? null,
+			},
+		});
 	}
 }

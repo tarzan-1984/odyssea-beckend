@@ -9,6 +9,7 @@ import {
 	Query,
 	Res,
 	UnauthorizedException,
+	Request,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -26,6 +27,9 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordMobileDto } from './dto/reset-password-mobile.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AuthenticatedRequest } from '../types/request.types';
+import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -134,6 +138,23 @@ export class AuthController {
 	@ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
 	async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto): Promise<AuthResponse> {
 		return this.authService.verifyOtp(verifyOtpDto.email, verifyOtpDto.otp);
+	}
+
+	@Post('mobile-device')
+	@UseGuards(JwtAuthGuard)
+	@HttpCode(HttpStatus.CREATED)
+	@ApiOperation({
+		summary:
+			'Register mobile device snapshot after login (analytics only)',
+	})
+	@ApiResponse({ status: 201, description: 'Device row created' })
+	@ApiResponse({ status: 400, description: 'User has no externalId' })
+	async registerMobileDevice(
+		@Request() req: AuthenticatedRequest,
+		@Body() body: RegisterMobileDeviceDto,
+	): Promise<{ success: true }> {
+		await this.authService.registerMobileDevice(req.user.id, body);
+		return { success: true };
 	}
 
 	@Get('social-login')
