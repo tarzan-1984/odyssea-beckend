@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverLocationBatchService } from './tms-driver-location-batch.service';
+import { TmsLoadDraftService } from './tms-load-draft.service';
 import { TmsLocationBatchScheduler } from './tms-location-batch.scheduler';
 
 @Module({
@@ -10,11 +11,13 @@ import { TmsLocationBatchScheduler } from './tms-location-batch.scheduler';
 	providers: [
 		TmsDriverApplicationService,
 		TmsDriverLocationBatchService,
+		TmsLoadDraftService,
 		TmsLocationBatchScheduler,
 	],
 	exports: [
 		TmsDriverApplicationService,
 		TmsDriverLocationBatchService,
+		TmsLoadDraftService,
 	],
 })
 export class TmsModule {}

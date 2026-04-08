@@ -1,11 +1,15 @@
 import {
+	BadGatewayException,
 	BadRequestException,
 	Injectable,
 	NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TmsLoadDraftService } from '../tms/tms-load-draft.service';
+import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
@@ -91,11 +95,56 @@ function getOfferTitleFromRoute(
 	return firstLocation || lastLocation || `Offer #${offerId}`;
 }
 
+function parseOfferExternalUserIdToTmsUserId(
+	externalUserId: string | null | undefined,
+): number {
+	const trimmed = externalUserId?.trim();
+	if (!trimmed) {
+		throw new BadRequestException({
+			message: 'Cannot accept driver: offer has no external_user_id for TMS',
+		});
+	}
+	if (!/^\d+$/.test(trimmed)) {
+		throw new BadRequestException({
+			message:
+				'Cannot accept driver: external_user_id must be a numeric TMS user id',
+		});
+	}
+	return parseInt(trimmed, 10);
+}
+
+function normalizeSpecialRequirementsForTms(json: unknown): string[] {
+	if (json == null) return [];
+	if (Array.isArray(json)) {
+		return json.map((x) => String(x).trim()).filter(Boolean);
+	}
+	return [];
+}
+
+function normalizeRouteForTms(
+	route: unknown,
+): Array<{ time: string; type: string; location: string }> {
+	if (!Array.isArray(route)) return [];
+	const out: Array<{ time: string; type: string; location: string }> = [];
+	for (const p of route) {
+		if (!p || typeof p !== 'object') continue;
+		const point = p as Record<string, unknown>;
+		const type = String(point.type ?? '').trim();
+		const location = String(point.location ?? '').trim();
+		const time = String(point.time ?? '').trim();
+		if (!type || !location) continue;
+		out.push({ type, location, time });
+	}
+	return out;
+}
+
 @Injectable()
 export class OffersService {
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly notificationsService: NotificationsService,
+		private readonly tmsLoadDraftService: TmsLoadDraftService,
+		private readonly configService: ConfigService,
 	) {}
 
 	async create(dto: CreateOfferDto) {
@@ -917,7 +966,16 @@ export class OffersService {
 
 		const offer = await this.prisma.offer.findUnique({
 			where: { id: offerId },
-			select: { id: true, route: true },
+			select: {
+				id: true,
+				route: true,
+				externalUserId: true,
+				weight: true,
+				commodity: true,
+				notes: true,
+				specialRequirements: true,
+				loadedMiles: true,
+			},
 		});
 		if (!offer) {
 			throw new NotFoundException(`Offer with id ${offerId} not found`);
@@ -925,7 +983,13 @@ export class OffersService {
 
 		const rateOffers = await this.prisma.rateOffer.findMany({
 			where: { offerId },
-			select: { id: true, driverId: true },
+			select: {
+				id: true,
+				driverId: true,
+				rate: true,
+				emptyMiles: true,
+				totalMiles: true,
+			},
 		});
 		const selectedRateOffer = rateOffers.find(
 			(rateOffer) => rateOffer.driverId === normalizedDriverExternalId,
@@ -934,6 +998,65 @@ export class OffersService {
 			throw new NotFoundException(
 				`Rate offer not found for offer ${offerId} and driver ${normalizedDriverExternalId}`,
 			);
+		}
+
+		const tmsUserId = parseOfferExternalUserIdToTmsUserId(offer.externalUserId);
+		const tmsDriverId = /^\d+$/.test(normalizedDriverExternalId)
+			? parseInt(normalizedDriverExternalId, 10)
+			: normalizedDriverExternalId;
+
+		const routeForTms = normalizeRouteForTms(offer.route);
+		if (routeForTms.length === 0) {
+			throw new BadRequestException({
+				message: 'Cannot accept driver: offer route is empty or invalid for TMS',
+			});
+		}
+
+		const project = this.configService.get<string>('externalApi.tmsProject');
+		if (!project?.trim()) {
+			throw new BadGatewayException('TMS project is not configured');
+		}
+
+		const specialReqs = normalizeSpecialRequirementsForTms(
+			offer.specialRequirements,
+		);
+		const rateNum =
+			selectedRateOffer.rate != null ? Number(selectedRateOffer.rate) : 0;
+		const weightNum = offer.weight != null ? Number(offer.weight) : 0;
+		const emptyMilesNum =
+			selectedRateOffer.emptyMiles != null
+				? Number(selectedRateOffer.emptyMiles)
+				: 0;
+		const loadedMilesNum =
+			selectedRateOffer.totalMiles != null
+				? Number(selectedRateOffer.totalMiles)
+				: offer.loadedMiles != null
+					? Number(offer.loadedMiles)
+					: 0;
+
+		let postId: number;
+		try {
+			postId = await this.tmsLoadDraftService.createLoadDraft({
+				project,
+				user_id: tmsUserId,
+				driver_id: tmsDriverId,
+				offer_id: `OFF-${offerId}`,
+				commodity: offer.commodity?.trim() || 'General Freight',
+				notes: offer.notes?.trim() || 'Created from external app',
+				weight: weightNum,
+				rate: rateNum,
+				empty_miles: emptyMilesNum,
+				loaded_miles: loadedMilesNum,
+				special_requirements: specialReqs,
+				route: routeForTms,
+			});
+		} catch (error) {
+			const ax = error as AxiosError;
+			const detail =
+				ax.response?.data != null
+					? JSON.stringify(ax.response.data)
+					: (error as Error).message;
+			throw new BadGatewayException(`TMS load draft failed: ${detail}`);
 		}
 
 		const nowNy = getNewYorkTimeString();
@@ -965,6 +1088,7 @@ export class OffersService {
 				where: { id: offerId },
 				data: {
 					isDriverSelected: true,
+					loadId: String(postId),
 					updateTime: nowNy,
 				},
 			});
