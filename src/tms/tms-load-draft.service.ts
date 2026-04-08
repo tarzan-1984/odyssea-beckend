@@ -61,6 +61,11 @@ export class TmsLoadDraftService {
 				timeout: 30000,
 			});
 
+			console.log(
+				'[TmsLoadDraftService] TMS load/draft/create response:',
+				JSON.stringify(data, null, 2),
+			);
+
 			const postId = data?.data?.post_id;
 			if (
 				data?.success !== true ||
@@ -79,6 +84,16 @@ export class TmsLoadDraftService {
 			return postId;
 		} catch (error) {
 			const ax = error as AxiosError;
+			if (ax.response?.data != null) {
+				const errBody =
+					typeof ax.response.data === 'string'
+						? ax.response.data
+						: JSON.stringify(ax.response.data, null, 2);
+				console.log(
+					'[TmsLoadDraftService] TMS load/draft/create error response:',
+					errBody,
+				);
+			}
 			const detail =
 				ax.response?.data != null
 					? JSON.stringify(ax.response.data)
