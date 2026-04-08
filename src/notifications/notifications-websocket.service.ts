@@ -169,4 +169,27 @@ export class NotificationsWebSocketService {
 			);
 		}
 	}
+
+	/**
+	 * Broadcast that global mobile app location settings changed.
+	 * Clients should re-fetch GET /v1/app-settings and apply locally.
+	 */
+	async broadcastAppLocationSettingsUpdated(payload?: {
+		updatedAt?: string;
+	}) {
+		try {
+			if (!this.server) {
+				this.logger.warn('WebSocket server not initialized');
+				return;
+			}
+			this.server.emit('appLocationSettingsUpdated', {
+				updatedAt: payload?.updatedAt,
+			});
+		} catch (error) {
+			this.logger.error(
+				'Failed to broadcast app location settings update:',
+				error,
+			);
+		}
+	}
 }

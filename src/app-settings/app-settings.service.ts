@@ -3,12 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAppSettingsDto } from './dto/update-app-settings.dto';
 import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-settings.dto';
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 const GLOBAL_APP_SETTINGS_ID = 'global';
 
 @Injectable()
 export class AppSettingsService {
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly notificationsWebSocketService: NotificationsWebSocketService,
+	) {}
 
 	/**
 	 * Singleton row; creates defaults if missing (e.g. before migration on a fresh DB).
@@ -35,13 +39,16 @@ export class AppSettingsService {
 	 */
 	async updateGlobal(dto: UpdateAppSettingsDto) {
 		await this.getGlobal();
-		await this.prisma.appSetting.update({
+		const row = await this.prisma.appSetting.update({
 			where: { id: GLOBAL_APP_SETTINGS_ID },
 			data: {
 				locationMinIntervalMs: dto.locationMinIntervalMs,
 				locationMinDistanceM: dto.locationMinDistanceM,
 				reverseGeocodeMinDistanceM: dto.reverseGeocodeMinDistanceM,
 			},
+		});
+		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
+			updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
 		});
 		return this.getMobileAppSettings();
 	}
@@ -104,13 +111,16 @@ export class AppSettingsService {
 		dto: UpdateLocationEnvironmentAppSettingsDto,
 	) {
 		await this.getGlobal();
-		await this.prisma.appSetting.update({
+		const row = await this.prisma.appSetting.update({
 			where: { id: GLOBAL_APP_SETTINGS_ID },
 			data: {
 				locationEnvironmentMode: dto.locationEnvironmentMode,
 				locationTestDriverExternalId:
 					dto.locationTestDriverExternalId.trim(),
 			},
+		});
+		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
+			updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
 		});
 		return this.getLocationEnvironmentAppSettings();
 	}
