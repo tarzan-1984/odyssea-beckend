@@ -31,7 +31,7 @@ export class AppSettingsController {
 	@Get()
 	@ApiOperation({
 		summary:
-			'Get mobile app location throttling settings (interval, distance, reverse geocode)',
+			'Get mobile app settings: location throttling + location environment gate (live/test)',
 	})
 	@ApiResponse({ status: 200, description: 'Current mobile-related settings' })
 	async get() {

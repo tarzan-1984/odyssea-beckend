@@ -47,7 +47,9 @@ export class AppSettingsService {
 	}
 
 	/**
-	 * Mobile clients: same row but only location-throttling fields (no TMS batch params).
+	 * Mobile clients: same row but only mobile-consumed fields:
+	 * - location throttling (interval, distance, reverse geocode distance)
+	 * - location environment gate (live vs test driver externalId)
 	 */
 	async getMobileAppSettings() {
 		const row = await this.getGlobal();
@@ -56,6 +58,8 @@ export class AppSettingsService {
 			locationMinIntervalMs: row.locationMinIntervalMs,
 			locationMinDistanceM: row.locationMinDistanceM,
 			reverseGeocodeMinDistanceM: row.reverseGeocodeMinDistanceM,
+			locationEnvironmentMode: row.locationEnvironmentMode as 'live' | 'test',
+			locationTestDriverExternalId: row.locationTestDriverExternalId,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};
