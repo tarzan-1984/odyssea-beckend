@@ -4,7 +4,6 @@ import {
 	Injectable,
 	NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -144,7 +143,6 @@ export class OffersService {
 		private readonly prisma: PrismaService,
 		private readonly notificationsService: NotificationsService,
 		private readonly tmsLoadDraftService: TmsLoadDraftService,
-		private readonly configService: ConfigService,
 	) {}
 
 	async create(dto: CreateOfferDto) {
@@ -1012,11 +1010,6 @@ export class OffersService {
 			});
 		}
 
-		const project = this.configService.get<string>('externalApi.tmsProject');
-		if (!project?.trim()) {
-			throw new BadGatewayException('TMS project is not configured');
-		}
-
 		const specialReqs = normalizeSpecialRequirementsForTms(
 			offer.specialRequirements,
 		);
@@ -1037,7 +1030,7 @@ export class OffersService {
 		let postId: number;
 		try {
 			postId = await this.tmsLoadDraftService.createLoadDraft({
-				project,
+				project: 'Odysseia',
 				user_id: tmsUserId,
 				driver_id: tmsDriverId,
 				offer_id: `OFF-${offerId}`,

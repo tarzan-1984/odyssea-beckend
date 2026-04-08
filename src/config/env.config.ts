@@ -37,8 +37,6 @@ export interface ExternalApiConfig {
 	tmsApiKey: string | undefined;
 	/** POST load/draft/create — default Endurance TMS URL */
 	tmsLoadDraftCreateUrl: string;
-	/** TMS `project` field for load draft payloads */
-	tmsProject: string;
 	/**
 	 * When true, driver location updates persist to DB only; TMS reverse sync is skipped (200 instead of 503).
 	 * Set SKIP_TMS_DRIVER_LOCATION_SYNC=true when TMS endpoint is unavailable.
@@ -112,7 +110,6 @@ export const externalApiConfig = registerAs(
 		tmsLoadDraftCreateUrl:
 			process.env.TMS_LOAD_DRAFT_CREATE_URL ||
 			'https://www.endurance-tms.com/wp-json/tms/v1/driver/load/draft/create',
-		tmsProject: process.env.TMS_PROJECT || 'endurance',
 		skipTmsDriverLocationSync:
 			process.env.SKIP_TMS_DRIVER_LOCATION_SYNC === 'true',
 		tmsLocationBatchCronEnabled:
