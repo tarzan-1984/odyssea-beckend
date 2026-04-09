@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAppSettingsDto } from './dto/update-app-settings.dto';
 import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-settings.dto';
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
+import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 const GLOBAL_APP_SETTINGS_ID = 'global';
@@ -67,9 +68,33 @@ export class AppSettingsService {
 			reverseGeocodeMinDistanceM: row.reverseGeocodeMinDistanceM,
 			locationEnvironmentMode: row.locationEnvironmentMode as 'live' | 'test',
 			locationTestDriverExternalId: row.locationTestDriverExternalId,
+			maxDriverOpenOfferParticipations: row.maxDriverOpenOfferParticipations,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};
+	}
+
+	async getOffersAppSettings() {
+		const row = await this.getGlobal();
+		return {
+			id: row.id,
+			maxDriverOpenOfferParticipations: row.maxDriverOpenOfferParticipations,
+			updatedAt: row.updatedAt,
+		};
+	}
+
+	async updateOffersAppSettings(dto: UpdateOffersAppSettingsDto) {
+		await this.getGlobal();
+		const row = await this.prisma.appSetting.update({
+			where: { id: GLOBAL_APP_SETTINGS_ID },
+			data: {
+				maxDriverOpenOfferParticipations: dto.maxDriverOpenOfferParticipations,
+			},
+		});
+		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
+			updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
+		});
+		return this.getOffersAppSettings();
 	}
 
 	async getTmsBatchAppSettings() {

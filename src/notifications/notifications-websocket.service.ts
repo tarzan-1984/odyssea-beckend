@@ -171,8 +171,8 @@ export class NotificationsWebSocketService {
 	}
 
 	/**
-	 * Broadcast that global mobile app location settings changed.
-	 * Clients should re-fetch GET /v1/app-settings and apply locally.
+	 * Broadcast that global mobile app settings changed (location thresholds, environment gate,
+	 * max concurrent offer bids, etc.). Clients should re-fetch GET /v1/app-settings and apply locally.
 	 */
 	async broadcastAppLocationSettingsUpdated(payload?: {
 		updatedAt?: string;

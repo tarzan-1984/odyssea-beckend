@@ -92,7 +92,7 @@ export class OffersController {
 	@ApiOperation({
 		summary: 'Get driver participation count',
 		description:
-			'Returns count of offers where the authenticated driver has placed a bid (rate set) but is not yet selected. Used for participation limit (max 2) in mobile app. Only counts active offers and active driver entries.',
+			'Returns count of offers where the driver has an open bid (rate set, rate row not is_selected). Does not count offers already assigned (isDriverSelected). Limit is configured in app_settings (max_driver_open_offer_participations).',
 	})
 	@ApiResponse({ status: 200, description: 'Participation count' })
 	async getDriverParticipationCount(

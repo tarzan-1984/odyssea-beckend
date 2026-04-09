@@ -20,6 +20,7 @@ import { AppSettingsService } from './app-settings.service';
 import { UpdateAppSettingsDto } from './dto/update-app-settings.dto';
 import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-settings.dto';
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
+import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
 
 @ApiTags('App settings')
 @ApiBearerAuth()
@@ -31,7 +32,7 @@ export class AppSettingsController {
 	@Get()
 	@ApiOperation({
 		summary:
-			'Get mobile app settings: location throttling + location environment gate (live/test)',
+			'Get mobile app settings: location throttling, environment gate (live/test), max concurrent offer bids',
 	})
 	@ApiResponse({ status: 200, description: 'Current mobile-related settings' })
 	async get() {
@@ -121,5 +122,38 @@ export class AppSettingsController {
 			);
 		}
 		return this.appSettingsService.updateLocationEnvironmentAppSettings(dto);
+	}
+
+	@Get('offers')
+	@ApiOperation({
+		summary:
+			'Get driver offer participation limit (admin UI) — max concurrent open bids',
+	})
+	@ApiResponse({ status: 200, description: 'Offers-related app settings' })
+	async getOffers(@Request() req: AuthenticatedRequest) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can read offers app settings',
+			);
+		}
+		return this.appSettingsService.getOffersAppSettings();
+	}
+
+	@Put('offers')
+	@ApiOperation({
+		summary:
+			'Update max concurrent open bids per driver (admin only). Broadcasts appLocationSettingsUpdated.',
+	})
+	@ApiResponse({ status: 200, description: 'Updated' })
+	async updateOffers(
+		@Request() req: AuthenticatedRequest,
+		@Body() dto: UpdateOffersAppSettingsDto,
+	) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can update offers app settings',
+			);
+		}
+		return this.appSettingsService.updateOffersAppSettings(dto);
 	}
 }

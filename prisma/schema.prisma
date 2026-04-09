@@ -111,6 +111,11 @@ model AppSetting {
   locationEnvironmentMode      String   @default("live") @map("location_environment_mode")
   /** Allowed TMS/driver external id when mode is test (string, e.g. "3343"). */
   locationTestDriverExternalId String   @default("3343") @map("location_test_driver_external_id")
+  /**
+   * How many offers a driver may have an open bid on at once (assigned offers excluded).
+   * Exposed to mobile via GET /v1/app-settings; enforced in setDriverRate.
+   */
+  maxDriverOpenOfferParticipations Int @default(2) @map("max_driver_open_offer_participations")
   createdAt                  DateTime @default(now()) @map("created_at")
   updatedAt                  DateTime @updatedAt      @map("updated_at")
 

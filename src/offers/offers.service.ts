@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TmsLoadDraftService } from '../tms/tms-load-draft.service';
+import { AppSettingsService } from '../app-settings/app-settings.service';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
@@ -143,6 +144,7 @@ export class OffersService {
 		private readonly prisma: PrismaService,
 		private readonly notificationsService: NotificationsService,
 		private readonly tmsLoadDraftService: TmsLoadDraftService,
+		private readonly appSettingsService: AppSettingsService,
 	) {}
 
 	async create(dto: CreateOfferDto) {
@@ -314,6 +316,36 @@ export class OffersService {
 			);
 		}
 
+		const isFirstBid =
+			dto.rate != null && (rateOffer.rate == null || rateOffer.rate === undefined);
+		if (isFirstBid) {
+			const global = await this.appSettingsService.getGlobal();
+			const maxParticipations = Math.max(
+				1,
+				global.maxDriverOpenOfferParticipations,
+			);
+			const currentOpen = await this.prisma.rateOffer.count({
+				where: {
+					driverId,
+					rate: { not: null },
+					isSelected: false,
+					active: true,
+					offer: {
+						active: true,
+						isDriverSelected: false,
+					},
+				},
+			});
+			if (currentOpen >= maxParticipations) {
+				throw new BadRequestException({
+					message: 'Validation failed',
+					errors: [
+						`Open offer participation limit reached (max ${maxParticipations} active unassigned offers with a bid).`,
+					],
+				});
+			}
+		}
+
 		const actionTimeUnix = getUnixSecondsPlusMinutes(dto.rateTimeMinutes);
 
 		const updated = await this.prisma.rateOffer.update({
@@ -429,9 +461,9 @@ export class OffersService {
 	 * action_time comparison uses current Unix time.
 	 */
 	/**
-	 * Count offers where the driver participates (rate set, not selected).
-	 * Only counts active offers (offer.active=true) with active driver (rate_offer.active=true).
-	 * Used for participation limit (max 2) in mobile app.
+	 * Count offers where the driver has an open bid (rate set, not selected on rate row).
+	 * Excludes offers that are already assigned (isDriverSelected) — those do not consume the
+	 * "max 2 concurrent bids" limit. Only active offers with active rate_offer rows.
 	 */
 	async getDriverParticipationCount(userId: string): Promise<{ count: number }> {
 		const user = await this.prisma.user.findUnique({
@@ -449,7 +481,10 @@ export class OffersService {
 				rate: { not: null },
 				isSelected: false,
 				active: true,
-				offer: { active: true },
+				offer: {
+					active: true,
+					isDriverSelected: false,
+				},
 			},
 		});
 
