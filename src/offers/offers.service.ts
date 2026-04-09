@@ -1,13 +1,18 @@
 import {
 	BadGatewayException,
 	BadRequestException,
+	ForbiddenException,
 	Injectable,
 	NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TmsLoadDraftService } from '../tms/tms-load-draft.service';
+import {
+	TmsDriverDraftLoadsService,
+	type TmsDraftLoadRow,
+} from '../tms/tms-driver-draft-loads.service';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -95,6 +100,19 @@ function getOfferTitleFromRoute(
 	return firstLocation || lastLocation || `Offer #${offerId}`;
 }
 
+/** Parses TMS offer_id like "OFF-3" or "3" into our numeric offer id. */
+function parseOfferNumericIdFromTmsString(offerId: unknown): number | null {
+	if (offerId == null) return null;
+	if (typeof offerId === 'number' && Number.isInteger(offerId) && offerId > 0) {
+		return offerId;
+	}
+	const s = String(offerId).trim();
+	const m = s.match(/(\d+)\s*$/);
+	if (!m) return null;
+	const n = parseInt(m[1], 10);
+	return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function parseOfferExternalUserIdToTmsUserId(
 	externalUserId: string | null | undefined,
 ): number {
@@ -144,6 +162,7 @@ export class OffersService {
 		private readonly prisma: PrismaService,
 		private readonly notificationsService: NotificationsService,
 		private readonly tmsLoadDraftService: TmsLoadDraftService,
+		private readonly tmsDriverDraftLoadsService: TmsDriverDraftLoadsService,
 		private readonly appSettingsService: AppSettingsService,
 	) {}
 
@@ -489,6 +508,136 @@ export class OffersService {
 		});
 
 		return { count };
+	}
+
+	/**
+	 * TMS draft loads for the signed-in driver, merged with local offer title / rate / miles.
+	 */
+	async getDriverDraftLoadsForCurrentUser(
+		userId: string,
+		role: string,
+	): Promise<{
+		items: Array<{
+			tms_draft_id: number;
+			date_created: string;
+			date_updated: string;
+			pick_up_date: string;
+			delivery_date: string;
+			offer_id: string;
+			offer_numeric_id: number | null;
+			offer_name: string;
+			driver_rate: number | null;
+			loaded_miles: number | null;
+		}>;
+		tms: {
+			total: number;
+			page: number;
+			per_page: number;
+			total_pages: number;
+			driver_id: number | string;
+			project: string;
+		};
+	}> {
+		if (role !== UserRole.DRIVER) {
+			throw new ForbiddenException('Only drivers can list draft loads');
+		}
+
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		const driverExternalId = user?.externalId?.trim();
+		if (!driverExternalId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['Driver external id is not set'],
+			});
+		}
+
+		let tmsData: Awaited<
+			ReturnType<TmsDriverDraftLoadsService['fetchDraftLoads']>
+		>;
+		try {
+			tmsData = await this.tmsDriverDraftLoadsService.fetchDraftLoads(
+				driverExternalId,
+			);
+		} catch {
+			throw new BadGatewayException(
+				'Unable to load draft loads from TMS. Please try again later.',
+			);
+		}
+
+		const items = await Promise.all(
+			tmsData.loads.map((row) =>
+				this.enrichDraftLoadRow(row, driverExternalId),
+			),
+		);
+
+		return {
+			items,
+			tms: {
+				total: tmsData.total,
+				page: tmsData.page,
+				per_page: tmsData.per_page,
+				total_pages: tmsData.total_pages,
+				driver_id: tmsData.driver_id,
+				project: tmsData.project,
+			},
+		};
+	}
+
+	private async enrichDraftLoadRow(
+		row: TmsDraftLoadRow,
+		driverExternalId: string,
+	): Promise<{
+		tms_draft_id: number;
+		date_created: string;
+		date_updated: string;
+		pick_up_date: string;
+		delivery_date: string;
+		offer_id: string;
+		offer_numeric_id: number | null;
+		offer_name: string;
+		driver_rate: number | null;
+		loaded_miles: number | null;
+	}> {
+		const numericId = parseOfferNumericIdFromTmsString(row.offer_id);
+		let offer_name = '';
+		let driver_rate: number | null = null;
+		let loaded_miles: number | null = null;
+
+		if (numericId != null) {
+			const offer = await this.prisma.offer.findUnique({
+				where: { id: numericId },
+				select: { route: true, loadedMiles: true },
+			});
+			if (offer) {
+				offer_name = getOfferTitleFromRoute(offer.route, numericId);
+				loaded_miles = offer.loadedMiles ?? null;
+				const ro = await this.prisma.rateOffer.findFirst({
+					where: {
+						offerId: numericId,
+						driverId: driverExternalId,
+						active: true,
+					},
+					select: { rate: true },
+				});
+				driver_rate = ro?.rate ?? null;
+			}
+		}
+
+		return {
+			tms_draft_id: row.id,
+			date_created: row.date_created,
+			date_updated: row.date_updated,
+			pick_up_date: row.pick_up_date,
+			delivery_date: row.delivery_date,
+			offer_id: row.offer_id,
+			offer_numeric_id: numericId,
+			offer_name,
+			driver_rate,
+			loaded_miles,
+		};
 	}
 
 	async findAllPaginated(dto: GetOffersQueryDto) {

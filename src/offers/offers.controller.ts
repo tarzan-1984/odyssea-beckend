@@ -101,6 +101,24 @@ export class OffersController {
 		return this.offersService.getDriverParticipationCount(req.user?.id ?? '');
 	}
 
+	@Get('driver/draft-loads')
+	@ApiOperation({
+		summary: 'Driver draft loads (TMS) with offer title, rate, loaded miles',
+		description:
+			'Drivers only. Uses the signed-in user’s TMS external id. Backend calls TMS drafts API then enriches each row from local offers / rate_offers.',
+	})
+	@ApiResponse({ status: 200, description: 'Draft load cards data' })
+	@ApiResponse({ status: 403, description: 'Not a driver' })
+	@ApiResponse({ status: 502, description: 'TMS unavailable' })
+	async getDriverDraftLoads(
+		@Request() req: { user: { id: string; role: string } },
+	) {
+		return this.offersService.getDriverDraftLoadsForCurrentUser(
+			req.user?.id ?? '',
+			req.user?.role ?? '',
+		);
+	}
+
 	@Get(':id')
 	@ApiOperation({
 		summary: 'Get one offer by id',
