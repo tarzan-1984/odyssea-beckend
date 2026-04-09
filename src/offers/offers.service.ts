@@ -1030,7 +1030,7 @@ export class OffersService {
 		let postId: number;
 		try {
 			postId = await this.tmsLoadDraftService.createLoadDraft({
-				project: 'Odysseia',
+				project: 'odysseia',
 				user_id: tmsUserId,
 				driver_id: tmsDriverId,
 				offer_id: `OFF-${offerId}`,
