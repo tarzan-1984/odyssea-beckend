@@ -7,6 +7,7 @@ import {
 	Min,
 	IsIn,
 	ValidateNested,
+	IsNotEmpty,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
@@ -39,13 +40,17 @@ function parseNumber(value: unknown): number | undefined {
 }
 
 export class CreateOfferDto {
-	@ApiPropertyOptional({
-		description: 'External ID of the user creating the offer (optional for staff users)',
-		example: 'ext_abc123',
+	@ApiProperty({
+		description:
+			'TMS / user external id of the creator (stored as offers.external_user_id). Required.',
+		example: '83',
 	})
-	@IsOptional()
+	@Transform(({ value }) =>
+		typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim(),
+	)
 	@IsString()
-	externalId?: string;
+	@IsNotEmpty({ message: 'externalId is required (creator external_user_id)' })
+	externalId: string;
 
 	@ApiProperty({
 		description:

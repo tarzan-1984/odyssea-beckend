@@ -197,7 +197,9 @@ export class AuthService {
 				role: user.role,
 				status: user.status,
 				avatar,
-				externalId: user.externalId || '', // Add externalId
+				externalId: user.externalId || '',
+				phone: user.phone || '',
+				location: user.location || '',
 			},
 		};
 	}

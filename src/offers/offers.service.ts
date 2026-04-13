@@ -169,6 +169,9 @@ export class OffersService {
 	async create(dto: CreateOfferDto) {
 		// Validate required and hidden fields before creating offer
 		const errors: string[] = [];
+		if (!dto.externalId?.trim()) {
+			errors.push('Creator external ID (externalId / external_user_id) is required');
+		}
 		const driverIds = Array.isArray(dto.driverIds) ? dto.driverIds : [];
 		if (driverIds.length === 0) {
 			errors.push('At least one driver (driverIds) is required');
@@ -218,7 +221,7 @@ export class OffersService {
 		const offer = await this.prisma.$transaction(async (tx) => {
 			const offer = await tx.offer.create({
 				data: {
-					externalUserId: dto.externalId || null,
+					externalUserId: dto.externalId.trim(),
 					createTime: nowNy,
 					updateTime: nowNy,
 					loadedMiles: loadedMilesNum,

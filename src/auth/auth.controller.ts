@@ -292,18 +292,11 @@ export class AuthController {
 
 			const result = await this.authService.handleGoogleCallback(code);
 
+			// Must match fields auth-success reads for cookies (externalId, phone, location, etc.)
 			const payloadToEncrypt = {
 				accessToken: result.accessToken,
 				refreshToken: result.refreshToken,
-				user: {
-					id: result.user.id,
-					email: result.user.email,
-					firstName: result.user.firstName,
-					lastName: result.user.lastName,
-					role: result.user.role,
-					status: result.user.status,
-					avatar: result.user.avatar,
-				},
+				user: { ...result.user },
 			};
 
 			const encryptedPayload = encryption(payloadToEncrypt);
