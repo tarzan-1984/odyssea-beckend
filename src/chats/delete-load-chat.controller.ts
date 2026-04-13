@@ -35,7 +35,7 @@ export class DeleteLoadChatController {
 		for (const participant of chat.participants) {
 			this.chatGateway.server
 				.to(`user_${participant.userId}`)
-				.emit('chatRoomDeleted', { chatRoomId: chat.id });
+				.emit('chatRoomDeleted', { chatRoomId: chat.id, deletedBy: 'system' });
 		}
 
 		// Start background archive-by-day and delete

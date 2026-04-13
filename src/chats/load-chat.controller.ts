@@ -4,7 +4,7 @@ import {
 	ApiOperation,
 	ApiResponse,
 } from '@nestjs/swagger';
-import { ChatRoomsService } from './chat-rooms.service';
+import { ChatRoomsService, CreateLoadChatResult } from './chat-rooms.service';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { ChatGateway } from './chat.gateway';
@@ -64,25 +64,88 @@ export class LoadChatController {
 		description: 'Bad request - driver not found, inactive, or missing',
 	})
 	async createLoadChat(@Body() createLoadChatDto: CreateLoadChatDto) {
-		const chatRoom = await this.chatRoomsService.createLoadChat(
-			createLoadChatDto,
-		);
+		const result: CreateLoadChatResult =
+			await this.chatRoomsService.createLoadChat(createLoadChatDto);
 
-		// Emit WebSocket event to all participants
-		if (chatRoom && chatRoom.participants) {
-			console.log(`📡 Отправляем WebSocket событие для ${chatRoom.participants.length} участников`);
-			for (const participant of chatRoom.participants) {
-				console.log(`📡 Отправляем chatRoomCreated в комнату user_${participant.userId}`);
-				// Emit to each participant's room (using the correct room name format)
+		// Hard-deleted OFFER chats (same offer, non-selected drivers) — same payload as delete_load_chat
+		for (const deleted of result.hardDeletedChats) {
+			for (const userId of deleted.notifyUserIds) {
 				this.chatGateway.server
-					.to(`user_${participant.userId}`)
-					.emit('chatRoomCreated', chatRoom);
+					.to(`user_${userId}`)
+					.emit('chatRoomDeleted', {
+						chatRoomId: deleted.chatRoomId,
+						deletedBy: 'system',
+					});
 			}
-		} else {
-			console.log('❌ Нет участников для отправки WebSocket события');
 		}
 
-		return chatRoom;
+		if (result.kind === 'noop') {
+			return result.chatRoom;
+		}
+
+		if (result.kind === 'converted' && result.conversionParticipantEvents) {
+			const { chatRoomId, newParticipants, addedUserIds, removedUserIds } =
+				result.conversionParticipantEvents;
+
+			if (addedUserIds.length > 0 && newParticipants.length > 0) {
+				this.chatGateway.server
+					.to(`chat_${chatRoomId}`)
+					.emit('participantsAdded', {
+						chatRoomId,
+						newParticipants,
+						addedBy: 'system',
+					});
+				for (const userId of addedUserIds) {
+					const socketId = this.chatGateway['userSockets']?.get?.(userId);
+					if (socketId) {
+						this.chatGateway.server
+							.to(socketId)
+							.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+					}
+				}
+			}
+
+			for (const removedId of removedUserIds) {
+				this.chatGateway.server
+					.to(`chat_${chatRoomId}`)
+					.emit('participantRemoved', {
+						chatRoomId,
+						removedUserId: removedId,
+						removedBy: 'system',
+					});
+				const socketId = this.chatGateway['userSockets']?.get?.(removedId);
+				if (socketId) {
+					this.chatGateway.server
+						.to(socketId)
+						.emit('removedFromChatRoom', { chatRoomId, removedBy: 'system' });
+				}
+			}
+
+			if (result.chatRoom?.participants?.length) {
+				const updatedAt = new Date().toISOString();
+				for (const participant of result.chatRoom.participants) {
+					this.chatGateway.server
+						.to(`user_${participant.userId}`)
+						.emit('chatRoomUpdated', {
+							chatRoomId: result.chatRoom.id,
+							updatedChatRoom: result.chatRoom,
+							updatedBy: 'system',
+							updatedAt,
+						});
+				}
+			}
+		} else if (result.kind === 'created' && result.chatRoom?.participants?.length) {
+			console.log(
+				`📡 [create_load_chat] chatRoomCreated for ${result.chatRoom.participants.length} participants`,
+			);
+			for (const participant of result.chatRoom.participants) {
+				this.chatGateway.server
+					.to(`user_${participant.userId}`)
+					.emit('chatRoomCreated', result.chatRoom);
+			}
+		}
+
+		return result.chatRoom;
 	}
 
 	@Post('update')
