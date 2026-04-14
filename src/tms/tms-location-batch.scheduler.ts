@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserRole } from '@prisma/client';
+import { UserRole, UserStatus } from '@prisma/client';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { formatTmsStatusDate } from './tms-status-date.util';
 import {
@@ -112,6 +112,7 @@ export class TmsLocationBatchScheduler {
 			const driversFromDb = await this.prisma.user.findMany({
 				where: {
 					role: UserRole.DRIVER,
+					status: UserStatus.ACTIVE,
 					isAutoupdate: true,
 					externalId: { not: null },
 					latitude: { not: null },
@@ -146,7 +147,7 @@ export class TmsLocationBatchScheduler {
 			}
 
 			this.logger.log(
-				`[${runId}] TMS batch: ${drivers.length} driver row(s) from DB (isAutoupdate, has coords, has externalId)`,
+				`[${runId}] TMS batch: ${drivers.length} driver row(s) from DB (ACTIVE, isAutoupdate, has coords, has externalId)`,
 			);
 
 			const items: TmsBatchLocationItem[] = [];
@@ -160,13 +161,20 @@ export class TmsLocationBatchScheduler {
 					);
 					continue;
 				}
+				const cityTrimmed = u.city?.trim() ?? '';
+				if (!cityTrimmed) {
+					this.logger.warn(
+						`[${runId}] TMS batch: skip driver — empty city (externalId=${ext})`,
+					);
+					continue;
+				}
 				const lat = u.latitude as number;
 				const lng = u.longitude as number;
 				items.push({
 					driver_id: driverId,
 					latitude: String(lat),
 					longitude: String(lng),
-					current_city: u.city?.trim() || 'New York',
+					current_city: cityTrimmed,
 					current_location: normalizeTmsCurrentLocation(u.state),
 					current_zipcode: u.zip?.trim() || '',
 					driver_status: u.driverStatus?.trim() ?? '',
