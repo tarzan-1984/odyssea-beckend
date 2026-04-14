@@ -119,6 +119,24 @@ export class OffersController {
 		);
 	}
 
+	@Get('draft-loads')
+	@ApiOperation({
+		summary: 'Staff draft loads (TMS) with offer title, rate, loaded miles',
+		description:
+			'Non-drivers only. Uses the signed-in user’s externalId as TMS `user_id`. Calls GET /loads/drafts (project=odysseia, is_flt=false, per_page=100) then enriches each row from local offers / rate_offers.',
+	})
+	@ApiResponse({ status: 200, description: 'Draft load cards data' })
+	@ApiResponse({ status: 403, description: 'Drivers must use /offers/driver/draft-loads' })
+	@ApiResponse({ status: 502, description: 'TMS unavailable' })
+	async getStaffDraftLoads(
+		@Request() req: { user: { id: string; role: string } },
+	) {
+		return this.offersService.getStaffDraftLoadsForCurrentUser(
+			req.user?.id ?? '',
+			req.user?.role ?? '',
+		);
+	}
+
 	@Get(':id')
 	@ApiOperation({
 		summary: 'Get one offer by id',

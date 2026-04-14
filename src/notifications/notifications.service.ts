@@ -25,8 +25,8 @@ export class NotificationsService {
     driverStatus: string | null;
   }): Promise<void> {
     const next = (params.driverStatus ?? '').trim();
-    const title = 'Статус обновлён';
-    const body = 'Ваш статус изменился. Откройте приложение, чтобы увидеть изменения.';
+    const title = 'Status updated';
+    const body = 'Your status has changed. Open the app to see the updates.';
     await this.sendPushToUser({
       userId: params.userId,
       title,

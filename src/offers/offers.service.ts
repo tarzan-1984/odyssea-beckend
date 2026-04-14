@@ -13,6 +13,7 @@ import {
 	TmsDriverDraftLoadsService,
 	type TmsDraftLoadRow,
 } from '../tms/tms-driver-draft-loads.service';
+import { TmsAppDraftLoadsService } from '../tms/tms-app-draft-loads.service';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -163,6 +164,7 @@ export class OffersService {
 		private readonly notificationsService: NotificationsService,
 		private readonly tmsLoadDraftService: TmsLoadDraftService,
 		private readonly tmsDriverDraftLoadsService: TmsDriverDraftLoadsService,
+		private readonly tmsAppDraftLoadsService: TmsAppDraftLoadsService,
 		private readonly appSettingsService: AppSettingsService,
 	) {}
 
@@ -589,6 +591,83 @@ export class OffersService {
 		};
 	}
 
+	/**
+	 * TMS draft loads for non-driver app users (TMS `user_id` = Odyssea user externalId).
+	 * Same card shape as driver draft loads; rate comes from selected driver on the offer when available.
+	 */
+	async getStaffDraftLoadsForCurrentUser(
+		userId: string,
+		role: string,
+	): Promise<{
+		items: Array<{
+			tms_draft_id: number;
+			date_created: string;
+			date_updated: string;
+			pick_up_date: string;
+			delivery_date: string;
+			offer_id: string;
+			offer_numeric_id: number | null;
+			offer_name: string;
+			driver_rate: number | null;
+			loaded_miles: number | null;
+		}>;
+		tms: {
+			total: number;
+			page: number;
+			per_page: number;
+			total_pages: number;
+			user_id: number | string;
+			project: string;
+		};
+	}> {
+		if (role === UserRole.DRIVER) {
+			throw new ForbiddenException(
+				'Drivers must use GET /offers/driver/draft-loads',
+			);
+		}
+
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		const tmsUserId = user?.externalId?.trim();
+		if (!tmsUserId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['User external id (TMS user_id) is not set'],
+			});
+		}
+
+		let tmsData: Awaited<
+			ReturnType<TmsAppDraftLoadsService['fetchDraftLoadsForUser']>
+		>;
+		try {
+			tmsData = await this.tmsAppDraftLoadsService.fetchDraftLoadsForUser(
+				tmsUserId,
+			);
+		} catch {
+			throw new BadGatewayException(
+				'Unable to load draft loads from TMS. Please try again later.',
+			);
+		}
+
+		const items = await Promise.all(
+			tmsData.loads.map((row) => this.enrichDraftLoadRowForStaff(row)),
+		);
+
+		return {
+			items,
+			tms: {
+				total: tmsData.total,
+				page: tmsData.page,
+				per_page: tmsData.per_page,
+				total_pages: tmsData.total_pages,
+				user_id: tmsData.user_id ?? tmsUserId,
+				project: tmsData.project,
+			},
+		};
+	}
+
 	private async enrichDraftLoadRow(
 		row: TmsDraftLoadRow,
 		driverExternalId: string,
@@ -626,6 +705,72 @@ export class OffersService {
 					select: { rate: true },
 				});
 				driver_rate = ro?.rate ?? null;
+			}
+		}
+
+		return {
+			tms_draft_id: row.id,
+			date_created: row.date_created,
+			date_updated: row.date_updated,
+			pick_up_date: row.pick_up_date,
+			delivery_date: row.delivery_date,
+			offer_id: row.offer_id,
+			offer_numeric_id: numericId,
+			offer_name,
+			driver_rate,
+			loaded_miles,
+		};
+	}
+
+	private async enrichDraftLoadRowForStaff(
+		row: TmsDraftLoadRow,
+	): Promise<{
+		tms_draft_id: number;
+		date_created: string;
+		date_updated: string;
+		pick_up_date: string;
+		delivery_date: string;
+		offer_id: string;
+		offer_numeric_id: number | null;
+		offer_name: string;
+		driver_rate: number | null;
+		loaded_miles: number | null;
+	}> {
+		const numericId = parseOfferNumericIdFromTmsString(row.offer_id);
+		let offer_name = '';
+		let driver_rate: number | null = null;
+		let loaded_miles: number | null = null;
+
+		if (numericId != null) {
+			const offer = await this.prisma.offer.findUnique({
+				where: { id: numericId },
+				select: { route: true, loadedMiles: true },
+			});
+			if (offer) {
+				offer_name = getOfferTitleFromRoute(offer.route, numericId);
+				loaded_miles = offer.loadedMiles ?? null;
+				const selected = await this.prisma.rateOffer.findFirst({
+					where: {
+						offerId: numericId,
+						active: true,
+						isSelected: true,
+						rate: { not: null },
+					},
+					select: { rate: true },
+				});
+				driver_rate = selected?.rate ?? null;
+				if (driver_rate == null) {
+					const anyRated = await this.prisma.rateOffer.findFirst({
+						where: {
+							offerId: numericId,
+							active: true,
+							rate: { not: null },
+						},
+						orderBy: { id: 'asc' },
+						select: { rate: true },
+					});
+					driver_rate = anyRated?.rate ?? null;
+				}
 			}
 		}
 
