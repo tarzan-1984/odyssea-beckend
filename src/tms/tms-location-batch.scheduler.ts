@@ -42,7 +42,7 @@ export class TmsLocationBatchScheduler {
 		if (!extApi?.tmsLocationBatchCronEnabled) {
 			return;
 		}
-		if (extApi.skipTmsDriverLocationSync) {
+		if (extApi?.skipTmsDriverLocationSync) {
 			return;
 		}
 		if (!this.configService.get<string>('externalApi.tmsApiKey')) {
