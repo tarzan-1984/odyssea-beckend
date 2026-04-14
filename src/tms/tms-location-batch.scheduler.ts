@@ -122,8 +122,8 @@ export class TmsLocationBatchScheduler {
 					externalId: true,
 					latitude: true,
 					longitude: true,
+					location: true,
 					city: true,
-					state: true,
 					zip: true,
 					driverStatus: true,
 					statusDate: true,
@@ -171,15 +171,15 @@ export class TmsLocationBatchScheduler {
 				}
 				const lat = u.latitude as number;
 				const lng = u.longitude as number;
-				const stateTrimmed = u.state?.trim() ?? '';
+				const locationTrimmed = u.location?.trim() ?? '';
 				const statusRaw = u.statusDate?.trim() ?? '';
 				items.push({
 					driver_id: driverId,
 					latitude: String(lat),
 					longitude: String(lng),
 					current_city: u.city?.trim() ?? '',
-					current_location: stateTrimmed
-						? normalizeTmsCurrentLocation(u.state)
+					current_location: locationTrimmed
+						? normalizeTmsCurrentLocation(u.location)
 						: '',
 					current_zipcode: u.zip?.trim() ?? '',
 					driver_status: u.driverStatus?.trim() ?? '',

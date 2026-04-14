@@ -116,7 +116,8 @@ export function buildTmsBatchLocationItem(params: {
 	externalId: string;
 	driverStatus: string;
 	statusDateFormatted: string;
-	state: string;
+	/** User `location` column (free-text); drives TMS `current_location` after normalization. */
+	location: string;
 	city: string;
 	zip: string;
 	latitude: number;
@@ -130,7 +131,7 @@ export function buildTmsBatchLocationItem(params: {
 	}
 	const country = params.country;
 	const notes = params.notes ?? '';
-	const stateTrimmed = params.state?.trim() ?? '';
+	const locationTrimmed = params.location?.trim() ?? '';
 	const latOk =
 		params.latitude != null && Number.isFinite(params.latitude);
 	const lngOk =
@@ -140,8 +141,8 @@ export function buildTmsBatchLocationItem(params: {
 		latitude: latOk ? String(params.latitude) : '',
 		longitude: lngOk ? String(params.longitude) : '',
 		current_city: params.city?.trim() ?? '',
-		current_location: stateTrimmed
-			? normalizeTmsCurrentLocation(params.state)
+		current_location: locationTrimmed
+			? normalizeTmsCurrentLocation(params.location)
 			: '',
 		current_zipcode: params.zip?.trim() ?? '',
 		driver_status: params.driverStatus?.trim() ?? '',

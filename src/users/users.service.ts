@@ -600,8 +600,9 @@ export class UsersService {
 			externalId: updatedUser.externalId as string,
 			driverStatus: tmsStatus ?? '',
 			statusDateFormatted,
-			state: locationDto.state ?? updatedUser.state ?? '',
-			city: locationDto.city ?? updatedUser.city ?? '',
+			location: locationDto.location ?? updatedUser.location ?? '',
+			// TMS current_city = DB `city` after save; empty → '' (trim in builder).
+			city: updatedUser.city ?? '',
 			zip: locationDto.zip ?? updatedUser.zip ?? '',
 			latitude: locationDto.latitude ?? updatedUser.latitude ?? 0,
 			longitude: locationDto.longitude ?? updatedUser.longitude ?? 0,
