@@ -35,6 +35,17 @@ import { NotificationsService } from '../notifications/notifications.service';
 export class UsersService {
 	private readonly logger = new Logger(UsersService.name);
 
+	/** TMS webhook: enable auto location batch when driver enters these statuses. */
+	private isAutoupdateForTmsDriverStatus(
+		driverStatus: string | null | undefined,
+	): boolean {
+		if (driverStatus == null || typeof driverStatus !== 'string') {
+			return false;
+		}
+		const n = driverStatus.trim().toLowerCase();
+		return n === 'loaded_enroute' || n === 'available';
+	}
+
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
@@ -847,6 +858,7 @@ export class UsersService {
 			latitude: parseCoordinate(latitude),
 			longitude: parseCoordinate(longitude),
 			company: normalizeCompany(permission_view),
+			isAutoupdate: this.isAutoupdateForTmsDriverStatus(driver_status),
 		};
 
 		if (type === WebhookType.ADD) {
@@ -948,6 +960,8 @@ export class UsersService {
 			}
 			if (driver_status !== undefined) {
 				updateData.driverStatus = driver_status || null;
+				updateData.isAutoupdate =
+					this.isAutoupdateForTmsDriverStatus(driver_status);
 			}
 			if (status_date !== undefined) {
 				updateData.statusDate = status_date || null;
@@ -1002,6 +1016,7 @@ export class UsersService {
 					updatedAt: true,
 					driverStatus: true,
 					statusDate: true,
+					isAutoupdate: true,
 				},
 			});
 
@@ -1014,6 +1029,7 @@ export class UsersService {
 					state: updatedUser.state ?? null,
 					location: updatedUser.location ?? null,
 					statusDate: updatedUser.statusDate ?? null,
+					isAutoupdate: updatedUser.isAutoupdate ?? false,
 				},
 			);
 

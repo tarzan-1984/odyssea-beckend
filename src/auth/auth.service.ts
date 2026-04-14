@@ -902,10 +902,30 @@ export class AuthService {
 		if (!user?.externalId || user.externalId.trim() === '') {
 			throw new BadRequestException('User has no externalId');
 		}
+
+		const userExternalId = user.externalId.trim();
+		const platform = String(dto.platform).trim();
+
+		// Keep a single snapshot per (userExternalId, platform). If it already exists, overwrite it.
+		const updated = await this.prisma.userDevice.updateMany({
+			where: { userExternalId, platform },
+			data: {
+				appVersion: dto.appVersion ?? null,
+				deviceName: dto.deviceName ?? null,
+				model: dto.model ?? null,
+				osVersion: dto.osVersion ?? null,
+				pushToken: dto.pushToken ?? null,
+			},
+		});
+
+		if (updated.count > 0) {
+			return;
+		}
+
 		await this.prisma.userDevice.create({
 			data: {
-				userExternalId: user.externalId,
-				platform: dto.platform,
+				userExternalId,
+				platform,
 				appVersion: dto.appVersion ?? null,
 				deviceName: dto.deviceName ?? null,
 				model: dto.model ?? null,

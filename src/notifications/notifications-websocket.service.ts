@@ -149,6 +149,7 @@ export class NotificationsWebSocketService {
 			state: string | null;
 			location: string | null;
 			statusDate: string | null;
+			isAutoupdate: boolean;
 		},
 	) {
 		try {
@@ -160,7 +161,7 @@ export class NotificationsWebSocketService {
 			this.server.to(`user_${userId}`).emit('driverProfileSync', payload);
 
 			this.logger.log(
-				`Driver profile sync sent to user ${userId}: status=${payload.driverStatus || 'null'}`,
+				`Driver profile sync sent to user ${userId}: status=${payload.driverStatus || 'null'} isAutoupdate=${payload.isAutoupdate}`,
 			);
 		} catch (error) {
 			this.logger.error(
