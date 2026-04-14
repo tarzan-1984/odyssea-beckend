@@ -17,6 +17,28 @@ export class NotificationsService {
   ) {}
 
   /**
+   * Inform driver that their status changed (best-effort).
+   * Clients will sync the actual status from backend on foreground.
+   */
+  async sendDriverStatusChangedPush(params: {
+    userId: string;
+    driverStatus: string | null;
+  }): Promise<void> {
+    const next = (params.driverStatus ?? '').trim();
+    const title = 'Статус обновлён';
+    const body = 'Ваш статус изменился. Откройте приложение, чтобы увидеть изменения.';
+    await this.sendPushToUser({
+      userId: params.userId,
+      title,
+      body,
+      payload: {
+        type: 'driver_status_changed',
+        driverStatus: next,
+      },
+    });
+  }
+
+  /**
    * Create a new notification
    */
   async createNotification(data: {

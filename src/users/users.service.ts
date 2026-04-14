@@ -29,6 +29,7 @@ import {
 import { formatTmsStatusDate } from '../tms/tms-status-date.util';
 import type { ExternalApiConfig } from '../config/env.config';
 import { AppSettingsService } from '../app-settings/app-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class UsersService {
@@ -37,6 +38,7 @@ export class UsersService {
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
+		private readonly notificationsService: NotificationsService,
 		private readonly mailerService: MailerService,
 		private readonly tmsDriverApplication: TmsDriverApplicationService,
 		private readonly tmsDriverLocationBatch: TmsDriverLocationBatchService,
@@ -1021,6 +1023,13 @@ export class UsersService {
 					existingUser.id,
 					newDriverStatus,
 				);
+				// Best-effort push: app may be in background and miss WebSocket.
+				this.notificationsService
+					.sendDriverStatusChangedPush({
+						userId: existingUser.id,
+						driverStatus: newDriverStatus,
+					})
+					.catch(() => {});
 			}
 
 			return {
