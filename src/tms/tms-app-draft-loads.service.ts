@@ -4,14 +4,85 @@ import axios from 'axios';
 import { AxiosError } from '../types/request.types';
 import {
 	TMS_DRAFT_LOADS_PROJECT,
-	type TmsDraftLoadsData,
+	type TmsDraftLoadRow,
 } from './tms-driver-draft-loads.service';
 
-/** TMS list payload for GET /loads/drafts (user_id) — shape matches driver drafts list where possible */
-export type TmsAppDraftLoadsData = Omit<TmsDraftLoadsData, 'driver_id'> & {
-	user_id?: number | string;
-	driver_id?: number | string;
+/** Normalized list shape consumed by OffersService (same as driver drafts list). */
+export type TmsAppDraftLoadsData = {
+	user_id: string;
+	project: string;
+	total: number;
+	page: number;
+	per_page: number;
+	total_pages: number;
+	loads: TmsDraftLoadRow[];
 };
+
+type TmsLoadsDraftsApiEnvelope = {
+	success?: boolean;
+	data?: {
+		loads?: unknown[];
+		total_items?: number;
+		total_pages?: number;
+	};
+	pagination?: {
+		current_page?: number;
+		per_page?: number;
+		total_pages?: number;
+		total_items?: number;
+	};
+};
+
+function tryParseJsonArray(value: unknown): Array<Record<string, unknown>> {
+	if (typeof value !== 'string' || !value.trim()) return [];
+	try {
+		const parsed: unknown = JSON.parse(value);
+		if (!Array.isArray(parsed)) return [];
+		return parsed.filter(
+			(x): x is Record<string, unknown> =>
+				x != null && typeof x === 'object' && !Array.isArray(x),
+		);
+	} catch {
+		return [];
+	}
+}
+
+function firstDateFromLocationJson(jsonStr: unknown): string {
+	const arr = tryParseJsonArray(jsonStr);
+	const d = arr[0]?.date;
+	return d != null ? String(d).trim() : '';
+}
+
+/**
+ * Maps TMS GET /loads/drafts row (id + meta_data) into the same row shape as driver /drafts.
+ */
+function mapStaffLoadToDraftRow(
+	raw: Record<string, unknown>,
+	project: string,
+): TmsDraftLoadRow {
+	const meta =
+		raw.meta_data != null && typeof raw.meta_data === 'object' && !Array.isArray(raw.meta_data)
+			? (raw.meta_data as Record<string, unknown>)
+			: {};
+
+	const idRaw = raw.id;
+	const idNum =
+		typeof idRaw === 'number'
+			? idRaw
+			: typeof idRaw === 'string'
+				? parseInt(idRaw.trim(), 10)
+				: NaN;
+
+	return {
+		id: Number.isFinite(idNum) ? idNum : 0,
+		date_created: String(raw.date_created ?? ''),
+		date_updated: String(raw.date_updated ?? ''),
+		pick_up_date: firstDateFromLocationJson(meta.pick_up_location),
+		delivery_date: firstDateFromLocationJson(meta.delivery_location),
+		offer_id: meta.offer_id != null ? String(meta.offer_id).trim() : '',
+		project,
+	};
+}
 
 @Injectable()
 export class TmsAppDraftLoadsService {
@@ -22,6 +93,8 @@ export class TmsAppDraftLoadsService {
 	/**
 	 * Fetches draft loads for a TMS user (non-driver app roles).
 	 * Query: user_id, project=odysseia, is_flt=false, page, per_page=100
+	 *
+	 * TMS returns a different JSON shape than driver /drafts; we normalize to {@link TmsDraftLoadRow}.
 	 */
 	async fetchDraftLoadsForUser(tmsUserId: string): Promise<TmsAppDraftLoadsData> {
 		const apiKey = this.configService.get<string>('externalApi.tmsApiKey');
@@ -42,10 +115,7 @@ export class TmsAppDraftLoadsService {
 		url.searchParams.set('per_page', '100');
 
 		try {
-			const { data } = await axios.get<{
-				success?: boolean;
-				data?: TmsAppDraftLoadsData;
-			}>(url.toString(), {
+			const { data } = await axios.get<TmsLoadsDraftsApiEnvelope>(url.toString(), {
 				headers: {
 					'X-API-Key': apiKey,
 					'Content-Type': 'application/json',
@@ -60,12 +130,40 @@ export class TmsAppDraftLoadsService {
 				throw new Error('TMS returned an invalid draft loads response');
 			}
 
-			const d = data.data;
-			if (!Array.isArray(d.loads)) {
-				d.loads = [];
-			}
+			const inner = data.data;
+			const rawLoads = Array.isArray(inner.loads) ? inner.loads : [];
+			const pagination = data.pagination ?? {};
 
-			return d;
+			const total =
+				typeof inner.total_items === 'number'
+					? inner.total_items
+					: typeof pagination.total_items === 'number'
+						? pagination.total_items
+						: rawLoads.length;
+			const totalPages =
+				typeof inner.total_pages === 'number'
+					? inner.total_pages
+					: typeof pagination.total_pages === 'number'
+						? pagination.total_pages
+						: 1;
+			const page =
+				typeof pagination.current_page === 'number' ? pagination.current_page : 1;
+			const perPage =
+				typeof pagination.per_page === 'number' ? pagination.per_page : 100;
+
+			const loads: TmsDraftLoadRow[] = rawLoads
+				.filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
+				.map((row) => mapStaffLoadToDraftRow(row, TMS_DRAFT_LOADS_PROJECT));
+
+			return {
+				user_id: tmsUserId.trim(),
+				project: TMS_DRAFT_LOADS_PROJECT,
+				total,
+				page,
+				per_page: perPage,
+				total_pages: totalPages,
+				loads,
+			};
 		} catch (error) {
 			const ax = error as AxiosError;
 			if (ax.response?.data != null) {
