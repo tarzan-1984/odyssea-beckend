@@ -128,18 +128,26 @@ export function buildTmsBatchLocationItem(params: {
 	if (driverId === null) {
 		return null;
 	}
-	const country = params.country.trim() || 'USA';
+	const country = params.country;
+	const notes = params.notes ?? '';
+	const stateTrimmed = params.state?.trim() ?? '';
+	const latOk =
+		params.latitude != null && Number.isFinite(params.latitude);
+	const lngOk =
+		params.longitude != null && Number.isFinite(params.longitude);
 	return {
 		driver_id: driverId,
-		latitude: String(params.latitude),
-		longitude: String(params.longitude),
-		current_city: params.city?.trim() || 'New York',
-		current_location: normalizeTmsCurrentLocation(params.state),
-		current_zipcode: params.zip?.trim() || '',
-		driver_status: params.driverStatus ?? '',
-		status_date: params.statusDateFormatted,
+		latitude: latOk ? String(params.latitude) : '',
+		longitude: lngOk ? String(params.longitude) : '',
+		current_city: params.city?.trim() ?? '',
+		current_location: stateTrimmed
+			? normalizeTmsCurrentLocation(params.state)
+			: '',
+		current_zipcode: params.zip?.trim() ?? '',
+		driver_status: params.driverStatus?.trim() ?? '',
+		status_date: params.statusDateFormatted?.trim() ?? '',
 		country,
 		current_country: country,
-		notes: params.notes ?? 'Driver is available for new loads',
+		notes,
 	};
 }

@@ -37,7 +37,6 @@ export class TmsLocationBatchScheduler {
 
 	@Cron(TICK_CRON, { name: 'tms-driver-location-batch-tick' })
 	async onTick(): Promise<void> {
-		return;
 		const extApi = this.configService.get<ExternalApiConfig>('externalApi');
 		if (!extApi?.tmsLocationBatchCronEnabled) {
 			return;
@@ -135,13 +134,21 @@ export class TmsLocationBatchScheduler {
 			const globalRow = await this.appSettingsService.getGlobal();
 			const isTestEnv = globalRow.locationEnvironmentMode === 'test';
 			const testExtId = globalRow.locationTestDriverExternalId.trim();
-			const drivers = isTestEnv
-				? driversFromDb.filter(
-						(u) => u.externalId?.trim() === testExtId,
-					)
-				: driversFromDb;
 
-			if (isTestEnv) {
+			// Live: all eligible drivers. Test: only the configured TMS externalId (never other drivers).
+			const drivers = !isTestEnv
+				? driversFromDb
+				: !testExtId
+					? []
+					: driversFromDb.filter(
+							(u) => u.externalId?.trim() === testExtId,
+						);
+
+			if (isTestEnv && !testExtId) {
+				this.logger.warn(
+					`[${runId}] TMS batch: test mode but locationTestDriverExternalId is empty — not sending any driver to TMS`,
+				);
+			} else if (isTestEnv) {
 				this.logger.log(
 					`[${runId}] TMS batch: test mode — only externalId=${testExtId} (${drivers.length} row(s), ${driversFromDb.length} before filter)`,
 				);
@@ -162,26 +169,25 @@ export class TmsLocationBatchScheduler {
 					);
 					continue;
 				}
-				const cityTrimmed = u.city?.trim() ?? '';
-				if (!cityTrimmed) {
-					this.logger.warn(
-						`[${runId}] TMS batch: skip driver — empty city (externalId=${ext})`,
-					);
-					continue;
-				}
 				const lat = u.latitude as number;
 				const lng = u.longitude as number;
+				const stateTrimmed = u.state?.trim() ?? '';
+				const statusRaw = u.statusDate?.trim() ?? '';
 				items.push({
 					driver_id: driverId,
 					latitude: String(lat),
 					longitude: String(lng),
-					current_city: cityTrimmed,
-					current_location: normalizeTmsCurrentLocation(u.state),
-					current_zipcode: u.zip?.trim() || '',
+					current_city: u.city?.trim() ?? '',
+					current_location: stateTrimmed
+						? normalizeTmsCurrentLocation(u.state)
+						: '',
+					current_zipcode: u.zip?.trim() ?? '',
 					driver_status: u.driverStatus?.trim() ?? '',
-					status_date: formatTmsStatusDate(u.statusDate),
-					country: 'USA',
-					current_country: 'USA',
+					status_date: statusRaw
+						? formatTmsStatusDate(u.statusDate)
+						: '',
+					country: '',
+					current_country: '',
 					notes: '',
 				});
 			}

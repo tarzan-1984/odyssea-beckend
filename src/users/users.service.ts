@@ -579,7 +579,6 @@ export class UsersService {
 			return updatedUser;
 		}
 
-		const tmsCountry = (locationDto.country || 'USA').trim() || 'USA';
 		const tmsStatus =
 			locationDto.driverStatus !== undefined
 				? locationDto.driverStatus
@@ -588,18 +587,26 @@ export class UsersService {
 			locationDto.statusDate !== undefined
 				? locationDto.statusDate
 				: updatedUser.statusDate;
-		const statusDateFormatted = formatTmsStatusDate(statusDateForFormat);
+		const statusDateTrimmed =
+			statusDateForFormat != null
+				? String(statusDateForFormat).trim()
+				: '';
+		const statusDateFormatted =
+			statusDateTrimmed !== ''
+				? formatTmsStatusDate(statusDateForFormat as string)
+				: '';
 
 		const batchItem = buildTmsBatchLocationItem({
 			externalId: updatedUser.externalId as string,
 			driverStatus: tmsStatus ?? '',
 			statusDateFormatted,
-			state: locationDto.state ?? updatedUser.state ?? 'NY',
-			city: locationDto.city ?? updatedUser.city ?? 'New York',
+			state: locationDto.state ?? updatedUser.state ?? '',
+			city: locationDto.city ?? updatedUser.city ?? '',
 			zip: locationDto.zip ?? updatedUser.zip ?? '',
 			latitude: locationDto.latitude ?? updatedUser.latitude ?? 0,
 			longitude: locationDto.longitude ?? updatedUser.longitude ?? 0,
-			country: tmsCountry,
+			country: '',
+			notes: '',
 		});
 
 		if (!batchItem) {
