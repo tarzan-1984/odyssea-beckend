@@ -37,6 +37,7 @@ export class TmsLocationBatchScheduler {
 
 	@Cron(TICK_CRON, { name: 'tms-driver-location-batch-tick' })
 	async onTick(): Promise<void> {
+		return;
 		const extApi = this.configService.get<ExternalApiConfig>('externalApi');
 		if (!extApi?.tmsLocationBatchCronEnabled) {
 			return;
@@ -181,7 +182,7 @@ export class TmsLocationBatchScheduler {
 					status_date: formatTmsStatusDate(u.statusDate),
 					country: 'USA',
 					current_country: 'USA',
-					notes: 'Batch update',
+					notes: '',
 				});
 			}
 
