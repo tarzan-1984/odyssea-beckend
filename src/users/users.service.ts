@@ -464,7 +464,6 @@ export class UsersService {
 		}
 
 		const data: Prisma.UserUpdateInput = {
-			location: locationDto.location,
 			city: locationDto.city,
 			state: locationDto.state,
 			zip: locationDto.zip,
@@ -472,6 +471,15 @@ export class UsersService {
 			longitude: locationDto.longitude,
 			lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
 		};
+		// Do not overwrite DB `location` when client sends no TMS code (empty string).
+		const locationIncoming = locationDto.location;
+		if (
+			locationIncoming !== undefined &&
+			locationIncoming !== null &&
+			String(locationIncoming).trim() !== ''
+		) {
+			data.location = locationIncoming;
+		}
 
 		if (locationDto.driverStatus !== undefined) {
 			data.driverStatus = locationDto.driverStatus;
@@ -596,11 +604,17 @@ export class UsersService {
 				? formatTmsStatusDate(statusDateForFormat as string)
 				: '';
 
+		const effectiveLocationForTms =
+			locationDto.location != null &&
+			String(locationDto.location).trim() !== ''
+				? locationDto.location
+				: (updatedUser.location ?? '');
+
 		const batchItem = buildTmsBatchLocationItem({
 			externalId: updatedUser.externalId as string,
 			driverStatus: tmsStatus ?? '',
 			statusDateFormatted,
-			location: locationDto.location ?? updatedUser.location ?? '',
+			location: effectiveLocationForTms,
 			// TMS current_city = DB `city` after save; empty → '' (trim in builder).
 			city: updatedUser.city ?? '',
 			zip: locationDto.zip ?? updatedUser.zip ?? '',
