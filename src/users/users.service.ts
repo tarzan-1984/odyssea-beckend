@@ -1037,7 +1037,10 @@ export class UsersService {
 			if (oldDriverStatus !== newDriverStatus) {
 				await this.notificationsWebSocketService.sendDriverStatusUpdate(
 					existingUser.id,
-					newDriverStatus,
+					{
+						driverStatus: newDriverStatus,
+						isAutoupdate: updatedUser.isAutoupdate ?? false,
+					},
 				);
 				// Best-effort push: app may be in background and miss WebSocket.
 				this.notificationsService

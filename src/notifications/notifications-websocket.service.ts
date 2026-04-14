@@ -114,7 +114,10 @@ export class NotificationsWebSocketService {
 	/**
 	 * Send driver status update to specific driver via WebSocket
 	 */
-	async sendDriverStatusUpdate(userId: string, driverStatus: string | null) {
+	async sendDriverStatusUpdate(
+		userId: string,
+		payload: { driverStatus: string | null; isAutoupdate: boolean },
+	) {
 		try {
 			if (!this.server) {
 				this.logger.warn('WebSocket server not initialized');
@@ -122,12 +125,10 @@ export class NotificationsWebSocketService {
 			}
 
 			// Send driver status update to specific user
-			this.server.to(`user_${userId}`).emit('driverStatusUpdate', {
-				driverStatus,
-			});
+			this.server.to(`user_${userId}`).emit('driverStatusUpdate', payload);
 
 			this.logger.log(
-				`Driver status update sent to user ${userId}: ${driverStatus || 'null'}`,
+				`Driver status update sent to user ${userId}: ${payload.driverStatus || 'null'} isAutoupdate=${payload.isAutoupdate}`,
 			);
 		} catch (error) {
 			this.logger.error(
