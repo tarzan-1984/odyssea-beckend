@@ -39,6 +39,8 @@ export interface ExternalApiConfig {
 	tmsLoadDraftCreateUrl: string;
 	/** GET driver load drafts (in-progress loads) — default Endurance TMS URL */
 	tmsDriverLoadsDraftsUrl: string;
+	/** GET driver loads list — default Endurance TMS URL */
+	tmsDriverLoadsUrl: string;
 	/** GET app/staff load drafts (TMS user_id) — default Endurance TMS URL */
 	tmsLoadsDraftsUrl: string;
 	/**
@@ -117,6 +119,9 @@ export const externalApiConfig = registerAs(
 		tmsDriverLoadsDraftsUrl:
 			process.env.TMS_DRIVER_LOADS_DRAFTS_URL ||
 			'https://www.endurance-tms.com/wp-json/tms/v1/driver/loads/app/drafts',
+		tmsDriverLoadsUrl:
+			process.env.TMS_DRIVER_LOADS_URL ||
+			'https://www.endurance-tms.com/wp-json/tms/v1/driver/loads',
 		tmsLoadsDraftsUrl:
 			process.env.TMS_LOADS_DRAFTS_URL ||
 			'https://www.endurance-tms.com/wp-json/tms/v1/loads/drafts',

@@ -7,6 +7,8 @@ import { TmsLoadDraftService } from './tms-load-draft.service';
 import { TmsDriverDraftLoadsService } from './tms-driver-draft-loads.service';
 import { TmsAppDraftLoadsService } from './tms-app-draft-loads.service';
 import { TmsLocationBatchScheduler } from './tms-location-batch.scheduler';
+import { TmsDriverLoadsService } from './tms-driver-loads.service';
+import { TmsController } from './tms.controller';
 
 @Module({
 	imports: [ConfigModule, AppSettingsModule],
@@ -17,13 +19,16 @@ import { TmsLocationBatchScheduler } from './tms-location-batch.scheduler';
 		TmsDriverDraftLoadsService,
 		TmsAppDraftLoadsService,
 		TmsLocationBatchScheduler,
+		TmsDriverLoadsService,
 	],
+	controllers: [TmsController],
 	exports: [
 		TmsDriverApplicationService,
 		TmsDriverLocationBatchService,
 		TmsLoadDraftService,
 		TmsDriverDraftLoadsService,
 		TmsAppDraftLoadsService,
+		TmsDriverLoadsService,
 	],
 })
 export class TmsModule {}
