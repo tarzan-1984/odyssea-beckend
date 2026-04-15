@@ -984,11 +984,11 @@ export class UsersService {
 			}
 			if (driver_status !== undefined) {
 				updateData.driverStatus = driver_status || null;
-				// Enable auto-update only for ACTIVE accounts.
-				if (existingUser.status === UserStatus.ACTIVE) {
-					updateData.isAutoupdate =
-						this.isAutoupdateForTmsDriverStatus(driver_status);
-				}
+				// Enable auto-update only for ACTIVE accounts; for non-ACTIVE, force-disable to fix past incorrect values.
+				updateData.isAutoupdate =
+					existingUser.status === UserStatus.ACTIVE
+						? this.isAutoupdateForTmsDriverStatus(driver_status)
+						: false;
 			}
 			if (status_date !== undefined) {
 				updateData.statusDate = status_date || null;
