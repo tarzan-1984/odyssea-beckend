@@ -208,8 +208,14 @@ export class AuthService {
 	 * Validates user credentials and returns user data
 	 */
 	async validateUser(email: string, password: string) {
-		const user = await this.prisma.user.findUnique({
-			where: { email },
+		const normalizedEmail = email?.trim();
+		const user = await this.prisma.user.findFirst({
+			where: {
+				email: {
+					equals: normalizedEmail,
+					mode: 'insensitive',
+				},
+			},
 			select: {
 				id: true,
 				email: true,
@@ -720,8 +726,14 @@ export class AuthService {
 	async loginWithEmail(
 		email: string,
 	): Promise<{ message: string; redirectUrl?: string }> {
-		const user = await this.prisma.user.findUnique({
-			where: { email },
+		const normalizedEmail = email?.trim();
+		const user = await this.prisma.user.findFirst({
+			where: {
+				email: {
+					equals: normalizedEmail,
+					mode: 'insensitive',
+				},
+			},
 			select: {
 				id: true,
 				email: true,
