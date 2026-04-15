@@ -34,6 +34,8 @@ model User {
   city                 String?
   state                String?
   zip                  String?
+  isTracking           Boolean               @default(false) @map("is_tracking")
+  trackingLoadId       String?               @map("tracking_load_id")
   deactivateAccount    Boolean?              @default(false)
   externalId           String?               @unique
   type                 String?
