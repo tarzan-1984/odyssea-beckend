@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { AxiosError } from '../types/request.types';
-import {
-	TMS_DRAFT_LOADS_PROJECT,
-	type TmsDraftLoadRow,
-} from './tms-driver-draft-loads.service';
+import type { TmsDraftLoadRow } from './tms-driver-draft-loads.service';
 
 /** Normalized list shape consumed by OffersService (same as driver drafts list). */
 export type TmsAppDraftLoadsData = {
@@ -92,11 +89,14 @@ export class TmsAppDraftLoadsService {
 
 	/**
 	 * Fetches draft loads for a TMS user (non-driver app roles).
-	 * Query: user_id, project=odysseia, is_flt=false, page, per_page=100
+	 * Query: user_id, project, is_flt, page, per_page
 	 *
 	 * TMS returns a different JSON shape than driver /drafts; we normalize to {@link TmsDraftLoadRow}.
 	 */
-	async fetchDraftLoadsForUser(tmsUserId: string): Promise<TmsAppDraftLoadsData> {
+	async fetchDraftLoadsForUser(
+		tmsUserId: string,
+		query: { project: string; page?: number; per_page?: number; is_flt?: string },
+	): Promise<TmsAppDraftLoadsData> {
 		const apiKey = this.configService.get<string>('externalApi.tmsApiKey');
 		if (!apiKey) {
 			throw new Error('TMS_API_KEY is not configured');
@@ -109,10 +109,16 @@ export class TmsAppDraftLoadsService {
 
 		const url = new URL(baseUrl);
 		url.searchParams.set('user_id', tmsUserId.trim());
-		url.searchParams.set('project', TMS_DRAFT_LOADS_PROJECT);
-		url.searchParams.set('is_flt', 'false');
-		url.searchParams.set('page', '1');
-		url.searchParams.set('per_page', '100');
+		url.searchParams.set('project', String(query.project).trim());
+		if (query.is_flt != null) {
+			url.searchParams.set('is_flt', String(query.is_flt).trim());
+		}
+		if (query.page != null) {
+			url.searchParams.set('page', String(query.page));
+		}
+		if (query.per_page != null) {
+			url.searchParams.set('per_page', String(query.per_page));
+		}
 
 		try {
 			const { data } = await axios.get<TmsLoadsDraftsApiEnvelope>(url.toString(), {
@@ -153,11 +159,11 @@ export class TmsAppDraftLoadsService {
 
 			const loads: TmsDraftLoadRow[] = rawLoads
 				.filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
-				.map((row) => mapStaffLoadToDraftRow(row, TMS_DRAFT_LOADS_PROJECT));
+				.map((row) => mapStaffLoadToDraftRow(row, String(query.project).trim()));
 
 			return {
 				user_id: tmsUserId.trim(),
-				project: TMS_DRAFT_LOADS_PROJECT,
+				project: String(query.project).trim(),
 				total,
 				page,
 				per_page: perPage,

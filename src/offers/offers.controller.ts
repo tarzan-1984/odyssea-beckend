@@ -26,6 +26,7 @@ import { ChatRoomsService } from '../chats/chat-rooms.service';
 import { ChatGateway } from '../chats/chat.gateway';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
+import { GetDraftLoadsDto } from './dto/get-draft-loads.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
@@ -112,10 +113,12 @@ export class OffersController {
 	@ApiResponse({ status: 502, description: 'TMS unavailable' })
 	async getDriverDraftLoads(
 		@Request() req: { user: { id: string; role: string } },
+		@Query() query: GetDraftLoadsDto,
 	) {
 		return this.offersService.getDriverDraftLoadsForCurrentUser(
 			req.user?.id ?? '',
 			req.user?.role ?? '',
+			query,
 		);
 	}
 
@@ -130,10 +133,12 @@ export class OffersController {
 	@ApiResponse({ status: 502, description: 'TMS unavailable' })
 	async getStaffDraftLoads(
 		@Request() req: { user: { id: string; role: string } },
+		@Query() query: GetDraftLoadsDto,
 	) {
 		return this.offersService.getStaffDraftLoadsForCurrentUser(
 			req.user?.id ?? '',
 			req.user?.role ?? '',
+			query,
 		);
 	}
 

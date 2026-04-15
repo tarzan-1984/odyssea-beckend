@@ -521,6 +521,7 @@ export class OffersService {
 	async getDriverDraftLoadsForCurrentUser(
 		userId: string,
 		role: string,
+		query: { project: string; page?: number; per_page?: number },
 	): Promise<{
 		items: Array<{
 			tms_draft_id: number;
@@ -565,6 +566,11 @@ export class OffersService {
 		try {
 			tmsData = await this.tmsDriverDraftLoadsService.fetchDraftLoads(
 				driverExternalId,
+				{
+					project: query.project,
+					page: query.page,
+					per_page: query.per_page,
+				},
 			);
 		} catch {
 			throw new BadGatewayException(
@@ -598,6 +604,7 @@ export class OffersService {
 	async getStaffDraftLoadsForCurrentUser(
 		userId: string,
 		role: string,
+		query: { project: string; page?: number; per_page?: number; is_flt?: string },
 	): Promise<{
 		items: Array<{
 			tms_draft_id: number;
@@ -644,6 +651,12 @@ export class OffersService {
 		try {
 			tmsData = await this.tmsAppDraftLoadsService.fetchDraftLoadsForUser(
 				tmsUserId,
+				{
+					project: query.project,
+					page: query.page,
+					per_page: query.per_page,
+					is_flt: query.is_flt,
+				},
 			);
 		} catch {
 			throw new BadGatewayException(

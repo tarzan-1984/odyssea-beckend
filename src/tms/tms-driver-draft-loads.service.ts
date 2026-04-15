@@ -3,9 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { AxiosError } from '../types/request.types';
 
-/** Project slug sent to TMS for Odyssea (per product config). */
-export const TMS_DRAFT_LOADS_PROJECT = 'odysseia';
-
 export type TmsDraftLoadRow = {
 	id: number;
 	date_created: string;
@@ -35,7 +32,10 @@ export class TmsDriverDraftLoadsService {
 	/**
 	 * Fetches in-progress (draft) loads for a driver from TMS.
 	 */
-	async fetchDraftLoads(driverExternalId: string): Promise<TmsDraftLoadsData> {
+	async fetchDraftLoads(
+		driverExternalId: string,
+		query: { project: string; page?: number; per_page?: number },
+	): Promise<TmsDraftLoadsData> {
 		const apiKey = this.configService.get<string>('externalApi.tmsApiKey');
 		if (!apiKey) {
 			throw new Error('TMS_API_KEY is not configured');
@@ -50,9 +50,13 @@ export class TmsDriverDraftLoadsService {
 
 		const url = new URL(baseUrl);
 		url.searchParams.set('driver_id', driverExternalId.trim());
-		url.searchParams.set('project', TMS_DRAFT_LOADS_PROJECT);
-		url.searchParams.set('page', '1');
-		url.searchParams.set('per_page', '50');
+		url.searchParams.set('project', String(query.project).trim());
+		if (query.page != null) {
+			url.searchParams.set('page', String(query.page));
+		}
+		if (query.per_page != null) {
+			url.searchParams.set('per_page', String(query.per_page));
+		}
 
 		try {
 			const { data } = await axios.get<{
