@@ -277,6 +277,20 @@ model Message {
   @@map("messages")
 }
 
+model DriverTracking {
+  id               String   @id @default(cuid())
+  externalDriverId String   @map("external_driver_id")
+  loadId           String   @map("load_id")
+  latitude         Float
+  longitude        Float
+  updatedAt        DateTime @updatedAt
+
+  @@unique([externalDriverId, loadId])
+  @@index([externalDriverId])
+  @@index([loadId])
+  @@map("driver_tracking")
+}
+
 model FileObject {
   id        String   @id @default(cuid())
   key       String   @unique
