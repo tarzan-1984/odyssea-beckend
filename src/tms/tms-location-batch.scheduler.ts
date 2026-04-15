@@ -27,6 +27,8 @@ export class TmsLocationBatchScheduler {
 	private lastRunAtMs = 0;
 	/** Throttle "cooldown" logs so operators see the scheduler is alive between runs. */
 	private lastCooldownLogAtMs = 0;
+	/** Only send driver locations updated within this window. */
+	private readonly maxLastLocationAgeMs = 24 * 60 * 60 * 1000;
 
 	constructor(
 		private readonly prisma: PrismaService,
@@ -109,14 +111,18 @@ export class TmsLocationBatchScheduler {
 		);
 
 		try {
+			const cutoffMs = Date.now() - this.maxLastLocationAgeMs;
 			const driversFromDb = await this.prisma.user.findMany({
 				where: {
 					role: UserRole.DRIVER,
 					status: UserStatus.ACTIVE,
 					isAutoupdate: true,
+					// Treat null as false; skip only explicit deactivated accounts.
+					deactivateAccount: { not: true },
 					externalId: { not: null },
 					latitude: { not: null },
 					longitude: { not: null },
+					lastLocationUpdateAt: { not: null },
 				},
 				select: {
 					externalId: true,
@@ -127,6 +133,7 @@ export class TmsLocationBatchScheduler {
 					zip: true,
 					driverStatus: true,
 					statusDate: true,
+					lastLocationUpdateAt: true,
 				},
 				orderBy: { id: 'asc' },
 			});
@@ -155,11 +162,22 @@ export class TmsLocationBatchScheduler {
 			}
 
 			this.logger.log(
-				`[${runId}] TMS batch: ${drivers.length} driver row(s) from DB (ACTIVE, isAutoupdate, has coords, has externalId)`,
+				`[${runId}] TMS batch: ${drivers.length} driver row(s) from DB (ACTIVE, isAutoupdate, not deactivated, has coords, has externalId, has lastLocationUpdateAt)`,
 			);
 
 			const items: TmsBatchLocationItem[] = [];
 			for (const u of drivers) {
+				const lastUpdateRaw = u.lastLocationUpdateAt?.trim() ?? '';
+				if (!lastUpdateRaw) {
+					continue;
+				}
+				// `lastLocationUpdateAt` is stored as a client-local ISO-like string (no timezone).
+				// We accept only values parseable by Date.parse; otherwise skip to avoid sending stale/invalid data.
+				const parsedMs = Date.parse(lastUpdateRaw);
+				if (!Number.isFinite(parsedMs) || parsedMs < cutoffMs) {
+					continue;
+				}
+
 				const ext = u.externalId?.trim();
 				if (!ext) continue;
 				const driverId = parseTmsDriverIdFromExternalId(ext);
