@@ -880,7 +880,9 @@ export class UsersService {
 			latitude: parseCoordinate(latitude),
 			longitude: parseCoordinate(longitude),
 			company: normalizeCompany(permission_view),
-			isAutoupdate: this.isAutoupdateForTmsDriverStatus(driver_status),
+			// Only ACTIVE drivers should ever have is_autoupdate enabled (cron filters by ACTIVE).
+			// New users default to INACTIVE, so keep it false on create.
+			isAutoupdate: false,
 		};
 
 		if (type === WebhookType.ADD) {
@@ -982,8 +984,11 @@ export class UsersService {
 			}
 			if (driver_status !== undefined) {
 				updateData.driverStatus = driver_status || null;
-				updateData.isAutoupdate =
-					this.isAutoupdateForTmsDriverStatus(driver_status);
+				// Enable auto-update only for ACTIVE accounts.
+				if (existingUser.status === UserStatus.ACTIVE) {
+					updateData.isAutoupdate =
+						this.isAutoupdateForTmsDriverStatus(driver_status);
+				}
 			}
 			if (status_date !== undefined) {
 				updateData.statusDate = status_date || null;
