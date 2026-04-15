@@ -152,10 +152,19 @@ export class TmsAppDraftLoadsService {
 					: typeof pagination.total_pages === 'number'
 						? pagination.total_pages
 						: 1;
+			// Root `pagination` matches GET /loads/drafts; fall back to request query if omitted.
+			const pageFromResponse =
+				typeof pagination.current_page === 'number' ? pagination.current_page : undefined;
 			const page =
-				typeof pagination.current_page === 'number' ? pagination.current_page : 1;
+				pageFromResponse ??
+				(typeof query.page === 'number' && query.page >= 1 ? query.page : 1);
+			const perPageFromResponse =
+				typeof pagination.per_page === 'number' ? pagination.per_page : undefined;
 			const perPage =
-				typeof pagination.per_page === 'number' ? pagination.per_page : 100;
+				perPageFromResponse ??
+				(typeof query.per_page === 'number' && query.per_page >= 1
+					? query.per_page
+					: 100);
 
 			const loads: TmsDraftLoadRow[] = rawLoads
 				.filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
