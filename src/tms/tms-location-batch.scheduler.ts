@@ -20,6 +20,15 @@ const ADV_LOCK_KEY2 = 330_029;
 /** Poll frequently enough so any configured interval (≥ 60s) is respected. */
 const TICK_CRON = '*/15 * * * * *';
 
+/**
+ * TMS batch: log full payload row + DB snapshot for this externalId (remove or change after testing).
+ */
+const TMS_BATCH_DEBUG_EXTERNAL_ID = '2465';
+
+function isTmsBatchDebugDriver(externalId: string | null | undefined): boolean {
+	return externalId?.trim() === TMS_BATCH_DEBUG_EXTERNAL_ID;
+}
+
 @Injectable()
 export class TmsLocationBatchScheduler {
 	private readonly logger = new Logger(TmsLocationBatchScheduler.name);
@@ -166,15 +175,27 @@ export class TmsLocationBatchScheduler {
 			);
 
 			const items: TmsBatchLocationItem[] = [];
+			let emptyDriverStatusInBatch = 0;
 			for (const u of drivers) {
+				const debugDriver = isTmsBatchDebugDriver(u.externalId);
 				const lastUpdateRaw = u.lastLocationUpdateAt?.trim() ?? '';
 				if (!lastUpdateRaw) {
+					if (debugDriver) {
+						this.logger.warn(
+							`[${runId}] TMS batch DEBUG externalId=${TMS_BATCH_DEBUG_EXTERNAL_ID}: skipped — empty lastLocationUpdateAt`,
+						);
+					}
 					continue;
 				}
 				// `lastLocationUpdateAt` is stored as a client-local ISO-like string (no timezone).
 				// We accept only values parseable by Date.parse; otherwise skip to avoid sending stale/invalid data.
 				const parsedMs = Date.parse(lastUpdateRaw);
 				if (!Number.isFinite(parsedMs) || parsedMs < cutoffMs) {
+					if (debugDriver) {
+						this.logger.warn(
+							`[${runId}] TMS batch DEBUG externalId=${TMS_BATCH_DEBUG_EXTERNAL_ID}: skipped — lastLocationUpdateAt not parseable or older than 24h raw=${JSON.stringify(lastUpdateRaw)} parsedMs=${parsedMs} cutoffMs=${cutoffMs}`,
+						);
+					}
 					continue;
 				}
 
@@ -182,6 +203,11 @@ export class TmsLocationBatchScheduler {
 				if (!ext) continue;
 				const driverId = parseTmsDriverIdFromExternalId(ext);
 				if (driverId === null) {
+					if (debugDriver) {
+						this.logger.warn(
+							`[${runId}] TMS batch DEBUG externalId=${TMS_BATCH_DEBUG_EXTERNAL_ID}: skipped — non-numeric externalId after trim`,
+						);
+					}
 					this.logger.warn(
 						`[${runId}] TMS batch: skip driver externalId not numeric: ${ext}`,
 					);
@@ -191,7 +217,11 @@ export class TmsLocationBatchScheduler {
 				const lng = u.longitude as number;
 				const locationTrimmed = u.location?.trim() ?? '';
 				const statusRaw = u.statusDate?.trim() ?? '';
-				items.push({
+				const driverStatusTrimmed = u.driverStatus?.trim() ?? '';
+				if (!driverStatusTrimmed) {
+					emptyDriverStatusInBatch++;
+				}
+				const item: TmsBatchLocationItem = {
 					driver_id: driverId,
 					latitude: String(lat),
 					longitude: String(lng),
@@ -200,14 +230,38 @@ export class TmsLocationBatchScheduler {
 						? normalizeTmsCurrentLocation(u.location)
 						: '',
 					current_zipcode: u.zip?.trim() ?? '',
-					driver_status: u.driverStatus?.trim() ?? '',
+					driver_status: driverStatusTrimmed,
 					status_date: statusRaw
 						? formatTmsStatusDate(u.statusDate)
 						: '',
 					country: '',
 					current_country: '',
 					notes: '',
-				});
+				};
+				if (debugDriver) {
+					this.logger.log(
+						`[${runId}] TMS batch DEBUG externalId=${TMS_BATCH_DEBUG_EXTERNAL_ID}: included in batch — DB snapshot driverStatus=${JSON.stringify(u.driverStatus)} statusDate=${JSON.stringify(u.statusDate)} lastLocationUpdateAt=${JSON.stringify(u.lastLocationUpdateAt)} city=${JSON.stringify(u.city)} zip=${JSON.stringify(u.zip)} location=${JSON.stringify(u.location)} lat=${lat} lng=${lng} → TMS item ${JSON.stringify(item)}`,
+					);
+				}
+				items.push(item);
+			}
+
+			const debugInDriversList = drivers.some((d) =>
+				isTmsBatchDebugDriver(d.externalId),
+			);
+			const debugInBatch = items.some(
+				(it) => it.driver_id === Number.parseInt(TMS_BATCH_DEBUG_EXTERNAL_ID, 10),
+			);
+			if (debugInDriversList && !debugInBatch) {
+				this.logger.warn(
+					`[${runId}] TMS batch DEBUG externalId=${TMS_BATCH_DEBUG_EXTERNAL_ID}: present in cron driver list after env filter but no row added to batch (see skip logs above this run if any)`,
+				);
+			}
+
+			if (emptyDriverStatusInBatch > 0) {
+				this.logger.warn(
+					`[${runId}] TMS batch: ${emptyDriverStatusInBatch} of ${items.length} payload row(s) have empty driver_status (users.driverStatus null/blank in DB). TMS may apply a default such as "available".`,
+				);
 			}
 
 			if (items.length === 0) {

@@ -481,8 +481,14 @@ export class UsersService {
 			data.location = locationIncoming;
 		}
 
-		if (locationDto.driverStatus !== undefined) {
-			data.driverStatus = locationDto.driverStatus;
+		// Ignore empty/whitespace driverStatus (client may send "" from stale cache) — do not wipe DB or TMS.
+		const driverStatusPatch =
+			locationDto.driverStatus !== undefined &&
+			String(locationDto.driverStatus).trim() !== ''
+				? String(locationDto.driverStatus).trim()
+				: undefined;
+		if (driverStatusPatch !== undefined) {
+			data.driverStatus = driverStatusPatch;
 		}
 		if (locationDto.statusDate !== undefined) {
 			data.statusDate = locationDto.statusDate;
@@ -588,9 +594,9 @@ export class UsersService {
 		}
 
 		const tmsStatus =
-			locationDto.driverStatus !== undefined
-				? locationDto.driverStatus
-				: updatedUser.driverStatus ?? '';
+			driverStatusPatch !== undefined
+				? driverStatusPatch
+				: (updatedUser.driverStatus ?? '').trim();
 		const statusDateForFormat =
 			locationDto.statusDate !== undefined
 				? locationDto.statusDate
