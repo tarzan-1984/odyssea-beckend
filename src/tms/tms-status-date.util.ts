@@ -1,4 +1,30 @@
 /**
+ * TMS location batch (cron): for `loaded_enroute` only, send status_date as
+ * (now + 3 hours) expressed in America/New_York, formatted like 01/15/2024 10:30 AM.
+ * For any other driver status, send an empty string.
+ */
+export function formatTmsBatchStatusDateByDriverStatus(
+	driverStatus: string | null | undefined,
+): string {
+	const n = driverStatus?.trim().toLowerCase() ?? '';
+	if (n !== 'loaded_enroute') {
+		return '';
+	}
+	const shifted = new Date(Date.now() + 3 * 60 * 60 * 1000);
+	const dtf = new Intl.DateTimeFormat('en-US', {
+		timeZone: 'America/New_York',
+		month: '2-digit',
+		day: '2-digit',
+		year: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		hour12: true,
+	});
+	// e.g. "04/16/2026, 10:30 AM" → "04/16/2026 10:30 AM"
+	return dtf.format(shifted).replace(',', '').replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Format status date for TMS (aligned with legacy mobile formatStatusDate).
  */
 export function formatTmsStatusDate(statusDate?: string | null): string {
