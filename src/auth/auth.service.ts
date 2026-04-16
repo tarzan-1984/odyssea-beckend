@@ -328,18 +328,27 @@ export class AuthService {
 	 * Verifies OTP and returns JWT tokens
 	 */
 	async verifyOtp(email: string, otp: string): Promise<AuthResponse> {
+		const normalizedEmail = email?.trim() ?? '';
+		const normalizedOtp = otp?.trim() ?? '';
+
 		// Apple App Store review: allow test account to bypass OTP (no email delivery during review)
 		const TEST_APPLE_REVIEW_EMAIL = 'testodyssea@gmail.com';
 		const TEST_APPLE_REVIEW_OTP = '123456';
 		const isTestAccount =
-			email?.toLowerCase().trim() === TEST_APPLE_REVIEW_EMAIL &&
-			otp?.trim() === TEST_APPLE_REVIEW_OTP;
+			normalizedEmail.toLowerCase() === TEST_APPLE_REVIEW_EMAIL &&
+			normalizedOtp === TEST_APPLE_REVIEW_OTP;
+
+		/** Canonical `users.email` from OTP row — avoids case mismatch on user lookup (PostgreSQL). */
+		let lookupEmailFromOtp: string | null = null;
 
 		if (!isTestAccount) {
 			const otpRecord = await this.prisma.otpCode.findFirst({
 				where: {
-					email,
-					code: otp,
+					email: {
+						equals: normalizedEmail,
+						mode: 'insensitive',
+					},
+					code: normalizedOtp,
 					expiresAt: { gt: new Date() },
 					isUsed: false,
 				},
@@ -350,6 +359,8 @@ export class AuthService {
 				throw new BadRequestException('Invalid or expired OTP code');
 			}
 
+			lookupEmailFromOtp = otpRecord.email;
+
 			// Mark OTP as used
 			await this.prisma.otpCode.update({
 				where: { id: otpRecord.id },
@@ -357,7 +368,9 @@ export class AuthService {
 			});
 		}
 
-		const lookupEmail = isTestAccount ? TEST_APPLE_REVIEW_EMAIL : email;
+		const lookupEmail = isTestAccount
+			? TEST_APPLE_REVIEW_EMAIL
+			: (lookupEmailFromOtp ?? normalizedEmail);
 		const user = await this.prisma.user.findUnique({
 			where: { email: lookupEmail },
 			select: {
