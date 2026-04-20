@@ -35,7 +35,8 @@ export class AppSettingsController {
 			'Get mobile app settings: location throttling, environment gate (live/test), max concurrent offer bids',
 	})
 	@ApiResponse({ status: 200, description: 'Current mobile-related settings' })
-	async get() {
+	async get(@Request() req: AuthenticatedRequest) {
+		void this.appSettingsService.recordUserLastActiveApp(req.user.id);
 		return this.appSettingsService.getMobileAppSettings();
 	}
 

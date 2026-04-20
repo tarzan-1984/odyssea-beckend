@@ -25,6 +25,8 @@ model User {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   lastLoginAt          DateTime?
+  // Last time when the mobile app entered foreground/active state.
+  lastActiveApp        DateTime?              @map("last_active_app")
   // Last time when location/coordinates were updated on the mobile device (client local time as string)
   lastLocationUpdateAt String?
   // Last known coordinates of the user (from location tracking)

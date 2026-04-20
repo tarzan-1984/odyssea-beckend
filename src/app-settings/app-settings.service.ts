@@ -8,6 +8,33 @@ import { NotificationsWebSocketService } from '../notifications/notifications-we
 
 const GLOBAL_APP_SETTINGS_ID = 'global';
 
+function nowInTimeZoneAsNaiveDate(timeZone: string): Date {
+	// We store `timestamp without time zone` in DB. This helper builds a Date whose
+	// UTC components match the target TZ wall-clock time (so the stored value reads
+	// as that local time in SQL).
+	const now = new Date();
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hour12: false,
+	}).formatToParts(now);
+
+	const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+	const year = Number(get('year'));
+	const month = Number(get('month'));
+	const day = Number(get('day'));
+	const hour = Number(get('hour'));
+	const minute = Number(get('minute'));
+	const second = Number(get('second'));
+
+	return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+}
+
 @Injectable()
 export class AppSettingsService {
 	constructor(
@@ -60,6 +87,7 @@ export class AppSettingsService {
 	 * - location environment gate (live vs test driver externalId)
 	 */
 	async getMobileAppSettings() {
+		// Note: lastActiveApp is tracked per-user (see controller GET /app-settings).
 		const row = await this.getGlobal();
 		return {
 			id: row.id,
@@ -72,6 +100,19 @@ export class AppSettingsService {
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};
+	}
+
+	async recordUserLastActiveApp(userId: string): Promise<void> {
+		if (!userId) return;
+		try {
+			await this.prisma.user.update({
+				where: { id: userId },
+				data: { lastActiveApp: nowInTimeZoneAsNaiveDate('America/New_York') },
+				select: { id: true },
+			});
+		} catch {
+			// Best-effort: never fail settings fetch due to tracking update.
+		}
 	}
 
 	async getOffersAppSettings() {
