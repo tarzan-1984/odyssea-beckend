@@ -466,13 +466,32 @@ export class UsersService {
 			);
 		}
 
+		const nowNy = (() => {
+			const parts = new Intl.DateTimeFormat('en-US', {
+				timeZone: 'America/New_York',
+				year: 'numeric',
+				month: '2-digit',
+				day: '2-digit',
+				hour: '2-digit',
+				minute: '2-digit',
+				second: '2-digit',
+				hour12: false,
+			}).formatToParts(new Date());
+			const get = (type: string) =>
+				parts.find((p) => p.type === type)?.value ?? '';
+			// Store as "YYYY-MM-DD HH:mm:ss" (NY wall-clock time).
+			return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get(
+				'minute',
+			)}:${get('second')}`;
+		})();
+
 		const data: Prisma.UserUpdateInput = {
 			city: locationDto.city,
 			state: locationDto.state,
 			zip: locationDto.zip,
 			latitude: locationDto.latitude,
 			longitude: locationDto.longitude,
-			lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
+			lastLocationUpdateAt: nowNy,
 		};
 		// Do not overwrite DB `location` when client sends no TMS code (empty string).
 		const locationIncoming = locationDto.location;
@@ -544,7 +563,7 @@ export class UsersService {
 			zip: locationDto.zip,
 			latitude: locationDto.latitude,
 			longitude: locationDto.longitude,
-			lastLocationUpdateAt: locationDto.lastLocationUpdateAt,
+			lastLocationUpdateAt: nowNy,
 			driverStatus: locationDto.driverStatus,
 			statusDate: locationDto.statusDate,
 			country: locationDto.country,
