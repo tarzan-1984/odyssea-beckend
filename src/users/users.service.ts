@@ -334,6 +334,8 @@ export class UsersService {
 				latitude: true,
 				longitude: true,
 				lastLocationUpdateAt: true,
+				driverStatus: true,
+				statusDate: true,
 				role: true,
 				status: true,
 				createdAt: true,
@@ -443,7 +445,8 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
-		const env = await this.appSettingsService.getLocationEnvironmentAppSettings();
+		const env =
+			await this.appSettingsService.getLocationEnvironmentAppSettings();
 		if (env.locationEnvironmentMode === 'test') {
 			const allowed = env.locationTestDriverExternalId.trim();
 			if (user.externalId?.trim() !== allowed) {
@@ -643,8 +646,7 @@ export class UsersService {
 		try {
 			await this.tmsDriverLocationBatch.sendBatch([batchItem]);
 		} catch (err) {
-			const tmsError =
-				err instanceof Error ? err.message : String(err);
+			const tmsError = err instanceof Error ? err.message : String(err);
 			throw new HttpException(
 				{
 					statusCode: HttpStatus.SERVICE_UNAVAILABLE,
@@ -999,10 +1001,7 @@ export class UsersService {
 			if (status_date !== undefined) {
 				updateData.statusDate = status_date || null;
 			}
-			if (
-				home_location !== undefined ||
-				current_location !== undefined
-			) {
+			if (home_location !== undefined || current_location !== undefined) {
 				const loc = current_location ?? home_location;
 				updateData.location = loc ?? null;
 			}
