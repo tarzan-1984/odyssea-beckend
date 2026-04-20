@@ -3,6 +3,7 @@ import {
 	Controller,
 	ForbiddenException,
 	Get,
+	Post,
 	Put,
 	Request,
 	UseGuards,
@@ -38,6 +39,17 @@ export class AppSettingsController {
 	async get(@Request() req: AuthenticatedRequest) {
 		void this.appSettingsService.recordUserLastActiveApp(req.user.id);
 		return this.appSettingsService.getMobileAppSettings();
+	}
+
+	@Post('activity-ping')
+	@ApiOperation({
+		summary:
+			'Lightweight heartbeat from mobile (background): updates users.lastActiveApp (NY wall time).',
+	})
+	@ApiResponse({ status: 200, description: 'Recorded' })
+	async activityPing(@Request() req: AuthenticatedRequest) {
+		await this.appSettingsService.recordUserLastActiveApp(req.user.id);
+		return { ok: true };
 	}
 
 	@Put()
