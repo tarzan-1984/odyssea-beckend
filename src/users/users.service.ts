@@ -31,6 +31,34 @@ import type { ExternalApiConfig } from '../config/env.config';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
+type LatLng = { latitude: number; longitude: number };
+type BBox = { minLat: number; maxLat: number; minLng: number; maxLng: number };
+
+function inBox(p: LatLng, b: BBox): boolean {
+	return (
+		p.latitude >= b.minLat &&
+		p.latitude <= b.maxLat &&
+		p.longitude >= b.minLng &&
+		p.longitude <= b.maxLng
+	);
+}
+
+// Rough geo-fence: USA/Canada/Mexico (per product constraints). Intentionally permissive.
+const US_CA_MAINLAND: BBox = { minLat: 24, maxLat: 71, minLng: -168, maxLng: -52 };
+const ALASKA: BBox = { minLat: 51, maxLat: 72, minLng: -179, maxLng: -129 };
+const HAWAII: BBox = { minLat: 18, maxLat: 23, minLng: -161, maxLng: -154 };
+const MEXICO: BBox = { minLat: 14, maxLat: 33, minLng: -119, maxLng: -86 };
+
+function isAllowedNorthAmericaLatLng(p: LatLng): boolean {
+	if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return false;
+	return (
+		inBox(p, US_CA_MAINLAND) ||
+		inBox(p, ALASKA) ||
+		inBox(p, HAWAII) ||
+		inBox(p, MEXICO)
+	);
+}
+
 @Injectable()
 export class UsersService {
 	private readonly logger = new Logger(UsersService.name);
@@ -447,11 +475,30 @@ export class UsersService {
 
 		const env =
 			await this.appSettingsService.getLocationEnvironmentAppSettings();
+		const allowedTestExternalId = env.locationTestDriverExternalId.trim();
+		const isTestDriver =
+			!!user.externalId?.trim() && user.externalId.trim() === allowedTestExternalId;
 		if (env.locationEnvironmentMode === 'test') {
-			const allowed = env.locationTestDriverExternalId.trim();
-			if (user.externalId?.trim() !== allowed) {
+			if (!isTestDriver) {
 				throw new ForbiddenException(
 					'Location updates are disabled for this account (server is in test mode; only the configured test driver may update location).',
+				);
+			}
+		}
+
+		// Geo-fence: reject obviously wrong fixes (e.g. Africa) for non-test drivers.
+		if (
+			!isTestDriver &&
+			typeof locationDto.latitude === 'number' &&
+			typeof locationDto.longitude === 'number'
+		) {
+			const ok = isAllowedNorthAmericaLatLng({
+				latitude: locationDto.latitude,
+				longitude: locationDto.longitude,
+			});
+			if (!ok) {
+				throw new BadRequestException(
+					`Invalid location coordinates (outside allowed region)`,
 				);
 			}
 		}
