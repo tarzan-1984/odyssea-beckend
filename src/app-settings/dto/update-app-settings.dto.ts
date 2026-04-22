@@ -34,26 +34,4 @@ export class UpdateAppSettingsDto {
 	@Min(100)
 	@Max(500_000)
 	reverseGeocodeMinDistanceM!: number;
-
-	@ApiProperty({
-		description:
-			'Minimum time between successful activity pings from mobile (milliseconds). Use 0 to disable the time gate.',
-		example: 600000,
-		minimum: 0,
-	})
-	@IsInt()
-	@Min(0)
-	@Max(86_400_000)
-	activityPingMinIntervalMs!: number;
-
-	@ApiProperty({
-		description:
-			'Minimum silence since last successful location API send before allowing activity ping (milliseconds). Use 0 to disable this gate.',
-		example: 900000,
-		minimum: 0,
-	})
-	@IsInt()
-	@Min(0)
-	@Max(86_400_000)
-	activityPingMinSilenceAfterLocationMs!: number;
 }
