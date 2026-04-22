@@ -105,6 +105,16 @@ model AppSetting {
   locationMinIntervalMs      Int      @default(60000) @map("location_min_interval_ms")
   locationMinDistanceM       Int      @default(1000)  @map("location_min_distance_m")
   reverseGeocodeMinDistanceM Int      @default(5000)  @map("reverse_geocode_min_distance_m")
+  /**
+   * Minimum milliseconds between successful activity pings from mobile.
+   * Used by mobile background/foreground heartbeat logic.
+   */
+  activityPingMinIntervalMs  Int      @default(600000) @map("activity_ping_min_interval_ms")
+  /**
+   * Minimum milliseconds since last *successful* location API send before allowing activity ping.
+   * Prevents redundant writes when location sync already updates activity.
+   */
+  activityPingMinSilenceAfterLocationMs Int @default(900000) @map("activity_ping_min_silence_after_location_ms")
   /** Minimum seconds between TMS batch location sync runs (server cron). */
   tmsBatchCronIntervalSeconds Int     @default(300)   @map("tms_batch_cron_interval_seconds")
   /** Max drivers per TMS batch POST request. */

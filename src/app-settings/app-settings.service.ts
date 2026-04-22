@@ -53,6 +53,8 @@ export class AppSettingsService {
 				locationMinIntervalMs: 60_000,
 				locationMinDistanceM: 1000,
 				reverseGeocodeMinDistanceM: 5000,
+				activityPingMinIntervalMs: 10 * 60_000,
+				activityPingMinSilenceAfterLocationMs: 15 * 60_000,
 				tmsBatchCronIntervalSeconds: 300,
 				tmsBatchChunkSize: 150,
 				locationEnvironmentMode: 'live',
@@ -73,6 +75,9 @@ export class AppSettingsService {
 				locationMinIntervalMs: dto.locationMinIntervalMs,
 				locationMinDistanceM: dto.locationMinDistanceM,
 				reverseGeocodeMinDistanceM: dto.reverseGeocodeMinDistanceM,
+				activityPingMinIntervalMs: dto.activityPingMinIntervalMs,
+				activityPingMinSilenceAfterLocationMs:
+					dto.activityPingMinSilenceAfterLocationMs,
 			},
 		});
 		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
@@ -94,6 +99,9 @@ export class AppSettingsService {
 			locationMinIntervalMs: row.locationMinIntervalMs,
 			locationMinDistanceM: row.locationMinDistanceM,
 			reverseGeocodeMinDistanceM: row.reverseGeocodeMinDistanceM,
+			activityPingMinIntervalMs: row.activityPingMinIntervalMs,
+			activityPingMinSilenceAfterLocationMs:
+				row.activityPingMinSilenceAfterLocationMs,
 			locationEnvironmentMode: row.locationEnvironmentMode as 'live' | 'test',
 			locationTestDriverExternalId: row.locationTestDriverExternalId,
 			maxDriverOpenOfferParticipations: row.maxDriverOpenOfferParticipations,
