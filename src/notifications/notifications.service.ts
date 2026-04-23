@@ -4,6 +4,7 @@ import { NotificationsWebSocketService } from './notifications-websocket.service
 import { Notification, User } from '@prisma/client';
 import { FcmPushService } from './fcm-push.service';
 import { ExpoPushService } from './expo-push.service';
+import { UserStatus } from '@prisma/client';
 
 @Injectable()
 export class NotificationsService {
@@ -157,6 +158,50 @@ export class NotificationsService {
         `Failed to send push notification to user ${data.userId}: ${(error as Error).message}`,
       );
     }
+  }
+
+  /**
+   * Admin-only: send a custom push message either to a single user or to all ACTIVE users.
+   * Returns counts for basic UI feedback.
+   */
+  async sendCustomPush(params: {
+    message: string;
+    userId?: string;
+  }): Promise<{ targeted: boolean; users: number }> {
+    const message = (params.message ?? '').trim();
+    if (!message) return { targeted: Boolean(params.userId), users: 0 };
+
+    const title = 'Odyssea';
+
+    if (params.userId) {
+      await this.sendPushToUser({
+        userId: params.userId,
+        title,
+        body: message,
+        payload: { type: 'admin_broadcast' },
+      });
+      return { targeted: true, users: 1 };
+    }
+
+    // Broadcast to all ACTIVE users who have at least one push token
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: UserStatus.ACTIVE,
+        pushTokens: { some: {} },
+      },
+      select: { id: true },
+    });
+
+    for (const u of users) {
+      await this.sendPushToUser({
+        userId: u.id,
+        title,
+        body: message,
+        payload: { type: 'admin_broadcast' },
+      });
+    }
+
+    return { targeted: false, users: users.length };
   }
 
   /**

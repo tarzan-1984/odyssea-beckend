@@ -7,11 +7,14 @@ import {
 	Query,
 	UseGuards,
 	Request,
+	ForbiddenException,
+	BadRequestException,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserRole } from '@prisma/client';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
@@ -135,5 +138,35 @@ export class NotificationsController {
 			where: { userId: req.user.id },
 		});
 		return { success: true, removed: res.count };
+	}
+
+	/**
+	 * Admin-only: send custom push to a single user or to all ACTIVE users.
+	 */
+	@Post('push')
+	async sendCustomPush(
+		@Request() req: AuthenticatedRequest,
+		@Body() body: { message: string; userId?: string | null },
+	) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException('Admin only');
+		}
+
+		const message = typeof body?.message === 'string' ? body.message.trim() : '';
+		const userId =
+			typeof body?.userId === 'string' && body.userId.trim()
+				? body.userId.trim()
+				: undefined;
+
+		if (!message) {
+			throw new BadRequestException('message is required');
+		}
+
+		const result = await this.notificationsService.sendCustomPush({
+			message,
+			userId,
+		});
+
+		return { success: true, data: result };
 	}
 }
