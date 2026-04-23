@@ -74,6 +74,8 @@ describe('UsersController', () => {
 				'10',
 				UserRole.ADMINISTRATOR,
 				UserStatus.ACTIVE,
+				undefined,
+				undefined,
 				'test',
 				'{"createdAt":"desc"}',
 			);
@@ -85,6 +87,8 @@ describe('UsersController', () => {
 				UserStatus.ACTIVE,
 				'test',
 				{ createdAt: 'desc' },
+				undefined,
+				false,
 			);
 			expect(result).toEqual(mockResult);
 		});
@@ -108,6 +112,8 @@ describe('UsersController', () => {
 				undefined,
 				undefined,
 				undefined,
+				undefined,
+				undefined,
 				'invalid-json',
 			);
 
@@ -118,6 +124,8 @@ describe('UsersController', () => {
 				undefined,
 				undefined,
 				{ createdAt: 'desc' },
+				undefined,
+				false,
 			);
 			expect(result).toEqual(mockResult);
 		});

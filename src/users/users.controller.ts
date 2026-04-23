@@ -411,6 +411,14 @@ export class UsersController {
 		example: true,
 	})
 	@ApiQuery({
+		name: 'hasUserDevice',
+		required: false,
+		description:
+			'When true, returns only users who have at least one row in user_devices (mobile device snapshot).',
+		type: Boolean,
+		example: true,
+	})
+	@ApiQuery({
 		name: 'search',
 		required: false,
 		description: 'Search users by first name, last name, email, or phone',
@@ -565,6 +573,7 @@ export class UsersController {
 		@Query('roles') roles?: string,
 		@Query('status') status?: UserStatus,
 		@Query('contactsOnly') contactsOnly?: string,
+		@Query('hasUserDevice') hasUserDevice?: string,
 		@Query('search') search?: string,
 		@Query('sort') sort?: string,
 		@Query('company') company?: string,
@@ -600,6 +609,9 @@ export class UsersController {
 			contactsOnly === 'true' || contactsOnly === '1';
 		const effectiveStatus = contactsOnlyEnabled ? UserStatus.ACTIVE : status;
 
+		const hasUserDeviceEnabled =
+			hasUserDevice === 'true' || hasUserDevice === '1';
+
 		return this.usersService.findAllUsers(
 			page ? parseInt(page, 10) : 1,
 			limit ? parseInt(limit, 10) : 10,
@@ -608,6 +620,7 @@ export class UsersController {
 			search,
 			sortObj,
 			company,
+			hasUserDeviceEnabled,
 		);
 	}
 

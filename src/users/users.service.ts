@@ -96,17 +96,18 @@ export class UsersService {
 		search?: string,
 		sort?: { [key: string]: 'asc' | 'desc' },
 		company?: string,
+		hasUserDevice: boolean = false,
 	) {
 		const skip = (page - 1) * limit;
 
-		const where: Record<string, unknown> = {};
+		const andFilters: Prisma.UserWhereInput[] = [];
 
 		if (roles && roles.length > 0) {
-			where.role = { in: roles };
+			andFilters.push({ role: { in: roles } });
 		}
 
 		if (status) {
-			where.status = status;
+			andFilters.push({ status });
 		}
 
 		if (company) {
@@ -115,23 +116,33 @@ export class UsersService {
 				throw new BadRequestException('Invalid company value');
 			}
 			// users.company is TEXT[] (Prisma String[])
-			where.company = { has: company };
+			andFilters.push({ company: { has: company } });
 		}
 
 		if (search) {
-			where.OR = [
-				{ firstName: { contains: search, mode: 'insensitive' } },
-				{ lastName: { contains: search, mode: 'insensitive' } },
-				{ email: { contains: search, mode: 'insensitive' } },
-				{
-					phone: {
-						not: null,
-						contains: search,
-						mode: 'insensitive',
+			andFilters.push({
+				OR: [
+					{ firstName: { contains: search, mode: 'insensitive' } },
+					{ lastName: { contains: search, mode: 'insensitive' } },
+					{ email: { contains: search, mode: 'insensitive' } },
+					{
+						phone: {
+							not: null,
+							contains: search,
+							mode: 'insensitive',
+						},
 					},
-				},
-			];
+				],
+			});
 		}
+
+		if (hasUserDevice) {
+			// `user_devices` is keyed by `users.externalId` (relation on User.userDevices)
+			andFilters.push({ userDevices: { some: {} } });
+		}
+
+		const where: Prisma.UserWhereInput =
+			andFilters.length > 0 ? { AND: andFilters } : {};
 
 		const [users, total] = await Promise.all([
 			this.prisma.user.findMany({
