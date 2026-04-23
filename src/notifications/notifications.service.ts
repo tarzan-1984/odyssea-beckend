@@ -167,9 +167,10 @@ export class NotificationsService {
   async sendCustomPush(params: {
     message: string;
     userId?: string;
-  }): Promise<{ targeted: boolean; users: number }> {
+    platform?: 'ios' | 'android';
+  }): Promise<{ targeted: boolean; users: number; platform?: 'ios' | 'android' }> {
     const message = (params.message ?? '').trim();
-    if (!message) return { targeted: Boolean(params.userId), users: 0 };
+    if (!message) return { targeted: Boolean(params.userId), users: 0, platform: params.platform };
 
     const title = 'Odyssea';
 
@@ -180,7 +181,7 @@ export class NotificationsService {
         body: message,
         payload: { type: 'admin_broadcast' },
       });
-      return { targeted: true, users: 1 };
+      return { targeted: true, users: 1, platform: params.platform };
     }
 
     // Broadcast to all ACTIVE users who have at least one push token
@@ -188,6 +189,15 @@ export class NotificationsService {
       where: {
         status: UserStatus.ACTIVE,
         pushTokens: { some: {} },
+        ...(params.platform
+          ? {
+              userDevices: {
+                some: {
+                  platform: { equals: params.platform, mode: 'insensitive' },
+                },
+              },
+            }
+          : {}),
       },
       select: { id: true },
     });
@@ -201,7 +211,7 @@ export class NotificationsService {
       });
     }
 
-    return { targeted: false, users: users.length };
+    return { targeted: false, users: users.length, platform: params.platform };
   }
 
   /**

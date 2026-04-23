@@ -146,7 +146,12 @@ export class NotificationsController {
 	@Post('push')
 	async sendCustomPush(
 		@Request() req: AuthenticatedRequest,
-		@Body() body: { message: string; userId?: string | null },
+		@Body()
+		body: {
+			message: string;
+			userId?: string | null;
+			platform?: 'all' | 'ios' | 'android' | null;
+		},
 	) {
 		if (req.user.role !== UserRole.ADMINISTRATOR) {
 			throw new ForbiddenException('Admin only');
@@ -157,14 +162,26 @@ export class NotificationsController {
 			typeof body?.userId === 'string' && body.userId.trim()
 				? body.userId.trim()
 				: undefined;
+		const platformRaw =
+			typeof body?.platform === 'string' ? body.platform.trim().toLowerCase() : '';
+		const platform =
+			platformRaw === 'ios' || platformRaw === 'android'
+				? (platformRaw as 'ios' | 'android')
+				: platformRaw === 'all' || !platformRaw
+					? undefined
+					: null;
 
 		if (!message) {
 			throw new BadRequestException('message is required');
+		}
+		if (platform === null) {
+			throw new BadRequestException('platform must be one of: all, ios, android');
 		}
 
 		const result = await this.notificationsService.sendCustomPush({
 			message,
 			userId,
+			platform,
 		});
 
 		return { success: true, data: result };
