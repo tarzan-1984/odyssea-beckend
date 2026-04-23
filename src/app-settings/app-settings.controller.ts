@@ -177,4 +177,35 @@ export class AppSettingsController {
 			path: '/v1/app-settings/usage-stats',
 		};
 	}
+
+	@Get('account-deletion-request')
+	@ApiOperation({
+		summary: 'Get account deletion request email recipient (admin UI)',
+	})
+	@ApiResponse({ status: 200, description: 'Current recipient email' })
+	async getAccountDeletionRequest(@Request() req: AuthenticatedRequest) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can read account deletion request settings',
+			);
+		}
+		return this.appSettingsService.getAccountDeletionRequestSettings();
+	}
+
+	@Put('account-deletion-request')
+	@ApiOperation({
+		summary: 'Update account deletion request email recipient (admin only)',
+	})
+	@ApiResponse({ status: 200, description: 'Updated recipient email' })
+	async updateAccountDeletionRequest(
+		@Request() req: AuthenticatedRequest,
+		@Body() body: { accountDeletionRequestEmail: string },
+	) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can update account deletion request settings',
+			);
+		}
+		return this.appSettingsService.updateAccountDeletionRequestSettings(body);
+	}
 }

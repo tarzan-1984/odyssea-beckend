@@ -22,6 +22,7 @@ import {
 import { StorageModule } from './storage/storage.module';
 import { OffersModule } from './offers/offers.module';
 import { AppSettingsModule } from './app-settings/app-settings.module';
+import { PublicModule } from './public/public.module';
 
 @Module({
 	imports: [
@@ -48,6 +49,7 @@ import { AppSettingsModule } from './app-settings/app-settings.module';
 		StorageModule,
 		OffersModule,
 		AppSettingsModule,
+		PublicModule,
 	],
 	controllers: [AppController],
 	providers: [],

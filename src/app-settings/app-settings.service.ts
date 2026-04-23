@@ -139,6 +139,27 @@ export class AppSettingsService {
 		return this.getOffersAppSettings();
 	}
 
+	async getAccountDeletionRequestSettings() {
+		const row = await this.getGlobal();
+		return {
+			id: row.id,
+			accountDeletionRequestEmail: row.accountDeletionRequestEmail ?? '',
+			updatedAt: row.updatedAt,
+		};
+	}
+
+	async updateAccountDeletionRequestSettings(dto: {
+		accountDeletionRequestEmail: string;
+	}) {
+		await this.getGlobal();
+		const email = String(dto.accountDeletionRequestEmail ?? '').trim();
+		await this.prisma.appSetting.update({
+			where: { id: GLOBAL_APP_SETTINGS_ID },
+			data: { accountDeletionRequestEmail: email },
+		});
+		return this.getAccountDeletionRequestSettings();
+	}
+
 	async getTmsBatchAppSettings() {
 		const row = await this.getGlobal();
 		return {

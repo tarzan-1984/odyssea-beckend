@@ -120,6 +120,8 @@ model AppSetting {
    * Exposed to mobile via GET /v1/app-settings; enforced in setDriverRate.
    */
   maxDriverOpenOfferParticipations Int @default(2) @map("max_driver_open_offer_participations")
+  /** Email recipient for public account deletion requests form (/delete-account). */
+  accountDeletionRequestEmail     String @default("") @map("account_deletion_request_email")
   createdAt                  DateTime @default(now()) @map("created_at")
   updatedAt                  DateTime @updatedAt      @map("updated_at")
 
