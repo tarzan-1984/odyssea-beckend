@@ -26,7 +26,7 @@ model User {
   updatedAt            DateTime              @updatedAt
   lastLoginAt          DateTime?
   // Last time when the mobile app entered foreground/active state.
-  lastActiveApp        DateTime?              @map("last_active_app")
+  lastActiveApp        DateTime?             @map("last_active_app")
   // Last time when location/coordinates were updated on the mobile device (client local time as string)
   lastLocationUpdateAt String?
   // Last known coordinates of the user (from location tracking)
@@ -101,29 +101,37 @@ model AppSetting {
   /**
    * Singleton row (use id = "global").
    */
-  id                         String   @id @default("global")
-  locationMinIntervalMs      Int      @default(60000) @map("location_min_interval_ms")
-  locationMinDistanceM       Int      @default(1000)  @map("location_min_distance_m")
-  reverseGeocodeMinDistanceM Int      @default(5000)  @map("reverse_geocode_min_distance_m")
-  /** Minimum seconds between TMS batch location sync runs (server cron). */
-  tmsBatchCronIntervalSeconds Int     @default(300)   @map("tms_batch_cron_interval_seconds")
-  /** Max drivers per TMS batch POST request. */
-  tmsBatchChunkSize          Int      @default(150)   @map("tms_batch_chunk_size")
+  id                               String   @id @default("global")
+  locationMinIntervalMs            Int      @default(60000) @map("location_min_interval_ms")
+  locationMinDistanceM             Int      @default(1000) @map("location_min_distance_m")
+  reverseGeocodeMinDistanceM       Int      @default(5000) @map("reverse_geocode_min_distance_m")
+  /**
+   * Minimum seconds between TMS batch location sync runs (server cron).
+   */
+  tmsBatchCronIntervalSeconds      Int      @default(300) @map("tms_batch_cron_interval_seconds")
+  /**
+   * Max drivers per TMS batch POST request.
+   */
+  tmsBatchChunkSize                Int      @default(150) @map("tms_batch_chunk_size")
   /**
    * live = normal; test = only `locationTestDriverExternalId` may update location (API + TMS batch).
    */
-  locationEnvironmentMode      String   @default("live") @map("location_environment_mode")
-  /** Allowed TMS/driver external id when mode is test (string, e.g. "3343"). */
-  locationTestDriverExternalId String   @default("3343") @map("location_test_driver_external_id")
+  locationEnvironmentMode          String   @default("live") @map("location_environment_mode")
+  /**
+   * Allowed TMS/driver external id when mode is test (string, e.g. "3343").
+   */
+  locationTestDriverExternalId     String   @default("3343") @map("location_test_driver_external_id")
   /**
    * How many offers a driver may have an open bid on at once (assigned offers excluded).
    * Exposed to mobile via GET /v1/app-settings; enforced in setDriverRate.
    */
-  maxDriverOpenOfferParticipations Int @default(2) @map("max_driver_open_offer_participations")
-  /** Email recipient for public account deletion requests form (/delete-account). */
-  accountDeletionRequestEmail     String @default("") @map("account_deletion_request_email")
-  createdAt                  DateTime @default(now()) @map("created_at")
-  updatedAt                  DateTime @updatedAt      @map("updated_at")
+  maxDriverOpenOfferParticipations Int      @default(2) @map("max_driver_open_offer_participations")
+  /**
+   * Email recipient for public account deletion requests form (/delete-account).
+   */
+  accountDeletionRequestEmail      String   @default("") @map("account_deletion_request_email")
+  createdAt                        DateTime @default(now()) @map("created_at")
+  updatedAt                        DateTime @updatedAt @map("updated_at")
 
   @@map("app_settings")
 }
@@ -187,42 +195,42 @@ model UserDevice {
 }
 
 model Offer {
-  id                   Int          @id @default(autoincrement())
-  active               Boolean      @default(true)
-  isDriverSelected     Boolean      @default(false) @map("is_driver_selected")
-  externalUserId       String?      @map("external_user_id")
-  loadId               String?      @map("load_id")
-  createTime           String       @map("create_time")
-  updateTime           String       @map("update_time")
-  loadedMiles          Float?       @map("loaded_miles")
-  weight               Float?
-  commodity            String?
-  notes                String?
-  specialRequirements  Json?        @map("special_requirements") // array
-  drivers              Json?        // array
-  route                Json?        // array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-  creator              User?        @relation("OfferCreator", fields: [externalUserId], references: [externalId])
-  rateOffers           RateOffer[]
-  chatRooms            ChatRoom[]
+  id                  Int         @id @default(autoincrement())
+  active              Boolean     @default(true)
+  isDriverSelected    Boolean     @default(false) @map("is_driver_selected")
+  externalUserId      String?     @map("external_user_id")
+  loadId              String?     @map("load_id")
+  createTime          String      @map("create_time")
+  updateTime          String      @map("update_time")
+  loadedMiles         Float?      @map("loaded_miles")
+  weight              Float?
+  commodity           String?
+  notes               String?
+  specialRequirements Json?       @map("special_requirements") // array
+  drivers             Json? // array
+  route               Json? // array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  creator             User?       @relation("OfferCreator", fields: [externalUserId], references: [externalId])
+  rateOffers          RateOffer[]
+  chatRooms           ChatRoom[]
 
   @@map("offers")
 }
 
 model RateOffer {
-  id         Int      @id @default(autoincrement())
-  offerId    Int      @map("offer_id")
-  driverId   String?  @map("driver_id")
-  isSelected Boolean  @default(false) @map("is_selected")
+  id         Int     @id @default(autoincrement())
+  offerId    Int     @map("offer_id")
+  driverId   String? @map("driver_id")
+  isSelected Boolean @default(false) @map("is_selected")
   rate       Float?
-  actionTime BigInt?  @map("action_time")
-  active     Boolean  @default(true)
-  emptyMiles Float?   @map("empty_miles")
-  totalMiles Float?   @map("total_miles")
-  driverEta  String?  @map("driver_eta") // Time set by driver in mobile app (Estimated Time of Arrival)
-  offer      Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  driver     User?    @relation(fields: [driverId], references: [externalId])
+  actionTime BigInt? @map("action_time")
+  active     Boolean @default(true)
+  emptyMiles Float?  @map("empty_miles")
+  totalMiles Float?  @map("total_miles")
+  driverEta  String? @map("driver_eta") // Time set by driver in mobile app (Estimated Time of Arrival)
+  offer      Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  driver     User?   @relation(fields: [driverId], references: [externalId])
 
   @@map("rate_offers")
 }
