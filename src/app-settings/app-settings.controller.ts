@@ -158,4 +158,23 @@ export class AppSettingsController {
 		}
 		return this.appSettingsService.updateOffersAppSettings(dto);
 	}
+
+	@Get('usage-stats')
+	@ApiOperation({
+		summary:
+			'Get mobile app usage stats (ACTIVE users with a device snapshot) — admin UI',
+	})
+	@ApiResponse({ status: 200, description: 'Usage stats split by role and platform' })
+	async getUsageStats(@Request() req: AuthenticatedRequest) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can read usage stats',
+			);
+		}
+		return {
+			data: await this.appSettingsService.getMobileUsageStats(),
+			timestamp: new Date().toISOString(),
+			path: '/v1/app-settings/usage-stats',
+		};
+	}
 }

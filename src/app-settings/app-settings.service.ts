@@ -5,6 +5,7 @@ import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-setting
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
 import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
+import { UserRole, UserStatus } from '@prisma/client';
 
 const GLOBAL_APP_SETTINGS_ID = 'global';
 
@@ -189,5 +190,60 @@ export class AppSettingsService {
 			updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
 		});
 		return this.getLocationEnvironmentAppSettings();
+	}
+
+	/**
+	 * Admin UI: usage stats based on:
+	 * - users.status === ACTIVE
+	 * - there is a device snapshot in user_devices (1 row per externalId)
+	 *
+	 * Drivers are users with role === DRIVER; "Users" are all other roles.
+	 * Split counts by platform from user_devices.platform (case-insensitive).
+	 */
+	async getMobileUsageStats(): Promise<{
+		users: { ios: number; android: number };
+		drivers: { ios: number; android: number };
+		total: { ios: number; android: number; all: number };
+	}> {
+		const rows = await this.prisma.userDevice.findMany({
+			select: {
+				platform: true,
+				user: { select: { role: true, status: true } },
+			},
+			where: {
+				user: { status: UserStatus.ACTIVE },
+			},
+		});
+
+		const norm = (p: string | null | undefined) =>
+			String(p ?? '').trim().toLowerCase();
+
+		let usersIos = 0;
+		let usersAndroid = 0;
+		let driversIos = 0;
+		let driversAndroid = 0;
+
+		for (const r of rows) {
+			const platform = norm(r.platform);
+			if (platform !== 'ios' && platform !== 'android') continue;
+			const isDriver = r.user.role === UserRole.DRIVER;
+
+			if (isDriver) {
+				if (platform === 'ios') driversIos += 1;
+				else driversAndroid += 1;
+			} else {
+				if (platform === 'ios') usersIos += 1;
+				else usersAndroid += 1;
+			}
+		}
+
+		const totalIos = usersIos + driversIos;
+		const totalAndroid = usersAndroid + driversAndroid;
+
+		return {
+			users: { ios: usersIos, android: usersAndroid },
+			drivers: { ios: driversIos, android: driversAndroid },
+			total: { ios: totalIos, android: totalAndroid, all: totalIos + totalAndroid },
+		};
 	}
 }

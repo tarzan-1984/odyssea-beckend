@@ -931,32 +931,43 @@ export class AuthService {
 		const userExternalId = user.externalId.trim();
 		const platform = String(dto.platform).trim();
 
-		// Keep a single snapshot per (userExternalId, platform). If it already exists, overwrite it.
-		const updated = await this.prisma.userDevice.updateMany({
-			where: { userExternalId, platform },
-			data: {
-				appVersion: dto.appVersion ?? null,
-				deviceName: dto.deviceName ?? null,
-				model: dto.model ?? null,
-				osVersion: dto.osVersion ?? null,
-				pushToken: dto.pushToken ?? null,
-			},
-		});
+		// Keep a single snapshot per userExternalId. If duplicates exist, keep one and delete the rest.
+		await this.prisma.$transaction(async (tx) => {
+			const existing = await tx.userDevice.findMany({
+				where: { userExternalId },
+				select: { id: true },
+				orderBy: { updatedAt: 'desc' },
+			});
 
-		if (updated.count > 0) {
-			return;
-		}
-
-		await this.prisma.userDevice.create({
-			data: {
-				userExternalId,
+			const data = {
 				platform,
 				appVersion: dto.appVersion ?? null,
 				deviceName: dto.deviceName ?? null,
 				model: dto.model ?? null,
 				osVersion: dto.osVersion ?? null,
 				pushToken: dto.pushToken ?? null,
-			},
+			};
+
+			if (existing.length === 0) {
+				await tx.userDevice.create({
+					data: { userExternalId, ...data },
+				});
+				return;
+			}
+
+			// Update the most recent row, delete the rest (prevents multiple devices per externalId).
+			await tx.userDevice.update({
+				where: { id: existing[0].id },
+				data,
+			});
+
+			if (existing.length > 1) {
+				await tx.userDevice.deleteMany({
+					where: {
+						id: { in: existing.slice(1).map((r) => r.id) },
+					},
+				});
+			}
 		});
 	}
 }
