@@ -220,6 +220,8 @@ export class NotificationsService {
   async sendTmsPushByExternalId(params: {
     externalId: string;
     message: string;
+    title?: string;
+    payload?: Record<string, string>;
   }): Promise<{
     externalId: string;
     userId: string | null;
@@ -261,9 +263,9 @@ export class NotificationsService {
 
     await this.sendPushToUser({
       userId: user.id,
-      title: 'Odyssea',
+      title: params.title?.trim() || 'Odyssea',
       body: message,
-      payload: { type: 'tms_message', externalId },
+      payload: { type: 'tms_message', externalId, ...(params.payload ?? {}) },
     });
 
     return {

@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+	BadRequestException,
+	Body,
+	Controller,
+	Get,
+	Post,
+	Query,
+	UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -40,6 +48,65 @@ export class TmsController {
 	})
 	async backfillDriverApplicationActivated() {
 		return this.tmsDriverApplicationService.backfillActivatedDriversFromLastActiveApp();
+	}
+
+	@Post('load/status')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Open TMS webhook: load status changed',
+		description:
+			'Receives load status updates from TMS and logs the payload. No side effects yet. offer_id is optional.',
+	})
+	@ApiResponse({
+		status: 201,
+		description: 'Webhook accepted and logged',
+	})
+	async receiveLoadStatusChanged(
+		@Body()
+		body: {
+			load_id?: string | number;
+			driver_id?: string | number;
+			load_status?: string;
+			offer_id?: string | number | null;
+		},
+	) {
+		const loadId =
+			body?.load_id != null ? String(body.load_id).trim() : '';
+		const driverId =
+			body?.driver_id != null ? String(body.driver_id).trim() : '';
+		const loadStatus =
+			typeof body?.load_status === 'string' ? body.load_status.trim() : '';
+		const offerId =
+			body?.offer_id != null && String(body.offer_id).trim() !== ''
+				? String(body.offer_id).trim()
+				: null;
+
+		if (!loadId) {
+			throw new BadRequestException('load_id is required');
+		}
+		if (!driverId) {
+			throw new BadRequestException('driver_id is required');
+		}
+		if (!loadStatus) {
+			throw new BadRequestException('load_status is required');
+		}
+
+		console.log('[TMS Load Status Webhook]', {
+			load_id: loadId,
+			driver_id: driverId,
+			load_status: loadStatus,
+			offer_id: offerId,
+		});
+
+		return {
+			success: true,
+			data: {
+				loadId,
+				driverId,
+				loadStatus,
+				offerId,
+			},
+		};
 	}
 }
 
