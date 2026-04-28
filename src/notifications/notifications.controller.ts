@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
+import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
@@ -185,5 +186,37 @@ export class NotificationsController {
 		});
 
 		return { success: true, data: result };
+	}
+
+	/**
+	 * Open TMS endpoint: send custom push by TMS externalId.
+	 */
+	@Post('push/tms')
+	@SkipAuth()
+	async sendTmsPush(
+		@Body()
+		body: {
+			externalId?: string;
+			message?: string;
+		},
+	) {
+		const externalId =
+			typeof body?.externalId === 'string' ? body.externalId.trim() : '';
+		const message =
+			typeof body?.message === 'string' ? body.message.trim() : '';
+
+		if (!externalId) {
+			throw new BadRequestException('externalId is required');
+		}
+		if (!message) {
+			throw new BadRequestException('message is required');
+		}
+
+		const result = await this.notificationsService.sendTmsPushByExternalId({
+			externalId,
+			message,
+		});
+
+		return { success: result.sent, data: result };
 	}
 }

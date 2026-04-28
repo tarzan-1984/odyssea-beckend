@@ -215,6 +215,66 @@ export class NotificationsService {
   }
 
   /**
+   * Open TMS integration: send a custom push to a user by TMS externalId.
+   */
+  async sendTmsPushByExternalId(params: {
+    externalId: string;
+    message: string;
+  }): Promise<{
+    externalId: string;
+    userId: string | null;
+    sent: boolean;
+    pushTokens: number;
+    reason?: 'user_not_found' | 'no_push_tokens';
+  }> {
+    const externalId = params.externalId.trim();
+    const message = params.message.trim();
+
+    const user = await this.prisma.user.findUnique({
+      where: { externalId },
+      select: {
+        id: true,
+        pushTokens: { select: { id: true } },
+      },
+    });
+
+    if (!user) {
+      return {
+        externalId,
+        userId: null,
+        sent: false,
+        pushTokens: 0,
+        reason: 'user_not_found',
+      };
+    }
+
+    const pushTokens = user.pushTokens.length;
+    if (pushTokens === 0) {
+      return {
+        externalId,
+        userId: user.id,
+        sent: false,
+        pushTokens,
+        reason: 'no_push_tokens',
+      };
+    }
+
+    await this.sendPushToUser({
+      userId: user.id,
+      title: 'Odyssea',
+      body: message,
+      payload: { type: 'tms_message', externalId },
+    });
+
+    return {
+      externalId,
+      userId: user.id,
+      sent: true,
+      pushTokens,
+    };
+  }
+
+  /**
    * Create notification for new private chat
    */
   async createPrivateChatNotification(
