@@ -297,11 +297,12 @@ model DriverTracking {
   loadId           String   @map("load_id")
   latitude         Float
   longitude        Float
-  updatedAt        DateTime @updatedAt
+  updatedAt        DateTime
+  createdAt        DateTime @default(now())
 
-  @@unique([externalDriverId, loadId])
   @@index([externalDriverId])
   @@index([loadId])
+  @@index([externalDriverId, loadId])
   @@map("driver_tracking")
 }
 

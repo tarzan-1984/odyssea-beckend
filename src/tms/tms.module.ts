@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverLocationBatchService } from './tms-driver-location-batch.service';
 import { TmsLoadDraftService } from './tms-load-draft.service';
@@ -11,7 +12,7 @@ import { TmsDriverLoadsService } from './tms-driver-loads.service';
 import { TmsController } from './tms.controller';
 
 @Module({
-	imports: [ConfigModule, AppSettingsModule],
+	imports: [ConfigModule, AppSettingsModule, NotificationsModule],
 	providers: [
 		TmsDriverApplicationService,
 		TmsDriverLocationBatchService,

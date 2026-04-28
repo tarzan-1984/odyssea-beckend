@@ -3,13 +3,18 @@ import {
 	Body,
 	Controller,
 	Get,
+	Logger,
 	Post,
 	Query,
 	UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { UserRole, UserStatus } from '@prisma/client';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
@@ -19,9 +24,14 @@ import { TmsDriverLoadsService } from './tms-driver-loads.service';
 @Controller('tms')
 @UseGuards(JwtAuthGuard)
 export class TmsController {
+	private readonly logger = new Logger(TmsController.name);
+
 	constructor(
 		private readonly tmsDriverLoadsService: TmsDriverLoadsService,
 		private readonly tmsDriverApplicationService: TmsDriverApplicationService,
+		private readonly prisma: PrismaService,
+		private readonly notificationsWebSocketService: NotificationsWebSocketService,
+		private readonly notificationsService: NotificationsService,
 	) {}
 
 	@Get('driver/loads')
@@ -55,7 +65,7 @@ export class TmsController {
 	@ApiOperation({
 		summary: 'Open TMS webhook: load status changed',
 		description:
-			'Receives load status updates from TMS and logs the payload. No side effects yet. offer_id is optional.',
+			'Receives load status updates from TMS. For loaded-enroute, marks the ACTIVE driver as loaded_enroute and starts tracking for the provided load_id.',
 	})
 	@ApiResponse({
 		status: 201,
@@ -67,7 +77,6 @@ export class TmsController {
 			load_id?: string | number;
 			driver_id?: string | number;
 			load_status?: string;
-			offer_id?: string | number | null;
 		},
 	) {
 		const loadId =
@@ -76,10 +85,6 @@ export class TmsController {
 			body?.driver_id != null ? String(body.driver_id).trim() : '';
 		const loadStatus =
 			typeof body?.load_status === 'string' ? body.load_status.trim() : '';
-		const offerId =
-			body?.offer_id != null && String(body.offer_id).trim() !== ''
-				? String(body.offer_id).trim()
-				: null;
 
 		if (!loadId) {
 			throw new BadRequestException('load_id is required');
@@ -95,8 +100,110 @@ export class TmsController {
 			load_id: loadId,
 			driver_id: driverId,
 			load_status: loadStatus,
-			offer_id: offerId,
 		});
+
+		const normalizedLoadStatus = loadStatus.toLowerCase().replace(/-/g, '_');
+		if (normalizedLoadStatus !== 'loaded_enroute') {
+			return {
+				success: true,
+				data: {
+					loadId,
+					driverId,
+					loadStatus,
+					action: 'logged_only',
+					reason: 'unsupported_load_status',
+				},
+			};
+		}
+
+		const driver = await this.prisma.user.findUnique({
+			where: { externalId: driverId },
+			select: {
+				id: true,
+				externalId: true,
+				role: true,
+				status: true,
+				driverStatus: true,
+			},
+		});
+
+		if (!driver) {
+			this.logger.warn(
+				`TMS load status webhook: driver not found externalId=${driverId}`,
+			);
+			return {
+				success: false,
+				data: {
+					loadId,
+					driverId,
+					loadStatus,
+					action: 'skipped',
+					reason: 'driver_not_found',
+				},
+			};
+		}
+
+		if (driver.role !== UserRole.DRIVER || driver.status !== UserStatus.ACTIVE) {
+			this.logger.warn(
+				`TMS load status webhook: driver not eligible externalId=${driverId} role=${driver.role} status=${driver.status}`,
+			);
+			return {
+				success: false,
+				data: {
+					loadId,
+					driverId,
+					loadStatus,
+					action: 'skipped',
+					reason: 'driver_not_active_driver',
+				},
+			};
+		}
+
+		const oldDriverStatus = driver.driverStatus ?? null;
+		const updatedDriver = await this.prisma.user.update({
+			where: { id: driver.id },
+			data: {
+				driverStatus: 'loaded_enroute',
+				isTracking: true,
+				trackingLoadId: loadId,
+			},
+			select: {
+				id: true,
+				driverStatus: true,
+				zip: true,
+				city: true,
+				state: true,
+				location: true,
+				statusDate: true,
+				isAutoupdate: true,
+				isTracking: true,
+				trackingLoadId: true,
+			},
+		});
+
+		await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
+			driverStatus: updatedDriver.driverStatus ?? null,
+			zip: updatedDriver.zip ?? null,
+			city: updatedDriver.city ?? null,
+			state: updatedDriver.state ?? null,
+			location: updatedDriver.location ?? null,
+			statusDate: updatedDriver.statusDate ?? null,
+			isAutoupdate: updatedDriver.isAutoupdate ?? false,
+		});
+
+		if (oldDriverStatus !== updatedDriver.driverStatus) {
+			await this.notificationsWebSocketService.sendDriverStatusUpdate(driver.id, {
+				driverStatus: updatedDriver.driverStatus ?? null,
+				isAutoupdate: updatedDriver.isAutoupdate ?? false,
+			});
+
+			this.notificationsService
+				.sendDriverStatusChangedPush({
+					userId: driver.id,
+					driverStatus: updatedDriver.driverStatus ?? null,
+				})
+				.catch(() => {});
+		}
 
 		return {
 			success: true,
@@ -104,7 +211,10 @@ export class TmsController {
 				loadId,
 				driverId,
 				loadStatus,
-				offerId,
+				action: 'driver_tracking_started',
+				driverStatus: updatedDriver.driverStatus,
+				isTracking: updatedDriver.isTracking,
+				trackingLoadId: updatedDriver.trackingLoadId,
 			},
 		};
 	}

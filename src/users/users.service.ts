@@ -48,6 +48,7 @@ const US_CA_MAINLAND: BBox = { minLat: 24, maxLat: 71, minLng: -168, maxLng: -52
 const ALASKA: BBox = { minLat: 51, maxLat: 72, minLng: -179, maxLng: -129 };
 const HAWAII: BBox = { minLat: 18, maxLat: 23, minLng: -161, maxLng: -154 };
 const MEXICO: BBox = { minLat: 14, maxLat: 33, minLng: -119, maxLng: -86 };
+const TRACKING_POINT_MIN_INTERVAL_MS = 30 * 60 * 1000;
 
 function isAllowedNorthAmericaLatLng(p: LatLng): boolean {
 	if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return false;
@@ -84,6 +85,64 @@ export class UsersService {
 		private readonly configService: ConfigService,
 		private readonly appSettingsService: AppSettingsService,
 	) {}
+
+	private parseNaiveDateTime(value: string | null | undefined): Date | null {
+		const trimmed = value?.trim();
+		if (!trimmed) return null;
+		const parsed = new Date(trimmed.replace(' ', 'T'));
+		return Number.isFinite(parsed.getTime()) ? parsed : null;
+	}
+
+	private async maybeCreateDriverTrackingPoint(user: {
+		id: string;
+		externalId: string | null;
+		role: UserRole;
+		isTracking: boolean;
+		trackingLoadId: string | null;
+		latitude: number | null;
+		longitude: number | null;
+		lastLocationUpdateAt: string | null;
+	}): Promise<void> {
+		if (user.role !== UserRole.DRIVER || !user.isTracking) return;
+
+		const externalDriverId = user.externalId?.trim();
+		const loadId = user.trackingLoadId?.trim();
+		if (!externalDriverId || !loadId) return;
+		if (typeof user.latitude !== 'number' || typeof user.longitude !== 'number') {
+			return;
+		}
+
+		const pointTime = this.parseNaiveDateTime(user.lastLocationUpdateAt);
+		if (!pointTime) {
+			this.logger.warn(
+				`Driver tracking point skipped: invalid lastLocationUpdateAt userId=${user.id} value=${JSON.stringify(user.lastLocationUpdateAt)}`,
+			);
+			return;
+		}
+
+		const latest = await this.prisma.driverTracking.findFirst({
+			where: { externalDriverId, loadId },
+			orderBy: { updatedAt: 'desc' },
+			select: { updatedAt: true },
+		});
+
+		if (
+			latest &&
+			pointTime.getTime() - latest.updatedAt.getTime() < TRACKING_POINT_MIN_INTERVAL_MS
+		) {
+			return;
+		}
+
+		await this.prisma.driverTracking.create({
+			data: {
+				externalDriverId,
+				loadId,
+				latitude: user.latitude,
+				longitude: user.longitude,
+				updatedAt: pointTime,
+			},
+		});
+	}
 
 	/**
 	 * Finds all users with pagination and filtering
@@ -598,6 +657,8 @@ export class UsersService {
 				driverStatus: true,
 				statusDate: true,
 				isAutoupdate: true,
+				isTracking: true,
+				trackingLoadId: true,
 			},
 		});
 
@@ -613,6 +674,8 @@ export class UsersService {
 			zip: updatedUser.zip,
 			lastLocationUpdateAt: updatedUser.lastLocationUpdateAt,
 		});
+
+		await this.maybeCreateDriverTrackingPoint(updatedUser);
 
 		const requestSnapshot = {
 			location: locationDto.location,
