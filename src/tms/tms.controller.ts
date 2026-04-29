@@ -181,6 +181,35 @@ export class TmsController {
 			},
 		});
 
+		const offerCleanup = await this.prisma.$transaction(async (tx) => {
+			const offers = await tx.offer.findMany({
+				where: { loadId },
+				select: { id: true },
+			});
+			const offerIds = offers.map((offer) => offer.id);
+			if (offerIds.length === 0) {
+				return { offers: 0, rateOffers: 0 };
+			}
+
+			const rateOffers = await tx.rateOffer.deleteMany({
+				where: { offerId: { in: offerIds } },
+			});
+			const deletedOffers = await tx.offer.deleteMany({
+				where: { id: { in: offerIds } },
+			});
+
+			return {
+				offers: deletedOffers.count,
+				rateOffers: rateOffers.count,
+			};
+		});
+
+		if (offerCleanup.offers > 0 || offerCleanup.rateOffers > 0) {
+			this.logger.log(
+				`TMS load status webhook: cleaned offers for load_id=${loadId} offers=${offerCleanup.offers} rateOffers=${offerCleanup.rateOffers}`,
+			);
+		}
+
 		await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
 			driverStatus: updatedDriver.driverStatus ?? null,
 			zip: updatedDriver.zip ?? null,
@@ -215,6 +244,8 @@ export class TmsController {
 				driverStatus: updatedDriver.driverStatus,
 				isTracking: updatedDriver.isTracking,
 				trackingLoadId: updatedDriver.trackingLoadId,
+				deletedOffers: offerCleanup.offers,
+				deletedRateOffers: offerCleanup.rateOffers,
 			},
 		};
 	}
