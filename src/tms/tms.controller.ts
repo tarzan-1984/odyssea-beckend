@@ -103,7 +103,10 @@ export class TmsController {
 		});
 
 		const normalizedLoadStatus = loadStatus.toLowerCase().replace(/-/g, '_');
-		if (normalizedLoadStatus !== 'loaded_enroute') {
+		if (
+			normalizedLoadStatus !== 'loaded_enroute' &&
+			normalizedLoadStatus !== 'delivered'
+		) {
 			return {
 				success: true,
 				data: {
@@ -160,6 +163,86 @@ export class TmsController {
 		}
 
 		const oldDriverStatus = driver.driverStatus ?? null;
+		if (normalizedLoadStatus === 'delivered') {
+			const oldDriverStatusNormalized = oldDriverStatus
+				?.trim()
+				.toLowerCase()
+				.replace(/-/g, '_');
+			const shouldResetDriverStatus =
+				oldDriverStatusNormalized === 'loaded_enroute';
+
+			const [trackingCleanup, updatedDriver] = await this.prisma.$transaction([
+				this.prisma.driverTracking.deleteMany({
+					where: { loadId },
+				}),
+				this.prisma.user.update({
+					where: { id: driver.id },
+					data: {
+						isTracking: false,
+						trackingLoadId: null,
+						...(shouldResetDriverStatus
+							? {
+									driverStatus: 'available',
+									isAutoupdate: true,
+								}
+							: {}),
+					},
+					select: {
+						id: true,
+						driverStatus: true,
+						zip: true,
+						city: true,
+						state: true,
+						location: true,
+						statusDate: true,
+						isAutoupdate: true,
+						isTracking: true,
+						trackingLoadId: true,
+					},
+				}),
+			]);
+
+			this.logger.log(
+				`TMS load status webhook: delivered load_id=${loadId} driver_id=${driverId} deletedTrackingPoints=${trackingCleanup.count} resetDriverStatus=${shouldResetDriverStatus}`,
+			);
+
+			await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
+				driverStatus: updatedDriver.driverStatus ?? null,
+				zip: updatedDriver.zip ?? null,
+				city: updatedDriver.city ?? null,
+				state: updatedDriver.state ?? null,
+				location: updatedDriver.location ?? null,
+				statusDate: updatedDriver.statusDate ?? null,
+				isAutoupdate: updatedDriver.isAutoupdate ?? false,
+			});
+
+			if (oldDriverStatus !== updatedDriver.driverStatus) {
+				await this.notificationsWebSocketService.sendDriverStatusUpdate(
+					driver.id,
+					{
+						driverStatus: updatedDriver.driverStatus ?? null,
+						isAutoupdate: updatedDriver.isAutoupdate ?? false,
+					},
+				);
+			}
+
+			return {
+				success: true,
+				data: {
+					loadId,
+					driverId,
+					loadStatus,
+					action: 'driver_tracking_stopped',
+					driverStatus: updatedDriver.driverStatus,
+					isAutoupdate: updatedDriver.isAutoupdate,
+					isTracking: updatedDriver.isTracking,
+					trackingLoadId: updatedDriver.trackingLoadId,
+					deletedTrackingPoints: trackingCleanup.count,
+					driverStatusReset: shouldResetDriverStatus,
+				},
+			};
+		}
+
 		const updatedDriver = await this.prisma.user.update({
 			where: { id: driver.id },
 			data: {
