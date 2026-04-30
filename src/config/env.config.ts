@@ -56,6 +56,24 @@ export interface ExternalApiConfig {
 	tmsLocationBatchCronEnabled: boolean;
 }
 
+const DEFAULT_MAIL_FROM_NAME = 'IT Odysseia App';
+
+function formatMailerFrom(from: string | undefined, user: string | undefined) {
+	const rawFrom = from?.trim();
+	const rawUser = user?.trim();
+	const address = rawFrom || rawUser;
+
+	if (!address) {
+		return undefined;
+	}
+
+	if (address.includes('<') && address.includes('>')) {
+		return address;
+	}
+
+	return `"${DEFAULT_MAIL_FROM_NAME}" <${address.replace(/^"|"$/g, '')}>`;
+}
+
 export const databaseConfig = registerAs(
 	'database',
 	(): DatabaseConfig => ({
@@ -106,11 +124,7 @@ export const mailerConfig = registerAs(
 		secure: process.env.SMTP_SECURE === 'true',
 		user: process.env.SMTP_USER,
 		pass: process.env.SMTP_PASS,
-		from:
-			process.env.SMTP_FROM ||
-			(process.env.SMTP_USER
-				? `"IT Odysseia App" <${process.env.SMTP_USER}>`
-				: undefined),
+		from: formatMailerFrom(process.env.SMTP_FROM, process.env.SMTP_USER),
 	}),
 );
 
