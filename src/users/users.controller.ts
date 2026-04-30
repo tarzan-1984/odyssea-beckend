@@ -641,7 +641,9 @@ export class UsersController {
 			'🔓 [Public Endpoint] Request received for externalId:',
 			externalId,
 		);
-		const user = await this.usersService.findUserByExternalId(externalId);
+		const user = await this.usersService.findUserByExternalId(externalId, {
+			includeTmsLoadRouteLocations: true,
+		});
 		console.log('🔓 [Public Endpoint] User found:', {
 			firstName: user.firstName,
 			lastName: user.lastName,

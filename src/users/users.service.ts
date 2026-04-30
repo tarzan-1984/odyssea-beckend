@@ -26,6 +26,7 @@ import {
 	buildTmsBatchLocationItem,
 	TmsDriverLocationBatchService,
 } from '../tms/tms-driver-location-batch.service';
+import { TmsLoadDetailsService } from '../tms/tms-load-details.service';
 import { formatTmsStatusDate } from '../tms/tms-status-date.util';
 import type { ExternalApiConfig } from '../config/env.config';
 import { AppSettingsService } from '../app-settings/app-settings.service';
@@ -82,6 +83,7 @@ export class UsersService {
 		private readonly mailerService: MailerService,
 		private readonly tmsDriverApplication: TmsDriverApplicationService,
 		private readonly tmsDriverLocationBatch: TmsDriverLocationBatchService,
+		private readonly tmsLoadDetails: TmsLoadDetailsService,
 		private readonly configService: ConfigService,
 		private readonly appSettingsService: AppSettingsService,
 	) {}
@@ -397,6 +399,7 @@ export class UsersService {
 				createdAt: true,
 				updatedAt: true,
 				lastLoginAt: true,
+				trackingLoadId: true,
 			},
 		});
 
@@ -414,7 +417,10 @@ export class UsersService {
 	/**
 	 * Finds user by external ID
 	 */
-	async findUserByExternalId(externalId: string) {
+	async findUserByExternalId(
+		externalId: string,
+		options?: { includeTmsLoadRouteLocations?: boolean },
+	) {
 		const user = await this.prisma.user.findUnique({
 			where: { externalId },
 			select: {
@@ -439,6 +445,7 @@ export class UsersService {
 				createdAt: true,
 				updatedAt: true,
 				lastLoginAt: true,
+				trackingLoadId: true,
 			},
 		});
 
@@ -446,7 +453,20 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
-		return user;
+		if (options?.includeTmsLoadRouteLocations !== true) {
+			return user;
+		}
+
+		const trackingLoadId = user.trackingLoadId?.trim() || null;
+		const tmsLoadRouteLocations = trackingLoadId
+			? await this.tmsLoadDetails.fetchRouteLocations(trackingLoadId)
+			: null;
+
+		return {
+			...user,
+			pick_up_location: tmsLoadRouteLocations?.pick_up_location ?? null,
+			delivery_location: tmsLoadRouteLocations?.delivery_location ?? null,
+		};
 	}
 
 	/**
