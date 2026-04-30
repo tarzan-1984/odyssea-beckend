@@ -399,6 +399,7 @@ export class UsersService {
 				createdAt: true,
 				updatedAt: true,
 				lastLoginAt: true,
+				isTracking: true,
 				trackingLoadId: true,
 			},
 		});
@@ -445,6 +446,7 @@ export class UsersService {
 				createdAt: true,
 				updatedAt: true,
 				lastLoginAt: true,
+				isTracking: true,
 				trackingLoadId: true,
 			},
 		});
@@ -458,14 +460,35 @@ export class UsersService {
 		}
 
 		const trackingLoadId = user.trackingLoadId?.trim() || null;
-		const tmsLoadRouteLocations = trackingLoadId
-			? await this.tmsLoadDetails.fetchRouteLocations(trackingLoadId)
-			: null;
+		const [tmsLoadRouteLocations, loadHistory] = await Promise.all([
+			trackingLoadId
+				? this.tmsLoadDetails.fetchRouteLocations(trackingLoadId)
+				: Promise.resolve(null),
+			user.isTracking === true && trackingLoadId && user.externalId
+				? this.prisma.driverTracking.findMany({
+						where: {
+							externalDriverId: user.externalId,
+							loadId: trackingLoadId,
+						},
+						orderBy: {
+							updatedAt: 'asc',
+						},
+						select: {
+							latitude: true,
+							longitude: true,
+						},
+					})
+				: Promise.resolve([]),
+		]);
 
 		return {
 			...user,
 			pick_up_location: tmsLoadRouteLocations?.pick_up_location ?? null,
 			delivery_location: tmsLoadRouteLocations?.delivery_location ?? null,
+			load_history: loadHistory.map((point) => [
+				point.latitude,
+				point.longitude,
+			]),
 		};
 	}
 
