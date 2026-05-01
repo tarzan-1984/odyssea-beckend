@@ -1019,14 +1019,16 @@ export class MessagesService {
 			throw new NotFoundException('Message not found');
 		}
 
-		// Check if user can delete the message
-		// Users can delete their own messages, admins can delete any message
-		const isAdmin = userRole === 'ADMINISTRATOR';
+		// Only non-driver users can delete their own messages.
 		const isOwner = message.senderId === userId;
 
-		if (!isOwner && !isAdmin) {
+		if (userRole === UserRole.DRIVER) {
+			throw new BadRequestException('Drivers cannot delete messages');
+		}
+
+		if (!isOwner) {
 			throw new BadRequestException(
-				'You can only delete your own messages or be an administrator',
+				'You can only delete your own messages',
 			);
 		}
 
@@ -1051,14 +1053,16 @@ export class MessagesService {
 					deletedByRole: userRole,
 				});
 
-			// Also emit to individual users who might not be in the room
-			participantIds.forEach((_participantId) => {
-				chatGateway.server.emit('messageDeleted', {
-					messageId,
-					chatRoomId: message.chatRoomId,
-					deletedBy: userId,
-					deletedByRole: userRole,
-				});
+			// Also emit to individual user rooms for clients that are not currently in the chat room.
+			participantIds.forEach((participantId) => {
+				chatGateway.server
+					.to(`user_${participantId}`)
+					.emit('messageDeleted', {
+						messageId,
+						chatRoomId: message.chatRoomId,
+						deletedBy: userId,
+						deletedByRole: userRole,
+					});
 			});
 		}
 
