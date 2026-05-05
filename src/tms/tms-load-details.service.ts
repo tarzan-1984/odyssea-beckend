@@ -9,13 +9,26 @@ export type TmsLoadRouteLocations = {
 	delivery_location: string | null;
 };
 
+export type TmsLoadDetailsResponse = {
+	success?: boolean;
+	data?: {
+		meta_data?: {
+			pick_up_location?: unknown;
+			delivery_location?: unknown;
+			[key: string]: unknown;
+		};
+		[key: string]: unknown;
+	};
+	[key: string]: unknown;
+};
+
 @Injectable()
 export class TmsLoadDetailsService {
 	private readonly logger = new Logger(TmsLoadDetailsService.name);
 
 	constructor(private readonly configService: ConfigService) {}
 
-	async fetchRouteLocations(loadId: string): Promise<TmsLoadRouteLocations | null> {
+	async fetchLoadDetails(loadId: string): Promise<TmsLoadDetailsResponse | null> {
 		const trimmedLoadId = loadId.trim();
 		if (!trimmedLoadId) return null;
 
@@ -35,15 +48,7 @@ export class TmsLoadDetailsService {
 		url.searchParams.set('is_flt', 'false');
 
 		try {
-			const { data } = await axios.get<{
-				success?: boolean;
-				data?: {
-					meta_data?: {
-						pick_up_location?: unknown;
-						delivery_location?: unknown;
-					};
-				};
-			}>(url.toString(), {
+			const { data } = await axios.get<TmsLoadDetailsResponse>(url.toString(), {
 				headers: {
 					'X-API-Key': apiKey,
 					'Content-Type': 'application/json',
@@ -51,26 +56,7 @@ export class TmsLoadDetailsService {
 				timeout: 30000,
 			});
 
-			const meta = data?.data?.meta_data;
-			if (!meta) return null;
-
-			const pickUp =
-				typeof meta.pick_up_location === 'string'
-					? meta.pick_up_location
-					: meta.pick_up_location != null
-						? JSON.stringify(meta.pick_up_location)
-						: null;
-			const delivery =
-				typeof meta.delivery_location === 'string'
-					? meta.delivery_location
-					: meta.delivery_location != null
-						? JSON.stringify(meta.delivery_location)
-						: null;
-
-			return {
-				pick_up_location: pickUp,
-				delivery_location: delivery,
-			};
+			return data;
 		} catch (error) {
 			const ax = error as AxiosError;
 			if (ax.response?.data != null) {
@@ -85,5 +71,29 @@ export class TmsLoadDetailsService {
 			);
 			return null;
 		}
+	}
+
+	async fetchRouteLocations(loadId: string): Promise<TmsLoadRouteLocations | null> {
+		const data = await this.fetchLoadDetails(loadId);
+		const meta = data?.data?.meta_data;
+		if (!meta) return null;
+
+		const pickUp =
+			typeof meta.pick_up_location === 'string'
+				? meta.pick_up_location
+				: meta.pick_up_location != null
+					? JSON.stringify(meta.pick_up_location)
+					: null;
+		const delivery =
+			typeof meta.delivery_location === 'string'
+				? meta.delivery_location
+				: meta.delivery_location != null
+					? JSON.stringify(meta.delivery_location)
+					: null;
+
+		return {
+			pick_up_location: pickUp,
+			delivery_location: delivery,
+		};
 	}
 }

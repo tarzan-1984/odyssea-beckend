@@ -4,6 +4,7 @@ import {
 	Controller,
 	Get,
 	Logger,
+	Param,
 	Post,
 	Query,
 	UseGuards,
@@ -18,6 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
+import { TmsLoadDetailsService } from './tms-load-details.service';
 
 @ApiTags('TMS')
 @ApiBearerAuth()
@@ -29,6 +31,7 @@ export class TmsController {
 	constructor(
 		private readonly tmsDriverLoadsService: TmsDriverLoadsService,
 		private readonly tmsDriverApplicationService: TmsDriverApplicationService,
+		private readonly tmsLoadDetailsService: TmsLoadDetailsService,
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly notificationsService: NotificationsService,
@@ -43,6 +46,18 @@ export class TmsController {
 	@ApiResponse({ status: 200, description: 'TMS response (proxied)' })
 	async getDriverLoads(@Query() query: GetDriverLoadsDto) {
 		return this.tmsDriverLoadsService.fetchDriverLoads(query);
+	}
+
+	@Get('load/:loadId')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Proxy: TMS load details',
+		description:
+			'Public proxy for GET https://www.endurance-tms.com/wp-json/tms/v1/load/:loadId.',
+	})
+	@ApiResponse({ status: 200, description: 'TMS load details response' })
+	async getLoadDetails(@Param('loadId') loadId: string) {
+		return this.tmsLoadDetailsService.fetchLoadDetails(loadId);
 	}
 
 	@Post('driver/application/activate-backfill')
