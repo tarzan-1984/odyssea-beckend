@@ -116,6 +116,7 @@ export class UsersService {
 		role: UserRole;
 		isTracking: boolean;
 		trackingLoadId: string | null;
+		driverStatus: string | null;
 		latitude: number | null;
 		longitude: number | null;
 		lastLocationUpdateAt: string | null;
@@ -128,6 +129,9 @@ export class UsersService {
 		updatedAt: Date;
 	} | null> {
 		if (user.role !== UserRole.DRIVER || !user.isTracking) return null;
+		if (user.driverStatus?.trim().toLowerCase() !== 'loaded_enroute') {
+			return null;
+		}
 
 		const externalDriverId = user.externalId?.trim();
 		const loadId = user.trackingLoadId?.trim();
