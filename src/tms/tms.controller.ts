@@ -82,51 +82,52 @@ export class TmsController {
 			.filter(Boolean);
 
 		const uniqueDriverExternalIds = Array.from(new Set(driverExternalIds));
-		const [drivers, trackingPoints] = await Promise.all([
+		const drivers =
 			uniqueDriverExternalIds.length > 0
-				? this.prisma.user.findMany({
-						where: {
-							externalId: {
-								in: uniqueDriverExternalIds,
-							},
+				? await this.prisma.user.findMany({
+					where: {
+						externalId: {
+							in: uniqueDriverExternalIds,
 						},
-						select: {
-							id: true,
-							externalId: true,
-							email: true,
-							firstName: true,
-							lastName: true,
-							phone: true,
-							profilePhoto: true,
-							role: true,
-							status: true,
-							driverStatus: true,
-							city: true,
-							state: true,
-							zip: true,
-							latitude: true,
-							longitude: true,
-							lastLocationUpdateAt: true,
-							isTracking: true,
-							trackingLoadId: true,
-						},
-					})
-				: Promise.resolve([]),
-			this.prisma.driverTracking.findMany({
-				where: { loadId },
-				select: {
-					externalDriverId: true,
-					latitude: true,
-					longitude: true,
-					createdAt: true,
-					updatedAt: true,
-				},
-				orderBy: { createdAt: 'asc' },
-			}),
-		]);
+					},
+					select: {
+						id: true,
+						externalId: true,
+						email: true,
+						firstName: true,
+						lastName: true,
+						phone: true,
+						profilePhoto: true,
+						role: true,
+						status: true,
+						driverStatus: true,
+						city: true,
+						state: true,
+						zip: true,
+						latitude: true,
+						longitude: true,
+						lastLocationUpdateAt: true,
+						isTracking: true,
+						trackingLoadId: true,
+					},
+				})
+				: [];
+		const trackingPoints = await this.prisma.driverTracking.findMany({
+			where: { loadId },
+			select: {
+				externalDriverId: true,
+				latitude: true,
+				longitude: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+			orderBy: { createdAt: 'asc' },
+		});
 
 		const driversByExternalId = new Map(
-			drivers.map((driver) => [driver.externalId, driver]),
+			drivers
+				.filter((driver) => driver.externalId)
+				.map((driver) => [driver.externalId as string, driver] as const),
 		);
 
 		return {
