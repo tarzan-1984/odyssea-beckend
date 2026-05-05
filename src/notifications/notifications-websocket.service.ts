@@ -95,6 +95,21 @@ export class NotificationsWebSocketService {
 		}
 	}
 
+	async sendDriverTrackingPointCreated(payload: any) {
+		try {
+			if (!this.server) {
+				this.logger.warn(
+					'WebSocket server not initialized for driverTrackingPointCreated',
+				);
+				return;
+			}
+
+			this.server.emit('driverTrackingPointCreated', payload);
+		} catch (error) {
+			this.logger.error('Failed to send driver tracking point event:', error);
+		}
+	}
+
 	/**
 	 * Broadcast notification to all connected users (if needed)
 	 */

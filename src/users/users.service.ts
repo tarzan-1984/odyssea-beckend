@@ -119,14 +119,21 @@ export class UsersService {
 		latitude: number | null;
 		longitude: number | null;
 		lastLocationUpdateAt: string | null;
-	}): Promise<void> {
-		if (user.role !== UserRole.DRIVER || !user.isTracking) return;
+	}): Promise<{
+		externalDriverId: string;
+		loadId: string;
+		latitude: number;
+		longitude: number;
+		createdAt: Date;
+		updatedAt: Date;
+	} | null> {
+		if (user.role !== UserRole.DRIVER || !user.isTracking) return null;
 
 		const externalDriverId = user.externalId?.trim();
 		const loadId = user.trackingLoadId?.trim();
-		if (!externalDriverId || !loadId) return;
+		if (!externalDriverId || !loadId) return null;
 		if (typeof user.latitude !== 'number' || typeof user.longitude !== 'number') {
-			return;
+			return null;
 		}
 
 		const pointTime = this.parseNaiveDateTime(user.lastLocationUpdateAt);
@@ -134,7 +141,7 @@ export class UsersService {
 			this.logger.warn(
 				`Driver tracking point skipped: invalid lastLocationUpdateAt userId=${user.id} value=${JSON.stringify(user.lastLocationUpdateAt)}`,
 			);
-			return;
+			return null;
 		}
 
 		const latest = await this.prisma.driverTracking.findFirst({
@@ -154,7 +161,7 @@ export class UsersService {
 				{ latitude: user.latitude, longitude: user.longitude },
 			);
 			if (distanceFromLatestM < TRACKING_POINT_MIN_DISTANCE_M) {
-				return;
+				return null;
 			}
 		}
 
@@ -162,16 +169,24 @@ export class UsersService {
 			latest &&
 			pointTime.getTime() - latest.updatedAt.getTime() < effectiveMinIntervalMs
 		) {
-			return;
+			return null;
 		}
 
-		await this.prisma.driverTracking.create({
+		return this.prisma.driverTracking.create({
 			data: {
 				externalDriverId,
 				loadId,
 				latitude: user.latitude,
 				longitude: user.longitude,
 				updatedAt: pointTime,
+			},
+			select: {
+				externalDriverId: true,
+				loadId: true,
+				latitude: true,
+				longitude: true,
+				createdAt: true,
+				updatedAt: true,
 			},
 		});
 	}
@@ -735,6 +750,8 @@ export class UsersService {
 			},
 		});
 
+		const trackingPoint = await this.maybeCreateDriverTrackingPoint(updatedUser);
+
 		// Emit websocket event so Next.js/admin UI can react to location changes
 		void this.notificationsWebSocketService.sendUserLocationUpdate(id, {
 			userId: updatedUser.id,
@@ -746,9 +763,15 @@ export class UsersService {
 			state: updatedUser.state,
 			zip: updatedUser.zip,
 			lastLocationUpdateAt: updatedUser.lastLocationUpdateAt,
+			isTracking: updatedUser.isTracking,
+			trackingLoadId: updatedUser.trackingLoadId,
 		});
 
-		await this.maybeCreateDriverTrackingPoint(updatedUser);
+		if (trackingPoint) {
+			void this.notificationsWebSocketService.sendDriverTrackingPointCreated(
+				trackingPoint,
+			);
+		}
 
 		const requestSnapshot = {
 			location: locationDto.location,
