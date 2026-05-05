@@ -19,7 +19,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
-import { TmsLoadDetailsService } from './tms-load-details.service';
+import {
+	TmsLoadDetailsResponse,
+	TmsLoadDetailsService,
+} from './tms-load-details.service';
 
 @ApiTags('TMS')
 @ApiBearerAuth()
@@ -57,7 +60,69 @@ export class TmsController {
 	})
 	@ApiResponse({ status: 200, description: 'TMS load details response' })
 	async getLoadDetails(@Param('loadId') loadId: string) {
-		return this.tmsLoadDetailsService.fetchLoadDetails(loadId);
+		const loadDetails = await this.tmsLoadDetailsService.fetchLoadDetails(loadId);
+		return this.attachLoadDrivers(loadDetails);
+	}
+
+	private async attachLoadDrivers(loadDetails: TmsLoadDetailsResponse | null) {
+		if (!loadDetails?.data) {
+			return loadDetails;
+		}
+
+		const metaData = loadDetails.data.meta_data;
+		const driverExternalIds = [
+			metaData?.attached_driver,
+			metaData?.attached_second_driver,
+			metaData?.attached_third_driver,
+		]
+			.map((value) => String(value ?? '').trim())
+			.filter(Boolean);
+
+		const uniqueDriverExternalIds = Array.from(new Set(driverExternalIds));
+		const drivers =
+			uniqueDriverExternalIds.length > 0
+				? await this.prisma.user.findMany({
+						where: {
+							externalId: {
+								in: uniqueDriverExternalIds,
+							},
+						},
+						select: {
+							id: true,
+							externalId: true,
+							email: true,
+							firstName: true,
+							lastName: true,
+							phone: true,
+							profilePhoto: true,
+							role: true,
+							status: true,
+							driverStatus: true,
+							city: true,
+							state: true,
+							zip: true,
+							latitude: true,
+							longitude: true,
+							lastLocationUpdateAt: true,
+							isTracking: true,
+							trackingLoadId: true,
+						},
+					})
+				: [];
+
+		const driversByExternalId = new Map(
+			drivers.map((driver) => [driver.externalId, driver]),
+		);
+
+		return {
+			...loadDetails,
+			data: {
+				...loadDetails.data,
+				drivers: uniqueDriverExternalIds
+					.map((externalId) => driversByExternalId.get(externalId))
+					.filter((driver): driver is (typeof drivers)[number] => Boolean(driver)),
+			},
+		};
 	}
 
 	@Post('driver/application/activate-backfill')
