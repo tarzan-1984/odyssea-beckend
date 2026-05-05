@@ -50,6 +50,21 @@ const ALASKA: BBox = { minLat: 51, maxLat: 72, minLng: -179, maxLng: -129 };
 const HAWAII: BBox = { minLat: 18, maxLat: 23, minLng: -161, maxLng: -154 };
 const MEXICO: BBox = { minLat: 14, maxLat: 33, minLng: -119, maxLng: -86 };
 const DEFAULT_TRACKING_POINT_MIN_INTERVAL_MS = 30 * 60 * 1000;
+const TRACKING_POINT_MIN_DISTANCE_M = 5000;
+
+function distanceMeters(a: LatLng, b: LatLng): number {
+	const earthRadiusM = 6_371_000;
+	const toRad = (value: number) => (value * Math.PI) / 180;
+	const dLat = toRad(b.latitude - a.latitude);
+	const dLng = toRad(b.longitude - a.longitude);
+	const h =
+		Math.sin(dLat / 2) ** 2 +
+		Math.cos(toRad(a.latitude)) *
+			Math.cos(toRad(b.latitude)) *
+			Math.sin(dLng / 2) ** 2;
+
+	return 2 * earthRadiusM * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
 
 function isAllowedNorthAmericaLatLng(p: LatLng): boolean {
 	if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return false;
@@ -125,13 +140,23 @@ export class UsersService {
 		const latest = await this.prisma.driverTracking.findFirst({
 			where: { externalDriverId, loadId },
 			orderBy: { updatedAt: 'desc' },
-			select: { updatedAt: true },
+			select: { updatedAt: true, latitude: true, longitude: true },
 		});
 		const minIntervalMs =
 			await this.appSettingsService.getDriverTrackingPointMinIntervalMs();
 		const effectiveMinIntervalMs = Number.isFinite(minIntervalMs)
 			? minIntervalMs
 			: DEFAULT_TRACKING_POINT_MIN_INTERVAL_MS;
+
+		if (latest) {
+			const distanceFromLatestM = distanceMeters(
+				{ latitude: latest.latitude, longitude: latest.longitude },
+				{ latitude: user.latitude, longitude: user.longitude },
+			);
+			if (distanceFromLatestM < TRACKING_POINT_MIN_DISTANCE_M) {
+				return;
+			}
+		}
 
 		if (
 			latest &&
