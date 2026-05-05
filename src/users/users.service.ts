@@ -49,7 +49,7 @@ const US_CA_MAINLAND: BBox = { minLat: 24, maxLat: 71, minLng: -168, maxLng: -52
 const ALASKA: BBox = { minLat: 51, maxLat: 72, minLng: -179, maxLng: -129 };
 const HAWAII: BBox = { minLat: 18, maxLat: 23, minLng: -161, maxLng: -154 };
 const MEXICO: BBox = { minLat: 14, maxLat: 33, minLng: -119, maxLng: -86 };
-const TRACKING_POINT_MIN_INTERVAL_MS = 30 * 60 * 1000;
+const DEFAULT_TRACKING_POINT_MIN_INTERVAL_MS = 30 * 60 * 1000;
 
 function isAllowedNorthAmericaLatLng(p: LatLng): boolean {
 	if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return false;
@@ -127,10 +127,15 @@ export class UsersService {
 			orderBy: { updatedAt: 'desc' },
 			select: { updatedAt: true },
 		});
+		const minIntervalMs =
+			await this.appSettingsService.getDriverTrackingPointMinIntervalMs();
+		const effectiveMinIntervalMs = Number.isFinite(minIntervalMs)
+			? minIntervalMs
+			: DEFAULT_TRACKING_POINT_MIN_INTERVAL_MS;
 
 		if (
 			latest &&
-			pointTime.getTime() - latest.updatedAt.getTime() < TRACKING_POINT_MIN_INTERVAL_MS
+			pointTime.getTime() - latest.updatedAt.getTime() < effectiveMinIntervalMs
 		) {
 			return;
 		}

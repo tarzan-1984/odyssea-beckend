@@ -105,6 +105,7 @@ model AppSetting {
   locationMinIntervalMs            Int      @default(60000) @map("location_min_interval_ms")
   locationMinDistanceM             Int      @default(1000) @map("location_min_distance_m")
   reverseGeocodeMinDistanceM       Int      @default(5000) @map("reverse_geocode_min_distance_m")
+  driverTrackingPointMinIntervalMs Int      @default(1800000) @map("driver_tracking_point_min_interval_ms")
   /**
    * Minimum seconds between TMS batch location sync runs (server cron).
    */

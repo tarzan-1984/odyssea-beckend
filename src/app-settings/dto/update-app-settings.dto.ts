@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class UpdateAppSettingsDto {
 	@ApiProperty({
@@ -34,4 +34,17 @@ export class UpdateAppSettingsDto {
 	@Min(100)
 	@Max(500_000)
 	reverseGeocodeMinDistanceM!: number;
+
+	@ApiProperty({
+		description:
+			'Minimum time between driver_tracking history points for the same driver/load (milliseconds). Default 1800000 = 30 minutes.',
+		example: 1800000,
+		minimum: 0,
+		required: false,
+	})
+	@IsOptional()
+	@IsInt()
+	@Min(0)
+	@Max(86_400_000)
+	driverTrackingPointMinIntervalMs?: number;
 }

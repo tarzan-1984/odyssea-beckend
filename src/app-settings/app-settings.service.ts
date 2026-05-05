@@ -54,6 +54,7 @@ export class AppSettingsService {
 				locationMinIntervalMs: 60_000,
 				locationMinDistanceM: 1000,
 				reverseGeocodeMinDistanceM: 5000,
+				driverTrackingPointMinIntervalMs: 30 * 60 * 1000,
 				tmsBatchCronIntervalSeconds: 300,
 				tmsBatchChunkSize: 150,
 				locationEnvironmentMode: 'live',
@@ -74,6 +75,12 @@ export class AppSettingsService {
 				locationMinIntervalMs: dto.locationMinIntervalMs,
 				locationMinDistanceM: dto.locationMinDistanceM,
 				reverseGeocodeMinDistanceM: dto.reverseGeocodeMinDistanceM,
+				...(dto.driverTrackingPointMinIntervalMs !== undefined
+					? {
+							driverTrackingPointMinIntervalMs:
+								dto.driverTrackingPointMinIntervalMs,
+						}
+					: {}),
 			},
 		});
 		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
@@ -95,12 +102,18 @@ export class AppSettingsService {
 			locationMinIntervalMs: row.locationMinIntervalMs,
 			locationMinDistanceM: row.locationMinDistanceM,
 			reverseGeocodeMinDistanceM: row.reverseGeocodeMinDistanceM,
+			driverTrackingPointMinIntervalMs: row.driverTrackingPointMinIntervalMs,
 			locationEnvironmentMode: row.locationEnvironmentMode as 'live' | 'test',
 			locationTestDriverExternalId: row.locationTestDriverExternalId,
 			maxDriverOpenOfferParticipations: row.maxDriverOpenOfferParticipations,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};
+	}
+
+	async getDriverTrackingPointMinIntervalMs(): Promise<number> {
+		const row = await this.getGlobal();
+		return row.driverTrackingPointMinIntervalMs;
 	}
 
 	async recordUserLastActiveApp(userId: string): Promise<void> {
