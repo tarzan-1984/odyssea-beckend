@@ -61,10 +61,13 @@ export class TmsController {
 	@ApiResponse({ status: 200, description: 'TMS load details response' })
 	async getLoadDetails(@Param('loadId') loadId: string) {
 		const loadDetails = await this.tmsLoadDetailsService.fetchLoadDetails(loadId);
-		return this.attachLoadDrivers(loadDetails);
+		return this.attachLoadDriversAndTracking(loadId, loadDetails);
 	}
 
-	private async attachLoadDrivers(loadDetails: TmsLoadDetailsResponse | null) {
+	private async attachLoadDriversAndTracking(
+		loadId: string,
+		loadDetails: TmsLoadDetailsResponse | null,
+	) {
 		if (!loadDetails?.data) {
 			return loadDetails;
 		}
@@ -79,9 +82,9 @@ export class TmsController {
 			.filter(Boolean);
 
 		const uniqueDriverExternalIds = Array.from(new Set(driverExternalIds));
-		const drivers =
+		const [drivers, trackingPoints] = await Promise.all([
 			uniqueDriverExternalIds.length > 0
-				? await this.prisma.user.findMany({
+				? this.prisma.user.findMany({
 						where: {
 							externalId: {
 								in: uniqueDriverExternalIds,
@@ -108,7 +111,19 @@ export class TmsController {
 							trackingLoadId: true,
 						},
 					})
-				: [];
+				: Promise.resolve([]),
+			this.prisma.driverTracking.findMany({
+				where: { loadId },
+				select: {
+					externalDriverId: true,
+					latitude: true,
+					longitude: true,
+					createdAt: true,
+					updatedAt: true,
+				},
+				orderBy: { createdAt: 'asc' },
+			}),
+		]);
 
 		const driversByExternalId = new Map(
 			drivers.map((driver) => [driver.externalId, driver]),
@@ -121,6 +136,7 @@ export class TmsController {
 				drivers: uniqueDriverExternalIds
 					.map((externalId) => driversByExternalId.get(externalId))
 					.filter((driver): driver is (typeof drivers)[number] => Boolean(driver)),
+				trackingPoints,
 			},
 		};
 	}
