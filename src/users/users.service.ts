@@ -849,9 +849,11 @@ export class UsersService {
 				? String(statusDateForFormat).trim()
 				: '';
 		const statusDateFormatted =
-			statusDateTrimmed !== ''
-				? formatTmsStatusDate(statusDateForFormat as string)
-				: '';
+			tmsStatus?.trim().toLowerCase() === 'loaded_enroute'
+				? ''
+				: statusDateTrimmed !== ''
+					? formatTmsStatusDate(statusDateForFormat as string)
+					: '';
 
 		const effectiveLocationForTms =
 			locationDto.location != null &&
