@@ -10,6 +10,7 @@ import { TmsAppDraftLoadsService } from './tms-app-draft-loads.service';
 import { TmsLocationBatchScheduler } from './tms-location-batch.scheduler';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
 import { TmsLoadDetailsService } from './tms-load-details.service';
+import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
 import { TmsController } from './tms.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { TmsController } from './tms.controller';
 		TmsLocationBatchScheduler,
 		TmsDriverLoadsService,
 		TmsLoadDetailsService,
+		TmsLoadRouteGeocodeService,
 	],
 	controllers: [TmsController],
 	exports: [

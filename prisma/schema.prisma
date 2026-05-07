@@ -307,6 +307,23 @@ model DriverTracking {
   @@map("driver_tracking")
 }
 
+/// Server-side Nominatim cache for TMS load pickup/delivery map markers (cleared on delivered).
+model LoadRouteGeocode {
+  id        String   @id @default(cuid())
+  loadId    String   @unique @map("load_id")
+  pickupLat Float?   @map("pickup_lat")
+  pickupLng Float?   @map("pickup_lng")
+  /// Label used for marker popup (query that produced the hit).
+  pickupGeocodeQuery String? @map("pickup_geocode_query")
+  deliveryLat        Float?   @map("delivery_lat")
+  deliveryLng        Float?   @map("delivery_lng")
+  deliveryGeocodeQuery String? @map("delivery_geocode_query")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("load_route_geocodes")
+}
+
 model FileObject {
   id        String   @id @default(cuid())
   key       String   @unique

@@ -24,6 +24,7 @@ import {
 	TmsLoadDetailsResponse,
 	TmsLoadDetailsService,
 } from './tms-load-details.service';
+import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
 
 @ApiTags('TMS')
 @ApiBearerAuth()
@@ -36,6 +37,7 @@ export class TmsController {
 		private readonly tmsDriverLoadsService: TmsDriverLoadsService,
 		private readonly tmsDriverApplicationService: TmsDriverApplicationService,
 		private readonly tmsLoadDetailsService: TmsLoadDetailsService,
+		private readonly tmsLoadRouteGeocodeService: TmsLoadRouteGeocodeService,
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly notificationsService: NotificationsService,
@@ -173,6 +175,13 @@ export class TmsController {
 				.map((driver) => [driver.externalId as string, driver] as const),
 		);
 
+		const routeGeocode =
+			await this.tmsLoadRouteGeocodeService.getRouteGeocodeForLoad(
+				loadId,
+				metaData?.pick_up_location,
+				metaData?.delivery_location,
+			);
+
 		return {
 			...loadDetails,
 			data: {
@@ -181,6 +190,7 @@ export class TmsController {
 					.map((externalId) => driversByExternalId.get(externalId))
 					.filter((driver): driver is (typeof drivers)[number] => Boolean(driver)),
 				trackingPoints,
+				routeGeocode,
 			},
 		};
 	}
@@ -311,11 +321,15 @@ export class TmsController {
 			const shouldResetDriverStatus =
 				oldDriverStatusNormalized === 'loaded_enroute';
 
-			const [trackingCleanup, updatedDriver] = await this.prisma.$transaction([
-				this.prisma.driverTracking.deleteMany({
-					where: { loadId },
-				}),
-				this.prisma.user.update({
+			const [trackingCleanup, geocodeCleanup, updatedDriver] =
+				await this.prisma.$transaction([
+					this.prisma.driverTracking.deleteMany({
+						where: { loadId },
+					}),
+					this.prisma.loadRouteGeocode.deleteMany({
+						where: { loadId },
+					}),
+					this.prisma.user.update({
 					where: { id: driver.id },
 					data: {
 						isTracking: false,
@@ -343,7 +357,7 @@ export class TmsController {
 			]);
 
 			this.logger.log(
-				`TMS load status webhook: delivered load_id=${loadId} driver_id=${driverId} deletedTrackingPoints=${trackingCleanup.count} resetDriverStatus=${shouldResetDriverStatus}`,
+				`TMS load status webhook: delivered load_id=${loadId} driver_id=${driverId} deletedTrackingPoints=${trackingCleanup.count} deletedRouteGeocode=${geocodeCleanup.count} resetDriverStatus=${shouldResetDriverStatus}`,
 			);
 
 			await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
@@ -378,6 +392,7 @@ export class TmsController {
 					isTracking: updatedDriver.isTracking,
 					trackingLoadId: updatedDriver.trackingLoadId,
 					deletedTrackingPoints: trackingCleanup.count,
+					deletedRouteGeocodeRows: geocodeCleanup.count,
 					driverStatusReset: shouldResetDriverStatus,
 				},
 			};
