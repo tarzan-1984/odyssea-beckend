@@ -2,6 +2,7 @@ import {
 	BadRequestException,
 	Body,
 	Controller,
+	Delete,
 	Get,
 	Logger,
 	Param,
@@ -64,6 +65,47 @@ export class TmsController {
 		return this.attachLoadDriversAndTracking(loadId, loadDetails);
 	}
 
+	@Delete('load/:loadId/tracking/:pointId')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Delete one driver tracking history point for a load',
+	})
+	@ApiResponse({ status: 200, description: 'Tracking point deleted' })
+	async deleteLoadTrackingPoint(
+		@Param('loadId') loadId: string,
+		@Param('pointId') pointId: string,
+	) {
+		const cleanLoadId = loadId.trim();
+		const cleanPointId = pointId.trim();
+
+		if (!cleanLoadId) {
+			throw new BadRequestException('loadId is required');
+		}
+		if (!cleanPointId) {
+			throw new BadRequestException('pointId is required');
+		}
+
+		const result = await this.prisma.driverTracking.deleteMany({
+			where: {
+				id: cleanPointId,
+				loadId: cleanLoadId,
+			},
+		});
+
+		if (result.count === 0) {
+			throw new BadRequestException('Tracking point not found');
+		}
+
+		return {
+			success: true,
+			data: {
+				id: cleanPointId,
+				loadId: cleanLoadId,
+				deleted: true,
+			},
+		};
+	}
+
 	private async attachLoadDriversAndTracking(
 		loadId: string,
 		loadDetails: TmsLoadDetailsResponse | null,
@@ -115,6 +157,7 @@ export class TmsController {
 		const trackingPoints = await this.prisma.driverTracking.findMany({
 			where: { loadId },
 			select: {
+				id: true,
 				externalDriverId: true,
 				latitude: true,
 				longitude: true,
