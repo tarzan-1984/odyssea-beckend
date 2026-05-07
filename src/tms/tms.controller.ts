@@ -6,6 +6,7 @@ import {
 	Get,
 	Logger,
 	Param,
+	Patch,
 	Post,
 	Query,
 	UseGuards,
@@ -18,6 +19,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
+import { UpdateLoadTrackingPointDto } from './dto/update-load-tracking-point.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
 import {
@@ -105,6 +107,69 @@ export class TmsController {
 				loadId: cleanLoadId,
 				deleted: true,
 			},
+		};
+	}
+
+	@Patch('load/:loadId/tracking/:pointId')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Update coordinates of one driver tracking history point for a load',
+	})
+	@ApiResponse({ status: 200, description: 'Tracking point updated' })
+	async updateLoadTrackingPoint(
+		@Param('loadId') loadId: string,
+		@Param('pointId') pointId: string,
+		@Body() body: UpdateLoadTrackingPointDto,
+	) {
+		const cleanLoadId = loadId.trim();
+		const cleanPointId = pointId.trim();
+
+		if (!cleanLoadId) {
+			throw new BadRequestException('loadId is required');
+		}
+		if (!cleanPointId) {
+			throw new BadRequestException('pointId is required');
+		}
+
+		const lat = Number(body.latitude);
+		const lng = Number(body.longitude);
+		if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+			throw new BadRequestException('latitude and longitude must be finite numbers');
+		}
+
+		const existing = await this.prisma.driverTracking.findFirst({
+			where: {
+				id: cleanPointId,
+				loadId: cleanLoadId,
+			},
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new BadRequestException('Tracking point not found');
+		}
+
+		const updated = await this.prisma.driverTracking.update({
+			where: { id: cleanPointId },
+			data: {
+				latitude: lat,
+				longitude: lng,
+				updatedAt: new Date(),
+			},
+			select: {
+				id: true,
+				loadId: true,
+				externalDriverId: true,
+				latitude: true,
+				longitude: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+
+		return {
+			success: true,
+			data: updated,
 		};
 	}
 
