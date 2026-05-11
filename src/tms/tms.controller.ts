@@ -57,11 +57,10 @@ export class TmsController {
 	}
 
 	@Get('load/:loadId')
-	@SkipAuth()
 	@ApiOperation({
 		summary: 'Proxy: TMS load details',
 		description:
-			'Public proxy for GET https://www.endurance-tms.com/wp-json/tms/v1/load/:loadId.',
+			'Proxies GET TMS load/:loadId and attaches DB drivers + tracking history. Requires authentication.',
 	})
 	@ApiResponse({ status: 200, description: 'TMS load details response' })
 	async getLoadDetails(@Param('loadId') loadId: string) {
@@ -70,7 +69,6 @@ export class TmsController {
 	}
 
 	@Delete('load/:loadId/tracking/:pointId')
-	@SkipAuth()
 	@ApiOperation({
 		summary: 'Delete one driver tracking history point for a load',
 	})
@@ -111,7 +109,6 @@ export class TmsController {
 	}
 
 	@Patch('load/:loadId/tracking/:pointId')
-	@SkipAuth()
 	@ApiOperation({
 		summary: 'Update coordinates of one driver tracking history point for a load',
 	})
