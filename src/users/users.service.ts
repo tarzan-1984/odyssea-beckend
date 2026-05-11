@@ -412,8 +412,8 @@ export class UsersService {
 		const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
 
 		const whereSql = Prisma.sql`
-			u.role = ${UserRole.DRIVER}
-			AND u.status = ${UserStatus.ACTIVE}
+			u.role = 'DRIVER'::"UserRole"
+			AND u.status = 'ACTIVE'::"UserStatus"
 			AND u."driverStatus" IS NOT NULL
 			AND LOWER(TRIM(u."driverStatus")) IN ('loaded_enroute', 'available')
 			AND u.last_active_app IS NOT NULL
