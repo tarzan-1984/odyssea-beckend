@@ -381,10 +381,16 @@ export class UsersController {
 		enum: ['all', 'available', 'loaded_enroute'],
 		description: 'Filter by driver workflow status (default: all).',
 	})
+	@ApiQuery({
+		name: 'search',
+		required: false,
+		description: 'Filter by first name, last name, email, or externalId (substring, case-insensitive).',
+	})
 	async getDriversCheckList(
 		@Query('page') page?: number,
 		@Query('limit') limit?: number,
 		@Query('driverStatus') driverStatus?: string,
+		@Query('search') search?: string,
 	) {
 		const pageNum = page ? Number(page) : 1;
 		const limitNum = limit ? Number(limit) : 10;
@@ -395,7 +401,7 @@ export class UsersController {
 				: raw === 'loaded_enroute'
 					? 'loaded_enroute'
 					: 'all';
-		return this.usersService.findDriversCheckList(pageNum, limitNum, filter);
+		return this.usersService.findDriversCheckList(pageNum, limitNum, filter, search);
 	}
 
 	@Get()

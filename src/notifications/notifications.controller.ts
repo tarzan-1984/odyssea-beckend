@@ -142,7 +142,8 @@ export class NotificationsController {
 	}
 
 	/**
-	 * Admin-only: send custom push to a single user or to all ACTIVE users.
+	 * Send custom push: any authenticated user may target a single user (userId or externalId).
+	 * Broadcast to all ACTIVE users with tokens remains administrator-only.
 	 */
 	@Post('push')
 	async sendCustomPush(
@@ -151,18 +152,31 @@ export class NotificationsController {
 		body: {
 			message: string;
 			userId?: string | null;
+			externalId?: string | null;
 			platform?: 'all' | 'ios' | 'android' | null;
 		},
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException('Admin only');
-		}
-
 		const message = typeof body?.message === 'string' ? body.message.trim() : '';
-		const userId =
+		let userId =
 			typeof body?.userId === 'string' && body.userId.trim()
 				? body.userId.trim()
 				: undefined;
+		const externalId =
+			typeof body?.externalId === 'string' && body.externalId.trim()
+				? body.externalId.trim()
+				: undefined;
+
+		if (!userId && externalId) {
+			const user = await this.prisma.user.findUnique({
+				where: { externalId },
+				select: { id: true },
+			});
+			if (!user) {
+				throw new BadRequestException('No user found for this externalId');
+			}
+			userId = user.id;
+		}
+
 		const platformRaw =
 			typeof body?.platform === 'string' ? body.platform.trim().toLowerCase() : '';
 		const platform =
@@ -177,6 +191,12 @@ export class NotificationsController {
 		}
 		if (platform === null) {
 			throw new BadRequestException('platform must be one of: all, ios, android');
+		}
+
+		if (!userId && req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can send a broadcast push to all users',
+			);
 		}
 
 		const result = await this.notificationsService.sendCustomPush({

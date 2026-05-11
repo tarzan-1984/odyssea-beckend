@@ -409,11 +409,13 @@ export class UsersService {
 	 * ACTIVE drivers with loaded_enroute|available (or subset), last location string (NY wall-clock)
 	 * older than 3h vs current NY time.
 	 * @param driverStatusFilter all | available | loaded_enroute
+	 * @param search optional: matches first name, last name, email, externalId (case-insensitive)
 	 */
 	async findDriversCheckList(
 		page: number = 1,
 		limit: number = 10,
 		driverStatusFilter: 'all' | 'available' | 'loaded_enroute' = 'all',
+		search?: string,
 	) {
 		const safePage = Math.max(1, page);
 		const safeLimit = Math.min(100, Math.max(1, limit));
@@ -443,6 +445,27 @@ export class UsersService {
 							},
 						];
 
+		const q = typeof search === 'string' ? search.trim() : '';
+		const searchClause: Prisma.UserWhereInput[] =
+			q.length > 0
+				? [
+						{
+							OR: [
+								{ firstName: { contains: q, mode: 'insensitive' } },
+								{ lastName: { contains: q, mode: 'insensitive' } },
+								{ email: { contains: q, mode: 'insensitive' } },
+								{
+									externalId: {
+										not: null,
+										contains: q,
+										mode: 'insensitive',
+									},
+								},
+							],
+						},
+					]
+				: [];
+
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
 			status: UserStatus.ACTIVE,
@@ -452,6 +475,7 @@ export class UsersService {
 				{ lastLocationUpdateAt: { not: null } },
 				{ NOT: { lastLocationUpdateAt: '' } },
 				{ lastLocationUpdateAt: { lt: threeHoursAgoNy } },
+				...searchClause,
 			],
 		};
 
@@ -467,6 +491,7 @@ export class UsersService {
 						id: true,
 						firstName: true,
 						lastName: true,
+						email: true,
 						externalId: true,
 						phone: true,
 						driverStatus: true,
@@ -484,6 +509,7 @@ export class UsersService {
 					id: d.id,
 					firstName: d.firstName,
 					lastName: d.lastName,
+					email: d.email,
 					externalId: d.externalId,
 					phone: d.phone ?? '',
 					driverStatus: d.driverStatus,
