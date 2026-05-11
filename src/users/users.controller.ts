@@ -367,6 +367,23 @@ export class UsersController {
 		return this.usersService.findDriversForMap(pageNum, limitNum, company);
 	}
 
+	@Get('drivers/check-list')
+	@ApiOperation({
+		summary: 'Drivers check list (stale location vs recent app activity)',
+		description:
+			'ACTIVE drivers with status loaded_enroute or available, last app activity within 12 hours, last location update (NY wall time) older than 3 hours.',
+	})
+	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	async getDriversCheckList(
+		@Query('page') page?: number,
+		@Query('limit') limit?: number,
+	) {
+		const pageNum = page ? Number(page) : 1;
+		const limitNum = limit ? Number(limit) : 10;
+		return this.usersService.findDriversCheckList(pageNum, limitNum);
+	}
+
 	@Get()
 	@ApiOperation({
 		summary: 'Get all users with pagination and filtering',

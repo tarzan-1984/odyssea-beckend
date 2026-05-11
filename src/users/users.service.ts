@@ -35,6 +35,19 @@ import { NotificationsService } from '../notifications/notifications.service';
 type LatLng = { latitude: number; longitude: number };
 type BBox = { minLat: number; maxLat: number; minLng: number; maxLng: number };
 
+/** Raw SQL row for driver check list query. */
+type DriverCheckListSqlRow = {
+	id: string;
+	firstName: string;
+	lastName: string;
+	externalId: string | null;
+	phone: string | null;
+	driverStatus: string | null;
+	lastActiveApp: Date;
+	lastLocationUpdateAt: string | null;
+	trackingLoadId: string | null;
+};
+
 function inBox(p: LatLng, b: BBox): boolean {
 	return (
 		p.latitude >= b.minLat &&
@@ -382,6 +395,80 @@ export class UsersService {
 				total_pages: Math.ceil(total / limit),
 				has_next_page: page < Math.ceil(total / limit),
 				has_prev_page: page > 1,
+			},
+		};
+	}
+
+	/**
+	 * ACTIVE drivers with loaded_enroute|available, app open in last 12h (wall-clock agnostic instant),
+	 * last location update NY wall-clock parsed & older than 3h vs current time.
+	 */
+	async findDriversCheckList(page: number = 1, limit: number = 10) {
+		const safePage = Math.max(1, page);
+		const safeLimit = Math.min(100, Math.max(1, limit));
+		const skip = (safePage - 1) * safeLimit;
+
+		const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+		const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
+
+		const whereSql = Prisma.sql`
+			u.role = ${UserRole.DRIVER}
+			AND u.status = ${UserStatus.ACTIVE}
+			AND u."driverStatus" IS NOT NULL
+			AND LOWER(TRIM(u."driverStatus")) IN ('loaded_enroute', 'available')
+			AND u.last_active_app IS NOT NULL
+			AND u.last_active_app >= ${twelveHoursAgo}
+			AND u."lastLocationUpdateAt" IS NOT NULL
+			AND TRIM(u."lastLocationUpdateAt") <> ''
+			AND u."lastLocationUpdateAt" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
+			AND (substring(u."lastLocationUpdateAt" from 1 for 19)::timestamp AT TIME ZONE 'America/New_York') < ${threeHoursAgo}
+			AND (u.deactivateAccount IS NULL OR u.deactivateAccount = false)
+		`;
+
+		const countRows = await this.prisma.$queryRaw<[{ count: bigint }]>`
+			SELECT COUNT(*)::bigint AS count FROM users u WHERE ${whereSql}
+		`;
+		const total = Number(countRows[0]?.count ?? 0);
+
+		const drivers = await this.prisma.$queryRaw<DriverCheckListSqlRow[]>`
+			SELECT
+				u.id,
+				u."firstName",
+				u."lastName",
+				u."externalId",
+				u.phone,
+				u."driverStatus",
+				u.last_active_app AS "lastActiveApp",
+				u."lastLocationUpdateAt",
+				u.tracking_load_id AS "trackingLoadId"
+			FROM users u
+			WHERE ${whereSql}
+			ORDER BY
+				(substring(u."lastLocationUpdateAt" from 1 for 19)::timestamp AT TIME ZONE 'America/New_York') ASC
+			LIMIT ${safeLimit} OFFSET ${skip}
+		`;
+
+		const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+
+		return {
+			drivers: drivers.map((d) => ({
+				id: d.id,
+				firstName: d.firstName,
+				lastName: d.lastName,
+				externalId: d.externalId,
+				phone: d.phone ?? '',
+				driverStatus: d.driverStatus,
+				lastActiveApp: d.lastActiveApp?.toISOString?.() ?? null,
+				lastLocationUpdateAt: d.lastLocationUpdateAt,
+				trackingLoadId: d.trackingLoadId,
+			})),
+			pagination: {
+				current_page: safePage,
+				per_page: safeLimit,
+				total_count: total,
+				total_pages: totalPages,
+				has_next_page: safePage < totalPages,
+				has_prev_page: safePage > 1,
 			},
 		};
 	}
