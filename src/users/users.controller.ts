@@ -369,19 +369,33 @@ export class UsersController {
 
 	@Get('drivers/check-list')
 	@ApiOperation({
-		summary: 'Drivers check list (stale location vs recent app activity)',
+		summary: 'Drivers check list (stale location)',
 		description:
-			'ACTIVE drivers with status loaded_enroute or available, last app activity within 12 hours, last location update (NY wall time) older than 3 hours.',
+			'ACTIVE drivers with loaded_enroute and/or available (filterable), last location update (NY wall time string) older than 3 hours.',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	@ApiQuery({
+		name: 'driverStatus',
+		required: false,
+		enum: ['all', 'available', 'loaded_enroute'],
+		description: 'Filter by driver workflow status (default: all).',
+	})
 	async getDriversCheckList(
 		@Query('page') page?: number,
 		@Query('limit') limit?: number,
+		@Query('driverStatus') driverStatus?: string,
 	) {
 		const pageNum = page ? Number(page) : 1;
 		const limitNum = limit ? Number(limit) : 10;
-		return this.usersService.findDriversCheckList(pageNum, limitNum);
+		const raw = (driverStatus ?? 'all').trim().toLowerCase();
+		const filter: 'all' | 'available' | 'loaded_enroute' =
+			raw === 'available'
+				? 'available'
+				: raw === 'loaded_enroute'
+					? 'loaded_enroute'
+					: 'all';
+		return this.usersService.findDriversCheckList(pageNum, limitNum, filter);
 	}
 
 	@Get()

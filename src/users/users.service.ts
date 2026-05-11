@@ -406,10 +406,15 @@ export class UsersService {
 	}
 
 	/**
-	 * ACTIVE drivers with loaded_enroute|available, last location string (NY wall-clock)
+	 * ACTIVE drivers with loaded_enroute|available (or subset), last location string (NY wall-clock)
 	 * older than 3h vs current NY time.
+	 * @param driverStatusFilter all | available | loaded_enroute
 	 */
-	async findDriversCheckList(page: number = 1, limit: number = 10) {
+	async findDriversCheckList(
+		page: number = 1,
+		limit: number = 10,
+		driverStatusFilter: 'all' | 'available' | 'loaded_enroute' = 'all',
+	) {
 		const safePage = Math.max(1, page);
 		const safeLimit = Math.min(100, Math.max(1, limit));
 		const skip = (safePage - 1) * safeLimit;
@@ -418,27 +423,32 @@ export class UsersService {
 			new Date(Date.now() - 3 * 60 * 60 * 1000),
 		);
 
+		const statusOr: Prisma.UserWhereInput[] =
+			driverStatusFilter === 'available'
+				? [{ driverStatus: { equals: 'available', mode: 'insensitive' } }]
+				: driverStatusFilter === 'loaded_enroute'
+					? [{ driverStatus: { equals: 'loaded_enroute', mode: 'insensitive' } }]
+					: [
+							{
+								driverStatus: {
+									equals: 'loaded_enroute',
+									mode: 'insensitive',
+								},
+							},
+							{
+								driverStatus: {
+									equals: 'available',
+									mode: 'insensitive',
+								},
+							},
+						];
+
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
 			status: UserStatus.ACTIVE,
 			OR: [{ deactivateAccount: null }, { deactivateAccount: false }],
 			AND: [
-				{
-					OR: [
-						{
-							driverStatus: {
-								equals: 'loaded_enroute',
-								mode: 'insensitive',
-							},
-						},
-						{
-							driverStatus: {
-								equals: 'available',
-								mode: 'insensitive',
-							},
-						},
-					],
-				},
+				{ OR: statusOr },
 				{ lastLocationUpdateAt: { not: null } },
 				{ NOT: { lastLocationUpdateAt: '' } },
 				{ lastLocationUpdateAt: { lt: threeHoursAgoNy } },
