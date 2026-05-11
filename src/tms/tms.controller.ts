@@ -28,6 +28,9 @@ import {
 } from './tms-load-details.service';
 import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
 
+/** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
+const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
+
 @ApiTags('TMS')
 @ApiBearerAuth()
 @Controller('tms')
@@ -299,26 +302,36 @@ export class TmsController {
 			typeof body?.load_status === 'string' ? body.load_status.trim() : '';
 
 		if (!loadId) {
+			this.logger.warn(
+				`======== ${TMS_LOAD_STATUS_WEBHOOK_MARKER} ======== INVALID_PAYLOAD missing_field=load_id`,
+			);
 			throw new BadRequestException('load_id is required');
 		}
 		if (!driverId) {
+			this.logger.warn(
+				`======== ${TMS_LOAD_STATUS_WEBHOOK_MARKER} ======== INVALID_PAYLOAD missing_field=driver_id load_id=${loadId}`,
+			);
 			throw new BadRequestException('driver_id is required');
 		}
 		if (!loadStatus) {
+			this.logger.warn(
+				`======== ${TMS_LOAD_STATUS_WEBHOOK_MARKER} ======== INVALID_PAYLOAD missing_field=load_status load_id=${loadId} driver_id=${driverId}`,
+			);
 			throw new BadRequestException('load_status is required');
 		}
 
-		console.log('[TMS Load Status Webhook]', {
-			load_id: loadId,
-			driver_id: driverId,
-			load_status: loadStatus,
-		});
-
 		const normalizedLoadStatus = loadStatus.toLowerCase().replace(/-/g, '_');
+		this.logger.log(
+			`======== ${TMS_LOAD_STATUS_WEBHOOK_MARKER} ======== EVENT=load_status_update load_id=${loadId} driver_id=${driverId} load_status_raw=${loadStatus} normalized=${normalizedLoadStatus}`,
+		);
+
 		if (
 			normalizedLoadStatus !== 'loaded_enroute' &&
 			normalizedLoadStatus !== 'delivered'
 		) {
+			this.logger.log(
+				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=logged_only reason=unsupported_load_status load_id=${loadId} driver_id=${driverId} normalized=${normalizedLoadStatus}`,
+			);
 			return {
 				success: true,
 				data: {
@@ -344,7 +357,7 @@ export class TmsController {
 
 		if (!driver) {
 			this.logger.warn(
-				`TMS load status webhook: driver not found externalId=${driverId}`,
+				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=skipped reason=driver_not_found load_id=${loadId} driver_id=${driverId}`,
 			);
 			return {
 				success: false,
@@ -360,7 +373,7 @@ export class TmsController {
 
 		if (driver.role !== UserRole.DRIVER || driver.status !== UserStatus.ACTIVE) {
 			this.logger.warn(
-				`TMS load status webhook: driver not eligible externalId=${driverId} role=${driver.role} status=${driver.status}`,
+				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=skipped reason=not_active_driver load_id=${loadId} driver_id=${driverId} role=${driver.role} status=${driver.status}`,
 			);
 			return {
 				success: false,
@@ -419,7 +432,7 @@ export class TmsController {
 			]);
 
 			this.logger.log(
-				`TMS load status webhook: delivered load_id=${loadId} driver_id=${driverId} deletedTrackingPoints=${trackingCleanup.count} deletedRouteGeocode=${geocodeCleanup.count} resetDriverStatus=${shouldResetDriverStatus}`,
+				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=driver_tracking_stopped load_id=${loadId} driver_id=${driverId} deletedTrackingPoints=${trackingCleanup.count} deletedRouteGeocode=${geocodeCleanup.count} resetDriverStatus=${shouldResetDriverStatus}`,
 			);
 
 			await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
@@ -506,7 +519,7 @@ export class TmsController {
 
 		if (offerCleanup.offers > 0 || offerCleanup.rateOffers > 0) {
 			this.logger.log(
-				`TMS load status webhook: cleaned offers for load_id=${loadId} offers=${offerCleanup.offers} rateOffers=${offerCleanup.rateOffers}`,
+				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- detail=offer_cleanup load_id=${loadId} offers=${offerCleanup.offers} rateOffers=${offerCleanup.rateOffers}`,
 			);
 		}
 
@@ -533,6 +546,10 @@ export class TmsController {
 				})
 				.catch(() => {});
 		}
+
+		this.logger.log(
+			`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=driver_tracking_started load_id=${loadId} driver_id=${driverId} deletedOffers=${offerCleanup.offers} deletedRateOffers=${offerCleanup.rateOffers}`,
+		);
 
 		return {
 			success: true,
