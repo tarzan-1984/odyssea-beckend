@@ -406,15 +406,14 @@ export class UsersService {
 	}
 
 	/**
-	 * ACTIVE drivers with loaded_enroute|available, app open in last 12h (wall-clock agnostic instant),
-	 * last location update NY wall-clock parsed & older than 3h vs current time.
+	 * ACTIVE drivers with loaded_enroute|available, last location string (NY wall-clock)
+	 * older than 3h vs current NY time.
 	 */
 	async findDriversCheckList(page: number = 1, limit: number = 10) {
 		const safePage = Math.max(1, page);
 		const safeLimit = Math.min(100, Math.max(1, limit));
 		const skip = (safePage - 1) * safeLimit;
 
-		const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
 		const threeHoursAgoNy = this.formatNyWallClockSqlString(
 			new Date(Date.now() - 3 * 60 * 60 * 1000),
 		);
@@ -440,7 +439,6 @@ export class UsersService {
 						},
 					],
 				},
-				{ lastActiveApp: { gte: twelveHoursAgo } },
 				{ lastLocationUpdateAt: { not: null } },
 				{ NOT: { lastLocationUpdateAt: '' } },
 				{ lastLocationUpdateAt: { lt: threeHoursAgoNy } },
