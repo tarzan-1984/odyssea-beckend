@@ -464,6 +464,13 @@ export class UsersService {
 										mode: 'insensitive',
 									},
 								},
+								{
+									trackingLoadId: {
+										not: null,
+										contains: q,
+										mode: 'insensitive',
+									},
+								},
 							],
 						},
 					]

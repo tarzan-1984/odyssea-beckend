@@ -385,7 +385,7 @@ export class UsersController {
 		name: 'search',
 		required: false,
 		description:
-			'Filter by first name, last name, email, or externalId (substring, case-insensitive).',
+			'Filter by first name, last name, email, externalId (driver ID), or tracking load id (substring, case-insensitive).',
 	})
 	@ApiQuery({
 		name: 'lastLocationSort',
