@@ -110,6 +110,22 @@ export class UsersService {
 		return Number.isFinite(parsed.getTime()) ? parsed : null;
 	}
 
+	/** Human-readable place line for a tracking history point (city, state ZIP). */
+	private formatTrackingPlaceLabel(
+		city?: string | null,
+		state?: string | null,
+		zip?: string | null,
+	): string | null {
+		const c = city?.trim() ?? '';
+		const s = state?.trim() ?? '';
+		const z = zip?.trim() ?? '';
+		const cityState = [c, s].filter(Boolean).join(', ');
+		if (cityState && z) return `${cityState} ${z}`;
+		if (cityState) return cityState;
+		if (z) return z;
+		return null;
+	}
+
 	/** Same NY wall-clock string format as `updateUserLocation` (YYYY-MM-DD HH:mm:ss). */
 	private formatNyWallClockSqlString(instant: Date): string {
 		const parts = new Intl.DateTimeFormat('en-US', {
@@ -139,6 +155,9 @@ export class UsersService {
 		latitude: number | null;
 		longitude: number | null;
 		lastLocationUpdateAt: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
 	}): Promise<{
 		externalDriverId: string;
 		loadId: string;
@@ -146,6 +165,7 @@ export class UsersService {
 		longitude: number;
 		createdAt: Date;
 		updatedAt: Date;
+		placeLabel: string | null;
 	} | null> {
 		if (user.role !== UserRole.DRIVER || !user.isTracking) return null;
 		if (user.driverStatus?.trim().toLowerCase() !== 'loaded_enroute') {
@@ -202,6 +222,11 @@ export class UsersService {
 				latitude: user.latitude,
 				longitude: user.longitude,
 				updatedAt: pointTime,
+				placeLabel: this.formatTrackingPlaceLabel(
+					user.city,
+					user.state,
+					user.zip,
+				),
 			},
 			select: {
 				externalDriverId: true,
@@ -210,6 +235,7 @@ export class UsersService {
 				longitude: true,
 				createdAt: true,
 				updatedAt: true,
+				placeLabel: true,
 			},
 		});
 	}

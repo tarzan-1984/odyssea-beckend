@@ -298,6 +298,8 @@ model DriverTracking {
   loadId           String   @map("load_id")
   latitude         Float
   longitude        Float
+  /// Locality snapshot at point creation (from user city/state/zip after location update / reverse geocode).
+  placeLabel       String?  @map("place_label")
   updatedAt        DateTime
   createdAt        DateTime @default(now())
 
