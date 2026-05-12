@@ -371,7 +371,7 @@ export class UsersController {
 	@ApiOperation({
 		summary: 'Drivers check list (stale location)',
 		description:
-			'ACTIVE drivers with loaded_enroute and/or available (filterable), last location update (NY wall time string) older than 3 hours.',
+			'ACTIVE drivers with loaded_enroute and/or available (filterable), last location update (NY wall time string) older than 3 hours. Sortable by last location via lastLocationSort (asc | desc), secondary sort by id.',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -384,13 +384,22 @@ export class UsersController {
 	@ApiQuery({
 		name: 'search',
 		required: false,
-		description: 'Filter by first name, last name, email, or externalId (substring, case-insensitive).',
+		description:
+			'Filter by first name, last name, email, or externalId (substring, case-insensitive).',
+	})
+	@ApiQuery({
+		name: 'lastLocationSort',
+		required: false,
+		enum: ['asc', 'desc'],
+		description:
+			'Sort by last location update: asc = oldest first (default), desc = newest first among stale rows.',
 	})
 	async getDriversCheckList(
 		@Query('page') page?: number,
 		@Query('limit') limit?: number,
 		@Query('driverStatus') driverStatus?: string,
 		@Query('search') search?: string,
+		@Query('lastLocationSort') lastLocationSort?: string,
 	) {
 		const pageNum = page ? Number(page) : 1;
 		const limitNum = limit ? Number(limit) : 10;
@@ -401,7 +410,15 @@ export class UsersController {
 				: raw === 'loaded_enroute'
 					? 'loaded_enroute'
 					: 'all';
-		return this.usersService.findDriversCheckList(pageNum, limitNum, filter, search);
+		const sortRaw = (lastLocationSort ?? 'asc').trim().toLowerCase();
+		const locationSort: 'asc' | 'desc' = sortRaw === 'desc' ? 'desc' : 'asc';
+		return this.usersService.findDriversCheckList(
+			pageNum,
+			limitNum,
+			filter,
+			search,
+			locationSort,
+		);
 	}
 
 	@Get()

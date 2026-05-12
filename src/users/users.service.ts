@@ -408,14 +408,17 @@ export class UsersService {
 	/**
 	 * ACTIVE drivers with loaded_enroute|available (or subset), last location string (NY wall-clock)
 	 * older than 3h vs current NY time.
+	 * Rows are ordered by lastLocationUpdateAt (asc | desc), then id in the same direction.
 	 * @param driverStatusFilter all | available | loaded_enroute
 	 * @param search optional: matches first name, last name, email, externalId (case-insensitive)
+	 * @param lastLocationSort asc = oldest location first (default), desc = newest stale location first
 	 */
 	async findDriversCheckList(
 		page: number = 1,
 		limit: number = 10,
 		driverStatusFilter: 'all' | 'available' | 'loaded_enroute' = 'all',
 		search?: string,
+		lastLocationSort: 'asc' | 'desc' = 'asc',
 	) {
 		const safePage = Math.max(1, page);
 		const safeLimit = Math.min(100, Math.max(1, limit));
@@ -484,7 +487,10 @@ export class UsersService {
 				this.prisma.user.count({ where }),
 				this.prisma.user.findMany({
 					where,
-					orderBy: { lastLocationUpdateAt: 'asc' },
+					orderBy: [
+						{ lastLocationUpdateAt: lastLocationSort },
+						{ id: lastLocationSort },
+					],
 					skip,
 					take: safeLimit,
 					select: {
