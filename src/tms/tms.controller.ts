@@ -389,6 +389,8 @@ export class TmsController {
 			};
 		}
 
+		const oldDriverStatus = driver.driverStatus ?? null;
+
 		if (normalizedLoadStatus === 'delivered') {
 			const [trackingCleanup, geocodeCleanup, updatedDriver] =
 				await this.prisma.$transaction([
