@@ -1223,10 +1223,14 @@ export class ChatRoomsService {
 			}
 		}
 
+		// Auto-add administrators as hidden participants, except system/TMS user externalId "1"
 		const adminUsers = await this.prisma.user.findMany({
 			where: {
 				role: {
 					in: ['ADMINISTRATOR'],
+				},
+				NOT: {
+					externalId: '1',
 				},
 			},
 			select: {
