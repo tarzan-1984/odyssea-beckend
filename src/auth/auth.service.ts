@@ -437,6 +437,19 @@ export class AuthService {
 			userResponse.driverStatus = user.driverStatus;
 		}
 
+		// OTP login completion: notify TMS that the driver uses the mobile app (same endpoint as first activation).
+		// login_email only notified TMS when status first became ACTIVE; mobile flow goes password → verify-otp instead.
+		if (
+			user.role === UserRole.DRIVER &&
+			user.status === UserStatus.ACTIVE &&
+			user.externalId &&
+			user.externalId.trim() !== ''
+		) {
+			void this.tmsDriverApplication.notifyDriverApplicationActivated(
+				user.externalId,
+			);
+		}
+
 		return {
 			accessToken,
 			refreshToken,

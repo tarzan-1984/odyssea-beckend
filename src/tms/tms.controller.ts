@@ -11,7 +11,7 @@ import {
 	Query,
 	UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UserRole, UserStatus } from '@prisma/client';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -262,19 +262,42 @@ export class TmsController {
 		};
 	}
 
+	@ApiQuery({
+		name: 'batchSize',
+		required: false,
+		description: 'Rows per request (1–200). Default 50.',
+		example: 50,
+	})
+	@ApiQuery({
+		name: 'skip',
+		required: false,
+		description: 'Offset for next batch; use `nextSkip` from the previous response.',
+		example: 0,
+	})
 	@Post('driver/application/activate-backfill')
 	@SkipAuth()
 	@ApiOperation({
-		summary: 'Open one-time backfill: mark active app drivers as activated in TMS',
+		summary: 'Open one-time backfill: mark active app drivers as activated in TMS (paginated)',
 		description:
-			'Finds ACTIVE DRIVER users with last_active_app and externalId, then calls TMS driver/application/activate for each one. Intended for one-time Insomnia backfill.',
+			'Finds ACTIVE DRIVER users with last_active_app and externalId, ordered by lastActiveApp asc. ' +
+			'Each request processes at most `batchSize` rows (default 50, max 200) starting at `skip` (default 0). ' +
+			'Repeat with skip=nextSkip until hasMore is false. Avoids long single requests (e.g. Render timeout).',
 	})
 	@ApiResponse({
 		status: 201,
-		description: 'Backfill result with total/sent/failed counters',
+		description:
+			'Batch result: totalMatching, sent/failed for this batch, hasMore, nextSkip for the next call',
 	})
-	async backfillDriverApplicationActivated() {
-		return this.tmsDriverApplicationService.backfillActivatedDriversFromLastActiveApp();
+	async backfillDriverApplicationActivated(
+		@Query('batchSize') batchSizeRaw?: string,
+		@Query('skip') skipRaw?: string,
+	) {
+		const batchSizeParsed = parseInt(batchSizeRaw ?? '', 10);
+		const skipParsed = parseInt(skipRaw ?? '', 10);
+		return this.tmsDriverApplicationService.backfillActivatedDriversFromLastActiveApp({
+			batchSize: Number.isFinite(batchSizeParsed) ? batchSizeParsed : undefined,
+			skip: Number.isFinite(skipParsed) ? skipParsed : undefined,
+		});
 	}
 
 	@Post('load/status')

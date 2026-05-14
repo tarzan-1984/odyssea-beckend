@@ -5,6 +5,30 @@ import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { AxiosError } from '../types/request.types';
 
+export type BackfillDriverApplicationOptions = {
+	/** Max drivers to process in this request (clamped 1..200). Default 50. */
+	batchSize?: number;
+	/** Offset into the ordered list (by lastActiveApp asc). Default 0. */
+	skip?: number;
+};
+
+export type BackfillDriverApplicationResult = {
+	/** Rows matching the backfill filter (not only this batch). */
+	totalMatching: number;
+	batchSize: number;
+	skip: number;
+	processedInBatch: number;
+	sent: number;
+	failed: number;
+	failedDrivers: Array<{ id: string; externalId: string; email: string | null }>;
+	hasMore: boolean;
+	nextSkip: number | null;
+};
+
+const MIN_BACKFILL_BATCH = 1;
+const MAX_BACKFILL_BATCH = 200;
+const DEFAULT_BACKFILL_BATCH = 50;
+
 const TMS_DRIVER_APPLICATION_ACTIVATE_URL =
 	'https://www.endurance-tms.com/wp-json/tms/v1/driver/application/activate';
 
@@ -72,25 +96,36 @@ export class TmsDriverApplicationService {
 		}
 	}
 
-	async backfillActivatedDriversFromLastActiveApp(): Promise<{
-		total: number;
-		sent: number;
-		failed: number;
-		failedDrivers: Array<{ id: string; externalId: string; email: string | null }>;
-	}> {
+	async backfillActivatedDriversFromLastActiveApp(
+		options?: BackfillDriverApplicationOptions,
+	): Promise<BackfillDriverApplicationResult> {
+		const requestedBatch =
+			options?.batchSize ?? DEFAULT_BACKFILL_BATCH;
+		const batchSize = Math.min(
+			MAX_BACKFILL_BATCH,
+			Math.max(MIN_BACKFILL_BATCH, requestedBatch || DEFAULT_BACKFILL_BATCH),
+		);
+		const skip = Math.max(0, options?.skip ?? 0);
+
+		const where = {
+			status: UserStatus.ACTIVE,
+			role: UserRole.DRIVER,
+			lastActiveApp: { not: null },
+			externalId: { not: null },
+		};
+
+		const totalMatching = await this.prisma.user.count({ where });
+
 		const drivers = await this.prisma.user.findMany({
-			where: {
-				status: UserStatus.ACTIVE,
-				role: UserRole.DRIVER,
-				lastActiveApp: { not: null },
-				externalId: { not: null },
-			},
+			where,
 			select: {
 				id: true,
 				email: true,
 				externalId: true,
 			},
 			orderBy: { lastActiveApp: 'asc' },
+			skip,
+			take: batchSize,
 		});
 
 		let sent = 0;
@@ -100,12 +135,14 @@ export class TmsDriverApplicationService {
 			email: string | null;
 		}> = [];
 
+		let processedInBatch = 0;
 		for (const driver of drivers) {
 			const externalId = driver.externalId?.trim();
 			if (!externalId) {
 				continue;
 			}
 
+			processedInBatch++;
 			const ok = await this.notifyDriverApplicationActivated(externalId);
 			if (ok) {
 				sent++;
@@ -118,11 +155,19 @@ export class TmsDriverApplicationService {
 			}
 		}
 
+		const nextOffset = skip + drivers.length;
+		const hasMore = nextOffset < totalMatching;
+
 		return {
-			total: drivers.length,
+			totalMatching,
+			batchSize,
+			skip,
+			processedInBatch,
 			sent,
 			failed: failedDrivers.length,
 			failedDrivers,
+			hasMore,
+			nextSkip: hasMore ? nextOffset : null,
 		};
 	}
 }
