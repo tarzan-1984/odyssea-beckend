@@ -264,7 +264,7 @@ describe('UsersController', () => {
 			expect(usersService.updateUser).not.toHaveBeenCalled();
 		});
 
-		it('should strip profilePhoto when administrator updates another user', async () => {
+		it('should allow profilePhoto when administrator updates another user', async () => {
 			const adminOtherReq = {
 				user: {
 					id: 'admin-1',
@@ -284,10 +284,11 @@ describe('UsersController', () => {
 
 			expect(usersService.updateUser).toHaveBeenCalledWith('user-2', {
 				firstName: 'Bob',
+				profilePhoto: 'https://example.com/other.jpg',
 			});
 		});
 
-		it('should reject administrator update of another user when only profilePhoto is sent', async () => {
+		it('should allow administrator to update only profilePhoto of another user', async () => {
 			const adminOtherReq = {
 				user: {
 					id: 'admin-1',
@@ -296,14 +297,19 @@ describe('UsersController', () => {
 				},
 			} as AuthenticatedRequest;
 
-			await expect(
-				controller.updateUser(
-					'user-2',
-					{ profilePhoto: 'https://example.com/x.jpg' },
-					adminOtherReq,
-				),
-			).rejects.toThrow(BadRequestException);
-			expect(usersService.updateUser).not.toHaveBeenCalled();
+			const updatedUser = { ...mockUser, profilePhoto: 'https://example.com/x.jpg' };
+			mockUsersService.updateUser.mockResolvedValue(updatedUser);
+
+			const result = await controller.updateUser(
+				'user-2',
+				{ profilePhoto: 'https://example.com/x.jpg' },
+				adminOtherReq,
+			);
+
+			expect(usersService.updateUser).toHaveBeenCalledWith('user-2', {
+				profilePhoto: 'https://example.com/x.jpg',
+			});
+			expect(result).toEqual(updatedUser);
 		});
 	});
 

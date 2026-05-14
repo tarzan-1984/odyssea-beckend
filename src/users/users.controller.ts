@@ -799,8 +799,8 @@ export class UsersController {
 			? { ...updateUserDto }
 			: pickSelfServiceUserUpdate(updateUserDto);
 
-		// Avatar: only the account owner may set profilePhoto (including administrators).
-		if (req.user.id !== id) {
+		// Non-admins may only set profilePhoto on their own record.
+		if (req.user.id !== id && !isAdmin) {
 			delete body.profilePhoto;
 		}
 
