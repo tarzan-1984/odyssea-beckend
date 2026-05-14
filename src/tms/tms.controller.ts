@@ -2,8 +2,10 @@ import {
 	BadRequestException,
 	Body,
 	Controller,
+	DefaultValuePipe,
 	Delete,
 	Get,
+	HttpCode,
 	Logger,
 	Param,
 	Patch,
@@ -20,7 +22,9 @@ import { NotificationsWebSocketService } from '../notifications/notifications-we
 import { PrismaService } from '../prisma/prisma.service';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
 import { UpdateLoadTrackingPointDto } from './dto/update-load-tracking-point.dto';
+import { ActivateDriverApplicationBackfillDto } from './dto/activate-driver-application-backfill.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
+import { TmsDriverApplicationBackfillBackgroundService } from './tms-driver-application-backfill-background.service';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
 import {
 	TmsLoadDetailsResponse,
@@ -41,6 +45,7 @@ export class TmsController {
 	constructor(
 		private readonly tmsDriverLoadsService: TmsDriverLoadsService,
 		private readonly tmsDriverApplicationService: TmsDriverApplicationService,
+		private readonly tmsDriverApplicationBackfillBackgroundService: TmsDriverApplicationBackfillBackgroundService,
 		private readonly tmsLoadDetailsService: TmsLoadDetailsService,
 		private readonly tmsLoadRouteGeocodeService: TmsLoadRouteGeocodeService,
 		private readonly prisma: PrismaService,
@@ -271,24 +276,24 @@ export class TmsController {
 	@ApiQuery({
 		name: 'skip',
 		required: false,
-		description: 'Offset for next batch; use `nextSkip` from the previous response.',
+		description: 'Offset; use nextSkip from the previous response.',
 		example: 0,
 	})
-	@Post('driver/application/activate-backfill')
+	@Post('driver/application/activate-backfill-batch')
 	@SkipAuth()
+	@HttpCode(200)
 	@ApiOperation({
-		summary: 'Open one-time backfill: mark active app drivers as activated in TMS (paginated)',
+		summary:
+			'Sync one batch: TMS driver/application/activate for up to N drivers (manual pagination)',
 		description:
-			'Finds ACTIVE DRIVER users with last_active_app and externalId, ordered by lastActiveApp asc. ' +
-			'Each request processes at most `batchSize` rows (default 50, max 200) starting at `skip` (default 0). ' +
-			'Repeat with skip=nextSkip until hasMore is false. Avoids long single requests (e.g. Render timeout).',
+			'Loads ACTIVE drivers with last_active_app and externalId, ordered by lastActiveApp asc. ' +
+			'Processes one page of `batchSize` (default 50). Prefer POST /driver/application/activate-backfill for full background run.',
 	})
 	@ApiResponse({
-		status: 201,
-		description:
-			'Batch result: totalMatching, sent/failed for this batch, hasMore, nextSkip for the next call',
+		status: 200,
+		description: 'Batch counters and nextSkip when more rows remain',
 	})
-	async backfillDriverApplicationActivated(
+	async activateBackfillBatch(
 		@Query('batchSize') batchSizeRaw?: string,
 		@Query('skip') skipRaw?: string,
 	) {
@@ -298,6 +303,48 @@ export class TmsController {
 			batchSize: Number.isFinite(batchSizeParsed) ? batchSizeParsed : undefined,
 			skip: Number.isFinite(skipParsed) ? skipParsed : undefined,
 		});
+	}
+
+	@Post('driver/application/activate-backfill')
+	@SkipAuth()
+	@HttpCode(200)
+	@ApiOperation({
+		summary:
+			'Start background backfill: notify TMS for all matching drivers in batches of 50',
+		description: `Same filters as the batch endpoint, but runs in the background like POST /v1/users/import-users.
+Body is optional: \`{ "batchSize": 50 }\` (1–200, default 50).
+Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isComplete is true.`,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'jobId and message with status URL',
+		schema: {
+			type: 'object',
+			properties: {
+				jobId: { type: 'string' },
+				message: { type: 'string' },
+			},
+		},
+	})
+	async startActivateBackfill(
+		@Body(new DefaultValuePipe({})) body: ActivateDriverApplicationBackfillDto,
+	) {
+		return this.tmsDriverApplicationBackfillBackgroundService.startBackfill(
+			body.batchSize,
+		);
+	}
+
+	@Get('driver/application/activate-backfill-status/:jobId')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Get driver application activate backfill job status',
+		description:
+			'Progress, totals, and failed sample (capped). Same idea as GET /v1/users/import-users-status/:jobId.',
+	})
+	@ApiResponse({ status: 200, description: 'Job status' })
+	@ApiResponse({ status: 404, description: 'Unknown jobId' })
+	async getActivateBackfillStatus(@Param('jobId') jobId: string) {
+		return this.tmsDriverApplicationBackfillBackgroundService.getStatus(jobId);
 	}
 
 	@Post('load/status')
