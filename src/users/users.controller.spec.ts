@@ -2,7 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { UserRole, UserStatus } from '@prisma/client';
+import { AuthenticatedRequest } from '../types/request.types';
+import { ImportDriversService } from './services/import-drivers.service';
+import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
+import { ImportUsersService } from './services/import-users.service';
+import { ImportUsersBackgroundService } from './services/import-users-background.service';
 
 describe('UsersController', () => {
 	let controller: UsersController;
@@ -44,6 +50,10 @@ describe('UsersController', () => {
 					provide: UsersService,
 					useValue: mockUsersService,
 				},
+				{ provide: ImportDriversService, useValue: {} },
+				{ provide: ImportDriversBackgroundService, useValue: {} },
+				{ provide: ImportUsersService, useValue: {} },
+				{ provide: ImportUsersBackgroundService, useValue: {} },
 			],
 		}).compile();
 
@@ -83,7 +93,7 @@ describe('UsersController', () => {
 			expect(usersService.findAllUsers).toHaveBeenCalledWith(
 				1,
 				10,
-				UserRole.ADMINISTRATOR,
+				[UserRole.ADMINISTRATOR],
 				UserStatus.ACTIVE,
 				'test',
 				{ createdAt: 'desc' },
@@ -156,7 +166,15 @@ describe('UsersController', () => {
 	});
 
 	describe('updateUser', () => {
-		it('should update user successfully', async () => {
+		const adminReq = {
+			user: {
+				id: '1',
+				email: 'test@example.com',
+				role: UserRole.ADMINISTRATOR,
+			},
+		} as AuthenticatedRequest;
+
+		it('should update user successfully when administrator', async () => {
 			const updateUserDto: UpdateUserDto = {
 				firstName: 'Jane',
 				lastName: 'Smith',
@@ -165,13 +183,127 @@ describe('UsersController', () => {
 			const updatedUser = { ...mockUser, ...updateUserDto };
 			mockUsersService.updateUser.mockResolvedValue(updatedUser);
 
-			const result = await controller.updateUser('1', updateUserDto);
+			const result = await controller.updateUser(
+				'1',
+				updateUserDto,
+				adminReq,
+			);
 
 			expect(usersService.updateUser).toHaveBeenCalledWith(
 				'1',
 				updateUserDto,
 			);
 			expect(result).toEqual(updatedUser);
+		});
+
+		it('should allow self-update with permitted fields only', async () => {
+			const driverReq = {
+				user: {
+					id: 'user-1',
+					email: 'd@example.com',
+					role: UserRole.DRIVER,
+				},
+			} as AuthenticatedRequest;
+
+			const updateUserDto: UpdateUserDto = {
+				profilePhoto: 'https://example.com/a.jpg',
+				role: UserRole.ADMINISTRATOR,
+				email: 'hacker@example.com',
+			};
+
+			const updatedUser = {
+				...mockUser,
+				id: 'user-1',
+				role: UserRole.DRIVER,
+				profilePhoto: 'https://example.com/a.jpg',
+			};
+			mockUsersService.updateUser.mockResolvedValue(updatedUser);
+
+			await controller.updateUser('user-1', updateUserDto, driverReq);
+
+			expect(usersService.updateUser).toHaveBeenCalledWith('user-1', {
+				profilePhoto: 'https://example.com/a.jpg',
+			});
+		});
+
+		it('should reject update of another user when not administrator', async () => {
+			const driverReq = {
+				user: {
+					id: 'user-1',
+					email: 'd@example.com',
+					role: UserRole.DRIVER,
+				},
+			} as AuthenticatedRequest;
+
+			await expect(
+				controller.updateUser(
+					'user-2',
+					{ profilePhoto: 'https://example.com/x.jpg' },
+					driverReq,
+				),
+			).rejects.toThrow(ForbiddenException);
+			expect(usersService.updateUser).not.toHaveBeenCalled();
+		});
+
+		it('should reject self-update with no permitted fields', async () => {
+			const driverReq = {
+				user: {
+					id: 'user-1',
+					email: 'd@example.com',
+					role: UserRole.DRIVER,
+				},
+			} as AuthenticatedRequest;
+
+			await expect(
+				controller.updateUser(
+					'user-1',
+					{ role: UserRole.ADMINISTRATOR },
+					driverReq,
+				),
+			).rejects.toThrow(BadRequestException);
+			expect(usersService.updateUser).not.toHaveBeenCalled();
+		});
+
+		it('should strip profilePhoto when administrator updates another user', async () => {
+			const adminOtherReq = {
+				user: {
+					id: 'admin-1',
+					email: 'admin@example.com',
+					role: UserRole.ADMINISTRATOR,
+				},
+			} as AuthenticatedRequest;
+
+			const updateUserDto: UpdateUserDto = {
+				firstName: 'Bob',
+				profilePhoto: 'https://example.com/other.jpg',
+			};
+			const updatedUser = { ...mockUser, id: 'user-2', firstName: 'Bob' };
+			mockUsersService.updateUser.mockResolvedValue(updatedUser);
+
+			await controller.updateUser('user-2', updateUserDto, adminOtherReq);
+
+			expect(usersService.updateUser).toHaveBeenCalledWith('user-2', {
+				firstName: 'Bob',
+			});
+		});
+
+		it('should reject administrator update of another user when only profilePhoto is sent', async () => {
+			const adminOtherReq = {
+				user: {
+					id: 'admin-1',
+					email: 'admin@example.com',
+					role: UserRole.ADMINISTRATOR,
+				},
+			} as AuthenticatedRequest;
+
+			await expect(
+				controller.updateUser(
+					'user-2',
+					{ profilePhoto: 'https://example.com/x.jpg' },
+					adminOtherReq,
+				),
+			).rejects.toThrow(BadRequestException);
+			expect(usersService.updateUser).not.toHaveBeenCalled();
 		});
 	});
 

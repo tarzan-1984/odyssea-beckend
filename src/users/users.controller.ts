@@ -9,6 +9,7 @@ import {
 	Query,
 	UseGuards,
 	ForbiddenException,
+	BadRequestException,
 	HttpCode,
 	HttpStatus,
 	Request,
@@ -36,6 +37,30 @@ import { ImportUsersService } from './services/import-users.service';
 import { ImportUsersBackgroundService } from './services/import-users-background.service';
 import { UserRole, UserStatus } from '@prisma/client';
 import { AuthenticatedRequest } from '../types/request.types';
+
+/** Non-admin users may only PATCH these fields on their own record via PUT :id. */
+const SELF_USER_UPDATE_FIELDS: (keyof UpdateUserDto)[] = [
+	'profilePhoto',
+	'firstName',
+	'lastName',
+	'phone',
+	'location',
+	'state',
+	'zip',
+	'city',
+	'driverStatus',
+	'statusDate',
+];
+
+function pickSelfServiceUserUpdate(dto: UpdateUserDto): UpdateUserDto {
+	const out: UpdateUserDto = {};
+	for (const key of SELF_USER_UPDATE_FIELDS) {
+		if (dto[key] !== undefined) {
+			(out as Record<string, unknown>)[key] = dto[key];
+		}
+	}
+	return out;
+}
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -753,17 +778,38 @@ export class UsersController {
 	}
 
 	@Put(':id')
-	@ApiOperation({ summary: 'Update user (Admin only)' })
+	@ApiOperation({ summary: 'Update user (self or Administrator)' })
 	@ApiResponse({
 		status: 200,
 		description: 'User updated successfully',
 	})
+	@ApiResponse({ status: 403, description: 'Forbidden' })
 	@ApiResponse({ status: 404, description: 'User not found' })
 	async updateUser(
 		@Param('id') id: string,
 		@Body() updateUserDto: UpdateUserDto,
+		@Request() req: AuthenticatedRequest,
 	) {
-		return this.usersService.updateUser(id, updateUserDto);
+		const isAdmin = req.user.role === UserRole.ADMINISTRATOR;
+		if (!isAdmin && req.user.id !== id) {
+			throw new ForbiddenException('You are not allowed to update this user');
+		}
+
+		let body: UpdateUserDto = isAdmin
+			? { ...updateUserDto }
+			: pickSelfServiceUserUpdate(updateUserDto);
+
+		// Avatar: only the account owner may set profilePhoto (including administrators).
+		if (req.user.id !== id) {
+			delete body.profilePhoto;
+		}
+
+		const hasField = Object.values(body).some((v) => v !== undefined);
+		if (!hasField) {
+			throw new BadRequestException('No permitted fields to update');
+		}
+
+		return this.usersService.updateUser(id, body);
 	}
 
 	@Put(':id/password')
