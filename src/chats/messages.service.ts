@@ -9,6 +9,11 @@ import { FcmPushService } from '../notifications/fcm-push.service';
 import { ExpoPushService } from '../notifications/expo-push.service';
 import { UserRole } from '@prisma/client';
 
+/** Only drivers are restricted to messages after they joined; other roles see full history. */
+function shouldCutOffMessagesAtJoinedAt(role: UserRole | null | undefined): boolean {
+	return role === UserRole.DRIVER;
+}
+
 @Injectable()
 export class MessagesService {
 	constructor(
@@ -397,7 +402,8 @@ export class MessagesService {
 	 * - Default mode (no afterCreatedAt): paginated history (most recent messages first, then older ones for infinite scroll)
 	 * - Smart sync mode (afterCreatedAt provided): return messages created *after* the given timestamp,
 	 *   used by clients to fetch only new messages since the last known message.
-	 * Always filters messages to those created after the user joined the chat room.
+	 * For drivers, filters messages to those created after they joined the chat room.
+	 * Other roles see the full room history regardless of joinedAt.
 	 */
 	async getChatRoomMessages(
 		chatRoomId: string,
@@ -406,7 +412,7 @@ export class MessagesService {
 		limit: number = 50,
 		afterCreatedAt?: string,
 	) {
-		// Verify user is participant and get their join date
+		// Verify user is participant and load role for history cutoff rules
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
 				chatRoomId_userId: {
@@ -414,27 +420,35 @@ export class MessagesService {
 					userId,
 				},
 			},
+			include: {
+				user: { select: { role: true } },
+			},
 		});
 
 		if (!participant) {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
-		// Base filter: only messages created after the user joined
-		let messageFilter: any = {
-			chatRoomId,
-			createdAt: {
-				gte: participant.joinedAt,
-			},
-		};
+		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
+			? participant.joinedAt
+			: null;
+
+		// Base filter: full history for non-drivers; drivers only from joinedAt
+		let messageFilter: any = { chatRoomId };
+		if (joinedAtCutoff) {
+			messageFilter.createdAt = { gte: joinedAtCutoff };
+		}
 
 		// If afterCreatedAt is provided, switch to "smart sync" mode:
 		// fetch only messages created strictly after the given timestamp.
 		if (afterCreatedAt) {
 			const afterDate = new Date(afterCreatedAt);
 			if (!Number.isNaN(afterDate.getTime())) {
-				const minDate =
-					afterDate > participant.joinedAt ? afterDate : participant.joinedAt;
+				const minDate = joinedAtCutoff
+					? afterDate > joinedAtCutoff
+						? afterDate
+						: joinedAtCutoff
+					: afterDate;
 				messageFilter = {
 					...messageFilter,
 					createdAt: {
@@ -569,7 +583,7 @@ export class MessagesService {
 
 	/**
 	 * Get files (messages with fileUrl) for a specific chat room with pagination
-	 * Only shows files from messages created after the user joined the chat room
+	 * For drivers only: files from messages after joinedAt. Other roles: full history.
 	 */
 	async getChatRoomFiles(
 		chatRoomId: string,
@@ -577,7 +591,6 @@ export class MessagesService {
 		page: number = 1,
 		limit: number = 10,
 	) {
-		// Verify user is participant and get their join date
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
 				chatRoomId_userId: {
@@ -585,22 +598,28 @@ export class MessagesService {
 					userId,
 				},
 			},
+			include: {
+				user: { select: { role: true } },
+			},
 		});
 
 		if (!participant) {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
-		// Filter messages to only show those with files created after the user joined
-		const messageFilter = {
+		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
+			? participant.joinedAt
+			: null;
+
+		const messageFilter: any = {
 			chatRoomId,
 			fileUrl: {
-				not: null, // Only messages with files
-			},
-			createdAt: {
-				gte: participant.joinedAt, // Only messages created after user joined
+				not: null,
 			},
 		};
+		if (joinedAtCutoff) {
+			messageFilter.createdAt = { gte: joinedAtCutoff };
+		}
 
 		// Get total count of files first (filtered by join date and fileUrl)
 		const total = await this.prisma.message.count({
@@ -802,12 +821,34 @@ export class MessagesService {
 		chatRoomId: string,
 		userId: string,
 	): Promise<string[]> {
-		// Get all messages in this chat room that the user hasn't read yet
-		const messages = await this.prisma.message.findMany({
+		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
-				chatRoomId,
-				senderId: { not: userId }, // Not sent by current user
+				chatRoomId_userId: { chatRoomId, userId },
 			},
+			include: {
+				user: { select: { role: true } },
+			},
+		});
+
+		if (!participant) {
+			return [];
+		}
+
+		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
+			? participant.joinedAt
+			: null;
+
+		const where: any = {
+			chatRoomId,
+			senderId: { not: userId },
+		};
+		if (joinedAtCutoff) {
+			where.createdAt = { gte: joinedAtCutoff };
+		}
+
+		// Get messages in this chat room that the user hasn't read yet (respecting driver history cutoff)
+		const messages = await this.prisma.message.findMany({
+			where,
 			select: {
 				id: true,
 				readBy: true,
@@ -844,13 +885,21 @@ export class MessagesService {
 	 * Get unread message count for a user across all chat rooms
 	 */
 	async getUnreadCount(userId: string) {
-		// Get all chat rooms where user is a participant
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { role: true },
+		});
+		const isDriver = user?.role === UserRole.DRIVER;
+
 		const userChatRooms = await this.prisma.chatRoomParticipant.findMany({
 			where: { userId },
-			select: { chatRoomId: true },
+			select: { chatRoomId: true, joinedAt: true },
 		});
 
 		const chatRoomIds = userChatRooms.map((room) => room.chatRoomId);
+		const joinedAtByRoom = new Map(
+			userChatRooms.map((r) => [r.chatRoomId, r.joinedAt]),
+		);
 
 		// Get all messages not sent by user in their chat rooms
 		const messages = await this.prisma.message.findMany({
@@ -861,12 +910,20 @@ export class MessagesService {
 			select: {
 				id: true,
 				readBy: true,
+				chatRoomId: true,
+				createdAt: true,
 			},
 		});
 
 		// Count messages where user is not in readBy array
 		let unreadCount = 0;
 		for (const message of messages) {
+			if (isDriver) {
+				const joined = joinedAtByRoom.get(message.chatRoomId);
+				if (joined && message.createdAt < joined) {
+					continue;
+				}
+			}
 			const readBy = (message.readBy as string[]) || [];
 			const isRead = readBy.includes(userId);
 			if (!isRead) {
@@ -879,7 +936,7 @@ export class MessagesService {
 
 	/**
 	 * Mark all unread messages as read for specific chat rooms
-	 * Only marks messages created after user joined each chat room
+	 * For drivers only: considers messages after joinedAt. Other roles: entire room.
 	 * This is called when user clicks "Read all" button
 	 */
 	async markAllMessagesAsReadByChatRooms(
@@ -907,7 +964,7 @@ export class MessagesService {
 		// Process each chat room
 		for (const chatRoomId of chatRoomIds) {
 			try {
-				// Get user's join date for this chat room
+				// Get user's join date for this chat room (drivers only use cutoff for "read all")
 				const participant = await this.prisma.chatRoomParticipant.findUnique({
 					where: {
 						chatRoomId_userId: {
@@ -915,8 +972,8 @@ export class MessagesService {
 							userId,
 						},
 					},
-					select: {
-						joinedAt: true,
+					include: {
+						user: { select: { role: true } },
 					},
 				});
 
@@ -925,15 +982,19 @@ export class MessagesService {
 					continue;
 				}
 
-				// Find all messages in this chat room created after user joined
+				const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
+					? participant.joinedAt
+					: null;
+
+				const whereMessages: any = { chatRoomId };
+				if (joinedAtCutoff) {
+					whereMessages.createdAt = { gte: joinedAtCutoff };
+				}
+
+				// Find all messages in this chat room (after join cutoff for drivers only)
 				// We'll filter by readBy in JavaScript since Prisma doesn't support JSON array contains easily
 				const allMessages = await this.prisma.message.findMany({
-					where: {
-						chatRoomId,
-						createdAt: {
-							gte: participant.joinedAt,
-						},
-					},
+					where: whereMessages,
 					select: {
 						id: true,
 						readBy: true,
@@ -1094,23 +1155,35 @@ export class MessagesService {
 					userId,
 				},
 			},
+			include: {
+				user: { select: { role: true } },
+			},
 		});
 
 		if (!participant) {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
+		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
+			? participant.joinedAt
+			: null;
+
+		const searchWhere: any = {
+			chatRoomId,
+			content: {
+				contains: query,
+				mode: 'insensitive' as const,
+			},
+		};
+		if (joinedAtCutoff) {
+			searchWhere.createdAt = { gte: joinedAtCutoff };
+		}
+
 		const skip = (page - 1) * limit;
 
 		const [messages, total] = await Promise.all([
 			this.prisma.message.findMany({
-				where: {
-					chatRoomId,
-					content: {
-						contains: query,
-						mode: 'insensitive', // Case-insensitive search
-					},
-				},
+				where: searchWhere,
 				orderBy: { createdAt: 'asc' },
 				skip,
 				take: limit,
@@ -1127,13 +1200,7 @@ export class MessagesService {
 				},
 			}),
 			this.prisma.message.count({
-				where: {
-					chatRoomId,
-					content: {
-						contains: query,
-						mode: 'insensitive',
-					},
-				},
+				where: searchWhere,
 			}),
 		]);
 
@@ -1153,7 +1220,6 @@ export class MessagesService {
 	 * Useful for managers to monitor communication activity
 	 */
 	async getMessageStats(chatRoomId: string, userId: string) {
-		// Verify user is participant
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
 				chatRoomId_userId: {
@@ -1161,11 +1227,19 @@ export class MessagesService {
 					userId,
 				},
 			},
+			include: {
+				user: { select: { role: true } },
+				chatRoom: { select: { createdAt: true } },
+			},
 		});
 
 		if (!participant) {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
+
+		const periodStartDate = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
+			? participant.joinedAt
+			: participant.chatRoom.createdAt;
 
 		const [totalMessages, messagesToday, messagesThisWeek, fileMessages] =
 			await Promise.all([
@@ -1211,9 +1285,7 @@ export class MessagesService {
 									1,
 									Math.ceil(
 										(Date.now() -
-											new Date(
-												participant.joinedAt,
-											).getTime()) /
+											new Date(periodStartDate).getTime()) /
 											(1000 * 60 * 60 * 24),
 									),
 								)) *

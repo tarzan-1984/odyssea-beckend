@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { S3Service } from '../s3/s3.service';
@@ -49,9 +50,13 @@ export class MessagesArchiveService {
   }
 
   /**
-   * Get user's join date for a specific chat room
+   * Join date used to filter archived messages for a user.
+   * Drivers only see archive from joinedAt; other roles see the full archive.
    */
-  private async getUserJoinDate(chatRoomId: string, userId: string): Promise<Date | null> {
+  private async getArchiveCutoffJoinDate(
+    chatRoomId: string,
+    userId: string,
+  ): Promise<Date | null> {
     try {
       const participant = await this.prisma.chatRoomParticipant.findUnique({
         where: {
@@ -62,10 +67,17 @@ export class MessagesArchiveService {
         },
         select: {
           joinedAt: true,
+          user: { select: { role: true } },
         },
       });
 
-      return participant?.joinedAt || null;
+      if (!participant) {
+        return null;
+      }
+      if (participant.user?.role !== UserRole.DRIVER) {
+        return null;
+      }
+      return participant.joinedAt;
     } catch (error) {
       this.logger.error(`Failed to get user join date for ${userId} in chat room ${chatRoomId}:`, error);
       return null;
@@ -816,7 +828,7 @@ export class MessagesArchiveService {
 
       // If userId is provided, filter messages by user's join date
       if (userId) {
-        const userJoinDate = await this.getUserJoinDate(chatRoomId, userId);
+        const userJoinDate = await this.getArchiveCutoffJoinDate(chatRoomId, userId);
         
         if (userJoinDate) {
           const filteredMessages = this.filterMessagesByJoinDate(archiveFile.messages, userJoinDate);
