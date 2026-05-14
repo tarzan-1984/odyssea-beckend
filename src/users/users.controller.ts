@@ -576,6 +576,7 @@ export class UsersController {
 									'SUBSCRIBER',
 									'ACCOUNTING',
 									'RECRUITER_TL',
+									'HR_MANAGER',
 									'TRACKING',
 									'DISPATCHER_TL',
 									'TRACKING_TL',

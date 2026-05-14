@@ -317,6 +317,9 @@ export class ImportUsersService {
 		if (externalRoles.includes('recruiter-tl')) {
 			return UserRole.RECRUITER_TL;
 		}
+		if (externalRoles.includes('hr_manager')) {
+			return UserRole.HR_MANAGER;
+		}
 		if (externalRoles.includes('driver')) {
 			return UserRole.DRIVER;
 		}

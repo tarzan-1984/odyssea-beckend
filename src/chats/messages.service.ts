@@ -237,6 +237,7 @@ export class MessagesService {
 						const allowedRolesForExpiredDocuments = [
 							UserRole.RECRUITER,
 							UserRole.RECRUITER_TL,
+							UserRole.HR_MANAGER,
 							UserRole.ADMINISTRATOR,
 							UserRole.EXPEDITE_MANAGER,
 						];

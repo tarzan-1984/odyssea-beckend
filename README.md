@@ -576,6 +576,7 @@ GET /v1/users/import-status/import-1695998400000
 | `dispatcher-tl`       | `DISPATCHER_TL`       | Диспетчер-тил-лидер        |
 | `recruiter`           | `RECRUITER`           | Рекрутер                   |
 | `recruiter-tl`        | `RECRUITER_TL`        | Рекрутер-тил-лидер         |
+| `hr_manager`          | `HR_MANAGER`          | HR-менеджер                |
 | `driver`              | `DRIVER`              | Водитель                   |
 | `driver_updates`      | `DRIVER_UPDATES`      | Обновления водителей       |
 | `tracking`            | `TRACKING`            | Отслеживание               |
