@@ -609,6 +609,7 @@ export class ChatGateway
 				lastName: string;
 				avatar?: string | null;
 				role: string;
+				externalId?: string | null;
 			};
 			receiver?: {
 				id: string;

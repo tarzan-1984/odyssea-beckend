@@ -80,6 +80,7 @@ export class MessagesService {
 						lastName: true,
 						profilePhoto: true,
 						role: true,
+						externalId: true,
 					},
 				},
 				receiver: {
@@ -89,6 +90,7 @@ export class MessagesService {
 						lastName: true,
 						profilePhoto: true,
 						role: true,
+						externalId: true,
 					},
 				},
 			},
@@ -327,6 +329,7 @@ export class MessagesService {
 						message.sender.profilePhoto ||
 						'',
 					role: message.sender.role || '',
+					externalId: message.sender.externalId ?? '',
 				}),
 				// Serialize receiver object if exists
 				receiver: message.receiver
@@ -339,6 +342,7 @@ export class MessagesService {
 								message.receiver.profilePhoto ||
 								'',
 							role: message.receiver.role || '',
+							externalId: message.receiver.externalId ?? '',
 						})
 					: '',
 				// Serialize replyData if exists (stored as JSON in DB)
@@ -477,6 +481,7 @@ export class MessagesService {
 							lastName: true,
 							profilePhoto: true,
 							role: true,
+							externalId: true,
 						},
 					},
 					receiver: {
@@ -486,6 +491,7 @@ export class MessagesService {
 							lastName: true,
 							profilePhoto: true,
 							role: true,
+							externalId: true,
 						},
 					},
 				},
@@ -530,6 +536,7 @@ export class MessagesService {
 							lastName: true,
 							profilePhoto: true,
 							role: true,
+							externalId: true,
 						},
 					},
 					receiver: {
@@ -539,6 +546,7 @@ export class MessagesService {
 							lastName: true,
 							profilePhoto: true,
 							role: true,
+							externalId: true,
 						},
 					},
 				},
@@ -643,6 +651,7 @@ export class MessagesService {
 						lastName: true,
 						profilePhoto: true,
 						role: true,
+						externalId: true,
 					},
 				},
 				receiver: {
@@ -652,6 +661,7 @@ export class MessagesService {
 						lastName: true,
 						profilePhoto: true,
 						role: true,
+						externalId: true,
 					},
 				},
 			},
@@ -1195,6 +1205,7 @@ export class MessagesService {
 							lastName: true,
 							profilePhoto: true,
 							role: true,
+							externalId: true,
 						},
 					},
 				},
