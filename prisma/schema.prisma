@@ -248,6 +248,8 @@ model ChatRoom {
   updatedAt    DateTime              @updatedAt
   avatar       String?
   adminId      String?               @map("admin")
+  /// UTC instant when TMS reported load as delivered (set from POST /tms/load/status).
+  deliveryAt   DateTime?
   participants ChatRoomParticipant[]
   admin        User?                 @relation("ChatRoomAdmin", fields: [adminId], references: [id])
   offer        Offer?                @relation(fields: [offerId], references: [id], onDelete: SetNull)
