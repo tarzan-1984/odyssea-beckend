@@ -3,8 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArchiveBackgroundService } from './services/archive-background.service';
 import { ChatGateway } from './chat.gateway';
-
-const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+import { AppSettingsService } from '../app-settings/app-settings.service';
 
 @Injectable()
 export class DeliveredLoadChatCleanupScheduler {
@@ -13,13 +12,23 @@ export class DeliveredLoadChatCleanupScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly archiveBackgroundService: ArchiveBackgroundService,
+    private readonly appSettingsService: AppSettingsService,
     @Inject(ChatGateway) private readonly chatGateway: ChatGateway,
   ) {}
 
-  /** Every 3 hours: remove LOAD chats delivered ≥5h ago (deliveryAt) — same pipeline as manual delete. */
+  /** Every 3 hours: remove LOAD chats whose deliveryAt is older than configured hours. */
   @Cron('0 */3 * * *')
   async cleanupStaleDeliveredLoadChats() {
-    const cutoff = new Date(Date.now() - FIVE_HOURS_MS);
+    let cutoff: Date;
+    try {
+      cutoff = await this.appSettingsService.getDeliveredLoadChatArchiveCutoffDate();
+    } catch (error) {
+      this.logger.error(
+        'Failed to read delivered LOAD chat archive hours from app settings',
+        error,
+      );
+      return;
+    }
 
     let chats;
     try {

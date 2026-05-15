@@ -21,11 +21,13 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AppSettingsModule } from '../app-settings/app-settings.module';
 
 @Module({
 	imports: [
 		PrismaModule,
 		NotificationsModule, // Import NotificationsModule to get FcmPushService
+		AppSettingsModule,
 		JwtModule.registerAsync({
 			imports: [ConfigModule],
 			useFactory: (configService: ConfigService) => ({

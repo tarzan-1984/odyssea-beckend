@@ -4,6 +4,7 @@ import { UpdateAppSettingsDto } from './dto/update-app-settings.dto';
 import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-settings.dto';
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
 import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
+import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-load-chat-app-settings.dto';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { UserRole, UserStatus } from '@prisma/client';
 
@@ -59,6 +60,7 @@ export class AppSettingsService {
 				tmsBatchChunkSize: 150,
 				locationEnvironmentMode: 'live',
 				locationTestDriverExternalId: '3343',
+				deliveredLoadChatArchiveAfterHours: 5,
 			},
 			update: {},
 		});
@@ -181,6 +183,45 @@ export class AppSettingsService {
 			tmsBatchChunkSize: row.tmsBatchChunkSize,
 			updatedAt: row.updatedAt,
 		};
+	}
+
+	async getDeliveredLoadChatAppSettings() {
+		const row = await this.getGlobal();
+		return {
+			id: row.id,
+			deliveredLoadChatArchiveAfterHours: row.deliveredLoadChatArchiveAfterHours,
+			updatedAt: row.updatedAt,
+		};
+	}
+
+	async updateDeliveredLoadChatAppSettings(
+		dto: UpdateDeliveredLoadChatAppSettingsDto,
+	) {
+		await this.getGlobal();
+		await this.prisma.appSetting.update({
+			where: { id: GLOBAL_APP_SETTINGS_ID },
+			data: {
+				deliveredLoadChatArchiveAfterHours:
+					dto.deliveredLoadChatArchiveAfterHours,
+			},
+		});
+		return this.getDeliveredLoadChatAppSettings();
+	}
+
+	/**
+	 * Cutoff instant for LOAD chats with deliveryAt: messages with deliveryAt <= this
+	 * are candidates for archive+delete (cleanup cron).
+	 */
+	async getDeliveredLoadChatArchiveCutoffDate(): Promise<Date> {
+		const row = await this.getGlobal();
+		let hours = row.deliveredLoadChatArchiveAfterHours;
+		if (typeof hours !== 'number' || !Number.isFinite(hours) || hours < 1) {
+			hours = 5;
+		}
+		if (hours > 720) {
+			hours = 720;
+		}
+		return new Date(Date.now() - hours * 60 * 60 * 1000);
 	}
 
 	async getLocationEnvironmentAppSettings() {

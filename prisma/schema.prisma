@@ -131,6 +131,10 @@ model AppSetting {
    * Email recipient for public account deletion requests form (/delete-account).
    */
   accountDeletionRequestEmail      String   @default("") @map("account_deletion_request_email")
+  /**
+   * Hours after LOAD chat deliveryAt before the backend archives and deletes the chat (cron).
+   */
+  deliveredLoadChatArchiveAfterHours Int      @default(5) @map("delivered_load_chat_archive_after_hours")
   createdAt                        DateTime @default(now()) @map("created_at")
   updatedAt                        DateTime @updatedAt @map("updated_at")
 

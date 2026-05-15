@@ -22,6 +22,7 @@ import { UpdateAppSettingsDto } from './dto/update-app-settings.dto';
 import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-settings.dto';
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
 import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
+import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-load-chat-app-settings.dto';
 
 @ApiTags('App settings')
 @ApiBearerAuth()
@@ -157,6 +158,39 @@ export class AppSettingsController {
 			);
 		}
 		return this.appSettingsService.updateOffersAppSettings(dto);
+	}
+
+	@Get('delivered-load-chat')
+	@ApiOperation({
+		summary:
+			'Hours after deliveryAt before LOAD chats are archived and deleted (admin UI, cleanup cron)',
+	})
+	@ApiResponse({ status: 200, description: 'Delivered LOAD chat retention hours' })
+	async getDeliveredLoadChat(@Request() req: AuthenticatedRequest) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can read delivered LOAD chat settings',
+			);
+		}
+		return this.appSettingsService.getDeliveredLoadChatAppSettings();
+	}
+
+	@Put('delivered-load-chat')
+	@ApiOperation({
+		summary:
+			'Update hours after deliveryAt before LOAD chat cleanup cron runs (admin only)',
+	})
+	@ApiResponse({ status: 200, description: 'Updated' })
+	async updateDeliveredLoadChat(
+		@Request() req: AuthenticatedRequest,
+		@Body() dto: UpdateDeliveredLoadChatAppSettingsDto,
+	) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can update delivered LOAD chat settings',
+			);
+		}
+		return this.appSettingsService.updateDeliveredLoadChatAppSettings(dto);
 	}
 
 	@Get('usage-stats')
