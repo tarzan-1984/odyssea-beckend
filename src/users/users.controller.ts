@@ -758,6 +758,10 @@ export class UsersController {
 					nullable: true,
 					description: 'Driver status value',
 				},
+				deactivateAccount: {
+					type: 'boolean',
+					description: 'TMS soft-remove flag (account deactivated)',
+				},
 			},
 		},
 	})

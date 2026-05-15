@@ -587,6 +587,7 @@ export class UsersService {
 				location: true,
 				statusDate: true,
 				isAutoupdate: true,
+				deactivateAccount: true,
 			},
 		});
 
@@ -607,6 +608,7 @@ export class UsersService {
 			location: user.location ?? null,
 			statusDate: user.statusDate ?? null,
 			isAutoupdate: user.isAutoupdate ?? false,
+			deactivateAccount: user.deactivateAccount === true,
 		};
 	}
 
@@ -684,6 +686,37 @@ export class UsersService {
 				updatedAt: true,
 			},
 		});
+
+		const profile = await this.prisma.user.findUnique({
+			where: { id: existing.id },
+			select: {
+				id: true,
+				role: true,
+				driverStatus: true,
+				zip: true,
+				city: true,
+				state: true,
+				location: true,
+				statusDate: true,
+				isAutoupdate: true,
+				deactivateAccount: true,
+			},
+		});
+		if (profile?.role === UserRole.DRIVER) {
+			await this.notificationsWebSocketService.sendDriverProfileSync(
+				profile.id,
+				{
+					driverStatus: profile.driverStatus ?? null,
+					zip: profile.zip ?? null,
+					city: profile.city ?? null,
+					state: profile.state ?? null,
+					location: profile.location ?? null,
+					statusDate: profile.statusDate ?? null,
+					isAutoupdate: profile.isAutoupdate ?? false,
+					deactivateAccount: profile.deactivateAccount === true,
+				},
+			);
+		}
 
 		return {
 			driverId: externalId,
@@ -1519,6 +1552,7 @@ export class UsersService {
 					driverStatus: true,
 					statusDate: true,
 					isAutoupdate: true,
+					deactivateAccount: true,
 				},
 			});
 
@@ -1532,6 +1566,7 @@ export class UsersService {
 					location: updatedUser.location ?? null,
 					statusDate: updatedUser.statusDate ?? null,
 					isAutoupdate: updatedUser.isAutoupdate ?? false,
+					deactivateAccount: updatedUser.deactivateAccount === true,
 				},
 			);
 
@@ -1542,6 +1577,7 @@ export class UsersService {
 					{
 						driverStatus: newDriverStatus,
 						isAutoupdate: updatedUser.isAutoupdate ?? false,
+						deactivateAccount: updatedUser.deactivateAccount === true,
 					},
 				);
 				// Best-effort push: app may be in background and miss WebSocket.

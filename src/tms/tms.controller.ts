@@ -488,6 +488,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 						isAutoupdate: true,
 						isTracking: true,
 						trackingLoadId: true,
+						deactivateAccount: true,
 					},
 				}),
 				this.prisma.chatRoom.updateMany({
@@ -508,6 +509,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 				location: updatedDriver.location ?? null,
 				statusDate: updatedDriver.statusDate ?? null,
 				isAutoupdate: updatedDriver.isAutoupdate ?? false,
+				deactivateAccount: updatedDriver.deactivateAccount === true,
 			});
 
 			return {
@@ -548,6 +550,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 				isAutoupdate: true,
 				isTracking: true,
 				trackingLoadId: true,
+				deactivateAccount: true,
 			},
 		});
 
@@ -588,12 +591,14 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 			location: updatedDriver.location ?? null,
 			statusDate: updatedDriver.statusDate ?? null,
 			isAutoupdate: updatedDriver.isAutoupdate ?? false,
+			deactivateAccount: updatedDriver.deactivateAccount === true,
 		});
 
 		if (oldDriverStatus !== updatedDriver.driverStatus) {
 			await this.notificationsWebSocketService.sendDriverStatusUpdate(driver.id, {
 				driverStatus: updatedDriver.driverStatus ?? null,
 				isAutoupdate: updatedDriver.isAutoupdate ?? false,
+				deactivateAccount: updatedDriver.deactivateAccount === true,
 			});
 
 			this.notificationsService

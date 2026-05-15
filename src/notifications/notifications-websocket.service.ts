@@ -131,7 +131,11 @@ export class NotificationsWebSocketService {
 	 */
 	async sendDriverStatusUpdate(
 		userId: string,
-		payload: { driverStatus: string | null; isAutoupdate: boolean },
+		payload: {
+			driverStatus: string | null;
+			isAutoupdate: boolean;
+			deactivateAccount?: boolean;
+		},
 	) {
 		try {
 			if (!this.server) {
@@ -166,6 +170,7 @@ export class NotificationsWebSocketService {
 			location: string | null;
 			statusDate: string | null;
 			isAutoupdate: boolean;
+			deactivateAccount?: boolean;
 		},
 	) {
 		try {
