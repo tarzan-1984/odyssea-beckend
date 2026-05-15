@@ -210,16 +210,16 @@ export class ChatGateway
 				this.chatRoomsService
 					.getUserChatRooms(userId)
 					.then((chatRooms) => {
-					for (const room of chatRooms) {
-						// Notify all participants in the room that user is offline
-						void this.server
-							.to(`chat_${room.id}`)
-							.emit('userOnline', {
-								userId: userId,
-								chatRoomId: room.id,
-								isOnline: false,
-							});
-					}
+						for (const room of chatRooms) {
+							// Notify all participants in the room that user is offline
+							void this.server
+								.to(`chat_${room.id}`)
+								.emit('userOnline', {
+									userId: userId,
+									chatRoomId: room.id,
+									isOnline: false,
+								});
+						}
 					})
 					.catch((error) => {
 						console.error(
