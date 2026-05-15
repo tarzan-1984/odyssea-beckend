@@ -81,6 +81,7 @@ export class MessagesService {
 						profilePhoto: true,
 						role: true,
 						externalId: true,
+						phone: true,
 					},
 				},
 				receiver: {
@@ -91,6 +92,7 @@ export class MessagesService {
 						profilePhoto: true,
 						role: true,
 						externalId: true,
+						phone: true,
 					},
 				},
 			},
@@ -330,6 +332,7 @@ export class MessagesService {
 						'',
 					role: message.sender.role || '',
 					externalId: message.sender.externalId ?? '',
+					phone: message.sender.phone ?? '',
 				}),
 				// Serialize receiver object if exists
 				receiver: message.receiver
@@ -343,6 +346,7 @@ export class MessagesService {
 								'',
 							role: message.receiver.role || '',
 							externalId: message.receiver.externalId ?? '',
+							phone: message.receiver.phone ?? '',
 						})
 					: '',
 				// Serialize replyData if exists (stored as JSON in DB)
@@ -482,6 +486,7 @@ export class MessagesService {
 							profilePhoto: true,
 							role: true,
 							externalId: true,
+							phone: true,
 						},
 					},
 					receiver: {
@@ -492,6 +497,7 @@ export class MessagesService {
 							profilePhoto: true,
 							role: true,
 							externalId: true,
+							phone: true,
 						},
 					},
 				},
@@ -537,6 +543,7 @@ export class MessagesService {
 							profilePhoto: true,
 							role: true,
 							externalId: true,
+							phone: true,
 						},
 					},
 					receiver: {
@@ -547,6 +554,7 @@ export class MessagesService {
 							profilePhoto: true,
 							role: true,
 							externalId: true,
+							phone: true,
 						},
 					},
 				},
@@ -652,6 +660,7 @@ export class MessagesService {
 						profilePhoto: true,
 						role: true,
 						externalId: true,
+						phone: true,
 					},
 				},
 				receiver: {
@@ -662,6 +671,7 @@ export class MessagesService {
 						profilePhoto: true,
 						role: true,
 						externalId: true,
+						phone: true,
 					},
 				},
 			},
@@ -1206,6 +1216,7 @@ export class MessagesService {
 							profilePhoto: true,
 							role: true,
 							externalId: true,
+							phone: true,
 						},
 					},
 				},

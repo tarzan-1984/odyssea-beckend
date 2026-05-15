@@ -610,6 +610,7 @@ export class ChatGateway
 				avatar?: string | null;
 				role: string;
 				externalId?: string | null;
+				phone?: string | null;
 			};
 			receiver?: {
 				id: string;
