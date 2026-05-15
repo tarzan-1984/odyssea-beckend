@@ -16,6 +16,29 @@ export class MessagesArchiveController {
   ) {}
 
   /**
+   * Import all archived messages for a chat room into PostgreSQL (no auth — manual ops / Insomnia).
+   * Expects ChatRoom row to exist with the same id as in archive paths.
+   */
+  @SkipAuth()
+  @Post('chat-rooms/:chatRoomId/restore-from-archive')
+  async restoreMessagesFromArchive(@Param('chatRoomId') chatRoomId: string) {
+    this.logger.warn(`Restore messages from archive (public) for chat ${chatRoomId}`);
+
+    try {
+      const data = await this.messagesArchiveService.restoreMessagesFromArchiveForChatRoom(chatRoomId);
+
+      return {
+        success: true,
+        data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(`Restore from archive failed for ${chatRoomId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get available archive days for a chat room
    */
   @Get('chat-rooms/:chatRoomId/days')

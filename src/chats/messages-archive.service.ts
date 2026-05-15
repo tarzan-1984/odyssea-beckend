@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -97,6 +97,173 @@ export class MessagesArchiveService {
       return messageDate >= joinDate;
     });
   }
+  /**
+   * List daily and legacy monthly archive objects for restore, oldest first.
+   */
+  private async listArchiveRestoreTargets(
+    chatRoomId: string,
+  ): Promise<Array<{ year: number; month: number; day?: number }>> {
+    const prefix = `archive/chat-rooms/${chatRoomId}/`;
+    const objects = await this.s3Service.listObjects(prefix);
+    const targets: Array<{ year: number; month: number; day?: number; sortKey: number }> = [];
+
+    for (const object of objects) {
+      if (!object.Key) {
+        continue;
+      }
+      const parts = object.Key.split('/');
+
+      if (parts.length === 6 && parts[5].endsWith('.json')) {
+        const year = parseInt(parts[3], 10);
+        const month = parseInt(parts[4], 10);
+        const day = parseInt(parts[5].replace('.json', ''), 10);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          targets.push({
+            year,
+            month,
+            day,
+            sortKey: new Date(year, month - 1, day).getTime(),
+          });
+        }
+      } else if (parts.length === 5 && parts[4].endsWith('.json')) {
+        const year = parseInt(parts[3], 10);
+        const month = parseInt(parts[4].replace('.json', ''), 10);
+        if (!isNaN(year) && !isNaN(month)) {
+          targets.push({
+            year,
+            month,
+            sortKey: new Date(year, month - 1, 1).getTime(),
+          });
+        }
+      }
+    }
+
+    targets.sort((a, b) => a.sortKey - b.sortKey);
+    return targets.map(({ sortKey: _s, ...rest }) => rest);
+  }
+
+  /**
+   * Download all archive slices for a chat room and insert messages into the database.
+   * Archive rows omit replyData/readBy/receiverId; those stay null. Idempotent via skipDuplicates.
+   */
+  async restoreMessagesFromArchiveForChatRoom(chatRoomId: string): Promise<{
+    archiveFilesProcessed: number;
+    uniqueMessagesInArchive: number;
+    insertedCount: number;
+    skippedWrongChatRoom: number;
+    skippedAlreadyInDatabase: number;
+    archiveTargetsFound: number;
+  }> {
+    const room = await this.prisma.chatRoom.findUnique({
+      where: { id: chatRoomId },
+      select: { id: true },
+    });
+
+    if (!room) {
+      throw new BadRequestException(`Chat room not found: ${chatRoomId}`);
+    }
+
+    let targets: Array<{ year: number; month: number; day?: number }>;
+    try {
+      targets = await this.listArchiveRestoreTargets(chatRoomId);
+    } catch (error) {
+      this.logger.error(`Failed to list archive objects for restore (${chatRoomId}):`, error);
+      throw new BadRequestException('Failed to list archives from storage');
+    }
+
+    if (targets.length === 0) {
+      return {
+        archiveTargetsFound: 0,
+        archiveFilesProcessed: 0,
+        uniqueMessagesInArchive: 0,
+        insertedCount: 0,
+        skippedWrongChatRoom: 0,
+        skippedAlreadyInDatabase: 0,
+      };
+    }
+
+    const byId = new Map<string, ArchiveMessage>();
+    let skippedWrongChatRoom = 0;
+    let filesRead = 0;
+
+    for (const t of targets) {
+      const file = await this.loadArchivedMessages(chatRoomId, t.year, t.month, t.day, undefined);
+      if (!file?.messages?.length) {
+        continue;
+      }
+      filesRead++;
+
+      for (const m of file.messages) {
+        if (m.chatRoomId !== chatRoomId) {
+          skippedWrongChatRoom++;
+          continue;
+        }
+        if (!byId.has(m.id)) {
+          byId.set(m.id, m);
+        }
+      }
+    }
+
+    const messages = Array.from(byId.values());
+    if (messages.length === 0) {
+      return {
+        archiveTargetsFound: targets.length,
+        archiveFilesProcessed: filesRead,
+        uniqueMessagesInArchive: 0,
+        insertedCount: 0,
+        skippedWrongChatRoom,
+        skippedAlreadyInDatabase: 0,
+      };
+    }
+
+    const senderIds = [...new Set(messages.map((m) => m.senderId))];
+    const existingSenders = await this.prisma.user.findMany({
+      where: { id: { in: senderIds } },
+      select: { id: true },
+    });
+    const senderOk = new Set(existingSenders.map((u) => u.id));
+    const missingSenders = senderIds.filter((id) => !senderOk.has(id));
+    if (missingSenders.length > 0) {
+      throw new BadRequestException(
+        `Cannot restore: ${missingSenders.length} message sender user(s) not in database (example: ${missingSenders[0]})`,
+      );
+    }
+
+    const rows = messages.map((m) => ({
+      id: m.id,
+      chatRoomId,
+      senderId: m.senderId,
+      content: m.content ?? '',
+      fileUrl: m.fileUrl ?? null,
+      fileName: m.fileName ?? null,
+      fileSize: m.fileSize ?? null,
+      createdAt: new Date(m.createdAt),
+      isRead: m.isRead ?? false,
+    }));
+
+    const chunkSize = 300;
+    let insertedCount = 0;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const res = await this.prisma.message.createMany({
+        data: chunk,
+        skipDuplicates: true,
+      });
+      insertedCount += res.count;
+    }
+
+    const skippedAlreadyInDatabase = Math.max(0, rows.length - insertedCount);
+
+    return {
+      archiveTargetsFound: targets.length,
+      archiveFilesProcessed: filesRead,
+      uniqueMessagesInArchive: rows.length,
+      insertedCount,
+      skippedWrongChatRoom,
+      skippedAlreadyInDatabase,
+    };
+  }
+
   private getArchiveFilePath(chatRoomId: string, year: number, month: number, day?: number): string {
     const monthStr = month.toString().padStart(2, '0');
     
