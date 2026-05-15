@@ -14,6 +14,7 @@ import { ChatGateway } from './chat.gateway';
 import { FileUploadService } from './file-upload.service';
 import { MessagesArchiveService } from './messages-archive.service';
 import { MessagesArchiveScheduler } from './messages-archive.scheduler';
+import { DeliveredLoadChatCleanupScheduler } from './delivered-load-chat-cleanup.scheduler';
 import { ArchiveBackgroundService } from './services/archive-background.service';
 import { S3Service } from '../s3/s3.service';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -50,6 +51,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 		MessagesService,
 		MessagesArchiveService,
 		MessagesArchiveScheduler,
+		DeliveredLoadChatCleanupScheduler,
 		ArchiveBackgroundService,
 		S3Service,
 		ChatGateway,

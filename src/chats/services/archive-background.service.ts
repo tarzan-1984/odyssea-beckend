@@ -59,6 +59,22 @@ export class ArchiveBackgroundService {
    * Start full archive for a specific chat room (all remaining messages by day) and delete chat after completion
    */
   async startFullArchiveAndDelete(chatRoomId: string) {
+    for (const job of this.jobs.values()) {
+      if (
+        job.status === 'processing' &&
+        job.currentChatRoom === chatRoomId &&
+        job.id.startsWith('full-archive-')
+      ) {
+        this.logger.warn(
+          `⏭️ Full archive already running for chat room ${chatRoomId} (job ${job.id}), skipping duplicate start`,
+        );
+        return {
+          jobId: job.id,
+          message: `Full archive already in progress. Job ID: ${job.id}`,
+        };
+      }
+    }
+
     const jobId = `full-archive-${chatRoomId}-${Date.now()}`;
     this.logger.log(`🚀 Starting full archive and delete for chat room: ${chatRoomId} (Job ID: ${jobId})`);
     this.jobs.set(jobId, {
