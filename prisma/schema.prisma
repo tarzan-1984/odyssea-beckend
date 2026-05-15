@@ -259,6 +259,8 @@ model ChatRoom {
   offer        Offer?                @relation(fields: [offerId], references: [id], onDelete: SetNull)
   messages     Message[]
 
+  /// One LOAD chat per loadId (TMS race-safe; pairs with null loadId are not constrained).
+  @@unique([loadId, type], map: "chat_rooms_load_id_type_key")
   @@map("chat_rooms")
 }
 

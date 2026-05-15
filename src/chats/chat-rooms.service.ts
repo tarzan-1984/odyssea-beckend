@@ -1409,44 +1409,78 @@ export class ChatRoomsService {
 			}
 		}
 
-		const completeChatRoom = await this.prisma.$transaction(async (prisma) => {
-			const chatRoom = await prisma.chatRoom.create({
-				data: {
-					name: title,
-					type: 'LOAD',
-					loadId: load_id,
-					company,
-					avatar: null,
-					adminId: null,
-				},
-			});
-
-			const participantsData = desiredUnique.map((userId) => ({
-				chatRoomId: chatRoom.id,
-				userId,
-				isHidden: false,
-				hideParticipant: hiddenParticipantIds.includes(userId),
-			}));
-
-			await prisma.chatRoomParticipant.createMany({
-				data: participantsData,
-			});
-
-			return prisma.chatRoom.findUnique({
-				where: { id: chatRoom.id },
-				include: fullChatInclude,
-			});
+		// Another request may have created or converted LOAD while we resolved participants / offer path
+		const existingAfterOffer = await this.prisma.chatRoom.findFirst({
+			where: { type: 'LOAD', loadId: load_id },
+			include: fullChatInclude,
 		});
-
-		if (!completeChatRoom) {
-			throw new InternalServerErrorException('LOAD chat not found after creation');
+		if (existingAfterOffer) {
+			return { chatRoom: existingAfterOffer, kind: 'noop', hardDeletedChats: [] };
 		}
 
-		return {
-			chatRoom: completeChatRoom,
-			kind: 'created',
-			hardDeletedChats: [],
-		};
+		try {
+			const outcome = await this.prisma.$transaction(async (prisma) => {
+				const dup = await prisma.chatRoom.findFirst({
+					where: { type: 'LOAD', loadId: load_id },
+					include: fullChatInclude,
+				});
+				if (dup) {
+					return { tag: 'noop' as const, chatRoom: dup };
+				}
+
+				const chatRoom = await prisma.chatRoom.create({
+					data: {
+						name: title,
+						type: 'LOAD',
+						loadId: load_id,
+						company,
+						avatar: null,
+						adminId: null,
+					},
+				});
+
+				const participantsData = desiredUnique.map((userId) => ({
+					chatRoomId: chatRoom.id,
+					userId,
+					isHidden: false,
+					hideParticipant: hiddenParticipantIds.includes(userId),
+				}));
+
+				await prisma.chatRoomParticipant.createMany({
+					data: participantsData,
+				});
+
+				const full = await prisma.chatRoom.findUnique({
+					where: { id: chatRoom.id },
+					include: fullChatInclude,
+				});
+				if (!full) {
+					throw new InternalServerErrorException('LOAD chat not found after creation');
+				}
+				return { tag: 'created' as const, chatRoom: full };
+			});
+
+			if (outcome.tag === 'noop') {
+				return { chatRoom: outcome.chatRoom, kind: 'noop', hardDeletedChats: [] };
+			}
+
+			return {
+				chatRoom: outcome.chatRoom,
+				kind: 'created',
+				hardDeletedChats: [],
+			};
+		} catch (e) {
+			if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+				const existing = await this.prisma.chatRoom.findFirst({
+					where: { type: 'LOAD', loadId: load_id },
+					include: fullChatInclude,
+				});
+				if (existing) {
+					return { chatRoom: existing, kind: 'noop', hardDeletedChats: [] };
+				}
+			}
+			throw e;
+		}
 	}
 
 	/**
