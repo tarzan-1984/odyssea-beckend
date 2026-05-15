@@ -650,6 +650,49 @@ export class UsersService {
 	}
 
 	/**
+	 * TMS webhook: soft-remove or restore driver — updates users.deactivateAccount by externalId.
+	 */
+	async applyTmsDriverRemoveWebhook(
+		driverId: string,
+		event: 'remove-soft' | 'restore',
+	) {
+		const externalId = String(driverId ?? '').trim();
+		if (!externalId) {
+			throw new BadRequestException('driverId is required');
+		}
+
+		const deactivateAccount = event === 'remove-soft';
+
+		const existing = await this.prisma.user.findFirst({
+			where: { externalId },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(
+				`User with externalId matching driverId not found`,
+			);
+		}
+
+		const user = await this.prisma.user.update({
+			where: { id: existing.id },
+			data: { deactivateAccount },
+			select: {
+				id: true,
+				externalId: true,
+				deactivateAccount: true,
+				updatedAt: true,
+			},
+		});
+
+		return {
+			driverId: externalId,
+			event,
+			user,
+		};
+	}
+
+	/**
 	 * Finds user by external ID
 	 */
 	async findUserByExternalId(

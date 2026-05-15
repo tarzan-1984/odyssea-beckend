@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { UsersController } from './users.controller';
 import { SyncController } from './sync.controller';
+import { DriversWebhookController } from './drivers-webhook.controller';
 import { UsersService } from './users.service';
 import { ImportDriversService } from './services/import-drivers.service';
 import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
@@ -20,7 +21,7 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
 		TmsModule,
 		AppSettingsModule,
 	],
-	controllers: [UsersController, SyncController],
+		controllers: [UsersController, SyncController, DriversWebhookController],
 	providers: [
 		UsersService,
 		ImportDriversService,

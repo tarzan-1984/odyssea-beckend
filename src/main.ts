@@ -100,7 +100,7 @@ async function bootstrap() {
 			process.env.FRONTEND_URL || 'http://localhost:3000',
 		],
 		methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-		allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+		allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key'],
 		credentials: true,
 	});
 
