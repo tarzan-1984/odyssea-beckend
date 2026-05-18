@@ -932,7 +932,7 @@ export class UsersService {
 			locationDto.isManualDriverLocationAction === true;
 		if (isBackgroundPing) {
 			this.logger.log(
-				`Location update [background] userId=${id} role=${user.role} externalId=${user.externalId ?? ''}`,
+				`Location update [background] userId=${id} role=${user.role} externalId=${user.externalId ?? ''} payload=${JSON.stringify(locationDto)}`,
 			);
 		}
 
