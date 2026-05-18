@@ -27,8 +27,59 @@ export class MessagesService {
 	 * This method handles text messages and file attachments
 	 */
 	async sendMessage(sendMessageDto: SendMessageDto, senderId: string) {
-		const { chatRoomId, content, fileUrl, fileName, fileSize, replyData } =
-			sendMessageDto;
+		const {
+			chatRoomId,
+			content,
+			fileUrl,
+			fileName,
+			fileSize,
+			replyData,
+			attachments,
+		} = sendMessageDto;
+
+		const trimmedContent = content?.trim() ?? '';
+		const attachmentList =
+			Array.isArray(attachments) && attachments.length > 0 ? attachments : null;
+
+		let effectiveFileUrl = fileUrl ?? null;
+		let effectiveFileName = fileName ?? null;
+		let effectiveFileSize: number | null = fileSize ?? null;
+
+		if (attachmentList) {
+			for (const a of attachmentList) {
+				if (!a.fileUrl?.trim() || !a.fileName?.trim()) {
+					throw new BadRequestException(
+						'Each attachment must include fileUrl and fileName',
+					);
+				}
+				// Pipe is the multi-file delimiter in DB columns; reject if present in a single segment
+				if (a.fileUrl.includes('|') || a.fileName.includes('|')) {
+					throw new BadRequestException(
+						'fileUrl and fileName must not contain "|" (reserved as multi-file separator)',
+					);
+				}
+			}
+			if (attachmentList.length < 2) {
+				throw new BadRequestException(
+					'attachments array requires at least 2 items; use fileUrl for a single file',
+				);
+			}
+			// Store multiple files in one row: pipe-delimited (legacy single-file rows unchanged)
+			effectiveFileUrl = attachmentList.map((a) => a.fileUrl.trim()).join('|');
+			effectiveFileName = attachmentList.map((a) => a.fileName.trim()).join('|');
+			effectiveFileSize = attachmentList[0].fileSize ?? null;
+		}
+
+		const hasBody =
+			trimmedContent.length > 0 ||
+			!!effectiveFileUrl ||
+			(attachmentList && attachmentList.length > 0);
+
+		if (!hasBody) {
+			throw new BadRequestException(
+				'Message must have non-empty content or at least one attachment',
+			);
+		}
 
 		// Verify sender is participant in the chat room
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
@@ -58,9 +109,10 @@ export class MessagesService {
 				chatRoomId,
 				senderId,
 				content,
-				fileUrl,
-				fileName,
-				fileSize,
+				fileUrl: effectiveFileUrl,
+				fileName: effectiveFileName,
+				fileSize: effectiveFileSize,
+				attachments: undefined,
 				replyData, // Store reply data as JSON
 				// For direct chats, set receiverId; for group chats, leave null
 				receiverId:
@@ -292,11 +344,22 @@ export class MessagesService {
 				notificationTitle = chatRoom?.name || 'Group Chat';
 			}
 
+			const pipeUrlCount =
+				message.fileUrl && message.fileName
+					? (() => {
+							const u = message.fileUrl.split('|');
+							const n = message.fileName.split('|');
+							return u.length >= 2 && u.length === n.length ? u.length : 0;
+						})()
+					: 0;
+
 			const body =
 				(message.content && String(message.content).trim()) ||
-				(message.fileName
-					? `Sent a file: ${message.fileName}`
-					: 'New message');
+				(pipeUrlCount > 0
+					? `Sent ${pipeUrlCount} files`
+					: message.fileName
+						? `Sent a file: ${message.fileName}`
+						: 'New message');
 
 			// Get chat room avatar
 			const chatAvatar = await this.getChatRoomAvatar(

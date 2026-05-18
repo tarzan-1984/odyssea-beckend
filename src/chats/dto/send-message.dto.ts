@@ -1,5 +1,7 @@
-import { IsString, IsOptional, IsNumber, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsObject, IsArray, ValidateNested, ArrayMaxSize } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { MessageAttachmentDto } from './message-attachment.dto';
 
 export class SendMessageDto {
 	@ApiProperty({
@@ -61,4 +63,17 @@ export class SendMessageDto {
 		content: string;
 		senderName: string;
 	};
+
+	@ApiProperty({
+		description:
+			'2+ files in one message. Stored as pipe-separated values in fileUrl and fileName (legacy rows may use attachments JSON instead).',
+		required: false,
+		type: [MessageAttachmentDto],
+	})
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(20)
+	@ValidateNested({ each: true })
+	@Type(() => MessageAttachmentDto)
+	attachments?: MessageAttachmentDto[];
 }

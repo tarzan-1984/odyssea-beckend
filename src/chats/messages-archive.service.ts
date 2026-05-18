@@ -15,6 +15,7 @@ export interface ArchiveMessage {
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
+  attachments?: unknown;
   sender: {
     id: string;
     firstName: string;
@@ -510,6 +511,7 @@ export class MessagesArchiveService {
           fileUrl: msg.fileUrl,
           fileName: msg.fileName,
           fileSize: msg.fileSize,
+          attachments: msg.attachments ?? undefined,
           sender: msg.sender,
         })),
         totalCount: messages.length,
