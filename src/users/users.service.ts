@@ -956,13 +956,38 @@ export class UsersService {
 		})();
 
 		const data: Prisma.UserUpdateInput = {
-			city: locationDto.city,
-			state: locationDto.state,
-			zip: locationDto.zip,
 			latitude: locationDto.latitude,
 			longitude: locationDto.longitude,
 			lastLocationUpdateAt: nowNy,
 		};
+
+		const cityIncoming = locationDto.city;
+		if (
+			cityIncoming !== undefined &&
+			cityIncoming !== null &&
+			String(cityIncoming).trim() !== ''
+		) {
+			data.city = String(cityIncoming).trim();
+		}
+
+		const stateIncoming = locationDto.state;
+		if (
+			stateIncoming !== undefined &&
+			stateIncoming !== null &&
+			String(stateIncoming).trim() !== ''
+		) {
+			data.state = String(stateIncoming).trim();
+		}
+
+		const zipIncoming = locationDto.zip;
+		if (
+			zipIncoming !== undefined &&
+			zipIncoming !== null &&
+			String(zipIncoming).trim() !== ''
+		) {
+			data.zip = String(zipIncoming).trim();
+		}
+
 		// Do not overwrite DB `location` when client sends no TMS code (empty string).
 		const locationIncoming = locationDto.location;
 		if (
@@ -1228,6 +1253,19 @@ export class UsersService {
 	}
 
 	/**
+	 * TMS driver webhook: persist address-like columns only when TMS sends these statuses.
+	 */
+	private isTmsWebhookLocationFieldsApplicable(
+		driverStatus: string | undefined | null,
+	): boolean {
+		const n = String(driverStatus ?? '')
+			.trim()
+			.toLowerCase()
+			.replace(/-/g, '_');
+		return n === 'available' || n === 'available_on';
+	}
+
+	/**
 	 * Processes webhook sync data from TMS
 	 * Handles add, update, and delete operations for drivers and employees
 	 */
@@ -1374,15 +1412,20 @@ export class UsersService {
 			return null;
 		};
 
+		const applyWebhookLocationFields =
+			this.isTmsWebhookLocationFieldsApplicable(driver_status);
+
 		const userData: Prisma.UserUncheckedCreateInput = {
 			externalId: driverId,
 			email: driver_email,
 			firstName,
 			lastName,
 			phone: driver_phone,
-			location: current_location || home_location, // Use current_location if available, fallback to home_location
-			city: current_city || null,
-			zip: extractZipCode(current_zipcode),
+			location: applyWebhookLocationFields
+				? current_location || home_location || null
+				: null,
+			city: applyWebhookLocationFields ? current_city || null : null,
+			zip: applyWebhookLocationFields ? extractZipCode(current_zipcode) : null,
 			role: mappedRole,
 			vin,
 			type: vehicle_type,
@@ -1504,14 +1547,17 @@ export class UsersService {
 			if (status_date !== undefined) {
 				updateData.statusDate = status_date || null;
 			}
-			if (home_location !== undefined || current_location !== undefined) {
+			if (
+				applyWebhookLocationFields &&
+				(home_location !== undefined || current_location !== undefined)
+			) {
 				const loc = current_location ?? home_location;
 				updateData.location = loc ?? null;
 			}
-			if (current_city !== undefined) {
+			if (applyWebhookLocationFields && current_city !== undefined) {
 				updateData.city = current_city || null;
 			}
-			if (current_zipcode !== undefined) {
+			if (applyWebhookLocationFields && current_zipcode !== undefined) {
 				updateData.zip = extractZipCode(current_zipcode);
 			}
 			if (vehicle_type !== undefined) {
