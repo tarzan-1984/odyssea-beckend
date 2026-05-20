@@ -23,6 +23,7 @@ import { StorageModule } from './storage/storage.module';
 import { OffersModule } from './offers/offers.module';
 import { AppSettingsModule } from './app-settings/app-settings.module';
 import { PublicModule } from './public/public.module';
+import { MessageTemplatesModule } from './message-templates/message-templates.module';
 
 @Module({
 	imports: [
@@ -50,6 +51,7 @@ import { PublicModule } from './public/public.module';
 		OffersModule,
 		AppSettingsModule,
 		PublicModule,
+		MessageTemplatesModule,
 	],
 	controllers: [AppController],
 	providers: [],
