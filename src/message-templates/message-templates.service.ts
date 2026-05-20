@@ -2,8 +2,9 @@ import {
 	Injectable,
 	BadRequestException,
 	NotFoundException,
+	ForbiddenException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertMessageTemplateDto } from './dto/upsert-message-template.dto';
 
@@ -96,6 +97,38 @@ export class MessageTemplatesService {
 			},
 			select: templateSelect,
 		});
+	}
+
+	async deleteForUser(
+		userId: string,
+		userRole: string,
+		templateId: number,
+	): Promise<{ id: number }> {
+		const template = await this.prisma.messageTemplate.findUnique({
+			where: { id: templateId },
+			select: { id: true, externalId: true },
+		});
+		if (!template) {
+			throw new NotFoundException('Template not found');
+		}
+
+		const isAdmin = userRole === UserRole.ADMINISTRATOR;
+		if (!isAdmin) {
+			const user = await this.prisma.user.findUnique({
+				where: { id: userId },
+				select: { externalId: true },
+			});
+			const myExt = user?.externalId ?? null;
+			if (!myExt || template.externalId !== myExt) {
+				throw new ForbiddenException('Cannot delete this template');
+			}
+		}
+
+		await this.prisma.messageTemplate.delete({
+			where: { id: templateId },
+		});
+
+		return { id: templateId };
 	}
 
 	async listForUser(

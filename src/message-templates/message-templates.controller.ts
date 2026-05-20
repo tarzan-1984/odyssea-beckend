@@ -1,7 +1,10 @@
 import {
 	Body,
 	Controller,
+	Delete,
 	Get,
+	Param,
+	ParseIntPipe,
 	Post,
 	Query,
 	Request,
@@ -12,6 +15,7 @@ import {
 	ApiBearerAuth,
 	ApiBody,
 	ApiOperation,
+	ApiParam,
 	ApiQuery,
 	ApiTags,
 } from '@nestjs/swagger';
@@ -80,5 +84,23 @@ export class MessageTemplatesController {
 		@Body() body: UpsertMessageTemplateDto,
 	) {
 		return this.messageTemplatesService.upsertForUser(req.user.id, body);
+	}
+
+	@Delete(':id')
+	@ApiOperation({
+		summary: 'Delete message template',
+		description:
+			'Owner (matching TMS externalId) may delete own templates. Administrators may delete any template.',
+	})
+	@ApiParam({ name: 'id', type: Number })
+	async remove(
+		@Request() req: AuthenticatedRequest,
+		@Param('id', ParseIntPipe) id: number,
+	) {
+		return this.messageTemplatesService.deleteForUser(
+			req.user.id,
+			req.user.role,
+			id,
+		);
 	}
 }
