@@ -307,7 +307,7 @@ model Message {
 
 /// Saved text snippets for chat, keyed by TMS / user external id.
 model MessageTemplate {
-  id         String   @id @default(cuid())
+  id         Int      @id @default(autoincrement())
   externalId String
   title      String?
   content    String?

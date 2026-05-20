@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE "public"."message_templates" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "externalId" TEXT NOT NULL,
     "title" TEXT,
     "content" TEXT,
