@@ -43,6 +43,8 @@ model User {
   type                 String?
   vin                  String?
   driverStatus         String?
+  /// Theme / UI accent color for the user (e.g. hex #RRGGBB). Optional.
+  userColor            String?               @map("user_color")
   // Date/time when driver set status (e.g. "02/11/26 2:30 PM")
   statusDate           String?
   isAutoupdate         Boolean               @default(false) @map("is_autoupdate")
