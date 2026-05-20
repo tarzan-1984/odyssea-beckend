@@ -1,6 +1,8 @@
 import {
+	Body,
 	Controller,
 	Get,
+	Post,
 	Query,
 	Request,
 	UseGuards,
@@ -8,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
 	ApiBearerAuth,
+	ApiBody,
 	ApiOperation,
 	ApiQuery,
 	ApiTags,
@@ -18,6 +21,7 @@ import {
 	MessageTemplatesService,
 	MessageTemplateScope,
 } from './message-templates.service';
+import { UpsertMessageTemplateDto } from './dto/upsert-message-template.dto';
 
 @ApiTags('Message templates')
 @ApiBearerAuth()
@@ -62,5 +66,19 @@ export class MessageTemplatesController {
 			limit,
 			search,
 		);
+	}
+
+	@Post()
+	@ApiOperation({
+		summary: 'Create or update a message template',
+		description:
+			'Omit id to create a template for the current user (their TMS externalId). Send id to update title/content when that template belongs to the user.',
+	})
+	@ApiBody({ type: UpsertMessageTemplateDto })
+	async upsert(
+		@Request() req: AuthenticatedRequest,
+		@Body() body: UpsertMessageTemplateDto,
+	) {
+		return this.messageTemplatesService.upsertForUser(req.user.id, body);
 	}
 }

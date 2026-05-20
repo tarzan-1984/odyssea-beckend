@@ -1,6 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+	Injectable,
+	BadRequestException,
+	NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpsertMessageTemplateDto } from './dto/upsert-message-template.dto';
 
 export type MessageTemplateScope = 'personal' | 'company';
 
@@ -24,9 +29,74 @@ export interface MessageTemplatesListResult {
 	pagination: MessageTemplatesPagination;
 }
 
+export type MessageTemplateRow = MessageTemplatesListResult['items'][number];
+
+const templateSelect = {
+	id: true,
+	externalId: true,
+	title: true,
+	content: true,
+	createdAt: true,
+	updatedAt: true,
+} as const;
+
 @Injectable()
 export class MessageTemplatesService {
 	constructor(private readonly prisma: PrismaService) {}
+
+	async upsertForUser(
+		userId: string,
+		dto: UpsertMessageTemplateDto,
+	): Promise<MessageTemplateRow> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		const externalId = user?.externalId ?? null;
+		if (!externalId) {
+			throw new BadRequestException(
+				'Cannot save templates without a linked TMS external ID',
+			);
+		}
+
+		const rawTitle = dto.title ?? '';
+		const rawContent = dto.content ?? '';
+		const titleTrimmed = rawTitle.trim();
+		const contentTrimmed = rawContent.trim();
+		if (!contentTrimmed) {
+			throw new BadRequestException('Message content is required');
+		}
+
+		const titleValue = titleTrimmed.length > 0 ? titleTrimmed : null;
+
+		if (dto.id != null) {
+			const owned = await this.prisma.messageTemplate.findFirst({
+				where: { id: dto.id, externalId },
+				select: { id: true },
+			});
+			if (!owned) {
+				throw new NotFoundException('Template not found');
+			}
+
+			return this.prisma.messageTemplate.update({
+				where: { id: dto.id },
+				data: {
+					title: titleValue,
+					content: contentTrimmed,
+				},
+				select: templateSelect,
+			});
+		}
+
+		return this.prisma.messageTemplate.create({
+			data: {
+				externalId,
+				title: titleValue,
+				content: contentTrimmed,
+			},
+			select: templateSelect,
+		});
+	}
 
 	async listForUser(
 		userId: string,
@@ -91,14 +161,7 @@ export class MessageTemplatesService {
 				skip,
 				take: safeLimit,
 				orderBy: { updatedAt: 'desc' },
-				select: {
-					id: true,
-					externalId: true,
-					title: true,
-					content: true,
-					createdAt: true,
-					updatedAt: true,
-				},
+				select: templateSelect,
 			}),
 		]);
 
