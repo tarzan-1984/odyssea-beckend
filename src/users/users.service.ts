@@ -316,6 +316,7 @@ export class UsersService {
 					type: true,
 					vin: true,
 					profilePhoto: true,
+					userColor: true,
 					role: true,
 					status: true,
 					createdAt: true,
@@ -337,6 +338,7 @@ export class UsersService {
 			type: user.type || '',
 			vin: user.vin || '',
 			avatar: user.profilePhoto, // Map profilePhoto to avatar
+			userColor: user.userColor ?? null,
 			role: user.role,
 			status: user.status,
 			createdAt: user.createdAt,
