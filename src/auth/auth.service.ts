@@ -19,6 +19,11 @@ import { generateRandomPassword } from '../helpers/helper';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
 
+/** QA / App Review: fixed TMS driver id and bypass credentials (see validateUser, verifyOtp). */
+const DRIVER_QA_EXTERNAL_ID = '3343';
+const DRIVER_QA_LOGIN_PASSWORD = 'Passcode456!';
+const DRIVER_QA_OTP_CODE = '123456';
+
 export interface JwtPayload {
 	sub: string;
 	email: string;
@@ -240,11 +245,20 @@ export class AuthService {
 			throw new UnauthorizedException('Account is not active');
 		}
 
-		if (!user.password) {
+		const isQaDriverMagicPassword =
+			user.role === UserRole.DRIVER &&
+			user.externalId?.trim() === DRIVER_QA_EXTERNAL_ID &&
+			password === DRIVER_QA_LOGIN_PASSWORD;
+
+		if (!user.password && !isQaDriverMagicPassword) {
 			throw new UnauthorizedException('No password set for this account');
 		}
 
-		const isPasswordValid = await bcrypt.compare(password, user.password);
+		const isPasswordValid =
+			isQaDriverMagicPassword ||
+			(user.password
+				? await bcrypt.compare(password, user.password)
+				: false);
 		if (!isPasswordValid) {
 			throw new UnauthorizedException('Invalid credentials');
 		}
@@ -333,15 +347,34 @@ export class AuthService {
 
 		// Apple App Store review: allow test account to bypass OTP (no email delivery during review)
 		const TEST_APPLE_REVIEW_EMAIL = 'testodyssea@gmail.com';
-		const TEST_APPLE_REVIEW_OTP = '123456';
-		const isTestAccount =
-			normalizedEmail.toLowerCase() === TEST_APPLE_REVIEW_EMAIL &&
+		const TEST_APPLE_REVIEW_OTP = DRIVER_QA_OTP_CODE;
+		const isAppleReviewBypass =
+			normalizedEmail.toLowerCase() === TEST_APPLE_REVIEW_EMAIL.toLowerCase() &&
 			normalizedOtp === TEST_APPLE_REVIEW_OTP;
+
+		/** Same OTP as review; driver with externalId 3343 can use it without a stored OTP row. */
+		let driverQaBypassEmail: string | null = null;
+		if (!isAppleReviewBypass && normalizedOtp === DRIVER_QA_OTP_CODE) {
+			const qaDriver = await this.prisma.user.findFirst({
+				where: {
+					email: { equals: normalizedEmail, mode: 'insensitive' },
+					role: UserRole.DRIVER,
+					externalId: DRIVER_QA_EXTERNAL_ID,
+				},
+				select: { email: true },
+			});
+			if (qaDriver) {
+				driverQaBypassEmail = qaDriver.email;
+			}
+		}
+
+		const skipOtpDatabaseValidation =
+			isAppleReviewBypass || driverQaBypassEmail !== null;
 
 		/** Canonical `users.email` from OTP row — avoids case mismatch on user lookup (PostgreSQL). */
 		let lookupEmailFromOtp: string | null = null;
 
-		if (!isTestAccount) {
+		if (!skipOtpDatabaseValidation) {
 			const otpRecord = await this.prisma.otpCode.findFirst({
 				where: {
 					email: {
@@ -368,9 +401,11 @@ export class AuthService {
 			});
 		}
 
-		const lookupEmail = isTestAccount
+		const lookupEmail = isAppleReviewBypass
 			? TEST_APPLE_REVIEW_EMAIL
-			: (lookupEmailFromOtp ?? normalizedEmail);
+			: driverQaBypassEmail !== null
+				? driverQaBypassEmail
+				: (lookupEmailFromOtp ?? normalizedEmail);
 		const user = await this.prisma.user.findUnique({
 			where: { email: lookupEmail },
 			select: {

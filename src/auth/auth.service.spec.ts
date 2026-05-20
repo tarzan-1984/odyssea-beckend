@@ -20,6 +20,7 @@ describe('AuthService', () => {
 	const mockPrismaService = {
 		user: {
 			findUnique: jest.fn(),
+			findFirst: jest.fn(),
 			update: jest.fn(),
 		},
 		otpCode: {
@@ -132,7 +133,7 @@ describe('AuthService', () => {
 		});
 
 		it('should validate user successfully', async () => {
-			mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 			mockPrismaService.user.update.mockResolvedValue(mockUser);
 
 			const result = await service.validateUser(
@@ -141,13 +142,19 @@ describe('AuthService', () => {
 			);
 
 			expect(result).toEqual(mockUser);
-			expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
-				where: { email: 'test@example.com' },
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+				where: {
+					email: {
+						equals: 'test@example.com',
+						mode: 'insensitive',
+					},
+				},
+				select: expect.any(Object),
 			});
 		});
 
 		it('should throw UnauthorizedException for non-existent user', async () => {
-			mockPrismaService.user.findUnique.mockResolvedValue(null);
+			mockPrismaService.user.findFirst.mockResolvedValue(null);
 
 			await expect(
 				service.validateUser('test@example.com', 'password123'),
@@ -156,7 +163,7 @@ describe('AuthService', () => {
 
 		it('should throw UnauthorizedException for inactive user', async () => {
 			const inactiveUser = { ...mockUser, status: UserStatus.INACTIVE };
-			mockPrismaService.user.findUnique.mockResolvedValue(inactiveUser);
+			mockPrismaService.user.findFirst.mockResolvedValue(inactiveUser);
 
 			await expect(
 				service.validateUser('test@example.com', 'password123'),
@@ -183,7 +190,7 @@ describe('AuthService', () => {
 				password: hashedPassword,
 			};
 
-			mockPrismaService.user.findUnique.mockResolvedValue(
+			mockPrismaService.user.findFirst.mockResolvedValue(
 				userWithHashedPassword,
 			);
 			mockPrismaService.otpCode.create.mockResolvedValue({
@@ -229,6 +236,8 @@ describe('AuthService', () => {
 		};
 
 		it('should verify OTP and return tokens successfully', async () => {
+			// Not driver 3343 QA bypass — skip second user.findFirst branch for 123456
+			mockPrismaService.user.findFirst.mockResolvedValueOnce(null);
 			(
 				mockPrismaService.otpCode.findFirst as jest.MockedFunction<any>
 			).mockResolvedValue(mockOtpRecord);
@@ -262,10 +271,16 @@ describe('AuthService', () => {
 				role: mockUser.role,
 				status: mockUser.status,
 				avatar: '',
+				externalId: '',
+				phone: '',
+				location: '',
+				zip: '',
+				statusDate: '',
 			});
 		});
 
 		it('should throw BadRequestException for invalid OTP', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValue(null);
 			mockPrismaService.otpCode.findFirst.mockResolvedValue(null);
 
 			await expect(
@@ -314,6 +329,9 @@ describe('AuthService', () => {
 				role: mockUser.role,
 				status: mockUser.status,
 				avatar: '',
+				externalId: '',
+				phone: '',
+				location: '',
 			});
 		});
 
