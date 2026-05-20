@@ -7,6 +7,10 @@ import {
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
 import { logImportDuplicate } from './import-duplicate-logger';
+import {
+	buildImportMergeUpdate,
+	isBlankString,
+} from './import-users-merge.helper';
 
 export interface ImportUserJobData {
 	page: number;
@@ -352,6 +356,12 @@ export class ImportUsersBackgroundService {
 		const mappedRole = this.mapRoleToUserRole(user.roles);
 
 		const permissionView = user.acf_fields?.permission_view ?? [];
+		const initialsColorRaw = (
+			user.acf_fields?.initials_color ?? ''
+		).trim();
+		const userColorFromTms = isBlankString(initialsColorRaw)
+			? null
+			: initialsColorRaw;
 
 		const userData = {
 			externalId: user.id.toString(),
@@ -361,6 +371,7 @@ export class ImportUsersBackgroundService {
 			phone: user.acf_fields?.phone_number || '',
 			location: user.acf_fields?.work_location || '',
 			company: this.normalizeCompany(permissionView),
+			userColor: userColorFromTms,
 			role: mappedRole,
 			status: UserStatus.INACTIVE,
 			password: null,
@@ -372,17 +383,35 @@ export class ImportUsersBackgroundService {
 		});
 
 		if (existingUser) {
-			// User exists - update all fields except email (keep original email)
-			await this.prisma.user.update({
-				where: { id: existingUser.id },
-				data: {
+			const mergeData = buildImportMergeUpdate(
+				{
+					firstName: existingUser.firstName,
+					lastName: existingUser.lastName,
+					phone: existingUser.phone,
+					location: existingUser.location,
+					company: existingUser.company,
+					userColor: existingUser.userColor ?? null,
+				},
+				{
 					firstName: userData.firstName,
 					lastName: userData.lastName,
 					phone: userData.phone,
 					location: userData.location,
 					company: userData.company,
+					userColor: userData.userColor,
+				},
+			);
+
+			const roleUnchanged = existingUser.role === userData.role;
+			if (Object.keys(mergeData).length === 0 && roleUnchanged) {
+				return 'skipped';
+			}
+
+			await this.prisma.user.update({
+				where: { id: existingUser.id },
+				data: {
+					...mergeData,
 					role: userData.role,
-					// Do not overwrite status, password, or profilePhoto for existing users.
 				},
 			});
 			return 'updated';
@@ -408,7 +437,19 @@ export class ImportUsersBackgroundService {
 
 			// Create new user
 			await this.prisma.user.create({
-				data: userData,
+				data: {
+					externalId: userData.externalId,
+					email: userData.email,
+					firstName: userData.firstName,
+					lastName: userData.lastName,
+					phone: userData.phone || null,
+					location: userData.location || null,
+					company: userData.company,
+					userColor: userData.userColor,
+					role: userData.role,
+					status: userData.status,
+					password: userData.password,
+				},
 			});
 			return 'imported';
 		}

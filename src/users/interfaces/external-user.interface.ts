@@ -6,12 +6,12 @@ export interface ExternalUser {
   last_name: string;
   roles: string[];
   user_registered: string;
-  acf_fields: {
-    permission_view: string[];
-    initials_color: string;
-    work_location: string;
-    phone_number: string | null;
-    flt: boolean | null;
+  acf_fields?: {
+    permission_view?: string[];
+    initials_color?: string | null;
+    work_location?: string;
+    phone_number?: string | null;
+    flt?: boolean | null;
   };
 }
 
