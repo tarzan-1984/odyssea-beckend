@@ -8,6 +8,7 @@ import { TmsDriverLocationBatchService } from './tms-driver-location-batch.servi
 import { TmsLoadDraftService } from './tms-load-draft.service';
 import { TmsDriverDraftLoadsService } from './tms-driver-draft-loads.service';
 import { TmsAppDraftLoadsService } from './tms-app-draft-loads.service';
+import { DriverTrackingRetentionScheduler } from './driver-tracking-retention.scheduler';
 import { TmsLocationBatchScheduler } from './tms-location-batch.scheduler';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
 import { TmsLoadDetailsService } from './tms-load-details.service';
@@ -24,6 +25,7 @@ import { TmsController } from './tms.controller';
 		TmsDriverDraftLoadsService,
 		TmsAppDraftLoadsService,
 		TmsLocationBatchScheduler,
+		DriverTrackingRetentionScheduler,
 		TmsDriverLoadsService,
 		TmsLoadDetailsService,
 		TmsLoadRouteGeocodeService,

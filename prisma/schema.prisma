@@ -335,6 +335,7 @@ model DriverTracking {
   @@index([externalDriverId])
   @@index([loadId])
   @@index([externalDriverId, loadId])
+  @@index([createdAt])
   @@map("driver_tracking")
 }
 

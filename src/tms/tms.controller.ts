@@ -352,7 +352,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 	@ApiOperation({
 		summary: 'Open TMS webhook: load status changed',
 		description:
-			'Receives load status updates from TMS. For loaded-enroute, marks the ACTIVE driver as loaded_enroute and starts tracking for the provided load_id. For delivered, stops tracking and clears trackingLoadId, sets chat_rooms.deliveryAt (UTC) on LOAD rooms for this load_id, but does not change driverStatus or isAutoupdate (manual / other flows only).',
+			'Receives load status updates from TMS. For loaded-enroute, marks the ACTIVE driver as loaded_enroute and starts tracking for the provided load_id. For delivered, stops tracking and clears trackingLoadId, sets chat_rooms.deliveryAt (UTC) on LOAD rooms for this load_id; keeps driver_tracking history rows for this load; does not change driverStatus or isAutoupdate (manual / other flows only).',
 	})
 	@ApiResponse({
 		status: 201,
@@ -463,11 +463,8 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 
 		if (normalizedLoadStatus === 'delivered') {
 			const deliveredAt = new Date();
-			const [trackingCleanup, geocodeCleanup, updatedDriver, loadChatDeliveryUpdate] =
+			const [geocodeCleanup, updatedDriver, loadChatDeliveryUpdate] =
 				await this.prisma.$transaction([
-					this.prisma.driverTracking.deleteMany({
-						where: { loadId },
-					}),
 					this.prisma.loadRouteGeocode.deleteMany({
 						where: { loadId },
 					}),
@@ -498,7 +495,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 			]);
 
 			this.logger.log(
-				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=driver_tracking_stopped load_id=${loadId} driver_id=${driverId} deletedTrackingPoints=${trackingCleanup.count} deletedRouteGeocode=${geocodeCleanup.count} load_chat_delivery_at_updated=${loadChatDeliveryUpdate.count} (driver_status_unchanged)`,
+				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=driver_tracking_stopped load_id=${loadId} driver_id=${driverId} driver_tracking_rows_preserved deletedRouteGeocode=${geocodeCleanup.count} load_chat_delivery_at_updated=${loadChatDeliveryUpdate.count} (driver_status_unchanged)`,
 			);
 
 			await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
@@ -523,7 +520,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 					isAutoupdate: updatedDriver.isAutoupdate,
 					isTracking: updatedDriver.isTracking,
 					trackingLoadId: updatedDriver.trackingLoadId,
-					deletedTrackingPoints: trackingCleanup.count,
+					driverTrackingPreserved: true,
 					deletedRouteGeocodeRows: geocodeCleanup.count,
 					deliveryAt: deliveredAt.toISOString(),
 					loadChatRoomsUpdated: loadChatDeliveryUpdate.count,
