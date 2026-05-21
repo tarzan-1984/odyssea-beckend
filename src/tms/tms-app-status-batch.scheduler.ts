@@ -18,19 +18,20 @@ const ADV_LOCK_KEY2 = 330_031;
 /** Users requested batch size for app/status endpoint. */
 const APP_STATUS_CHUNK_SIZE = 150;
 
-/** DB `last_active_app` → TMS `app_online` (Unix seconds). */
-function unixSecondsFromDate(d: Date | null | undefined): number {
-	if (!d) return 0;
+/** Matches how `lastActiveApp` is written (`Date.UTC(NY_wall_clock_components)` → stored TIMESTAMP). */
+function formatSqlTimestampFromLastActiveAppDate(
+	d: Date | null | undefined,
+): string {
+	if (!d) return '';
 	const ms = d.getTime();
-	return Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
+	if (!Number.isFinite(ms)) return '';
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
-/** DB `lastLocationUpdateAt` string → TMS `app_update` (Unix seconds). */
-function unixSecondsFromLocationString(s: string | null | undefined): number {
-	const raw = s?.trim();
-	if (!raw) return 0;
-	const ms = Date.parse(raw);
-	return Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
+/** `lastLocationUpdateAt` is already `YYYY-MM-DD HH:mm:ss` in DB — send trimmed or empty. */
+function appUpdateStringFromDb(s: string | null | undefined): string {
+	return s?.trim() ?? '';
 }
 
 @Injectable()
@@ -125,8 +126,10 @@ export class TmsAppStatusBatchScheduler {
 				}
 				items.push({
 					driver_id: driverId,
-					app_online: unixSecondsFromDate(u.lastActiveApp ?? undefined),
-					app_update: unixSecondsFromLocationString(u.lastLocationUpdateAt),
+					app_online: formatSqlTimestampFromLastActiveAppDate(
+						u.lastActiveApp ?? undefined,
+					),
+					app_update: appUpdateStringFromDb(u.lastLocationUpdateAt),
 				});
 			}
 

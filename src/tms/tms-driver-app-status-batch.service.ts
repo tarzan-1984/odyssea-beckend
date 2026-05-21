@@ -5,13 +5,13 @@ import axios from 'axios';
 const TMS_DRIVER_APP_STATUS_BATCH_URL =
 	'https://www.endurance-tms.com/wp-json/tms/v1/driver/app/status/update/batch';
 
-/** Payload field names match TMS API; timestamps must be Unix epoch seconds (integer). */
+/** Payload field names match TMS API; times as naive `YYYY-MM-DD HH:mm:ss` (same as DB text/timestamp semantics). */
 export type TmsBatchAppStatusItem = {
 	driver_id: number;
-	/** Unix timestamp seconds — maps from DB `last_active_app` (User.lastActiveApp). */
-	app_online: number;
-	/** Unix timestamp seconds — maps from DB `lastLocationUpdateAt` (parsed ISO/local string). */
-	app_update: number;
+	/** From DB `last_active_app` formatted as SQL-like local string written at save time (UTC-encoded Date digits). */
+	app_online: string;
+	/** From DB `lastLocationUpdateAt` column as stored (typically `YYYY-MM-DD HH:mm:ss`). */
+	app_update: string;
 };
 
 @Injectable()
