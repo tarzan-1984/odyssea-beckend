@@ -16,7 +16,8 @@ export class DeliveredLoadChatCleanupScheduler {
 
 	/**
 	 * Every 3 hours: for LOAD chats whose deliveryAt is past the configured delay,
-	 * set isLoadArchived = true (chat rows and messages stay; no TMS/archive delete jobs).
+	 * either set isLoadArchived = true when there are messages, or delete the room
+	 * when it has zero messages (no archiving value — only noise in DB/UI).
 	 */
 	@Cron('0 */3 * * *')
 	async markStaleDeliveredLoadChatsArchived() {
@@ -37,6 +38,7 @@ export class DeliveredLoadChatCleanupScheduler {
 			loadId: string | null;
 			deliveryAt: Date | null;
 			participants: { userId: string }[];
+			_count: { messages: number };
 		}[];
 
 		try {
@@ -51,11 +53,12 @@ export class DeliveredLoadChatCleanupScheduler {
 					loadId: true,
 					deliveryAt: true,
 					participants: { select: { userId: true } },
+					_count: { select: { messages: true } },
 				},
 			});
 		} catch (error) {
 			this.logger.error(
-				'Failed to fetch delivered LOAD chats for isLoadArchived update',
+				'Failed to fetch delivered LOAD chats for delivered-load cleanup cron',
 				error,
 			);
 			return;
@@ -73,6 +76,24 @@ export class DeliveredLoadChatCleanupScheduler {
 
 		for (const chat of chats) {
 			try {
+				if (chat._count.messages === 0) {
+					await this.prisma.chatRoom.delete({ where: { id: chat.id } });
+
+					const deletedPayload = {
+						chatRoomId: chat.id,
+						deletedBy: 'system',
+					};
+					for (const participant of chat.participants) {
+						this.chatGateway.server
+							.to(`user_${participant.userId}`)
+							.emit('chatRoomDeleted', deletedPayload);
+					}
+					this.logger.log(
+						`Deleted delivered LOAD chat with zero messages chatRoomId=${chat.id} loadId=${chat.loadId ?? 'n/a'}`,
+					);
+					continue;
+				}
+
 				await this.prisma.chatRoom.update({
 					where: { id: chat.id },
 					data: { isLoadArchived: true },
@@ -95,7 +116,7 @@ export class DeliveredLoadChatCleanupScheduler {
 				}
 			} catch (error) {
 				this.logger.error(
-					`Delivered LOAD isLoadArchived update failed for chatRoomId=${chat.id} loadId=${chat.loadId ?? 'n/a'}`,
+					`Delivered LOAD chat cleanup failed for chatRoomId=${chat.id} loadId=${chat.loadId ?? 'n/a'}`,
 					error,
 				);
 			}

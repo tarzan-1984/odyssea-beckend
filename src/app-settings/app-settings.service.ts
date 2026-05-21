@@ -210,7 +210,8 @@ export class AppSettingsService {
 
 	/**
 	 * Cutoff instant for LOAD chats with deliveryAt: rooms with deliveryAt <= this and
-	 * isLoadArchived=false are candidates for isLoadArchived=true (cleanup cron; no delete).
+	 * isLoadArchived=false are processed by cleanup cron — with messages → isLoadArchived=true;
+	 * with zero messages → chat row deleted (no archive value).
 	 */
 	async getDeliveredLoadChatArchiveCutoffDate(): Promise<Date> {
 		const row = await this.getGlobal();
