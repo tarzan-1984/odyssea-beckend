@@ -163,7 +163,7 @@ export class AppSettingsController {
 	@Get('delivered-load-chat')
 	@ApiOperation({
 		summary:
-			'Hours after deliveryAt before LOAD chats are archived and deleted (admin UI, cleanup cron)',
+			'Hours after deliveryAt before LOAD chats get isLoadArchived=true (admin UI, cleanup cron)',
 	})
 	@ApiResponse({ status: 200, description: 'Delivered LOAD chat retention hours' })
 	async getDeliveredLoadChat(@Request() req: AuthenticatedRequest) {
@@ -178,7 +178,7 @@ export class AppSettingsController {
 	@Put('delivered-load-chat')
 	@ApiOperation({
 		summary:
-			'Update hours after deliveryAt before LOAD chat cleanup cron runs (admin only)',
+			'Update hours after deliveryAt before cron sets isLoadArchived on LOAD chats (admin only)',
 	})
 	@ApiResponse({ status: 200, description: 'Updated' })
 	async updateDeliveredLoadChat(

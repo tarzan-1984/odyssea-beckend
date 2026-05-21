@@ -4,7 +4,7 @@ import { IsInt, Max, Min } from 'class-validator';
 export class UpdateDeliveredLoadChatAppSettingsDto {
 	@ApiProperty({
 		description:
-			'Hours after deliveryAt on a LOAD chat before the cleanup cron archives and deletes it.',
+			'Hours after deliveryAt on a LOAD chat before the cleanup cron sets isLoadArchived=true (chat is not deleted).',
 		example: 5,
 		minimum: 1,
 	})
