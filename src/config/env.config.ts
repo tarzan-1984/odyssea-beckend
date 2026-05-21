@@ -54,6 +54,10 @@ export interface ExternalApiConfig {
 	 * When false, the every-5-min TMS batch location cron is disabled. Default true.
 	 */
 	tmsLocationBatchCronEnabled: boolean;
+	/**
+	 * When false, the hourly TMS driver app status batch cron is disabled. Default true.
+	 */
+	tmsAppStatusBatchCronEnabled: boolean;
 }
 
 const DEFAULT_MAIL_FROM_NAME = 'IT Odysseia App';
@@ -152,5 +156,7 @@ export const externalApiConfig = registerAs(
 			process.env.SKIP_TMS_DRIVER_LOCATION_SYNC === 'true',
 		tmsLocationBatchCronEnabled:
 			process.env.TMS_LOCATION_BATCH_CRON_ENABLED !== 'false',
+		tmsAppStatusBatchCronEnabled:
+			process.env.TMS_APP_STATUS_BATCH_CRON_ENABLED !== 'false',
 	}),
 );

@@ -5,11 +5,13 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverApplicationBackfillBackgroundService } from './tms-driver-application-backfill-background.service';
 import { TmsDriverLocationBatchService } from './tms-driver-location-batch.service';
+import { TmsDriverAppStatusBatchService } from './tms-driver-app-status-batch.service';
 import { TmsLoadDraftService } from './tms-load-draft.service';
 import { TmsDriverDraftLoadsService } from './tms-driver-draft-loads.service';
 import { TmsAppDraftLoadsService } from './tms-app-draft-loads.service';
 import { DriverTrackingRetentionScheduler } from './driver-tracking-retention.scheduler';
 import { TmsLocationBatchScheduler } from './tms-location-batch.scheduler';
+import { TmsAppStatusBatchScheduler } from './tms-app-status-batch.scheduler';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
 import { TmsLoadDetailsService } from './tms-load-details.service';
 import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
@@ -21,10 +23,12 @@ import { TmsController } from './tms.controller';
 		TmsDriverApplicationService,
 		TmsDriverApplicationBackfillBackgroundService,
 		TmsDriverLocationBatchService,
+		TmsDriverAppStatusBatchService,
 		TmsLoadDraftService,
 		TmsDriverDraftLoadsService,
 		TmsAppDraftLoadsService,
 		TmsLocationBatchScheduler,
+		TmsAppStatusBatchScheduler,
 		DriverTrackingRetentionScheduler,
 		TmsDriverLoadsService,
 		TmsLoadDetailsService,
