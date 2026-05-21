@@ -312,68 +312,52 @@ export class ChatRoomsService {
 		return `Chat Room ${new Date().toLocaleDateString()}`;
 	}
 
-	/**
-	 * Get all chat rooms for a specific user
-	 * Returns chat rooms with last message and unread count
-	 * Filters out hidden DIRECT chats
-	 */
-	async getUserChatRooms(userId: string) {
-		const chatRooms = await this.prisma.chatRoom.findMany({
-			where: {
-				participants: {
-					some: {
-						userId,
-						isHidden: false, // Exclude hidden chats
-					},
-				},
-				isArchived: false,
-			},
+	private readonly participantListInclude = {
+		participants: {
 			include: {
-				participants: {
-					include: {
-						user: {
-							select: {
-								id: true,
-								firstName: true,
-								lastName: true,
-								role: true,
-								profilePhoto: true,
-								userColor: true,
-							},
-						},
-					},
-				},
-				messages: {
-					orderBy: {
-						createdAt: 'desc',
-					},
-					take: 1,
-					include: {
-						sender: {
-							select: {
-								id: true,
-								firstName: true,
-								lastName: true,
-								profilePhoto: true,
-								userColor: true,
-							},
-						},
-					},
-				},
-				_count: {
+				user: {
 					select: {
-						messages: true,
+						id: true,
+						firstName: true,
+						lastName: true,
+						role: true,
+						profilePhoto: true,
+						userColor: true,
 					},
 				},
 			},
-		});
+		},
+		messages: {
+			orderBy: {
+				createdAt: 'desc' as const,
+			},
+			take: 1,
+			include: {
+				sender: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						profilePhoto: true,
+						userColor: true,
+					},
+				},
+			},
+		},
+		_count: {
+			select: {
+				messages: true,
+			},
+		},
+	};
 
-		// Compute unread counts per room in one query:
-		// Count messages not sent by the current user and where readBy doesn't contain the userId
+	/**
+	 * Map raw ChatRoom rows (with participantListInclude) to API list shape with unread counts.
+	 */
+	private async formatChatRoomsListForUser(chatRooms: any[], userId: string) {
 		const roomIds = chatRooms.map((r) => r.id);
 		let unreadByRoom = new Map<string, number>();
 		if (roomIds.length > 0) {
-			// Build a JSON array literal for userId: ["<userId>"]
 			const userJsonArray = JSON.stringify([userId]);
 			const rows = await this.prisma.$queryRaw<
 				{ chatRoomId: string; count: number }[]
@@ -388,45 +372,44 @@ export class ChatRoomsService {
 			unreadByRoom = new Map(rows.map((r) => [r.chatRoomId, Number(r.count)]));
 		}
 
-		// Sort chat rooms by pin status first, then by last message date
 		const sortedChatRooms = chatRooms.sort((a, b) => {
-			// Get participant data for current user
 			const aParticipant = a.participants.find(
-				(p) => p.userId === userId,
+				(p: { userId: string }) => p.userId === userId,
 			);
 			const bParticipant = b.participants.find(
-				(p) => p.userId === userId,
+				(p: { userId: string }) => p.userId === userId,
 			);
 
-			// Pinned chats first
 			if (aParticipant?.pin && !bParticipant?.pin) return -1;
 			if (!aParticipant?.pin && bParticipant?.pin) return 1;
 
-			// If both pinned or both not pinned, sort by last message date
 			const aLastMessageDate = a.messages[0]?.createdAt || a.createdAt;
 			const bLastMessageDate = b.messages[0]?.createdAt || b.createdAt;
 			return bLastMessageDate.getTime() - aLastMessageDate.getTime();
 		});
 
 		return sortedChatRooms.map((room) => {
-			// Get current user's participant data
 			const currentUserParticipant = room.participants.find(
-				(p) => p.userId === userId,
+				(p: { userId: string }) => p.userId === userId,
 			);
 
-			// Unread count computed above (0 if none)
 			const unreadCount = unreadByRoom.get(room.id) || 0;
 
 			return {
 				...room,
-				participants: room.participants.map((participant) => ({
-					...participant,
-					user: {
-						...participant.user,
-						avatar: participant.user.profilePhoto,
-						profilePhoto: undefined,
-					},
-				})),
+				participants: room.participants.map(
+					(participant: {
+						user: Record<string, unknown>;
+						[key: string]: unknown;
+					}) => ({
+						...participant,
+						user: {
+							...participant.user,
+							avatar: participant.user.profilePhoto,
+							profilePhoto: undefined,
+						},
+					}),
+				),
 				lastMessage: room.messages[0]
 					? {
 							...room.messages[0],
@@ -438,11 +421,78 @@ export class ChatRoomsService {
 						}
 					: null,
 				unreadCount: unreadCount,
-				// Add user-specific data
 				isMuted: currentUserParticipant?.mute || false,
 				isPinned: currentUserParticipant?.pin || false,
 			};
 		});
+	}
+
+	/**
+	 * Get all chat rooms for a specific user
+	 * Returns chat rooms with last message and unread count
+	 * Filters out hidden DIRECT chats
+	 * LOAD chats where is_load_archived are excluded — use load-archived endpoint.
+	 */
+	async getUserChatRooms(userId: string) {
+		const chatRooms = await this.prisma.chatRoom.findMany({
+			where: {
+				participants: {
+					some: {
+						userId,
+						isHidden: false,
+					},
+				},
+				isArchived: false,
+				OR: [{ type: { not: 'LOAD' } }, { type: 'LOAD', isLoadArchived: false }],
+			},
+			include: this.participantListInclude as any,
+		});
+
+		return this.formatChatRoomsListForUser(chatRooms, userId);
+	}
+
+	/**
+	 * Paginated LOAD chats for the user where is_load_archived = true (after delivery cutoff).
+	 */
+	async getArchivedLoadChatRoomsPage(
+		userId: string,
+		page: number,
+		limitRaw: number,
+	) {
+		const limit = Math.min(Math.max(limitRaw || 10, 1), 50);
+		const skip = Math.max(page - 1, 0) * limit;
+
+		const chatRooms = await this.prisma.chatRoom.findMany({
+			where: {
+				type: 'LOAD',
+				isLoadArchived: true,
+				isArchived: false,
+				participants: {
+					some: {
+						userId,
+						isHidden: false,
+					},
+				},
+			},
+			orderBy: { updatedAt: 'desc' },
+			skip,
+			take: limit + 1,
+			include: this.participantListInclude as any,
+		});
+
+		const hasMore = chatRooms.length > limit;
+		const pageRows = hasMore ? chatRooms.slice(0, limit) : chatRooms;
+
+		const chatRoomsMapped = await this.formatChatRoomsListForUser(pageRows, userId);
+
+		return {
+			chatRooms: chatRoomsMapped,
+			pagination: {
+				page,
+				limit,
+				hasMore,
+			},
+		};
 	}
 
 	/**

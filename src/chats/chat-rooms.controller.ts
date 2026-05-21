@@ -175,6 +175,29 @@ export class ChatRoomsController {
 		return await this.chatRoomsService.getUserChatRooms(userId);
 	}
 
+	@Get('load-archived')
+	@ApiOperation({
+		summary: 'Paginated archived LOAD chats',
+		description:
+			'is_load_archived=true LOAD rooms for the user; main chat list excludes these.',
+	})
+	@ApiQuery({ name: 'page', required: false, example: 1 })
+	@ApiQuery({ name: 'limit', required: false, example: 10 })
+	async getArchivedLoadChatRooms(
+		@Request() req: AuthenticatedRequest,
+		@Query('page') pageStr?: string,
+		@Query('limit') limitStr?: string,
+	) {
+		const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
+		const limit = parseInt(limitStr || '10', 10);
+		const userId = req.user.id;
+		return await this.chatRoomsService.getArchivedLoadChatRoomsPage(
+			userId,
+			page,
+			limit,
+		);
+	}
+
 	@Get(':id')
 	@ApiOperation({
 		summary: 'Get specific chat room',
