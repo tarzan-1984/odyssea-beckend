@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Inject } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Inject, Logger } from '@nestjs/common';
 import {
 	ApiTags,
 	ApiOperation,
@@ -12,6 +12,8 @@ import { ChatGateway } from './chat.gateway';
 @ApiTags('Load Chat')
 @Controller('create_load_chat')
 export class LoadChatController {
+	private readonly logger = new Logger(LoadChatController.name);
+
 	constructor(
 		private readonly chatRoomsService: ChatRoomsService,
 		@Inject(ChatGateway) private readonly chatGateway: ChatGateway,
@@ -64,8 +66,22 @@ export class LoadChatController {
 		description: 'Bad request - driver not found, inactive, or missing',
 	})
 	async createLoadChat(@Body() createLoadChatDto: CreateLoadChatDto) {
+		this.logger.log(
+			`[create_load_chat] Incoming TMS request: ${JSON.stringify({
+				load_id: createLoadChatDto.load_id,
+				title: createLoadChatDto.title,
+				company: createLoadChatDto.company,
+				participants: createLoadChatDto.participants,
+			})}`,
+		);
+
 		const result: CreateLoadChatResult =
 			await this.chatRoomsService.createLoadChat(createLoadChatDto);
+
+		const chatRoom = result.chatRoom;
+		this.logger.log(
+			`[create_load_chat] Completed: kind=${result.kind}, success=true, loadId=${chatRoom?.loadId ?? createLoadChatDto.load_id}, chatRoomId=${chatRoom?.id ?? 'n/a'}, participantCount=${chatRoom?.participants?.length ?? 0}, hardDeletedOfferChats=${result.hardDeletedChats.length}`,
+		);
 
 		// Hard-deleted OFFER chats (same offer, non-selected drivers) — same payload as delete_load_chat
 		for (const deleted of result.hardDeletedChats) {
@@ -135,8 +151,8 @@ export class LoadChatController {
 				}
 			}
 		} else if (result.kind === 'created' && result.chatRoom?.participants?.length) {
-			console.log(
-				`📡 [create_load_chat] chatRoomCreated for ${result.chatRoom.participants.length} participants`,
+			this.logger.log(
+				`[create_load_chat] WebSocket chatRoomCreated emitted for ${result.chatRoom.participants.length} participant(s), chatRoomId=${result.chatRoom.id}`,
 			);
 			for (const participant of result.chatRoom.participants) {
 				this.chatGateway.server
