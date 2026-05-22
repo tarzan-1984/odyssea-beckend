@@ -26,6 +26,17 @@ export class UpsertMessageTemplateDto {
 	@IsIn(['personal', 'company'])
 	type?: 'personal' | 'company';
 
+	@ApiProperty({
+		required: false,
+		enum: ['Expedite', 'HR', 'Tracking'],
+		description:
+			'Template department group. Defaults to Expedite on create; omitted on update leaves group unchanged.',
+		example: 'Expedite',
+	})
+	@IsOptional()
+	@IsIn(['Expedite', 'HR', 'Tracking'])
+	group?: 'Expedite' | 'HR' | 'Tracking';
+
 	@ApiProperty({ required: false, example: 'Pickup reminder' })
 	@IsOptional()
 	@IsString()

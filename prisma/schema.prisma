@@ -309,9 +309,10 @@ model Message {
 
 /// Saved text snippets for chat, keyed by TMS / user external id.
 model MessageTemplate {
-  id         Int                 @id @default(autoincrement())
+  id         Int                     @id @default(autoincrement())
   externalId String
-  type       MessageTemplateType @default(personal)
+  type       MessageTemplateType     @default(personal)
+  group      MessageTemplateGroup    @default(Expedite)
   title      String?
   content    String?
   createdAt  DateTime            @default(now())
@@ -397,4 +398,10 @@ enum UserStatus {
 enum MessageTemplateType {
   personal
   company
+}
+
+enum MessageTemplateGroup {
+  Expedite
+  HR
+  Tracking
 }

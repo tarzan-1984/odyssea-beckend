@@ -4,7 +4,7 @@ import {
 	NotFoundException,
 	ForbiddenException,
 } from '@nestjs/common';
-import { Prisma, UserRole, MessageTemplateType } from '@prisma/client';
+import { Prisma, UserRole, MessageTemplateType, MessageTemplateGroup } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertMessageTemplateDto } from './dto/upsert-message-template.dto';
 
@@ -23,6 +23,7 @@ export interface MessageTemplatesListResult {
 		id: number;
 		externalId: string;
 		type: MessageTemplateType;
+		group: MessageTemplateGroup;
 		title: string | null;
 		content: string | null;
 		createdAt: Date;
@@ -37,6 +38,7 @@ const templateSelect = {
 	id: true,
 	externalId: true,
 	type: true,
+	group: true,
 	title: true,
 	content: true,
 	createdAt: true,
@@ -77,6 +79,20 @@ export class MessageTemplatesService {
 				? MessageTemplateType.company
 				: MessageTemplateType.personal;
 
+		const resolvedGroupCreate: MessageTemplateGroup =
+			dto.group === 'HR'
+				? MessageTemplateGroup.HR
+				: dto.group === 'Tracking'
+					? MessageTemplateGroup.Tracking
+					: MessageTemplateGroup.Expedite;
+
+		const resolvedGroupFromDto =
+			dto.group === 'HR'
+				? MessageTemplateGroup.HR
+				: dto.group === 'Tracking'
+					? MessageTemplateGroup.Tracking
+					: MessageTemplateGroup.Expedite;
+
 		if (dto.id != null) {
 			const owned = await this.prisma.messageTemplate.findFirst({
 				where: { id: dto.id, externalId },
@@ -93,6 +109,9 @@ export class MessageTemplatesService {
 			if (dto.type != null) {
 				updateData.type = resolvedType;
 			}
+			if (dto.group != null) {
+				updateData.group = resolvedGroupFromDto;
+			}
 
 			return this.prisma.messageTemplate.update({
 				where: { id: dto.id },
@@ -105,6 +124,7 @@ export class MessageTemplatesService {
 			data: {
 				externalId,
 				type: resolvedType,
+				group: resolvedGroupCreate,
 				title: titleValue,
 				content: contentTrimmed,
 			},
