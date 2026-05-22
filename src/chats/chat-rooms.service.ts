@@ -11,6 +11,16 @@ import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 
+/**
+ * ADMINISTRATOR users are auto-added as hidden LOAD chat participants unless their
+ * TMS externalId matches one of these (string keys in DB).
+ */
+const ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_LOAD_CHAT_AUTOPARTICIPANTS = [
+	'1',
+	'1195',
+	'16',
+] as const;
+
 export type CreateLoadChatHardDeletion = {
 	chatRoomId: string;
 	notifyUserIds: string[];
@@ -1289,15 +1299,17 @@ export class ChatRoomsService {
 			}
 		}
 
-		// Auto-add administrators as hidden participants, except system/TMS user externalId "1"
+		// Auto-add administrators as hidden participants, except excluded TMS/external IDs
 		const adminUsers = await this.prisma.user.findMany({
 			where: {
 				role: {
 					in: ['ADMINISTRATOR'],
 				},
-				NOT: {
-					externalId: '1',
-				},
+				AND: ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_LOAD_CHAT_AUTOPARTICIPANTS.map(
+					(externalId) => ({
+						NOT: { externalId },
+					}),
+				),
 			},
 			select: {
 				id: true,
