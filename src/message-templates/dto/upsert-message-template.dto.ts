@@ -30,7 +30,7 @@ export class UpsertMessageTemplateDto {
 		required: false,
 		enum: ['Expedite', 'HR', 'Tracking'],
 		description:
-			'Template department group. Defaults to Expedite on create; omitted on update leaves group unchanged.',
+			'Company templates only. Required when an administrator creates a company template; ignored for personal templates. Non-admin creators get the group from their role server-side.',
 		example: 'Expedite',
 	})
 	@IsOptional()

@@ -312,7 +312,7 @@ model MessageTemplate {
   id         Int                     @id @default(autoincrement())
   externalId String
   type       MessageTemplateType     @default(personal)
-  group      MessageTemplateGroup    @default(Expedite)
+  group      MessageTemplateGroup?
   title      String?
   content    String?
   createdAt  DateTime            @default(now())

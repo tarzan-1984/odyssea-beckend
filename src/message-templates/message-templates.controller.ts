@@ -26,6 +26,7 @@ import {
 	MessageTemplateScope,
 } from './message-templates.service';
 import { UpsertMessageTemplateDto } from './dto/upsert-message-template.dto';
+import { UserRole } from '@prisma/client';
 
 @ApiTags('Message templates')
 @ApiBearerAuth()
@@ -40,15 +41,22 @@ export class MessageTemplatesController {
 	@ApiOperation({
 		summary: 'List message templates with pagination',
 		description:
-			'personal: your templates with type=personal. company: other users\' templates plus yours with type=company.',
+			'personal: your personal templates (type personal, group null). company: role-based catalogue; administrators may filter with companyGroup.',
 	})
 	@ApiQuery({ name: 'scope', enum: ['personal', 'company'], required: true })
+	@ApiQuery({
+		name: 'companyGroup',
+		required: false,
+		description:
+			'Administrators only: filter company templates — all | Expedite | HR | Tracking. Default all.',
+	})
 	@ApiQuery({ name: 'page', required: false, type: Number })
 	@ApiQuery({ name: 'limit', required: false, type: Number })
 	@ApiQuery({ name: 'search', required: false, type: String })
 	async list(
 		@Request() req: AuthenticatedRequest,
 		@Query('scope') scopeRaw: string,
+		@Query('companyGroup') companyGroupRaw?: string,
 		@Query('page') pageRaw?: string,
 		@Query('limit') limitRaw?: string,
 		@Query('search') search?: string,
@@ -63,12 +71,18 @@ export class MessageTemplatesController {
 		const page = pageRaw ? parseInt(pageRaw, 10) : 1;
 		const limit = limitRaw ? parseInt(limitRaw, 10) : 10;
 
+		const role = (req.user.role ?? '').trim().toUpperCase();
+		const companyGroup =
+			role === UserRole.ADMINISTRATOR ? companyGroupRaw : undefined;
+
 		return this.messageTemplatesService.listForUser(
 			req.user.id,
+			req.user.role,
 			scope as MessageTemplateScope,
 			page,
 			limit,
 			search,
+			companyGroup,
 		);
 	}
 
@@ -76,21 +90,25 @@ export class MessageTemplatesController {
 	@ApiOperation({
 		summary: 'Create or update a message template',
 		description:
-			'Omit id to create a template for the current user (their TMS externalId). Set type to personal or company. Send id to update when the template belongs to the user.',
+			'Personal templates: type personal (group must be omitted / null server-side). Company: creators per role mapping; ADMIN must send group.',
 	})
 	@ApiBody({ type: UpsertMessageTemplateDto })
 	async upsert(
 		@Request() req: AuthenticatedRequest,
 		@Body() body: UpsertMessageTemplateDto,
 	) {
-		return this.messageTemplatesService.upsertForUser(req.user.id, body);
+		return this.messageTemplatesService.upsertForUser(
+			req.user.id,
+			req.user.role,
+			body,
+		);
 	}
 
 	@Delete(':id')
 	@ApiOperation({
 		summary: 'Delete message template',
 		description:
-			'Owner (matching TMS externalId) may delete own templates. Administrators may delete any template.',
+			'Owners may delete personal templates. Company: admins delete any company template; creators delete only own company templates in their mapped group.',
 	})
 	@ApiParam({ name: 'id', type: Number })
 	async remove(
