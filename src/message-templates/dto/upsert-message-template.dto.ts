@@ -1,12 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-	IsInt,
-	IsOptional,
-	IsString,
-	MaxLength,
-	Min,
-} from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class UpsertMessageTemplateDto {
 	@ApiProperty({
@@ -20,6 +14,17 @@ export class UpsertMessageTemplateDto {
 	@IsInt()
 	@Min(1)
 	id?: number;
+
+	@ApiProperty({
+		required: false,
+		enum: ['personal', 'company'],
+		description:
+			'Template category. Defaults to personal on create; omitted on update leaves type unchanged.',
+		example: 'personal',
+	})
+	@IsOptional()
+	@IsIn(['personal', 'company'])
+	type?: 'personal' | 'company';
 
 	@ApiProperty({ required: false, example: 'Pickup reminder' })
 	@IsOptional()

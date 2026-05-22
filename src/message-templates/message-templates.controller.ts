@@ -40,7 +40,7 @@ export class MessageTemplatesController {
 	@ApiOperation({
 		summary: 'List message templates with pagination',
 		description:
-			'personal: templates owned by the current user (matching users.externalId). company: all other templates.',
+			'personal: your templates with type=personal. company: other users\' templates plus yours with type=company.',
 	})
 	@ApiQuery({ name: 'scope', enum: ['personal', 'company'], required: true })
 	@ApiQuery({ name: 'page', required: false, type: Number })
@@ -76,7 +76,7 @@ export class MessageTemplatesController {
 	@ApiOperation({
 		summary: 'Create or update a message template',
 		description:
-			'Omit id to create a template for the current user (their TMS externalId). Send id to update title/content when that template belongs to the user.',
+			'Omit id to create a template for the current user (their TMS externalId). Set type to personal or company. Send id to update when the template belongs to the user.',
 	})
 	@ApiBody({ type: UpsertMessageTemplateDto })
 	async upsert(

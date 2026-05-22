@@ -4,7 +4,7 @@ import {
 	NotFoundException,
 	ForbiddenException,
 } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UserRole, MessageTemplateType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertMessageTemplateDto } from './dto/upsert-message-template.dto';
 
@@ -22,6 +22,7 @@ export interface MessageTemplatesListResult {
 	items: Array<{
 		id: number;
 		externalId: string;
+		type: MessageTemplateType;
 		title: string | null;
 		content: string | null;
 		createdAt: Date;
@@ -35,6 +36,7 @@ export type MessageTemplateRow = MessageTemplatesListResult['items'][number];
 const templateSelect = {
 	id: true,
 	externalId: true,
+	type: true,
 	title: true,
 	content: true,
 	createdAt: true,
@@ -70,6 +72,11 @@ export class MessageTemplatesService {
 
 		const titleValue = titleTrimmed.length > 0 ? titleTrimmed : null;
 
+		const resolvedType: MessageTemplateType =
+			dto.type === 'company'
+				? MessageTemplateType.company
+				: MessageTemplateType.personal;
+
 		if (dto.id != null) {
 			const owned = await this.prisma.messageTemplate.findFirst({
 				where: { id: dto.id, externalId },
@@ -79,12 +86,17 @@ export class MessageTemplatesService {
 				throw new NotFoundException('Template not found');
 			}
 
+			const updateData: Prisma.MessageTemplateUpdateInput = {
+				title: titleValue,
+				content: contentTrimmed,
+			};
+			if (dto.type != null) {
+				updateData.type = resolvedType;
+			}
+
 			return this.prisma.messageTemplate.update({
 				where: { id: dto.id },
-				data: {
-					title: titleValue,
-					content: contentTrimmed,
-				},
+				data: updateData,
 				select: templateSelect,
 			});
 		}
@@ -92,6 +104,7 @@ export class MessageTemplatesService {
 		return this.prisma.messageTemplate.create({
 			data: {
 				externalId,
+				type: resolvedType,
 				title: titleValue,
 				content: contentTrimmed,
 			},
@@ -175,12 +188,29 @@ export class MessageTemplatesService {
 				};
 			}
 			where = searchFilter
-				? { AND: [{ externalId: myExt }, searchFilter] }
-				: { externalId: myExt };
+				? {
+						AND: [
+							{ externalId: myExt },
+							{ type: MessageTemplateType.personal },
+							searchFilter,
+						],
+					}
+				: { externalId: myExt, type: MessageTemplateType.personal };
 		} else if (myExt) {
+			const companyScope: Prisma.MessageTemplateWhereInput = {
+				OR: [
+					{ externalId: { not: myExt } },
+					{
+						AND: [
+							{ externalId: myExt },
+							{ type: MessageTemplateType.company },
+						],
+					},
+				],
+			};
 			where = searchFilter
-				? { AND: [{ externalId: { not: myExt } }, searchFilter] }
-				: { externalId: { not: myExt } };
+				? { AND: [companyScope, searchFilter] }
+				: companyScope;
 		} else {
 			where = searchFilter ?? {};
 		}
