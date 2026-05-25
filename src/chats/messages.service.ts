@@ -278,11 +278,10 @@ export class MessagesService {
 			// Filter receivers based on driver status rules
 			const allowedReceiverIds = receiverUsers
 				.filter((receiver) => {
-					// Block all push notifications for drivers with 'blocked' or 'banned' status
+					// Block push only for admin-blocked accounts (not driver "Out of service" / banned)
 					if (
 						receiver.role === UserRole.DRIVER &&
-						(receiver.driverStatus === 'blocked' ||
-							receiver.driverStatus === 'banned')
+						receiver.driverStatus === 'blocked'
 					) {
 						return false;
 					}
