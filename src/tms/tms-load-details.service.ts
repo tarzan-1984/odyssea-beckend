@@ -2,8 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import type { ExternalApiConfig } from '../config/env.config';
-import { AxiosError } from '../types/request.types';
-import { logTrackingLoadPage } from './tracking-load-page.logger';
+import {
+	logTrackingLoadPage,
+	serializeTmsRequestError,
+} from './tracking-load-page.logger';
 
 export type TmsLoadRouteLocations = {
 	pick_up_location: string | null;
@@ -105,20 +107,9 @@ export class TmsLoadDetailsService {
 
 			return data;
 		} catch (error) {
-			const ax = error as AxiosError;
-			if (ax.response?.data != null) {
-				const errBody =
-					typeof ax.response.data === 'string'
-						? ax.response.data
-						: JSON.stringify(ax.response.data, null, 2);
-				logTrackingLoadPage(this.logger, 'TMS STOP — axios error body', {
-					loadId: trimmedLoadId,
-					bodyPreview: errBody.slice(0, 500),
-				});
-			}
 			logTrackingLoadPage(this.logger, 'TMS STOP — axios exception', {
 				loadId: trimmedLoadId,
-				message: ax.message,
+				...serializeTmsRequestError(error),
 			});
 			return null;
 		}
