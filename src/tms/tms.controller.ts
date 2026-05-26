@@ -21,6 +21,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
+import { TmsLoadEnrichmentDto } from './dto/tms-load-enrichment.dto';
 import { UpdateLoadTrackingPointDto } from './dto/update-load-tracking-point.dto';
 import { ActivateDriverApplicationBackfillDto } from './dto/activate-driver-application-backfill.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
@@ -108,6 +109,39 @@ export class TmsController {
 		});
 
 		return merged;
+	}
+
+	@Post('load/:loadId/enrichment')
+	@ApiOperation({
+		summary: 'Load page enrichment from DB',
+		description:
+			'Returns drivers, tracking history, and route geocode for a load. TMS load body is fetched separately (e.g. via Next.js).',
+	})
+	@ApiResponse({ status: 200, description: 'Enrichment payload' })
+	async getLoadEnrichment(
+		@Param('loadId') loadId: string,
+		@Body() body: TmsLoadEnrichmentDto,
+	) {
+		const cleanLoadId = loadId.trim();
+		if (!cleanLoadId) {
+			throw new BadRequestException('loadId is required');
+		}
+
+		logTrackingLoadPage(this.logger, 'enrichment — started', { loadId: cleanLoadId });
+
+		const enrichment = await this.buildLoadEnrichment(
+			cleanLoadId,
+			body.meta_data ?? {},
+		);
+
+		logTrackingLoadPage(this.logger, 'enrichment — finished', {
+			loadId: cleanLoadId,
+			driversCount: enrichment.drivers.length,
+			trackingPointsCount: enrichment.trackingPoints.length,
+			hasRouteGeocode: enrichment.routeGeocode != null,
+		});
+
+		return enrichment;
 	}
 
 	@Delete('load/:loadId/tracking/:pointId')
@@ -230,7 +264,30 @@ export class TmsController {
 			loadId,
 		});
 
-		const metaData = loadDetails.data.meta_data;
+		const enrichment = await this.buildLoadEnrichment(
+			loadId,
+			loadDetails.data.meta_data ?? {},
+		);
+
+		return {
+			...loadDetails,
+			data: {
+				...loadDetails.data,
+				...enrichment,
+			},
+		};
+	}
+
+	private async buildLoadEnrichment(
+		loadId: string,
+		metaData: {
+			attached_driver?: unknown;
+			attached_second_driver?: unknown;
+			attached_third_driver?: unknown;
+			pick_up_location?: unknown;
+			delivery_location?: unknown;
+		},
+	) {
 		const driverExternalIds = [
 			metaData?.attached_driver,
 			metaData?.attached_second_driver,
@@ -243,32 +300,32 @@ export class TmsController {
 		const drivers =
 			uniqueDriverExternalIds.length > 0
 				? await this.prisma.user.findMany({
-					where: {
-						externalId: {
-							in: uniqueDriverExternalIds,
+						where: {
+							externalId: {
+								in: uniqueDriverExternalIds,
+							},
 						},
-					},
-					select: {
-						id: true,
-						externalId: true,
-						email: true,
-						firstName: true,
-						lastName: true,
-						phone: true,
-						profilePhoto: true,
-						role: true,
-						status: true,
-						driverStatus: true,
-						city: true,
-						state: true,
-						zip: true,
-						latitude: true,
-						longitude: true,
-						lastLocationUpdateAt: true,
-						isTracking: true,
-						trackingLoadId: true,
-					},
-				})
+						select: {
+							id: true,
+							externalId: true,
+							email: true,
+							firstName: true,
+							lastName: true,
+							phone: true,
+							profilePhoto: true,
+							role: true,
+							status: true,
+							driverStatus: true,
+							city: true,
+							state: true,
+							zip: true,
+							latitude: true,
+							longitude: true,
+							lastLocationUpdateAt: true,
+							isTracking: true,
+							trackingLoadId: true,
+						},
+					})
 				: [];
 		const trackingPoints = await this.prisma.driverTracking.findMany({
 			where: { loadId },
@@ -298,15 +355,11 @@ export class TmsController {
 			);
 
 		return {
-			...loadDetails,
-			data: {
-				...loadDetails.data,
-				drivers: uniqueDriverExternalIds
-					.map((externalId) => driversByExternalId.get(externalId))
-					.filter((driver): driver is (typeof drivers)[number] => Boolean(driver)),
-				trackingPoints,
-				routeGeocode,
-			},
+			drivers: uniqueDriverExternalIds
+				.map((externalId) => driversByExternalId.get(externalId))
+				.filter((driver): driver is (typeof drivers)[number] => Boolean(driver)),
+			trackingPoints,
+			routeGeocode,
 		};
 	}
 
