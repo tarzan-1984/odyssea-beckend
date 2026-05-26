@@ -1177,6 +1177,30 @@ export class UsersService {
 			await this.tmsDriverLocationBatch.sendBatch([batchItem]);
 		} catch (err) {
 			const tmsError = err instanceof Error ? err.message : String(err);
+			const sep = '------------------------------------------';
+			const batchSummary = batchItem
+				? {
+						driver_id: batchItem.driver_id,
+						driver_status: batchItem.driver_status,
+						status_date: batchItem.status_date,
+						current_city: batchItem.current_city,
+						current_zipcode: batchItem.current_zipcode,
+						current_locationLen: String(batchItem.current_location ?? '').length,
+						latitude: batchItem.latitude,
+						longitude: batchItem.longitude,
+					}
+				: null;
+
+			this.logger.error(
+				`${sep}\n[LOCATION_TMS_SYNC_FAIL]\ntrace=isAutoupdate=${String(
+					locationDto.isAutoupdate,
+				)} manual=${String(isManualAction)} background=${String(isBackgroundPing)}\n` +
+					`userId=${id} externalId=${updatedUser.externalId ?? ''}\n` +
+					`driverStatusPatch=${driverStatusPatch ?? ''} tmsStatus=${tmsStatus ?? ''} statusDateFormatted=${statusDateFormatted ?? ''}\n` +
+					`batchSummary=${JSON.stringify(batchSummary)}\n` +
+					`errorMessage=${tmsError}\n` +
+					`${sep}`,
+			);
 			throw new HttpException(
 				{
 					statusCode: HttpStatus.SERVICE_UNAVAILABLE,

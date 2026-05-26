@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { normalizeTmsCurrentLocation } from './tms-current-location.util';
@@ -22,6 +22,8 @@ export type TmsBatchLocationItem = {
 
 @Injectable()
 export class TmsDriverLocationBatchService {
+	private readonly logger = new Logger(TmsDriverLocationBatchService.name);
+
 	constructor(private readonly configService: ConfigService) {}
 
 	/**
@@ -62,19 +64,36 @@ export class TmsDriverLocationBatchService {
 			}
 
 			const msg = this.extractErrorMessage(res.status, res.data);
-			throw new Error(`TMS batch rejected: ${msg}`);
+			this.logger.error(
+				`------------------------------------------\n[LOCATION_TMS_SYNC_BATCH]\nattempt=${attempt}/${maxAttempts} resStatus=${res.status}\nmsg=${msg}\n------------------------------------------`,
+			);
+			throw new Error(`TMS batch rejected [attempt=${attempt}/${maxAttempts}]: ${msg}`);
 		} catch (error) {
 			if (axios.isAxiosError(error) && error.response) {
 				const status = error.response.status;
 				const msg = this.extractErrorMessage(status, error.response.data);
+				this.logger.error(
+					`------------------------------------------\n[LOCATION_TMS_SYNC_BATCH]\nattempt=${attempt}/${maxAttempts} axiosHttpStatus=${status}\nmsg=${msg}\n------------------------------------------`,
+				);
 				if (attempt < maxAttempts) {
+					this.logger.warn(
+						`[LOCATION_TMS_SYNC_BATCH] retrying after http error attempt=${attempt}/${maxAttempts} status=${status}`,
+					);
 					await this.delay(2000);
 					return this.sendBatch(items, attempt + 1, maxAttempts);
 				}
-				throw new Error(`TMS batch HTTP ${status}: ${msg}`);
+				throw new Error(
+					`TMS batch HTTP ${status} [attempt=${attempt}/${maxAttempts}]: ${msg}`,
+				);
 			}
 			if (error instanceof Error) {
+				this.logger.error(
+					`------------------------------------------\n[LOCATION_TMS_SYNC_BATCH]\nattempt=${attempt}/${maxAttempts} exception=${error.name}\nmessage=${error.message}\n------------------------------------------`,
+				);
 				if (attempt < maxAttempts) {
+					this.logger.warn(
+						`[LOCATION_TMS_SYNC_BATCH] retrying after exception attempt=${attempt}/${maxAttempts} name=${error.name}`,
+					);
 					await this.delay(2000);
 					return this.sendBatch(items, attempt + 1, maxAttempts);
 				}

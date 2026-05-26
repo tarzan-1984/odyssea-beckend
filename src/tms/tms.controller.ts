@@ -4,6 +4,7 @@ import {
 	Controller,
 	DefaultValuePipe,
 	Delete,
+	ForbiddenException,
 	Get,
 	HttpCode,
 	Logger,
@@ -11,6 +12,7 @@ import {
 	Patch,
 	Post,
 	Query,
+	Request,
 	UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -20,6 +22,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthenticatedRequest } from '../types/request.types';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
 import { TmsLoadEnrichmentDto } from './dto/tms-load-enrichment.dto';
 import { UpdateLoadTrackingPointDto } from './dto/update-load-tracking-point.dto';
@@ -34,6 +37,13 @@ import {
 import { TmsLoadTrackingService } from './tms-load-tracking.service';
 /** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
 const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
+
+const LOAD_TRACKING_HISTORY_EDIT_ROLES = new Set([
+	'EXPEDITE_MANAGER',
+	'ADMINISTRATOR',
+	'MODERATOR',
+	'TRACKING_TL',
+]);
 
 @ApiTags('TMS')
 @ApiBearerAuth()
@@ -104,9 +114,11 @@ export class TmsController {
 	})
 	@ApiResponse({ status: 200, description: 'Tracking point deleted' })
 	async deleteLoadTrackingPoint(
+		@Request() req: AuthenticatedRequest,
 		@Param('loadId') loadId: string,
 		@Param('pointId') pointId: string,
 	) {
+		this.assertCanEditLoadTrackingHistory(req);
 		const cleanLoadId = loadId.trim();
 		const cleanPointId = pointId.trim();
 
@@ -144,10 +156,12 @@ export class TmsController {
 	})
 	@ApiResponse({ status: 200, description: 'Tracking point updated' })
 	async updateLoadTrackingPoint(
+		@Request() req: AuthenticatedRequest,
 		@Param('loadId') loadId: string,
 		@Param('pointId') pointId: string,
 		@Body() body: UpdateLoadTrackingPointDto,
 	) {
+		this.assertCanEditLoadTrackingHistory(req);
 		const cleanLoadId = loadId.trim();
 		const cleanPointId = pointId.trim();
 
@@ -199,6 +213,17 @@ export class TmsController {
 			success: true,
 			data: updated,
 		};
+	}
+
+	private assertCanEditLoadTrackingHistory(req: AuthenticatedRequest): void {
+		const role = String(req.user?.role ?? '')
+			.trim()
+			.toUpperCase();
+		if (!LOAD_TRACKING_HISTORY_EDIT_ROLES.has(role)) {
+			throw new ForbiddenException(
+				'You do not have permission to edit load tracking history',
+			);
+		}
 	}
 
 	private async attachLoadDriversAndTracking(
