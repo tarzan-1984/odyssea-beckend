@@ -1,0 +1,26 @@
+import { BadRequestException, Controller, Get, Param } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { TmsLoadTrackingService } from '../tms/tms-load-tracking.service';
+
+/** Public load map data — no JWT (guest tracking page). */
+@ApiTags('Public')
+@Controller('public/tracking')
+export class PublicLoadTrackingController {
+	constructor(private readonly tmsLoadTrackingService: TmsLoadTrackingService) {}
+
+	@Get('load/:loadId')
+	@ApiOperation({
+		summary: 'Public load tracking map data',
+		description:
+			'TMS load + drivers, tracking history, route geocode. No authentication.',
+	})
+	@ApiResponse({ status: 200, description: 'Load tracking payload' })
+	async getLoadTracking(@Param('loadId') loadId: string) {
+		const cleanLoadId = loadId.trim();
+		if (!cleanLoadId) {
+			throw new BadRequestException('loadId is required');
+		}
+
+		return this.tmsLoadTrackingService.getLoadMapPayload(cleanLoadId);
+	}
+}

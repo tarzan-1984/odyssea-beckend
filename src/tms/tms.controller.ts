@@ -31,7 +31,7 @@ import {
 	TmsLoadDetailsResponse,
 	TmsLoadDetailsService,
 } from './tms-load-details.service';
-import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
+import { TmsLoadTrackingService } from './tms-load-tracking.service';
 /** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
 const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
 
@@ -47,7 +47,7 @@ export class TmsController {
 		private readonly tmsDriverApplicationService: TmsDriverApplicationService,
 		private readonly tmsDriverApplicationBackfillBackgroundService: TmsDriverApplicationBackfillBackgroundService,
 		private readonly tmsLoadDetailsService: TmsLoadDetailsService,
-		private readonly tmsLoadRouteGeocodeService: TmsLoadRouteGeocodeService,
+		private readonly tmsLoadTrackingService: TmsLoadTrackingService,
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly notificationsService: NotificationsService,
@@ -92,7 +92,10 @@ export class TmsController {
 			throw new BadRequestException('loadId is required');
 		}
 
-		return this.buildLoadEnrichment(cleanLoadId, body.meta_data ?? {});
+		return this.tmsLoadTrackingService.buildLoadEnrichment(
+			cleanLoadId,
+			body.meta_data ?? {},
+		);
 	}
 
 	@Delete('load/:loadId/tracking/:pointId')
@@ -206,7 +209,7 @@ export class TmsController {
 			return loadDetails;
 		}
 
-		const enrichment = await this.buildLoadEnrichment(
+		const enrichment = await this.tmsLoadTrackingService.buildLoadEnrichment(
 			loadId,
 			loadDetails.data.meta_data ?? {},
 		);
@@ -217,91 +220,6 @@ export class TmsController {
 				...loadDetails.data,
 				...enrichment,
 			},
-		};
-	}
-
-	private async buildLoadEnrichment(
-		loadId: string,
-		metaData: {
-			attached_driver?: unknown;
-			attached_second_driver?: unknown;
-			attached_third_driver?: unknown;
-			pick_up_location?: unknown;
-			delivery_location?: unknown;
-		},
-	) {
-		const driverExternalIds = [
-			metaData?.attached_driver,
-			metaData?.attached_second_driver,
-			metaData?.attached_third_driver,
-		]
-			.map((value) => String(value ?? '').trim())
-			.filter(Boolean);
-
-		const uniqueDriverExternalIds = Array.from(new Set(driverExternalIds));
-		const drivers =
-			uniqueDriverExternalIds.length > 0
-				? await this.prisma.user.findMany({
-						where: {
-							externalId: {
-								in: uniqueDriverExternalIds,
-							},
-						},
-						select: {
-							id: true,
-							externalId: true,
-							email: true,
-							firstName: true,
-							lastName: true,
-							phone: true,
-							profilePhoto: true,
-							role: true,
-							status: true,
-							driverStatus: true,
-							city: true,
-							state: true,
-							zip: true,
-							latitude: true,
-							longitude: true,
-							lastLocationUpdateAt: true,
-							isTracking: true,
-							trackingLoadId: true,
-						},
-					})
-				: [];
-		const trackingPoints = await this.prisma.driverTracking.findMany({
-			where: { loadId },
-			select: {
-				id: true,
-				externalDriverId: true,
-				latitude: true,
-				longitude: true,
-				placeLabel: true,
-				createdAt: true,
-				updatedAt: true,
-			},
-			orderBy: { createdAt: 'asc' },
-		});
-
-		const driversByExternalId = new Map(
-			drivers
-				.filter((driver) => driver.externalId)
-				.map((driver) => [driver.externalId as string, driver] as const),
-		);
-
-		const routeGeocode =
-			await this.tmsLoadRouteGeocodeService.getRouteGeocodeForLoad(
-				loadId,
-				metaData?.pick_up_location,
-				metaData?.delivery_location,
-			);
-
-		return {
-			drivers: uniqueDriverExternalIds
-				.map((externalId) => driversByExternalId.get(externalId))
-				.filter((driver): driver is (typeof drivers)[number] => Boolean(driver)),
-			trackingPoints,
-			routeGeocode,
 		};
 	}
 
