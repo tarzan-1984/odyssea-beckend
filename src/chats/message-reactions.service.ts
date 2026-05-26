@@ -138,13 +138,13 @@ export class MessageReactionsService {
 		}));
 	}
 
-	private async assertCanReact(
+	private async assertMessageAccess(
 		messageId: string,
 		userId: string,
-	): Promise<{ id: string; chatRoomId: string }> {
+	): Promise<{ id: string; chatRoomId: string; senderId: string }> {
 		const message = await this.prisma.message.findUnique({
 			where: { id: messageId },
-			select: { id: true, chatRoomId: true },
+			select: { id: true, chatRoomId: true, senderId: true },
 		});
 
 		if (!message) {
@@ -167,11 +167,23 @@ export class MessageReactionsService {
 		return message;
 	}
 
+	/** Reactions only on incoming messages (not on your own). */
+	private assertNotOwnMessage(
+		message: { senderId: string },
+		userId: string,
+	): void {
+		if (message.senderId === userId) {
+			throw new BadRequestException(
+				'You can only react to messages from other participants',
+			);
+		}
+	}
+
 	async getReactionsForMessage(
 		messageId: string,
 		userId: string,
 	): Promise<MessageReactionGroup[]> {
-		await this.assertCanReact(messageId, userId);
+		await this.assertMessageAccess(messageId, userId);
 
 		const rows = await this.prisma.messageReaction.findMany({
 			where: { messageId },
@@ -201,10 +213,16 @@ export class MessageReactionsService {
 	): Promise<{
 		messageId: string;
 		chatRoomId: string;
+		messageSenderId: string;
+		actorUserId: string;
+		actorFirstName: string;
+		actorLastName: string;
+		emoji: string;
 		reactions: MessageReactionGroup[];
 	}> {
 		const normalized = this.normalizeEmoji(emoji);
-		const message = await this.assertCanReact(messageId, userId);
+		const message = await this.assertMessageAccess(messageId, userId);
+		this.assertNotOwnMessage(message, userId);
 
 		await this.prisma.messageReaction.upsert({
 			where: {
@@ -225,9 +243,19 @@ export class MessageReactionsService {
 
 		const reactions = await this.getReactionsForMessage(messageId, userId);
 
+		const actor = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { firstName: true, lastName: true },
+		});
+
 		return {
 			messageId,
 			chatRoomId: message.chatRoomId,
+			messageSenderId: message.senderId,
+			actorUserId: userId,
+			actorFirstName: actor?.firstName ?? '',
+			actorLastName: actor?.lastName ?? '',
+			emoji: normalized,
 			reactions,
 		};
 	}
@@ -238,9 +266,11 @@ export class MessageReactionsService {
 	): Promise<{
 		messageId: string;
 		chatRoomId: string;
+		messageSenderId: string;
 		reactions: MessageReactionGroup[];
 	}> {
-		const message = await this.assertCanReact(messageId, userId);
+		const message = await this.assertMessageAccess(messageId, userId);
+		this.assertNotOwnMessage(message, userId);
 
 		await this.prisma.messageReaction.deleteMany({
 			where: { messageId, userId },
@@ -251,6 +281,7 @@ export class MessageReactionsService {
 		return {
 			messageId,
 			chatRoomId: message.chatRoomId,
+			messageSenderId: message.senderId,
 			reactions,
 		};
 	}

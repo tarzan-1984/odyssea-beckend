@@ -686,6 +686,14 @@ export class ChatGateway
 		chatRoomId: string,
 		messageId: string,
 		reactions: unknown[],
+		meta?: {
+			messageSenderId: string;
+			actorUserId: string;
+			actorFirstName: string;
+			actorLastName: string;
+			emoji?: string;
+			action: 'set' | 'remove';
+		},
 	) {
 		const chatRoom = await this.prisma.chatRoom.findUnique({
 			where: { id: chatRoomId },
@@ -698,7 +706,12 @@ export class ChatGateway
 			return;
 		}
 
-		const payload = { chatRoomId, messageId, reactions };
+		const payload = {
+			chatRoomId,
+			messageId,
+			reactions,
+			...(meta ?? {}),
+		};
 
 		for (const participant of chatRoom.participants) {
 			void this.server

@@ -546,6 +546,14 @@ export class MessagesController {
 			result.chatRoomId,
 			result.messageId,
 			result.reactions,
+			{
+				messageSenderId: result.messageSenderId,
+				actorUserId: result.actorUserId,
+				actorFirstName: result.actorFirstName,
+				actorLastName: result.actorLastName,
+				emoji: result.emoji,
+				action: 'set',
+			},
 		);
 
 		return result;
@@ -569,6 +577,13 @@ export class MessagesController {
 			result.chatRoomId,
 			result.messageId,
 			result.reactions,
+			{
+				messageSenderId: result.messageSenderId,
+				actorUserId: userId,
+				actorFirstName: '',
+				actorLastName: '',
+				action: 'remove',
+			},
 		);
 
 		return result;
