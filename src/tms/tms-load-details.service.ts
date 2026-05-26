@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import type { ExternalApiConfig } from '../config/env.config';
-import {
-	logTrackingLoadPage,
-	serializeTmsRequestError,
-} from './tracking-load-page.logger';
+import { AxiosError } from '../types/request.types';
 
 export type TmsLoadRouteLocations = {
 	pick_up_location: string | null;
@@ -33,21 +30,11 @@ export class TmsLoadDetailsService {
 
 	async fetchLoadDetails(loadId: string): Promise<TmsLoadDetailsResponse | null> {
 		const trimmedLoadId = loadId.trim();
-
-		logTrackingLoadPage(this.logger, 'TMS fetchLoadDetails started', {
-			loadId: trimmedLoadId,
-		});
-
-		if (!trimmedLoadId) {
-			logTrackingLoadPage(this.logger, 'TMS STOP — empty loadId', {});
-			return null;
-		}
+		if (!trimmedLoadId) return null;
 
 		const apiKey = this.configService.get<string>('externalApi.tmsApiKey');
 		if (!apiKey) {
-			logTrackingLoadPage(this.logger, 'TMS STOP — TMS_API_KEY not configured', {
-				loadId: trimmedLoadId,
-			});
+			this.logger.warn('TMS load details skipped: TMS_API_KEY is not configured');
 			return null;
 		}
 
@@ -60,14 +47,6 @@ export class TmsLoadDetailsService {
 		url.searchParams.set('project', 'odysseia');
 		url.searchParams.set('is_flt', 'false');
 
-		logTrackingLoadPage(this.logger, 'TMS calling external API', {
-			loadId: trimmedLoadId,
-			url: url.toString(),
-			hasApiKey: Boolean(apiKey?.trim()),
-			apiKeyLength: apiKey?.length ?? 0,
-			baseUrl,
-		});
-
 		try {
 			const { data, status } = await axios.get<TmsLoadDetailsResponse>(url.toString(), {
 				headers: {
@@ -78,39 +57,26 @@ export class TmsLoadDetailsService {
 				validateStatus: () => true,
 			});
 
-			logTrackingLoadPage(this.logger, 'TMS external API response', {
-				loadId: trimmedLoadId,
-				httpStatus: status,
-				success: data?.success,
-				hasData: Boolean(data?.data),
-				hasMeta: Boolean(data?.data?.meta_data),
-			});
-
 			if (status >= 400) {
-				logTrackingLoadPage(this.logger, 'TMS STOP — HTTP error from TMS', {
-					loadId: trimmedLoadId,
-					httpStatus: status,
-				});
+				this.logger.warn(
+					`TMS load details HTTP ${status} load_id=${trimmedLoadId}`,
+				);
 				return null;
 			}
 
-			if (!data?.data) {
-				logTrackingLoadPage(this.logger, 'TMS STOP — 200 but empty data', {
-					loadId: trimmedLoadId,
-				});
-				return data ?? null;
-			}
-
-			logTrackingLoadPage(this.logger, 'TMS fetchLoadDetails OK', {
-				loadId: trimmedLoadId,
-			});
-
 			return data;
 		} catch (error) {
-			logTrackingLoadPage(this.logger, 'TMS STOP — axios exception', {
-				loadId: trimmedLoadId,
-				...serializeTmsRequestError(error),
-			});
+			const ax = error as AxiosError;
+			if (ax.response?.data != null) {
+				const errBody =
+					typeof ax.response.data === 'string'
+						? ax.response.data
+						: JSON.stringify(ax.response.data, null, 2);
+				this.logger.warn(`TMS load details error response: ${errBody}`);
+			}
+			this.logger.warn(
+				`TMS load details failed load_id=${trimmedLoadId}: ${ax.message}`,
+			);
 			return null;
 		}
 	}
