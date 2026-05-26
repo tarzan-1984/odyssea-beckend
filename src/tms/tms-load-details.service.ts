@@ -119,7 +119,6 @@ export class TmsLoadDetailsService {
 			logTrackingLoadPage(this.logger, 'TMS STOP — axios exception', {
 				loadId: trimmedLoadId,
 				message: ax.message,
-				code: ax.code,
 			});
 			return null;
 		}
