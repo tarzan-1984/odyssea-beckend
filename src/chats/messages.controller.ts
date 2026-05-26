@@ -32,6 +32,8 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { MarkAllReadDto } from './dto/mark-all-read.dto';
 import { ChatGateway } from './chat.gateway';
 import { AuthenticatedRequest } from '../types/request.types';
+import { MessageReactionsService } from './message-reactions.service';
+import { SetMessageReactionDto } from './dto/set-message-reaction.dto';
 
 @ApiTags('Messages')
 @Controller('messages')
@@ -43,6 +45,7 @@ export class MessagesController {
 		private readonly fileUploadService: FileUploadService,
 		private readonly chatGateway: ChatGateway,
 		private readonly chatRoomsService: ChatRoomsService,
+		private readonly messageReactionsService: MessageReactionsService,
 	) {}
 
 	@Post()
@@ -521,6 +524,54 @@ export class MessagesController {
 		const _userId = req.user.id;
 		// This will be implemented in MessagesService
 		return { success: true, messageId: id };
+	}
+
+	@Post(':id/reactions')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Set or replace reaction on a message' })
+	@ApiParam({ name: 'id', description: 'Message ID' })
+	async setMessageReaction(
+		@Param('id') id: string,
+		@Body() dto: SetMessageReactionDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		const result = await this.messageReactionsService.setReaction(
+			userId,
+			id,
+			dto.emoji,
+		);
+
+		void this.chatGateway.broadcastMessageReactions(
+			result.chatRoomId,
+			result.messageId,
+			result.reactions,
+		);
+
+		return result;
+	}
+
+	@Delete(':id/reactions')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Remove your reaction from a message' })
+	@ApiParam({ name: 'id', description: 'Message ID' })
+	async removeMessageReaction(
+		@Param('id') id: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		const result = await this.messageReactionsService.removeReaction(
+			userId,
+			id,
+		);
+
+		void this.chatGateway.broadcastMessageReactions(
+			result.chatRoomId,
+			result.messageId,
+			result.reactions,
+		);
+
+		return result;
 	}
 
 	@Delete(':id')

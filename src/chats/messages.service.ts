@@ -8,6 +8,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { FcmPushService } from '../notifications/fcm-push.service';
 import { ExpoPushService } from '../notifications/expo-push.service';
 import { UserRole } from '@prisma/client';
+import { MessageReactionsService } from './message-reactions.service';
 
 /** Only drivers are restricted to messages after they joined; other roles see full history. */
 function shouldCutOffMessagesAtJoinedAt(role: UserRole | null | undefined): boolean {
@@ -20,6 +21,7 @@ export class MessagesService {
 		private prisma: PrismaService,
 		private fcmPushService: FcmPushService,
 		private expoPushService: ExpoPushService,
+		private messageReactionsService: MessageReactionsService,
 	) {}
 
 	/**
@@ -180,7 +182,13 @@ export class MessagesService {
 		// Fire-and-forget push notifications to other participants
 		this.sendPushToParticipants(transformedMessage).catch(() => {});
 
-		return transformedMessage;
+		const [withReactions] =
+			await this.messageReactionsService.attachReactionsToMessages(
+				[transformedMessage],
+				senderId,
+			);
+
+		return withReactions;
 	}
 
 	/**
@@ -654,8 +662,14 @@ export class MessagesService {
 				: undefined,
 		}));
 
+		const messagesWithReactions =
+			await this.messageReactionsService.attachReactionsToMessages(
+				transformedMessages,
+				userId,
+			);
+
 		return {
-			messages: transformedMessages,
+			messages: messagesWithReactions,
 			pagination: {
 				page,
 				limit,
@@ -765,8 +779,14 @@ export class MessagesService {
 				: undefined,
 		}));
 
+		const messagesWithReactions =
+			await this.messageReactionsService.attachReactionsToMessages(
+				transformedMessages,
+				userId,
+			);
+
 		return {
-			messages: transformedMessages,
+			messages: messagesWithReactions,
 			pagination: {
 				page,
 				limit,

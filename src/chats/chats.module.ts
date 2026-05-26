@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { ChatRoomsService } from './chat-rooms.service';
 import { MessagesService } from './messages.service';
+import { MessageReactionsService } from './message-reactions.service';
 import { ChatRoomsController } from './chat-rooms.controller';
 import { MessagesController } from './messages.controller';
 import { MessagesArchiveController } from './messages-archive.controller';
@@ -51,6 +52,7 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
 	providers: [
 		ChatRoomsService,
 		MessagesService,
+		MessageReactionsService,
 		MessagesArchiveService,
 		MessagesArchiveScheduler,
 		DeliveredLoadChatCleanupScheduler,
@@ -64,6 +66,7 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
 	exports: [
 		ChatRoomsService,
 		MessagesService,
+		MessageReactionsService,
 		MessagesArchiveService,
 		FileUploadService,
 		ChatGateway,

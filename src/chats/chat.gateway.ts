@@ -680,6 +680,34 @@ export class ChatGateway
 	}
 
 	/**
+	 * Broadcast updated reactions for a message to all chat participants.
+	 */
+	async broadcastMessageReactions(
+		chatRoomId: string,
+		messageId: string,
+		reactions: unknown[],
+	) {
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			include: {
+				participants: true,
+			},
+		});
+
+		if (!chatRoom) {
+			return;
+		}
+
+		const payload = { chatRoomId, messageId, reactions };
+
+		for (const participant of chatRoom.participants) {
+			void this.server
+				.to(`user_${participant.userId}`)
+				.emit('messageReactionsUpdated', payload);
+		}
+	}
+
+	/**
 	 * Send notification to specific user
 	 * Used for offline notifications
 	 */
