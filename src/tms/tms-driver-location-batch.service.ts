@@ -26,6 +26,29 @@ export class TmsDriverLocationBatchService {
 
 	constructor(private readonly configService: ConfigService) {}
 
+	private serializeAggregateError(err: unknown): unknown {
+		const maybe = err as { errors?: unknown[] };
+		if (!maybe || !Array.isArray(maybe.errors)) return null;
+		return maybe.errors.map((e) => {
+			if (e instanceof Error) {
+				return {
+					name: e.name,
+					message: e.message,
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					code: (e as any).code,
+					cause:
+						e.cause instanceof Error
+							? e.cause.message
+							: e.cause != null
+								? String(e.cause)
+								: undefined,
+				};
+			}
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			return { raw: String(e), code: (e as any)?.code };
+		});
+	}
+
 	/**
 	 * POST batch location update to TMS. Throws on non-2xx after retries exhausted (caller handles).
 	 */
@@ -87,8 +110,12 @@ export class TmsDriverLocationBatchService {
 				);
 			}
 			if (error instanceof Error) {
+				const aggregate =
+					error.name === 'AggregateError'
+						? this.serializeAggregateError(error)
+						: null;
 				this.logger.error(
-					`------------------------------------------\n[LOCATION_TMS_SYNC_BATCH]\nattempt=${attempt}/${maxAttempts} exception=${error.name}\nmessage=${error.message}\n------------------------------------------`,
+					`------------------------------------------\n[LOCATION_TMS_SYNC_BATCH]\nattempt=${attempt}/${maxAttempts} exception=${error.name}\nmessage=${error.message}\naggregateErrors=${aggregate ? JSON.stringify(aggregate) : ''}\n------------------------------------------`,
 				);
 				if (attempt < maxAttempts) {
 					this.logger.warn(
