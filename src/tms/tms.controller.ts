@@ -31,6 +31,7 @@ import {
 	TmsLoadDetailsService,
 } from './tms-load-details.service';
 import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
+import { logTrackingLoadPage } from './tracking-load-page.logger';
 
 /** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
 const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
@@ -72,8 +73,41 @@ export class TmsController {
 	})
 	@ApiResponse({ status: 200, description: 'TMS load details response' })
 	async getLoadDetails(@Param('loadId') loadId: string) {
+		logTrackingLoadPage(this.logger, '1/4 Nest GET /tms/load/:loadId started', {
+			loadId,
+		});
+
 		const loadDetails = await this.tmsLoadDetailsService.fetchLoadDetails(loadId);
-		return this.attachLoadDriversAndTracking(loadId, loadDetails);
+
+		logTrackingLoadPage(this.logger, '2/4 TMS fetchLoadDetails finished', {
+			loadId,
+			isNull: loadDetails === null,
+			hasData: Boolean(loadDetails?.data),
+			hasMeta: Boolean(loadDetails?.data?.meta_data),
+			success: loadDetails?.success,
+		});
+
+		const merged = await this.attachLoadDriversAndTracking(loadId, loadDetails);
+
+		const mergedData = merged?.data as Record<string, unknown> | undefined;
+		logTrackingLoadPage(this.logger, '3/4 attachLoadDriversAndTracking finished', {
+			loadId,
+			isNull: merged === null,
+			hasData: Boolean(merged?.data),
+			driversCount: Array.isArray(mergedData?.drivers)
+				? mergedData.drivers.length
+				: 0,
+			trackingPointsCount: Array.isArray(mergedData?.trackingPoints)
+				? mergedData.trackingPoints.length
+				: 0,
+			hasRouteGeocode: mergedData?.routeGeocode != null,
+		});
+
+		logTrackingLoadPage(this.logger, '4/4 Nest GET /tms/load/:loadId returning', {
+			loadId,
+		});
+
+		return merged;
 	}
 
 	@Delete('load/:loadId/tracking/:pointId')
@@ -184,8 +218,17 @@ export class TmsController {
 		loadDetails: TmsLoadDetailsResponse | null,
 	) {
 		if (!loadDetails?.data) {
+			logTrackingLoadPage(
+				this.logger,
+				'attach — SKIP (no TMS data), returning as-is',
+				{ loadId, loadDetailsIsNull: loadDetails === null },
+			);
 			return loadDetails;
 		}
+
+		logTrackingLoadPage(this.logger, 'attach — TMS data OK, enriching from DB', {
+			loadId,
+		});
 
 		const metaData = loadDetails.data.meta_data;
 		const driverExternalIds = [
