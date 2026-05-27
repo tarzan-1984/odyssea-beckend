@@ -41,8 +41,16 @@ export class TmsLoadRouteGeocodeService {
 		);
 	}
 
+	/** Default US; override when address explicitly mentions Canada or Mexico. */
+	private resolveNominatimCountryCodes(address: string): string {
+		if (/\bcanada\b/i.test(address)) return 'ca';
+		if (/\b(mexico|méxico)\b/i.test(address)) return 'mx';
+		return 'us';
+	}
+
 	private async nominatimGeocode(
 		query: string,
+		countrycodes: string,
 	): Promise<{ lat: number; lng: number } | null> {
 		const url = new URL(NOMINATIM_SEARCH);
 		url.searchParams.set('q', query);
@@ -50,7 +58,7 @@ export class TmsLoadRouteGeocodeService {
 		url.searchParams.set('limit', '1');
 		url.searchParams.set('addressdetails', '0');
 		url.searchParams.set('accept-language', 'en');
-		url.searchParams.set('countrycodes', 'us');
+		url.searchParams.set('countrycodes', countrycodes);
 
 		try {
 			const { data } = await axios.get<Array<{ lat?: string; lon?: string }>>(
@@ -84,7 +92,12 @@ export class TmsLoadRouteGeocodeService {
 				await sleep(NOMINATIM_DELAY_MS);
 			}
 			const candidate = candidates[i];
-			const coords = await this.nominatimGeocode(candidate);
+
+			const trimmed = candidate.trim();
+			const coords = await this.nominatimGeocode(
+				trimmed,
+				this.resolveNominatimCountryCodes(trimmed),
+			);
 			if (coords) {
 				return { ...coords, addressLabel: candidate };
 			}
