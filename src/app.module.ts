@@ -24,6 +24,7 @@ import { OffersModule } from './offers/offers.module';
 import { AppSettingsModule } from './app-settings/app-settings.module';
 import { PublicModule } from './public/public.module';
 import { MessageTemplatesModule } from './message-templates/message-templates.module';
+import { NotificationSoundsModule } from './notification-sounds/notification-sounds.module';
 
 @Module({
 	imports: [
@@ -52,6 +53,7 @@ import { MessageTemplatesModule } from './message-templates/message-templates.mo
 		AppSettingsModule,
 		PublicModule,
 		MessageTemplatesModule,
+		NotificationSoundsModule,
 	],
 	controllers: [AppController],
 	providers: [],

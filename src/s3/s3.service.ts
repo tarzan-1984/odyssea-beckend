@@ -70,6 +70,10 @@ export class S3Service {
 			'text/plain',
 			'application/msword',
 			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			'audio/mpeg',
+			'audio/mp3',
+			'audio/wav',
+			'audio/x-wav',
 		];
 
 		if (contentType && !allowedTypes.includes(contentType)) {
