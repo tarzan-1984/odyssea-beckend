@@ -25,6 +25,7 @@ import { AppSettingsModule } from './app-settings/app-settings.module';
 import { PublicModule } from './public/public.module';
 import { MessageTemplatesModule } from './message-templates/message-templates.module';
 import { NotificationSoundsModule } from './notification-sounds/notification-sounds.module';
+import { TrackingModule } from './tracking/tracking.module';
 
 @Module({
 	imports: [
@@ -54,6 +55,7 @@ import { NotificationSoundsModule } from './notification-sounds/notification-sou
 		PublicModule,
 		MessageTemplatesModule,
 		NotificationSoundsModule,
+		TrackingModule,
 	],
 	controllers: [AppController],
 	providers: [],
