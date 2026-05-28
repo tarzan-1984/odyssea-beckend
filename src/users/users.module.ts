@@ -12,6 +12,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TmsModule } from '../tms/tms.module';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
+import { GeocodingModule } from '../geocoding/geocoding.module';
 
 @Module({
 	imports: [
@@ -20,6 +21,7 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
 		NotificationsModule,
 		TmsModule,
 		AppSettingsModule,
+		GeocodingModule,
 	],
 		controllers: [UsersController, SyncController, DriversWebhookController],
 	providers: [

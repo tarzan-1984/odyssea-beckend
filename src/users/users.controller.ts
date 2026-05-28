@@ -306,7 +306,10 @@ export class UsersController {
 	) {
 		const tokenPayload = decodeBearerJwtPayload(req.headers.authorization);
 		const userId = tokenPayload?.sub?.trim() || id;
-		return this.usersService.updateUserLocation(userId, body);
+		return this.usersService.updateUserLocation(userId, body, {
+			urlParamUserId: id,
+			tokenSub: tokenPayload?.sub ?? null,
+		});
 	}
 
 	@Get('drivers/map')

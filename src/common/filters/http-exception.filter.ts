@@ -7,6 +7,12 @@ import {
 	Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import {
+	extractUserIdFromLocationPath,
+	httpExceptionMessage,
+	isUserLocationUpdatePath,
+	logLocationUpdateFailure,
+} from '../../users/utils/location-update-failure.logger';
 
 /** Avoid ERROR-level spam when non-test drivers hit PUT .../location in test mode (expected 403). */
 function shouldSkipErrorLogForLocationTestMode(
@@ -33,6 +39,17 @@ function shouldSkipErrorLogForLocationTestMode(
 	return text.includes('test mode');
 }
 
+function isValidationPipeResponse(message: string | object): boolean {
+	if (Array.isArray(message)) {
+		return true;
+	}
+	if (typeof message === 'object' && message !== null) {
+		const msg = (message as { message?: unknown }).message;
+		return Array.isArray(msg);
+	}
+	return false;
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
 	private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -52,14 +69,53 @@ export class HttpExceptionFilter implements ExceptionFilter {
 				? exception.getResponse()
 				: 'Internal server error';
 
+		const requestUrl = request.url ?? '';
+		const requestMethod = request.method ?? '';
+		const isLocationPut = isUserLocationUpdatePath(requestUrl, requestMethod);
+		const locationUserId =
+			extractUserIdFromLocationPath(requestUrl) ?? 'unknown';
+
 		const skipErrorLog = shouldSkipErrorLogForLocationTestMode(
 			status,
-			request.url ?? '',
+			requestUrl,
 			message,
 		);
 
+		// Business failures on PUT /users/:id/location are logged in UsersService.
+		const skipGenericLog =
+			isLocationPut && exception instanceof HttpException;
+
+		if (isLocationPut && status === HttpStatus.BAD_REQUEST && isValidationPipeResponse(message)) {
+			logLocationUpdateFailure(this.logger, {
+				userId: locationUserId,
+				externalId: null,
+				source: 'validation',
+				httpStatus: status,
+				reason:
+					'Request body failed DTO validation before location update handler ran (class-validator).',
+				trace: { urlParamUserId: locationUserId },
+				payload: request.body,
+				details: {
+					validationErrors: message,
+				},
+			});
+		}
+
+		if (isLocationPut && !(exception instanceof HttpException)) {
+			logLocationUpdateFailure(this.logger, {
+				userId: locationUserId,
+				externalId: null,
+				source: 'unknown',
+				httpStatus: status,
+				reason: httpExceptionMessage(exception),
+				trace: { urlParamUserId: locationUserId },
+				payload: request.body,
+				error: exception,
+			});
+		}
+
 		// Log error details for debugging
-		if (!skipErrorLog) {
+		if (!skipErrorLog && !skipGenericLog) {
 			if (status === HttpStatus.BAD_REQUEST) {
 				this.logger.error(`❌ [Validation Error] Path: ${request.url}`);
 				this.logger.error(`❌ [Validation Error] Method: ${request.method}`);

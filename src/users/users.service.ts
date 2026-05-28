@@ -31,6 +31,18 @@ import { formatTmsStatusDate } from '../tms/tms-status-date.util';
 import type { ExternalApiConfig } from '../config/env.config';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+	logLocationUpdateFailure,
+	type LocationUpdateRequestTrace,
+} from './utils/location-update-failure.logger';
+import { NominatimReverseGeocodeService } from '../geocoding/nominatim-reverse-geocode.service';
+
+function trimLocationField(value: unknown): string {
+	if (value === undefined || value === null) {
+		return '';
+	}
+	return String(value).trim();
+}
 
 type LatLng = { latitude: number; longitude: number };
 type BBox = { minLat: number; maxLat: number; minLng: number; maxLng: number };
@@ -101,6 +113,7 @@ export class UsersService {
 		private readonly tmsLoadDetails: TmsLoadDetailsService,
 		private readonly configService: ConfigService,
 		private readonly appSettingsService: AppSettingsService,
+		private readonly nominatimReverseGeocode: NominatimReverseGeocodeService,
 	) {}
 
 	private parseNaiveDateTime(value: string | null | undefined): Date | null {
@@ -889,22 +902,64 @@ export class UsersService {
 	 * unless `isBackgroundTaskLocationUpdate` is true (background task pings — DB + WebSocket only).
 	 * Verbose `[manual]` logs only when `isManualDriverLocationAction` is true (status submit / Share location from app).
 	 */
-	async updateUserLocation(id: string, locationDto: UpdateUserLocationDto) {
+	async updateUserLocation(
+		id: string,
+		locationDto: UpdateUserLocationDto,
+		requestTrace: LocationUpdateRequestTrace = {},
+	) {
+		const trace: LocationUpdateRequestTrace = {
+			...requestTrace,
+			isBackgroundPing: locationDto.isBackgroundTaskLocationUpdate === true,
+			isManualAction: locationDto.isManualDriverLocationAction === true,
+		};
+
 		const user = await this.prisma.user.findUnique({
 			where: { id },
 		});
 
 		if (!user) {
+			logLocationUpdateFailure(this.logger, {
+				userId: id,
+				externalId: null,
+				source: 'not_found',
+				httpStatus: HttpStatus.NOT_FOUND,
+				reason:
+					'User record not found for the resolved user id (JWT sub or URL :id). Location was not saved.',
+				trace,
+				payload: locationDto,
+			});
 			throw new NotFoundException('User not found');
 		}
+
+		const externalIdForLogs = user.externalId ?? null;
 
 		const env =
 			await this.appSettingsService.getLocationEnvironmentAppSettings();
 		const allowedTestExternalId = env.locationTestDriverExternalId.trim();
 		const isTestDriver =
-			!!user.externalId?.trim() && user.externalId.trim() === allowedTestExternalId;
+			!!user.externalId?.trim() &&
+			user.externalId.trim() === allowedTestExternalId;
 		if (env.locationEnvironmentMode === 'test') {
 			if (!isTestDriver) {
+				logLocationUpdateFailure(
+					this.logger,
+					{
+						userId: id,
+						externalId: externalIdForLogs,
+						source: 'test_mode',
+						httpStatus: HttpStatus.FORBIDDEN,
+						reason:
+							'Location environment is in test mode; only the configured test driver externalId may update location. Request rejected before save.',
+						trace,
+						payload: locationDto,
+						details: {
+							locationEnvironmentMode: env.locationEnvironmentMode,
+							allowedTestDriverExternalId:
+								allowedTestExternalId || '(empty)',
+						},
+					},
+					'warn',
+				);
 				throw new ForbiddenException(
 					'Location updates are disabled for this account (server is in test mode; only the configured test driver may update location).',
 				);
@@ -922,6 +977,20 @@ export class UsersService {
 				longitude: locationDto.longitude,
 			});
 			if (!ok) {
+				logLocationUpdateFailure(this.logger, {
+					userId: id,
+					externalId: externalIdForLogs,
+					source: 'geo_fence',
+					httpStatus: HttpStatus.BAD_REQUEST,
+					reason:
+						'Coordinates are outside the allowed North America region (geo-fence). Location was not saved.',
+					trace,
+					payload: locationDto,
+					details: {
+						latitude: locationDto.latitude,
+						longitude: locationDto.longitude,
+					},
+				});
 				throw new BadRequestException(
 					`Invalid location coordinates (outside allowed region)`,
 				);
@@ -957,37 +1026,83 @@ export class UsersService {
 			)}:${get('second')}`;
 		})();
 
+		let resolvedCity = trimLocationField(locationDto.city);
+		let resolvedState = trimLocationField(locationDto.state);
+		let resolvedZip = trimLocationField(locationDto.zip);
+
+		const hasCoords =
+			typeof locationDto.latitude === 'number' &&
+			typeof locationDto.longitude === 'number' &&
+			Number.isFinite(locationDto.latitude) &&
+			Number.isFinite(locationDto.longitude);
+
+		if (hasCoords && (!resolvedCity || !resolvedState || !resolvedZip)) {
+			const missingBefore = [
+				!resolvedCity && 'city',
+				!resolvedState && 'state',
+				!resolvedZip && 'zip',
+			]
+				.filter(Boolean)
+				.join(', ');
+			this.logger.log(
+				`[ServerGeocode] Missing address field(s) [${missingBefore}] — calling Nominatim before DB save`,
+			);
+
+			const geo = await this.nominatimReverseGeocode.reverseGeocode(
+				locationDto.latitude as number,
+				locationDto.longitude as number,
+			);
+
+			if (geo) {
+				const filled: string[] = [];
+				if (!resolvedCity && geo.city) {
+					resolvedCity = geo.city;
+					filled.push('city');
+				}
+				if (!resolvedState && geo.state) {
+					resolvedState = geo.state;
+					filled.push('state');
+				}
+				if (!resolvedZip && geo.zip) {
+					resolvedZip = geo.zip;
+					filled.push('zip');
+				}
+				if (filled.length > 0) {
+					this.logger.log(
+						`[ServerGeocode] Merged into save payload — filled: ${filled.join(', ')}`,
+					);
+				} else {
+					this.logger.warn(
+						'[ServerGeocode] Nominatim OK but no new fields matched client gaps',
+					);
+				}
+			} else if (!resolvedCity && !resolvedState && !resolvedZip) {
+				this.logger.error(
+					'[ServerGeocode] FAILED — neither client nor Nominatim provided city/state/zip; saving coordinates only',
+				);
+			} else {
+				this.logger.warn(
+					'[ServerGeocode] FAILED — Nominatim unavailable; saving client fields + coordinates (missing columns unchanged)',
+				);
+			}
+		}
+
 		const data: Prisma.UserUpdateInput = {
 			latitude: locationDto.latitude,
 			longitude: locationDto.longitude,
 			lastLocationUpdateAt: nowNy,
 		};
 
-		const cityIncoming = locationDto.city;
-		if (
-			cityIncoming !== undefined &&
-			cityIncoming !== null &&
-			String(cityIncoming).trim() !== ''
-		) {
-			data.city = String(cityIncoming).trim();
+		if (resolvedCity) {
+			data.city = resolvedCity;
 		}
 
-		const stateIncoming = locationDto.state;
-		if (
-			stateIncoming !== undefined &&
-			stateIncoming !== null &&
-			String(stateIncoming).trim() !== ''
-		) {
-			data.state = String(stateIncoming).trim();
+		if (resolvedState) {
+			data.state = resolvedState;
 		}
 
-		const zipIncoming = locationDto.zip;
-		if (
-			zipIncoming !== undefined &&
-			zipIncoming !== null &&
-			String(zipIncoming).trim() !== ''
-		) {
-			data.zip = String(zipIncoming).trim();
+		if (resolvedZip) {
+			data.zip = resolvedZip;
 		}
 
 		// Do not overwrite DB `location` when client sends no TMS code (empty string).
@@ -1016,31 +1131,48 @@ export class UsersService {
 			data.isAutoupdate = locationDto.isAutoupdate;
 		}
 
-		const updatedUser = await this.prisma.user.update({
-			where: { id },
-			data,
-			select: {
-				id: true,
-				externalId: true,
-				email: true,
-				firstName: true,
-				lastName: true,
-				role: true,
-				location: true,
-				city: true,
-				state: true,
-				zip: true,
-				latitude: true,
-				longitude: true,
-				updatedAt: true,
-				lastLocationUpdateAt: true,
-				driverStatus: true,
-				statusDate: true,
-				isAutoupdate: true,
-				isTracking: true,
-				trackingLoadId: true,
-			},
-		});
+		let updatedUser;
+		try {
+			updatedUser = await this.prisma.user.update({
+				where: { id },
+				data,
+				select: {
+					id: true,
+					externalId: true,
+					email: true,
+					firstName: true,
+					lastName: true,
+					role: true,
+					location: true,
+					city: true,
+					state: true,
+					zip: true,
+					latitude: true,
+					longitude: true,
+					updatedAt: true,
+					lastLocationUpdateAt: true,
+					driverStatus: true,
+					statusDate: true,
+					isAutoupdate: true,
+					isTracking: true,
+					trackingLoadId: true,
+				},
+			});
+		} catch (err) {
+			logLocationUpdateFailure(this.logger, {
+				userId: id,
+				externalId: externalIdForLogs,
+				source: 'database',
+				httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
+				reason:
+					'Failed to persist driver location fields in the database (Prisma user.update).',
+				trace,
+				payload: locationDto,
+				details: { prismaUpdateKeys: Object.keys(data) },
+				error: err,
+			});
+			throw err;
+		}
 
 		const trackingPoint = await this.maybeCreateDriverTrackingPoint(updatedUser);
 
@@ -1177,30 +1309,36 @@ export class UsersService {
 			await this.tmsDriverLocationBatch.sendBatch([batchItem]);
 		} catch (err) {
 			const tmsError = err instanceof Error ? err.message : String(err);
-			const sep = '------------------------------------------';
-			const batchSummary = batchItem
-				? {
-						driver_id: batchItem.driver_id,
-						driver_status: batchItem.driver_status,
-						status_date: batchItem.status_date,
-						current_city: batchItem.current_city,
-						current_zipcode: batchItem.current_zipcode,
-						current_locationLen: String(batchItem.current_location ?? '').length,
-						latitude: batchItem.latitude,
-						longitude: batchItem.longitude,
-					}
-				: null;
+			const batchSummary = {
+				driver_id: batchItem.driver_id,
+				driver_status: batchItem.driver_status,
+				status_date: batchItem.status_date,
+				current_city: batchItem.current_city,
+				current_zipcode: batchItem.current_zipcode,
+				current_locationLen: String(batchItem.current_location ?? '').length,
+				latitude: batchItem.latitude,
+				longitude: batchItem.longitude,
+			};
 
-			this.logger.error(
-				`${sep}\n[LOCATION_TMS_SYNC_FAIL]\ntrace=isAutoupdate=${String(
-					locationDto.isAutoupdate,
-				)} manual=${String(isManualAction)} background=${String(isBackgroundPing)}\n` +
-					`userId=${id} externalId=${updatedUser.externalId ?? ''}\n` +
-					`driverStatusPatch=${driverStatusPatch ?? ''} tmsStatus=${tmsStatus ?? ''} statusDateFormatted=${statusDateFormatted ?? ''}\n` +
-					`batchSummary=${JSON.stringify(batchSummary)}\n` +
-					`errorMessage=${tmsError}\n` +
-					`${sep}`,
-			);
+			logLocationUpdateFailure(this.logger, {
+				userId: id,
+				externalId: updatedUser.externalId ?? externalIdForLogs,
+				source: 'tms_sync',
+				httpStatus: HttpStatus.SERVICE_UNAVAILABLE,
+				reason:
+					'Location was saved to the database but TMS driver/location batch sync failed. Client receives HTTP 503.',
+				trace,
+				payload: locationDto,
+				details: {
+					databaseUpdated: true,
+					driverStatusPatch: driverStatusPatch ?? '',
+					tmsStatus: tmsStatus ?? '',
+					statusDateFormatted: statusDateFormatted ?? '',
+					tmsBatchSummary: batchSummary,
+					tmsError,
+				},
+				error: err,
+			});
 			throw new HttpException(
 				{
 					statusCode: HttpStatus.SERVICE_UNAVAILABLE,
