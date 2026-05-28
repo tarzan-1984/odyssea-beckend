@@ -15,10 +15,9 @@ export class TrackingTransferDto {
 	@IsISO8601()
 	ts?: string;
 
-	@ApiProperty({ example: 'odysseia', required: false })
-	@IsOptional()
+	@ApiProperty({ example: 'odysseia' })
 	@IsString()
-	project?: string;
+	project!: string;
 
 	@ApiProperty({ example: 123, description: 'Driver externalId to replace' })
 	@Type(() => Number)

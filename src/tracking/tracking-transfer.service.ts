@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackingTransferDto } from './dto/tracking-transfer.dto';
 
@@ -40,12 +40,27 @@ export class TrackingTransferService {
 
 		const rooms = await this.prisma.chatRoom.findMany({
 			where: { type: 'LOAD', loadId: { in: loadIds } },
-			select: { id: true },
+			select: { id: true, company: true, loadId: true },
 		});
 		const chatRoomIds = rooms.map((r) => r.id);
 
 		if (chatRoomIds.length === 0) {
 			return { chatRoomsMatched: 0, oldRemovedFrom: 0, newAddedTo: 0 };
+		}
+
+		const expectedCompany = String(dto.project ?? '').trim().toLowerCase();
+		if (!expectedCompany) {
+			throw new BadRequestException('Missing required field: project');
+		}
+
+		const mismatch = rooms.find((r) => {
+			const c = String(r.company ?? '').trim().toLowerCase();
+			return c !== expectedCompany;
+		});
+		if (mismatch) {
+			throw new BadRequestException(
+				`Company mismatch for loadId=${mismatch.loadId ?? 'unknown'} (chatRoomId=${mismatch.id}): expected=${dto.project}, got=${mismatch.company ?? ''}`,
+			);
 		}
 
 		const joinedAt = dto.ts ? new Date(dto.ts) : new Date();
