@@ -13,8 +13,11 @@ import {
 	HttpCode,
 	HttpStatus,
 	Request,
+	Req,
 } from '@nestjs/common';
+import type { Request as ExpressRequest } from 'express';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
+import { decodeBearerJwtPayload } from '../auth/utils/decode-bearer-jwt.util';
 import {
 	ApiTags,
 	ApiOperation,
@@ -281,10 +284,11 @@ export class UsersController {
 	}
 
 	@Put(':id/location')
+	@SkipAuth()
 	@ApiOperation({
 		summary: 'Update user location and coordinates',
 		description:
-			'Updates location-related fields (location, city, state, zip, latitude, longitude) for given user. Intended for mobile location tracking.',
+			'Updates location-related fields (location, city, state, zip, latitude, longitude) for given user. Intended for mobile location tracking. Auth is not validated; user id is taken from JWT `sub` when Bearer token is present, otherwise from `:id`.',
 	})
 	@ApiResponse({
 		status: 200,
@@ -298,8 +302,11 @@ export class UsersController {
 	async updateUserLocation(
 		@Param('id') id: string,
 		@Body() body: UpdateUserLocationDto,
+		@Req() req: ExpressRequest,
 	) {
-		return this.usersService.updateUserLocation(id, body);
+		const tokenPayload = decodeBearerJwtPayload(req.headers.authorization);
+		const userId = tokenPayload?.sub?.trim() || id;
+		return this.usersService.updateUserLocation(userId, body);
 	}
 
 	@Get('drivers/map')
