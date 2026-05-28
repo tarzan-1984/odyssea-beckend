@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackingTransferDto } from './dto/tracking-transfer.dto';
+import { ChatGateway } from '../chats/chat.gateway';
 
 @Injectable()
 export class TrackingTransferService {
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly chatGateway: ChatGateway,
+	) {}
 
 	async transfer(dto: TrackingTransferDto): Promise<{
 		chatRoomsMatched: number;
@@ -65,7 +69,22 @@ export class TrackingTransferService {
 
 		const joinedAt = dto.ts ? new Date(dto.ts) : new Date();
 
-		return await this.prisma.$transaction(async (tx) => {
+		const oldParticipantRows = await this.prisma.chatRoomParticipant.findMany({
+			where: { chatRoomId: { in: chatRoomIds }, userId: oldUser.id },
+			select: { chatRoomId: true },
+		});
+		const oldRoomsSet = new Set(oldParticipantRows.map((r) => r.chatRoomId));
+
+		const newParticipantRows = await this.prisma.chatRoomParticipant.findMany({
+			where: { chatRoomId: { in: chatRoomIds }, userId: newUser.id },
+			select: { chatRoomId: true },
+		});
+		const newRoomsSet = new Set(newParticipantRows.map((r) => r.chatRoomId));
+
+		const removedFromRoomIds = Array.from(oldRoomsSet);
+		const addedToRoomIds = chatRoomIds.filter((id) => !newRoomsSet.has(id));
+
+		const outcome = await this.prisma.$transaction(async (tx) => {
 			const removed = await tx.chatRoomParticipant.deleteMany({
 				where: {
 					chatRoomId: { in: chatRoomIds },
@@ -104,6 +123,86 @@ export class TrackingTransferService {
 				newAddedTo: created.count,
 			};
 		});
+
+		// WebSocket: notify all affected rooms so UIs update in real time.
+		// - chatRoomUpdated for everyone (refresh list state)
+		// - participantRemoved / removedFromChatRoom for the removed user
+		// - participantsAdded + addedToChatRoom for the added user
+		for (const chatRoomId of chatRoomIds) {
+			try {
+				const chatRoom = await this.prisma.chatRoom.findUnique({
+					where: { id: chatRoomId },
+					include: {
+						participants: {
+							include: {
+								user: {
+									select: {
+										id: true,
+										firstName: true,
+										lastName: true,
+										role: true,
+										profilePhoto: true,
+										userColor: true,
+									},
+								},
+							},
+						},
+					},
+				});
+
+				if (!chatRoom) continue;
+
+				const updatedAt = new Date().toISOString();
+				for (const participant of chatRoom.participants) {
+					void this.chatGateway.server
+						.to(`user_${participant.userId}`)
+						.emit('chatRoomUpdated', {
+							chatRoomId,
+							updatedChatRoom: chatRoom,
+							updatedBy: 'system',
+							updatedAt,
+						});
+				}
+
+				if (removedFromRoomIds.includes(chatRoomId)) {
+					void this.chatGateway.server
+						.to(`chat_${chatRoomId}`)
+						.emit('participantRemoved', {
+							chatRoomId,
+							removedUserId: oldUser.id,
+							removedBy: 'system',
+						});
+					void this.chatGateway.server
+						.to(`user_${oldUser.id}`)
+						.emit('removedFromChatRoom', {
+							chatRoomId,
+							removedBy: 'system',
+						});
+				}
+
+				if (addedToRoomIds.includes(chatRoomId)) {
+					const newParticipant = chatRoom.participants.find(
+						(p) => p.userId === newUser.id,
+					);
+					if (newParticipant) {
+						void this.chatGateway.server
+							.to(`chat_${chatRoomId}`)
+							.emit('participantsAdded', {
+								chatRoomId,
+								newParticipants: [newParticipant],
+								addedBy: 'system',
+							});
+					}
+					void this.chatGateway.server
+						.to(`user_${newUser.id}`)
+						.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+				}
+			} catch {
+				// Do not block the transfer on WebSocket notification issues
+			}
+		}
+
+		return outcome;
 	}
 }
 

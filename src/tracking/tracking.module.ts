@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '../prisma/prisma.module';
+import { ChatsModule } from '../chats/chats.module';
 import { TrackingTransferController } from './tracking-transfer.controller';
 import { TrackingTransferService } from './tracking-transfer.service';
 
 @Module({
-	imports: [PrismaModule],
+	imports: [ChatsModule],
 	controllers: [TrackingTransferController],
 	providers: [TrackingTransferService],
 })
