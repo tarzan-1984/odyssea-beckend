@@ -3,32 +3,25 @@ import {
 	Get,
 	Query,
 	ServiceUnavailableException,
-	UseGuards,
 } from '@nestjs/common';
-import {
-	ApiBearerAuth,
-	ApiOperation,
-	ApiResponse,
-	ApiTags,
-} from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 import { HereReverseGeocodeQueryDto } from './dto/here-reverse-geocode-query.dto';
 import { HerePlaywrightReverseGeocodeService } from './here-playwright-reverse-geocode.service';
 
 @ApiTags('Geocoding')
-@ApiBearerAuth()
 @Controller('geocoding')
-@UseGuards(JwtAuthGuard)
 export class GeocodingController {
 	constructor(
 		private readonly herePlaywrightReverseGeocode: HerePlaywrightReverseGeocodeService,
 	) {}
 
 	@Get('here/reverse')
+	@SkipAuth()
 	@ApiOperation({
 		summary: 'Reverse geocode via HERE WeGo (Playwright intercept)',
 		description:
-			'Opens maps.here.com for the coordinates in headless Chromium and returns the JSON from the internal revgeocode.search.hereapi.com/v1/revgeocode XHR.',
+			'Open endpoint. Opens maps.here.com for the coordinates in headless Chromium and returns the JSON from the internal revgeocode.search.hereapi.com/v1/revgeocode XHR.',
 	})
 	@ApiResponse({ status: 200, description: 'HERE address for coordinates' })
 	@ApiResponse({ status: 404, description: 'No address found' })
