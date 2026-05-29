@@ -603,6 +603,7 @@ export class UsersService {
 				statusDate: true,
 				isAutoupdate: true,
 				deactivateAccount: true,
+				notificationsEnabled: true,
 			},
 		});
 
@@ -624,7 +625,38 @@ export class UsersService {
 			statusDate: user.statusDate ?? null,
 			isAutoupdate: user.isAutoupdate ?? false,
 			deactivateAccount: user.deactivateAccount === true,
+			notificationsEnabled: user.notificationsEnabled !== false,
 		};
+	}
+
+	async getNotificationPreferences(userId: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { id: true, notificationsEnabled: true },
+		});
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+		return { notificationsEnabled: user.notificationsEnabled !== false };
+	}
+
+	async updateNotificationPreferences(
+		userId: string,
+		notificationsEnabled: boolean,
+	) {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { id: true },
+		});
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+		await this.prisma.user.update({
+			where: { id: userId },
+			data: { notificationsEnabled },
+			select: { id: true },
+		});
+		return { notificationsEnabled };
 	}
 
 	/**

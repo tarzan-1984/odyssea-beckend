@@ -5,6 +5,14 @@ export type NominatimReverseAddress = {
 	zip: string;
 };
 
+const NON_LATIN_GEO = /[\u0400-\u04FF\u0500-\u052F]/;
+
+function sanitizeLatinField(value: string): string {
+	const t = value.trim();
+	if (!t) return '';
+	return NON_LATIN_GEO.test(t) ? '' : t;
+}
+
 const LOCALITY_KEYS = [
 	'city',
 	'town',
@@ -63,7 +71,11 @@ export function parseNominatimReverseResponse(
 		return null;
 	}
 
-	return { city, state, zip };
+	return {
+		city: sanitizeLatinField(city),
+		state: sanitizeLatinField(state),
+		zip,
+	};
 }
 
 /** Cache key: ~11 m precision at mid-latitudes. */

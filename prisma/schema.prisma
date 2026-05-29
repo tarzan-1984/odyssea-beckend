@@ -48,6 +48,8 @@ model User {
   // Date/time when driver set status (e.g. "02/11/26 2:30 PM")
   statusDate           String?
   isAutoupdate         Boolean               @default(false) @map("is_autoupdate")
+  /// Mobile Settings: message push + sound (server skips push when false).
+  notificationsEnabled Boolean               @default(true) @map("notifications_enabled")
   chatRooms            ChatRoomParticipant[]
   adminOfChatRooms     ChatRoom[]            @relation("ChatRoomAdmin")
   receivedMessages     Message[]             @relation("MessageReceiver")

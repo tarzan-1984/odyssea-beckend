@@ -88,7 +88,7 @@ export class NominatimReverseGeocodeService {
 		url.searchParams.set('lat', String(latitude));
 		url.searchParams.set('lon', String(longitude));
 		url.searchParams.set('addressdetails', '1');
-		url.searchParams.set('accept-language', 'en');
+		url.searchParams.set('accept-language', 'en-US,en;q=0.9');
 
 		await this.throttle();
 
@@ -97,7 +97,7 @@ export class NominatimReverseGeocodeService {
 				timeout: REQUEST_TIMEOUT_MS,
 				headers: {
 					'User-Agent': this.userAgent(),
-					'Accept-Language': 'en',
+					'Accept-Language': 'en-US,en;q=0.9',
 					Accept: 'application/json',
 				},
 				validateStatus: () => true,

@@ -34,6 +34,7 @@ import { UpdateUserLocationDto } from './dto/update-user-location.dto';
 import { ImportDriversDto } from './dto/import-drivers.dto';
 import { ImportUsersDto } from './dto/import-users.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { ImportDriversService } from './services/import-drivers.service';
 import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
 import { ImportUsersService } from './services/import-users.service';
@@ -753,6 +754,44 @@ export class UsersController {
 	@ApiResponse({ status: 404, description: 'User not found' })
 	async findUserByExternalId(@Param('externalId') externalId: string) {
 		return this.usersService.findUserByExternalId(externalId);
+	}
+
+	@Get(':id/notification-preferences')
+	@ApiOperation({
+		summary: 'Get message push notification preference for user',
+	})
+	@ApiResponse({ status: 200, description: 'Preference retrieved' })
+	async getNotificationPreferences(
+		@Param('id') id: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (req.user.role !== UserRole.ADMINISTRATOR && req.user.id !== id) {
+			throw new ForbiddenException(
+				'You are not allowed to read this user preference',
+			);
+		}
+		return this.usersService.getNotificationPreferences(id);
+	}
+
+	@Put(':id/notification-preferences')
+	@ApiOperation({
+		summary: 'Update message push notification preference (self or admin)',
+	})
+	@ApiResponse({ status: 200, description: 'Preference updated' })
+	async updateNotificationPreferences(
+		@Param('id') id: string,
+		@Body() dto: UpdateNotificationPreferencesDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (req.user.role !== UserRole.ADMINISTRATOR && req.user.id !== id) {
+			throw new ForbiddenException(
+				'You are not allowed to update this user preference',
+			);
+		}
+		return this.usersService.updateNotificationPreferences(
+			id,
+			dto.notificationsEnabled,
+		);
 	}
 
 	@Get(':id/driver-status')

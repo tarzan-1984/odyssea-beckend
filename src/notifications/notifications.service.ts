@@ -113,6 +113,17 @@ export class NotificationsService {
     payload?: Record<string, string>;
   }): Promise<void> {
     try {
+      const userPrefs = await this.prisma.user.findUnique({
+        where: { id: data.userId },
+        select: { notificationsEnabled: true },
+      });
+      if (userPrefs && userPrefs.notificationsEnabled === false) {
+        this.logger.debug(
+          `Skipping push for user ${data.userId} (notifications disabled)`,
+        );
+        return;
+      }
+
       const tokens = await this.prisma.pushToken.findMany({
         where: { userId: data.userId },
         select: { token: true },
