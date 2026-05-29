@@ -50,6 +50,10 @@ yarn install --frozen-lockfile && yarn playwright:install:render && yarn build
 
 Set runtime env `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` (already in `render.yaml`). Without it, Chromium is installed to `~/.cache/ms-playwright` during build but is **not available at runtime** on Render → 503 "browser is not available".
 
+Use `&&` between steps, not `;` — otherwise a failed `playwright:install:render` still allows `yarn build` to succeed and you deploy without Chromium.
+
+Do **not** add `.playwright-browsers/` to `.gitignore` — Render may omit gitignored paths from the deploy artifact even when browsers are installed during build.
+
 This matches `render.yaml`. Playwright installs Chromium for the HERE reverse geocode endpoint (`GET /v1/geocoding/here/reverse`).
 
 **Render RAM:** Chromium needs ~512 MB+ at runtime on top of NestJS. Starter (512 MB total) is often too small — upgrade to Standard (1 GB+) or Pro if geocode still fails after redeploy.
@@ -85,12 +89,14 @@ If you encounter Prisma client errors:
 3. Verify that the database connection is working
 
 ### Playwright / HERE geocode (503 on `/v1/geocoding/here/reverse`)
-1. Build log must show successful `playwright install chromium` into `.playwright-browsers/`
-2. Runtime must have `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` (see `render.yaml`)
-3. If build fails on `install-deps`, retry deploy or check [Playwright system deps](https://playwright.dev/docs/browsers#install-system-dependencies)
-4. If browser launches but crashes, upgrade Render plan (more RAM)
-5. Optional env: `HERE_PLAYWRIGHT_TIMEOUT_MS=45000`, `HERE_MAPS_DEFAULT_ZOOM=16`
-6. Local setup: `yarn playwright:install`
+1. Build command must use `&&` (see above), not `;`
+2. Build log must show successful `playwright install chromium` into `.playwright-browsers/`
+3. Runtime logs `Executable doesn't exist at .../.playwright-browsers/...` → browsers missing at deploy; fix gitignore + rebuild
+4. Runtime must have `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` (see `render.yaml`)
+5. If build fails on `install-deps`, retry deploy or check [Playwright system deps](https://playwright.dev/docs/browsers#install-system-dependencies)
+6. If browser launches but crashes, upgrade Render plan (more RAM)
+7. Optional env: `HERE_PLAYWRIGHT_TIMEOUT_MS=45000`, `HERE_MAPS_DEFAULT_ZOOM=16`
+8. Local setup: `yarn playwright:install`
 
 ## Database Setup
 

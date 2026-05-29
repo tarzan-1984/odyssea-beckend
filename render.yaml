@@ -4,7 +4,7 @@ services:
     env: node
     plan: starter
     # Playwright + Chromium for GET /v1/geocoding/here/reverse (HERE revgeocode intercept).
-    # Browsers must live inside the repo — Render does not persist ~/.cache/ms-playwright from build to runtime.
+    # Use && so deploy fails if browser install fails. Do not gitignore .playwright-browsers (Render drops it).
     buildCommand: yarn install --frozen-lockfile && yarn playwright:install:render && yarn build
     startCommand: yarn start:prod
     envVars:
