@@ -93,10 +93,10 @@ If you encounter Prisma client errors:
 2. Build log must show successful `playwright install chromium` into `.playwright-browsers/`
 3. Runtime logs `Executable doesn't exist at .../.playwright-browsers/...` → browsers missing at deploy; fix gitignore + rebuild
 4. Runtime must have `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` (see `render.yaml`)
-5. If build fails on `install-deps`, retry deploy or check [Playwright system deps](https://playwright.dev/docs/browsers#install-system-dependencies)
-6. If browser launches but crashes, upgrade Render plan (more RAM)
+5. Build error `su: Authentication failure` on `install-deps` — do not use `playwright install-deps` on Render (no root); `playwright:install:render` installs only the browser binary
+6. If Chromium crashes (missing `.so` or OOM), try Docker with Playwright image or upgrade Render plan (more RAM)
 7. Optional env: `HERE_PLAYWRIGHT_TIMEOUT_MS=45000`, `HERE_MAPS_DEFAULT_ZOOM=16`
-8. Local setup: `yarn playwright:install`
+8. Local setup: `yarn playwright:install` (add `playwright install-deps chromium` locally if launch fails)
 
 ## Database Setup
 
