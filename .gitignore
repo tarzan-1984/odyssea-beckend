@@ -64,6 +64,9 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .vercel
 
+# Playwright browser binaries (installed during Render build)
+.playwright-browsers/
+
 # Prisma generated client
 .prisma/
 

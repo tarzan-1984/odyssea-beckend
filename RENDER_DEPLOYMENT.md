@@ -45,12 +45,14 @@ FRONTEND_URL=https://your-frontend-domain.com
 
 ### Build Command
 ```bash
-yarn install --frozen-lockfile && yarn playwright install-deps chromium && yarn playwright install chromium && yarn build
+yarn install --frozen-lockfile && yarn playwright:install:render && yarn build
 ```
+
+Set runtime env `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` (already in `render.yaml`). Without it, Chromium is installed to `~/.cache/ms-playwright` during build but is **not available at runtime** on Render → 503 "browser is not available".
 
 This matches `render.yaml`. Playwright installs Chromium for the HERE reverse geocode endpoint (`GET /v1/geocoding/here/reverse`).
 
-**Render RAM:** Chromium needs ~512 MB+ at runtime. If the service crashes on geocode requests, upgrade from Starter to Standard (1 GB+).
+**Render RAM:** Chromium needs ~512 MB+ at runtime on top of NestJS. Starter (512 MB total) is often too small — upgrade to Standard (1 GB+) or Pro if geocode still fails after redeploy.
 
 **Alternative**: If you prefer to use the standard build command without Playwright, make sure `@nestjs/cli` is in your `dependencies` (not `devDependencies`).
 
@@ -83,10 +85,12 @@ If you encounter Prisma client errors:
 3. Verify that the database connection is working
 
 ### Playwright / HERE geocode (503 on `/v1/geocoding/here/reverse`)
-1. Build log must show successful `playwright install chromium`
-2. If build fails on `install-deps`, retry deploy or check [Playwright system deps](https://playwright.dev/docs/browsers#install-system-dependencies)
-3. Optional env: `HERE_PLAYWRIGHT_TIMEOUT_MS=45000`, `HERE_MAPS_DEFAULT_ZOOM=16`
-4. Local setup: `yarn playwright:install`
+1. Build log must show successful `playwright install chromium` into `.playwright-browsers/`
+2. Runtime must have `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` (see `render.yaml`)
+3. If build fails on `install-deps`, retry deploy or check [Playwright system deps](https://playwright.dev/docs/browsers#install-system-dependencies)
+4. If browser launches but crashes, upgrade Render plan (more RAM)
+5. Optional env: `HERE_PLAYWRIGHT_TIMEOUT_MS=45000`, `HERE_MAPS_DEFAULT_ZOOM=16`
+6. Local setup: `yarn playwright:install`
 
 ## Database Setup
 

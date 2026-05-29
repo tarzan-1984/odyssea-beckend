@@ -83,7 +83,12 @@ export class HerePlaywrightReverseGeocodeService implements OnModuleDestroy {
 			this.browserLaunchPromise = chromium
 				.launch({
 					headless: true,
-					args: ['--no-sandbox', '--disable-setuid-sandbox'],
+					args: [
+						'--no-sandbox',
+						'--disable-setuid-sandbox',
+						'--disable-dev-shm-usage',
+						'--disable-gpu',
+					],
 				})
 				.then((browser) => {
 					this.browser = browser;
