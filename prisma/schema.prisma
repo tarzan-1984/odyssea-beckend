@@ -275,7 +275,7 @@ model ChatRoom {
   updatedAt    DateTime              @updatedAt
   avatar       String?
   adminId      String?               @map("admin")
-  /// UTC instant when TMS reported load as delivered (set from POST /tms/load/status).
+  /// UTC instant when TMS ended the load: delivered, tonu, or cancelled (POST /tms/load/status).
   deliveryAt     DateTime?
   /// LOAD chat marked archived for load-specific flows (default false).
   isLoadArchived Boolean               @default(false) @map("is_load_archived")
