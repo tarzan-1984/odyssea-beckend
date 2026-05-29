@@ -3,8 +3,10 @@ services:
     name: odyssea-backend
     env: node
     plan: starter
-    buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
+    # Playwright + Chromium for GET /v1/geocoding/here/reverse (HERE revgeocode intercept).
+    # install-deps: OS libraries on Render's Linux image; install chromium: browser binary.
+    buildCommand: yarn install --frozen-lockfile && yarn playwright install-deps chromium && yarn playwright install chromium && yarn build
+    startCommand: yarn start:prod
     envVars:
       - key: NODE_ENV
         value: production

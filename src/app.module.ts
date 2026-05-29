@@ -26,6 +26,7 @@ import { PublicModule } from './public/public.module';
 import { MessageTemplatesModule } from './message-templates/message-templates.module';
 import { NotificationSoundsModule } from './notification-sounds/notification-sounds.module';
 import { TrackingModule } from './tracking/tracking.module';
+import { GeocodingModule } from './geocoding/geocoding.module';
 
 @Module({
 	imports: [
@@ -56,6 +57,7 @@ import { TrackingModule } from './tracking/tracking.module';
 		MessageTemplatesModule,
 		NotificationSoundsModule,
 		TrackingModule,
+		GeocodingModule,
 	],
 	controllers: [AppController],
 	providers: [],

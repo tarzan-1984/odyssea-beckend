@@ -45,10 +45,14 @@ FRONTEND_URL=https://your-frontend-domain.com
 
 ### Build Command
 ```bash
-yarn install; yarn build:render
+yarn install --frozen-lockfile && yarn playwright install-deps chromium && yarn playwright install chromium && yarn build
 ```
 
-**Alternative**: If you prefer to use the standard build command, make sure `@nestjs/cli` is in your `dependencies` (not `devDependencies`).
+This matches `render.yaml`. Playwright installs Chromium for the HERE reverse geocode endpoint (`GET /v1/geocoding/here/reverse`).
+
+**Render RAM:** Chromium needs ~512 MB+ at runtime. If the service crashes on geocode requests, upgrade from Starter to Standard (1 GB+).
+
+**Alternative**: If you prefer to use the standard build command without Playwright, make sure `@nestjs/cli` is in your `dependencies` (not `devDependencies`).
 
 ### Start Command
 ```bash
@@ -77,6 +81,12 @@ If you encounter Prisma client errors:
 1. Check the build logs for specific error messages
 2. Ensure all environment variables are set
 3. Verify that the database connection is working
+
+### Playwright / HERE geocode (503 on `/v1/geocoding/here/reverse`)
+1. Build log must show successful `playwright install chromium`
+2. If build fails on `install-deps`, retry deploy or check [Playwright system deps](https://playwright.dev/docs/browsers#install-system-dependencies)
+3. Optional env: `HERE_PLAYWRIGHT_TIMEOUT_MS=45000`, `HERE_MAPS_DEFAULT_ZOOM=16`
+4. Local setup: `yarn playwright:install`
 
 ## Database Setup
 

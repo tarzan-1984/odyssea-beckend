@@ -32,7 +32,8 @@
 		"test:cron": "ts-node src/scripts/check-cron.ts",
 		"monitor:cron": "ts-node src/scripts/monitor-cron.ts",
 		"test:notifications-cleanup": "ts-node src/scripts/test-notifications-cleanup.ts",
-		"prepare": "husky"
+		"prepare": "husky",
+		"playwright:install": "playwright install chromium"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.882.0",
@@ -67,6 +68,7 @@
 		"passport": "^0.7.0",
 		"passport-jwt": "^4.0.1",
 		"passport-local": "^1.0.0",
+		"playwright": "^1.60.0",
 		"reflect-metadata": "^0.2.2",
 		"rxjs": "^7.8.1",
 		"sharp": "^0.34.5",
