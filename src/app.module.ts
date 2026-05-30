@@ -13,12 +13,14 @@ import { FirebaseModule } from './firebase/firebase.module';
 
 import {
 	databaseConfig,
+	geoDatabaseConfig,
 	appConfig,
 	jwtConfig,
 	swaggerConfig,
 	mailerConfig,
 	externalApiConfig,
 } from './config/env.config';
+import { GeoPrismaModule } from './prisma/geo-prisma.module';
 import { StorageModule } from './storage/storage.module';
 import { OffersModule } from './offers/offers.module';
 import { AppSettingsModule } from './app-settings/app-settings.module';
@@ -34,6 +36,7 @@ import { GeocodingModule } from './geocoding/geocoding.module';
 			isGlobal: true,
 			load: [
 				databaseConfig,
+				geoDatabaseConfig,
 				appConfig,
 				jwtConfig,
 				swaggerConfig,
@@ -44,6 +47,7 @@ import { GeocodingModule } from './geocoding/geocoding.module';
 		}),
 		ScheduleModule.forRoot(),
 		PrismaModule,
+		GeoPrismaModule,
 		FirebaseModule, // Global module for Firebase Admin
 		AuthModule,
 		UsersModule,

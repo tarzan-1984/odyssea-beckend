@@ -4,6 +4,10 @@ export interface DatabaseConfig {
 	url: string | undefined;
 }
 
+export interface GeoDatabaseConfig {
+	url: string | undefined;
+}
+
 export interface AppConfig {
 	port: number | undefined;
 	nodeEnv: string | undefined;
@@ -82,6 +86,13 @@ export const databaseConfig = registerAs(
 	'database',
 	(): DatabaseConfig => ({
 		url: process.env.DATABASE_URL,
+	}),
+);
+
+export const geoDatabaseConfig = registerAs(
+	'geoDatabase',
+	(): GeoDatabaseConfig => ({
+		url: process.env.GEO_DATABASE_URL,
 	}),
 );
 

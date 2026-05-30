@@ -1,0 +1,12 @@
+// Second PostgreSQL database (geo / geocoding cache on Render).
+// Add models here when the geo schema is defined, then run:
+//   npx prisma db push --schema=prisma/schema-geo.prisma
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/geo-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("GEO_DATABASE_URL")
+}
