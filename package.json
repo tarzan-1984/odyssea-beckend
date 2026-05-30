@@ -26,6 +26,7 @@
 		"prisma:push:geo": "prisma db push --schema=prisma/schema-geo.prisma",
 		"db:postgis:geo": "ts-node src/scripts/enable-postgis-geo.ts",
 		"db:migrate:geo-zips": "ts-node src/scripts/migrate-geo-zips.ts",
+		"db:migrate:geo-reverse-cache": "ts-node src/scripts/migrate-geo-reverse-cache.ts",
 		"db:import:canada-fsa": ".tmp/geo-venv/bin/python scripts/import-canada-geo-zips.py",
 		"db:import:mexico": ".tmp/geo-venv/bin/python scripts/import-mexico-geo-zips.py",
 		"db:import:usa-zcta": ".tmp/geo-venv/bin/python scripts/import-usa-geo-zips.py",

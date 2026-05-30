@@ -35,7 +35,7 @@ import {
 	logLocationUpdateFailure,
 	type LocationUpdateRequestTrace,
 } from './utils/location-update-failure.logger';
-import { NominatimReverseGeocodeService } from '../geocoding/nominatim-reverse-geocode.service';
+import { DriverReverseGeocodeService } from '../geocoding/driver-reverse-geocode.service';
 
 function trimLocationField(value: unknown): string {
 	if (value === undefined || value === null) {
@@ -113,7 +113,7 @@ export class UsersService {
 		private readonly tmsLoadDetails: TmsLoadDetailsService,
 		private readonly configService: ConfigService,
 		private readonly appSettingsService: AppSettingsService,
-		private readonly nominatimReverseGeocode: NominatimReverseGeocodeService,
+		private readonly driverReverseGeocode: DriverReverseGeocodeService,
 	) {}
 
 	private parseNaiveDateTime(value: string | null | undefined): Date | null {
@@ -1077,10 +1077,10 @@ export class UsersService {
 				.filter(Boolean)
 				.join(', ');
 			this.logger.log(
-				`[ServerGeocode] Missing address field(s) [${missingBefore}] — calling Nominatim before DB save`,
+				`[ServerGeocode] Missing address field(s) [${missingBefore}] — resolving via PostGIS → cache → HERE`,
 			);
 
-			const geo = await this.nominatimReverseGeocode.reverseGeocode(
+			const geo = await this.driverReverseGeocode.reverseGeocode(
 				locationDto.latitude as number,
 				locationDto.longitude as number,
 			);
@@ -1101,20 +1101,20 @@ export class UsersService {
 				}
 				if (filled.length > 0) {
 					this.logger.log(
-						`[ServerGeocode] Merged into save payload — filled: ${filled.join(', ')}`,
+						`[ServerGeocode] Merged into save payload via ${geo.source} — filled: ${filled.join(', ')}`,
 					);
 				} else {
 					this.logger.warn(
-						'[ServerGeocode] Nominatim OK but no new fields matched client gaps',
+						`[ServerGeocode] ${geo.source} OK but no new fields matched client gaps`,
 					);
 				}
 			} else if (!resolvedCity && !resolvedState && !resolvedZip) {
 				this.logger.error(
-					'[ServerGeocode] FAILED — neither client nor Nominatim provided city/state/zip; saving coordinates only',
+					'[ServerGeocode] FAILED — neither client nor server reverse geocode provided city/state/zip; saving coordinates only',
 				);
 			} else {
 				this.logger.warn(
-					'[ServerGeocode] FAILED — Nominatim unavailable; saving client fields + coordinates (missing columns unchanged)',
+					'[ServerGeocode] FAILED — server reverse geocode unavailable; saving client fields + coordinates (missing columns unchanged)',
 				);
 			}
 		}
@@ -1320,7 +1320,7 @@ export class UsersService {
 			location: effectiveLocationForTms,
 			// TMS current_city = DB `city` after save; empty → '' (trim in builder).
 			city: updatedUser.city ?? '',
-			zip: locationDto.zip ?? updatedUser.zip ?? '',
+			zip: updatedUser.zip ?? '',
 			latitude: locationDto.latitude ?? updatedUser.latitude ?? 0,
 			longitude: locationDto.longitude ?? updatedUser.longitude ?? 0,
 			country: '',

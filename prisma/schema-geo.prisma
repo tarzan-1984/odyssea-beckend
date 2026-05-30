@@ -24,3 +24,21 @@ model GeoZip {
   @@index([countryCode], map: "geo_zips_country_code_idx")
   @@map("geo_zips")
 }
+
+model GeoReverseCache {
+  id          Int      @id @default(autoincrement())
+  gridLat     Int      @map("grid_lat")
+  gridLng     Int      @map("grid_lng")
+  centerLat   Float    @map("center_lat")
+  centerLng   Float    @map("center_lng")
+  city        String?  @db.VarChar(100)
+  state       String?  @db.VarChar(100)
+  stateCode   String?  @map("state_code") @db.VarChar(10)
+  zip         String?  @db.VarChar(20)
+  countryCode String?  @map("country_code") @db.VarChar(2)
+  source      String   @default("here") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([gridLat, gridLng], map: "geo_reverse_cache_grid_uidx")
+  @@map("geo_reverse_cache")
+}

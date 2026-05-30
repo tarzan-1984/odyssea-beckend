@@ -20,7 +20,7 @@ import {
 import { UserRole, UserStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { AppSettingsService } from '../app-settings/app-settings.service';
-import { NominatimReverseGeocodeService } from '../geocoding/nominatim-reverse-geocode.service';
+import { DriverReverseGeocodeService } from '../geocoding/driver-reverse-geocode.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TmsLoadDetailsService } from '../tms/tms-load-details.service';
 
@@ -107,7 +107,7 @@ describe('UsersService', () => {
 					},
 				},
 				{
-					provide: NominatimReverseGeocodeService,
+					provide: DriverReverseGeocodeService,
 					useValue: {
 						reverseGeocode: jest.fn().mockResolvedValue(null),
 					},
