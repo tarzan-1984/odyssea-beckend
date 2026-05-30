@@ -6,7 +6,9 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
+import { GeoPostgisReverseGeocodeQueryDto } from './dto/geo-postgis-reverse-geocode-query.dto';
 import { HereReverseGeocodeQueryDto } from './dto/here-reverse-geocode-query.dto';
+import { GeoPostgisReverseGeocodeService } from './geo-postgis-reverse-geocode.service';
 import { HerePlaywrightReverseGeocodeService } from './here-playwright-reverse-geocode.service';
 
 @ApiTags('Geocoding')
@@ -14,6 +16,7 @@ import { HerePlaywrightReverseGeocodeService } from './here-playwright-reverse-g
 export class GeocodingController {
 	constructor(
 		private readonly herePlaywrightReverseGeocode: HerePlaywrightReverseGeocodeService,
+		private readonly geoPostgisReverseGeocode: GeoPostgisReverseGeocodeService,
 	) {}
 
 	@Get('here/reverse')
@@ -53,5 +56,39 @@ export class GeocodingController {
 				'HERE reverse geocode failed',
 			);
 		}
+	}
+
+	@Get('geo-zips/reverse')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Reverse geocode via PostGIS geo_zips (test endpoint)',
+		description:
+			'Looks up city/state/zip from geo_zips using ST_Contains, with nearest-polygon fallback. Does not call Nominatim.',
+	})
+	@ApiResponse({ status: 200, description: 'Address fields for coordinates' })
+	async reverseGeocodeGeoZips(@Query() query: GeoPostgisReverseGeocodeQueryDto) {
+		const result = await this.geoPostgisReverseGeocode.reverseGeocode(
+			query.latitude,
+			query.longitude,
+		);
+
+		if (!result) {
+			return {
+				success: false,
+				data: null,
+				message: 'No geo_zips match for these coordinates',
+			};
+		}
+
+		return {
+			success: true,
+			data: {
+				city: result.city,
+				state: result.state,
+				stateCode: result.stateCode,
+				zip: result.zip,
+				match: result.match,
+			},
+		};
 	}
 }
