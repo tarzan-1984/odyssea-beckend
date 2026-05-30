@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Download Mexico postal-code polygons (open-mexico/mexico-geojson) + GeoNames city lookup,
-then load into geo_zips on the geo PostgreSQL database.
+Download Mexico postal-code polygons (open-mexico/mexico-geojson) + SEPOMEX/GeoNames
+city lookup, then load into geo_zips on the geo PostgreSQL database.
 
 Only replaces rows with country_code = 'MX'; other countries are untouched.
 
@@ -23,6 +23,9 @@ from psycopg2.extras import execute_batch
 
 COUNTRY_CODE = "MX"
 GEONAMES_MX_ZIP = "https://download.geonames.org/export/zip/MX.zip"
+SEPOMEX_CP_URL = (
+    "https://www.correosdemexico.gob.mx/datosabiertos/cp/cpdescarga.txt"
+)
 MEXICO_GEOJSON_API = (
     "https://api.github.com/repos/open-mexico/mexico-geojson/contents/"
 )
@@ -63,6 +66,42 @@ ADMIN_CODE_TO_STATE_CODE: dict[str, str] = {
     "32": "ZA",
 }
 
+# open-mexico filenames do not match GeoNames admin codes — map file -> state metadata
+FILE_STATE_INFO: dict[str, tuple[str, str]] = {
+    "01-Ags.geojson": ("Aguascalientes", "AG"),
+    "02-Bc.geojson": ("Baja California", "BC"),
+    "03-Bcs.geojson": ("Baja California Sur", "BS"),
+    "04-Camp.geojson": ("Campeche", "CM"),
+    "05-Coah.geojson": ("Coahuila de Zaragoza", "CO"),
+    "06-Col.geojson": ("Colima", "CL"),
+    "07-Chis.geojson": ("Chiapas", "CS"),
+    "08-Chih.geojson": ("Chihuahua", "CH"),
+    "09-Cdmx.geojson": ("Ciudad de México", "DF"),
+    "10-Dgo.geojson": ("Durango", "DG"),
+    "11-Gto.geojson": ("Guanajuato", "GT"),
+    "12-Gro.geojson": ("Guerrero", "GR"),
+    "13-Hgo.geojson": ("Hidalgo", "HG"),
+    "14-Jal.geojson": ("Jalisco", "JA"),
+    "15-Mex.geojson": ("México", "EM"),
+    "16-Mich.geojson": ("Michoacán de Ocampo", "MI"),
+    "17-Mor.geojson": ("Morelos", "MO"),
+    "18-Nay.geojson": ("Nayarit", "NA"),
+    "19-NL.geojson": ("Nuevo León", "NL"),
+    "20-Oax.geojson": ("Oaxaca", "OA"),
+    "21-Pue.geojson": ("Puebla", "PU"),
+    "22-Qro.geojson": ("Querétaro", "QT"),
+    "23-Qroo.geojson": ("Quintana Roo", "QR"),
+    "24-SLP.geojson": ("San Luis Potosí", "SL"),
+    "25-Sin.geojson": ("Sinaloa", "SI"),
+    "26-Son.geojson": ("Sonora", "SO"),
+    "27-Tab.geojson": ("Tabasco", "TB"),
+    "28-Tmps.geojson": ("Tamaulipas", "TM"),
+    "29-Tlax.geojson": ("Tlaxcala", "TL"),
+    "30-Ver.geojson": ("Veracruz de Ignacio de la Llave", "VE"),
+    "31-Yuc.geojson": ("Yucatán", "YU"),
+    "32-Zac.geojson": ("Zacatecas", "ZA"),
+}
+
 
 def fetch_json(url: str) -> dict | list:
     request = urllib.request.Request(
@@ -82,8 +121,57 @@ def truncate(value: str | None, max_len: int) -> str | None:
     return trimmed[:max_len]
 
 
+def load_sepomex_postal_lookup() -> dict[str, tuple[str, str, str]]:
+    print("Downloading SEPOMEX CPdescarga.txt...")
+    request = urllib.request.Request(
+        SEPOMEX_CP_URL,
+        headers={"User-Agent": "odyssea-geo-import/1.0"},
+    )
+    with urllib.request.urlopen(request, timeout=180) as response:
+        raw_text = response.read().decode("latin-1", errors="replace")
+
+    city_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    state_names: dict[str, str] = {}
+    state_codes: dict[str, str] = {}
+
+    for index, line in enumerate(raw_text.splitlines()):
+        if index == 0 or not line.strip():
+            continue
+        parts = line.split("|")
+        if len(parts) < 8:
+            continue
+
+        postal = parts[0].strip().zfill(5)
+        municipality = parts[3].strip()
+        state = parts[4].strip()
+        admin_code = parts[7].strip()
+
+        if not postal:
+            continue
+
+        if municipality:
+            city_counts[postal][municipality] += 1
+        if state:
+            state_names[postal] = state
+        if admin_code:
+            state_codes[postal] = ADMIN_CODE_TO_STATE_CODE.get(
+                admin_code.zfill(2),
+                admin_code,
+            )
+
+    lookup: dict[str, tuple[str, str, str]] = {}
+    for postal, counter in city_counts.items():
+        lookup[postal] = (
+            counter.most_common(1)[0][0],
+            state_names.get(postal, ""),
+            state_codes.get(postal, ""),
+        )
+
+    return lookup
+
+
 def load_geonames_postal_lookup() -> dict[str, tuple[str, str, str]]:
-    print("Downloading GeoNames MX.zip...")
+    print("Downloading GeoNames MX.zip (fallback)...")
     with urllib.request.urlopen(GEONAMES_MX_ZIP, timeout=120) as response:
         payload = response.read()
 
@@ -101,7 +189,7 @@ def load_geonames_postal_lookup() -> dict[str, tuple[str, str, str]]:
                 if len(parts) < 6:
                     continue
 
-                postal = parts[1].strip()
+                postal = parts[1].strip().zfill(5)
                 municipality = parts[5].strip()
                 state = parts[3].strip()
                 admin_code = parts[4].strip()
@@ -131,6 +219,67 @@ def load_geonames_postal_lookup() -> dict[str, tuple[str, str, str]]:
     return lookup
 
 
+def merge_postal_lookups(
+    *lookups: dict[str, tuple[str, str, str]],
+) -> dict[str, tuple[str, str, str]]:
+    merged: dict[str, tuple[str, str, str]] = {}
+    for lookup in lookups:
+        for postal, values in lookup.items():
+            city, state, state_code = values
+            existing = merged.get(postal, ("", "", ""))
+            merged[postal] = (
+                city or existing[0],
+                state or existing[1],
+                state_code or existing[2],
+            )
+    return merged
+
+
+def resolve_postal_fields(
+    postal: str,
+    postal_lookup: dict[str, tuple[str, str, str]],
+    file_state: str,
+    file_state_code: str,
+) -> tuple[str, str, str]:
+    city, state, state_code = postal_lookup.get(postal, ("", "", ""))
+    if not state:
+        state = file_state
+    if not state_code:
+        state_code = file_state_code
+    return city, state, state_code
+
+
+def fill_missing_cities_from_nearest(conn: psycopg2.extensions.connection) -> int:
+    print("Filling missing cities from nearest polygon in the same state...")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE geo_zips AS target
+            SET city = source.city
+            FROM (
+                SELECT DISTINCT ON (missing.id)
+                    missing.id,
+                    nearest.city
+                FROM geo_zips AS missing
+                INNER JOIN geo_zips AS nearest
+                    ON nearest.country_code = %s
+                   AND nearest.state_code = missing.state_code
+                   AND nearest.city IS NOT NULL
+                   AND nearest.city <> ''
+                WHERE missing.country_code = %s
+                  AND (missing.city IS NULL OR missing.city = '')
+                ORDER BY missing.id, missing.geom <-> nearest.geom
+            ) AS source
+            WHERE target.id = source.id
+            """,
+            (COUNTRY_CODE, COUNTRY_CODE),
+        )
+        updated = cur.rowcount
+    conn.commit()
+    print(f"Filled missing cities via nearest-neighbor fallback: {updated}")
+    return updated
+
+
 def list_mexico_geojson_files() -> list[dict]:
     entries = fetch_json(MEXICO_GEOJSON_API)
     if not isinstance(entries, list):
@@ -154,8 +303,11 @@ def main() -> None:
     if not database_url:
         raise SystemExit("GEO_DATABASE_URL is not set")
 
-    postal_lookup = load_geonames_postal_lookup()
-    print(f"GeoNames postal lookup entries: {len(postal_lookup)}")
+    postal_lookup = merge_postal_lookups(
+        load_sepomex_postal_lookup(),
+        load_geonames_postal_lookup(),
+    )
+    print(f"Combined postal lookup entries: {len(postal_lookup)}")
 
     files = list_mexico_geojson_files()
     print(f"Mexico GeoJSON state files: {len(files)}")
@@ -174,6 +326,7 @@ def main() -> None:
 
         for entry in files:
             name = entry["name"]
+            file_state, file_state_code = FILE_STATE_INFO.get(name, ("", ""))
             print(f"Processing {name}...")
             data = fetch_json(entry["download_url"])
             features = data.get("features") or []
@@ -193,7 +346,12 @@ def main() -> None:
                     total_skipped += 1
                     continue
 
-                city, state, state_code = postal_lookup.get(postal, ("", "", ""))
+                city, state, state_code = resolve_postal_fields(
+                    postal,
+                    postal_lookup,
+                    file_state,
+                    file_state_code,
+                )
                 rows.append(
                     (
                         truncate(postal, 20),
@@ -232,6 +390,8 @@ def main() -> None:
             total_inserted += len(rows)
             print(f"  Inserted {len(rows)} rows from {name}")
 
+        fill_missing_cities_from_nearest(conn)
+
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT COUNT(*) FROM geo_zips WHERE country_code = %s",
@@ -257,10 +417,32 @@ def main() -> None:
             cur.execute("SELECT COUNT(*) FROM geo_zips")
             all_countries_total = cur.fetchone()[0]
 
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM geo_zips
+                WHERE country_code = %s
+                  AND (city IS NULL OR city = '')
+                """,
+                (COUNTRY_CODE,),
+            )
+            null_city = cur.fetchone()[0]
+
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM geo_zips
+                WHERE country_code = %s
+                  AND (state IS NULL OR state = '')
+                """,
+                (COUNTRY_CODE,),
+            )
+            null_state = cur.fetchone()[0]
+
         conn.commit()
         print(f"Mexico rows in geo_zips: {total}")
         print(f"Total rows all countries: {all_countries_total}")
         print(f"Prepared rows: {total_inserted} (skipped {total_skipped})")
+        print(f"Rows missing city after fallback: {null_city}")
+        print(f"Rows missing state: {null_state}")
         if cdmx_sample:
             print(f"Sample Mexico City point lookup: {cdmx_sample}")
     finally:
