@@ -10,3 +10,15 @@ datasource db {
   provider = "postgresql"
   url      = env("GEO_DATABASE_URL")
 }
+
+model GeoZip {
+  id        Int     @id @default(autoincrement())
+  zip       String? @db.VarChar(20)
+  city      String? @db.VarChar(100)
+  state     String? @db.VarChar(100)
+  stateCode String? @map("state_code") @db.VarChar(10)
+  geom      Unsupported("geometry(MultiPolygon,4326)")?
+
+  @@index([geom], type: Gist, map: "geo_zips_geom_idx")
+  @@map("geo_zips")
+}
