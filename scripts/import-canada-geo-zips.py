@@ -163,6 +163,7 @@ def main() -> None:
                 city,
                 truncate(state, 100),
                 truncate(state_code, 10),
+                "CA",
                 geom_json,
             )
         )
@@ -172,14 +173,15 @@ def main() -> None:
     conn = psycopg2.connect(database_url)
     try:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM geo_zips")
-            print("Cleared geo_zips")
+            cur.execute("DELETE FROM geo_zips WHERE country_code = %s", ("CA",))
+            print("Cleared geo_zips for country_code=CA")
 
             execute_batch(
                 cur,
                 """
-                INSERT INTO geo_zips (zip, city, state, state_code, geom)
+                INSERT INTO geo_zips (zip, city, state, state_code, country_code, geom)
                 VALUES (
+                    %s,
                     %s,
                     %s,
                     %s,
@@ -191,8 +193,11 @@ def main() -> None:
                 page_size=100,
             )
 
-            cur.execute("SELECT COUNT(*) FROM geo_zips")
+            cur.execute("SELECT COUNT(*) FROM geo_zips WHERE country_code = 'CA'")
             total = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM geo_zips")
+            all_total = cur.fetchone()[0]
 
             cur.execute(
                 """
@@ -208,7 +213,8 @@ def main() -> None:
             toronto_sample = cur.fetchone()
 
         conn.commit()
-        print(f"Inserted rows: {total}")
+        print(f"Canada rows in geo_zips: {total}")
+        print(f"Total rows all countries: {all_total}")
         if toronto_sample:
             print(f"Sample Toronto point lookup: {toronto_sample}")
     finally:

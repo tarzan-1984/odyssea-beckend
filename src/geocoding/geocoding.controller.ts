@@ -87,6 +87,7 @@ export class GeocodingController {
 				state: result.state,
 				stateCode: result.stateCode,
 				zip: result.zip,
+				countryCode: result.countryCode,
 				match: result.match,
 			},
 		};

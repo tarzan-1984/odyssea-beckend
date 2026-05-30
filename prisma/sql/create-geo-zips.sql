@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS geo_zips (
   city VARCHAR(100),
   state VARCHAR(100),
   state_code VARCHAR(10),
+  country_code VARCHAR(2),
   geom geometry(MultiPolygon, 4326)
 );
 

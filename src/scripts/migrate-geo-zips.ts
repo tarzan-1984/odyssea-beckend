@@ -14,8 +14,13 @@ async function main(): Promise<void> {
 		throw new Error('GEO_DATABASE_URL is not set');
 	}
 
-	const sqlPath = join(__dirname, '../../prisma/sql/create-geo-zips.sql');
-	const sql = readFileSync(sqlPath, 'utf8');
+		const sqlPath = join(__dirname, '../../prisma/sql/create-geo-zips.sql');
+		const sql = readFileSync(sqlPath, 'utf8');
+		const alterPath = join(
+			__dirname,
+			'../../prisma/sql/alter-geo-zips-country-code.sql',
+		);
+		const alterSql = readFileSync(alterPath, 'utf8');
 
 	const prisma = new PrismaClient();
 	try {
@@ -31,6 +36,16 @@ async function main(): Promise<void> {
 			await prisma.$executeRawUnsafe(`${statement};`);
 		}
 		console.log('Applied prisma/sql/create-geo-zips.sql');
+
+		const alterStatements = alterSql
+			.split(';')
+			.map((part) => part.trim())
+			.filter(Boolean);
+
+		for (const statement of alterStatements) {
+			await prisma.$executeRawUnsafe(`${statement};`);
+		}
+		console.log('Applied prisma/sql/alter-geo-zips-country-code.sql');
 
 		const table = await prisma.$queryRaw<
 			Array<{ tablename: string }>

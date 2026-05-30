@@ -12,13 +12,15 @@ datasource db {
 }
 
 model GeoZip {
-  id        Int     @id @default(autoincrement())
-  zip       String? @db.VarChar(20)
-  city      String? @db.VarChar(100)
-  state     String? @db.VarChar(100)
-  stateCode String? @map("state_code") @db.VarChar(10)
-  geom      Unsupported("geometry(MultiPolygon,4326)")?
+  id          Int     @id @default(autoincrement())
+  zip         String? @db.VarChar(20)
+  city        String? @db.VarChar(100)
+  state       String? @db.VarChar(100)
+  stateCode   String? @map("state_code") @db.VarChar(10)
+  countryCode String? @map("country_code") @db.VarChar(2)
+  geom        Unsupported("geometry(MultiPolygon,4326)")?
 
   @@index([geom], type: Gist, map: "geo_zips_geom_idx")
+  @@index([countryCode], map: "geo_zips_country_code_idx")
   @@map("geo_zips")
 }

@@ -25,7 +25,7 @@ export class GeoPostgisReverseGeocodeService {
 		}
 
 		const containsRows = await this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
-			SELECT city, state, state_code, zip
+			SELECT city, state, state_code, zip, country_code
 			FROM geo_zips
 			WHERE ST_Contains(
 				geom,
@@ -40,7 +40,7 @@ export class GeoPostgisReverseGeocodeService {
 		}
 
 		const nearestRows = await this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
-			SELECT city, state, state_code, zip
+			SELECT city, state, state_code, zip, country_code
 			FROM geo_zips
 			ORDER BY geom <-> ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
 			LIMIT 1
@@ -61,11 +61,12 @@ export class GeoPostgisReverseGeocodeService {
 		const city = row.city?.trim() ?? '';
 		const state = row.state?.trim() ?? '';
 		const stateCode = row.state_code?.trim() ?? '';
+		const countryCode = row.country_code?.trim() ?? '';
 
-		if (!zip && !city && !state && !stateCode) {
+		if (!zip && !city && !state && !stateCode && !countryCode) {
 			return null;
 		}
 
-		return { city, state, stateCode, zip, match };
+		return { city, state, stateCode, zip, countryCode, match };
 	}
 }

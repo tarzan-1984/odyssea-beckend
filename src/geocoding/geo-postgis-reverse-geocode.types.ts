@@ -3,6 +3,7 @@ export type GeoPostgisReverseGeocodeResult = {
 	state: string;
 	stateCode: string;
 	zip: string;
+	countryCode: string;
 	match: 'contains' | 'nearest';
 };
 
@@ -11,4 +12,5 @@ export type GeoPostgisReverseGeocodeRow = {
 	state: string | null;
 	state_code: string | null;
 	zip: string | null;
+	country_code: string | null;
 };
