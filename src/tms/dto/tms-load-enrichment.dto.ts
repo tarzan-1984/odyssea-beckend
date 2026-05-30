@@ -1,4 +1,5 @@
-import { IsObject, IsOptional } from 'class-validator';
+import { IsArray, IsObject, IsOptional } from 'class-validator';
+import type { TmsShipperLike } from '../tms-route-geocode-address.util';
 
 /** Subset of TMS load meta_data needed for DB enrichment (drivers, route geocode). */
 export class TmsLoadEnrichmentDto {
@@ -12,4 +13,8 @@ export class TmsLoadEnrichmentDto {
 		delivery_location?: unknown;
 		[key: string]: unknown;
 	};
+
+	@IsOptional()
+	@IsArray()
+	shippers?: TmsShipperLike[];
 }

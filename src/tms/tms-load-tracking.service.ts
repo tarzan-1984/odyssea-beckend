@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TmsLoadDetailsService } from './tms-load-details.service';
 import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
+import type { TmsShipperLike } from './tms-route-geocode-address.util';
 
 @Injectable()
 export class TmsLoadTrackingService {
@@ -25,6 +26,9 @@ export class TmsLoadTrackingService {
 		const enrichment = await this.buildLoadEnrichment(
 			cleanLoadId,
 			loadDetails.data.meta_data ?? {},
+			Array.isArray(loadDetails.data.shippers)
+				? (loadDetails.data.shippers as TmsShipperLike[])
+				: undefined,
 		);
 
 		return {
@@ -45,6 +49,7 @@ export class TmsLoadTrackingService {
 			pick_up_location?: unknown;
 			delivery_location?: unknown;
 		},
+		shippers?: TmsShipperLike[] | null,
 	) {
 		const driverExternalIds = [
 			metaData?.attached_driver,
@@ -110,6 +115,7 @@ export class TmsLoadTrackingService {
 				loadId,
 				metaData?.pick_up_location,
 				metaData?.delivery_location,
+				shippers,
 			);
 
 		return {

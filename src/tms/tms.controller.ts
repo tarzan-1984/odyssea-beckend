@@ -117,6 +117,7 @@ export class TmsController {
 		return this.tmsLoadTrackingService.buildLoadEnrichment(
 			cleanLoadId,
 			body.meta_data ?? {},
+			body.shippers,
 		);
 	}
 
@@ -249,6 +250,9 @@ export class TmsController {
 		const enrichment = await this.tmsLoadTrackingService.buildLoadEnrichment(
 			loadId,
 			loadDetails.data.meta_data ?? {},
+			Array.isArray(loadDetails.data.shippers)
+				? loadDetails.data.shippers
+				: undefined,
 		);
 
 		return {

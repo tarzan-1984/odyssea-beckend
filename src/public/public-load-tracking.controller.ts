@@ -51,6 +51,7 @@ export class PublicLoadTrackingController {
 		return this.tmsLoadTrackingService.buildLoadEnrichment(
 			cleanLoadId,
 			body.meta_data ?? {},
+			body.shippers,
 		);
 	}
 }

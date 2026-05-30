@@ -9,6 +9,15 @@ type LoadLocationLike = {
 	address?: string;
 	short_address?: string;
 	type?: string;
+	address_id?: string | number;
+};
+
+export type TmsShipperLike = {
+	address_id?: string | number;
+	id?: string;
+	latitude?: string | number | null;
+	longitude?: string | number | null;
+	full_address?: string;
 };
 
 function normalizeLoadLocationType(type: unknown): string {
@@ -67,4 +76,70 @@ export function getLoadLocationAddressCandidates(
 	].filter((candidate): candidate is string => Boolean(candidate));
 
 	return Array.from(new Set(candidates));
+}
+
+export function getLoadLocationAddressId(
+	value: unknown,
+	preferredType: PreferredLoadLocationType,
+): string | null {
+	const location = parseLoadLocation(value, preferredType);
+	const addressId = location?.address_id;
+	if (addressId == null || String(addressId).trim() === '') {
+		return null;
+	}
+	return String(addressId).trim();
+}
+
+export function parseShipperCoordinates(
+	shipper: TmsShipperLike,
+): { lat: number; lng: number } | null {
+	const lat =
+		shipper.latitude != null && String(shipper.latitude).trim() !== ''
+			? Number(shipper.latitude)
+			: NaN;
+	const lng =
+		shipper.longitude != null && String(shipper.longitude).trim() !== ''
+			? Number(shipper.longitude)
+			: NaN;
+	if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+		return null;
+	}
+	return { lat, lng };
+}
+
+export function resolveShipperCoords(
+	locationValue: unknown,
+	preferredType: PreferredLoadLocationType,
+	shippers: TmsShipperLike[] | undefined | null,
+): { lat: number; lng: number; addressLabel: string } | null {
+	if (!Array.isArray(shippers) || shippers.length === 0) {
+		return null;
+	}
+
+	const addressId = getLoadLocationAddressId(locationValue, preferredType);
+	if (!addressId) {
+		return null;
+	}
+
+	const shipper = shippers.find((entry) => {
+		const shipperAddressId = String(entry.address_id ?? entry.id ?? '').trim();
+		return shipperAddressId !== '' && shipperAddressId === addressId;
+	});
+	if (!shipper) {
+		return null;
+	}
+
+	const coords = parseShipperCoordinates(shipper);
+	if (!coords) {
+		return null;
+	}
+
+	const location = parseLoadLocation(locationValue, preferredType);
+	const addressLabel =
+		shipper.full_address?.trim() ||
+		location?.address?.trim() ||
+		location?.short_address?.trim() ||
+		(preferredType === 'pick_up_location' ? 'Pick up' : 'Delivery');
+
+	return { ...coords, addressLabel };
 }

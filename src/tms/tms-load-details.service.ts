@@ -17,6 +17,14 @@ export type TmsLoadDetailsResponse = {
 			delivery_location?: unknown;
 			[key: string]: unknown;
 		};
+		shippers?: Array<{
+			address_id?: string | number;
+			id?: string;
+			latitude?: string | number | null;
+			longitude?: string | number | null;
+			full_address?: string;
+			[key: string]: unknown;
+		}>;
 		[key: string]: unknown;
 	};
 	[key: string]: unknown;

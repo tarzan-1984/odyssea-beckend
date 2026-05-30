@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
 	getLoadLocationAddressCandidates,
 	PreferredLoadLocationType,
+	resolveShipperCoords,
+	TmsShipperLike,
 } from './tms-route-geocode-address.util';
 
 const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
@@ -144,6 +146,7 @@ export class TmsLoadRouteGeocodeService {
 		loadId: string,
 		pickUpLocation: unknown,
 		deliveryLocation: unknown,
+		shippers?: TmsShipperLike[] | null,
 	): Promise<LoadRouteGeocodePayload> {
 		const trimmedLoadId = loadId.trim();
 		if (!trimmedLoadId) {
@@ -163,41 +166,58 @@ export class TmsLoadRouteGeocodeService {
 			return { pickup: null, delivery: null };
 		}
 
+		const pickupFromShipper = resolveShipperCoords(
+			pickUpLocation,
+			'pick_up_location' satisfies PreferredLoadLocationType,
+			shippers,
+		);
+		const deliveryFromShipper = resolveShipperCoords(
+			deliveryLocation,
+			'delivery_location' satisfies PreferredLoadLocationType,
+			shippers,
+		);
+
 		const cached = await this.prisma.loadRouteGeocode.findUnique({
 			where: { loadId: trimmedLoadId },
 		});
 
 		const needPickup =
-			!cached ||
-			cached.pickupLat == null ||
-			cached.pickupLng == null ||
-			!Number.isFinite(cached.pickupLat) ||
-			!Number.isFinite(cached.pickupLng);
+			!pickupFromShipper &&
+			(!cached ||
+				cached.pickupLat == null ||
+				cached.pickupLng == null ||
+				!Number.isFinite(cached.pickupLat) ||
+				!Number.isFinite(cached.pickupLng));
 
 		const needDelivery =
-			!cached ||
-			cached.deliveryLat == null ||
-			cached.deliveryLng == null ||
-			!Number.isFinite(cached.deliveryLat) ||
-			!Number.isFinite(cached.deliveryLng);
+			!deliveryFromShipper &&
+			(!cached ||
+				cached.deliveryLat == null ||
+				cached.deliveryLng == null ||
+				!Number.isFinite(cached.deliveryLat) ||
+				!Number.isFinite(cached.deliveryLng));
 
-		if (!needPickup && !needDelivery && cached) {
+		if (!needPickup && !needDelivery && cached && !pickupFromShipper && !deliveryFromShipper) {
 			return this.markersFromCacheRow(cached);
 		}
 
-		let pickupResult: { lat: number; lng: number; addressLabel: string } | null = null;
-		let deliveryResult: { lat: number; lng: number; addressLabel: string } | null = null;
+		let pickupResult: { lat: number; lng: number; addressLabel: string } | null =
+			pickupFromShipper;
+		let deliveryResult: { lat: number; lng: number; addressLabel: string } | null =
+			deliveryFromShipper;
 
 		let didContactNominatimForPickup = false;
-		if (!needPickup && cached) {
-			pickupResult = this.markersFromCacheRow(cached).pickup;
-		} else {
-			pickupResult = await this.geocodeFirstCandidate(pickupCandidates);
-			didContactNominatimForPickup = true;
-			if (!pickupResult) {
-				this.logger.warn(
-					`Load route geocode: pickup failed load_id=${trimmedLoadId}`,
-				);
+		if (!pickupResult) {
+			if (!needPickup && cached) {
+				pickupResult = this.markersFromCacheRow(cached).pickup;
+			} else {
+				pickupResult = await this.geocodeFirstCandidate(pickupCandidates);
+				didContactNominatimForPickup = true;
+				if (!pickupResult) {
+					this.logger.warn(
+						`Load route geocode: pickup failed load_id=${trimmedLoadId}`,
+					);
+				}
 			}
 		}
 
@@ -205,14 +225,16 @@ export class TmsLoadRouteGeocodeService {
 			await sleep(NOMINATIM_DELAY_MS);
 		}
 
-		if (!needDelivery && cached) {
-			deliveryResult = this.markersFromCacheRow(cached).delivery;
-		} else {
-			deliveryResult = await this.geocodeFirstCandidate(deliveryCandidates);
-			if (!deliveryResult) {
-				this.logger.warn(
-					`Load route geocode: delivery failed load_id=${trimmedLoadId}`,
-				);
+		if (!deliveryResult) {
+			if (!needDelivery && cached) {
+				deliveryResult = this.markersFromCacheRow(cached).delivery;
+			} else {
+				deliveryResult = await this.geocodeFirstCandidate(deliveryCandidates);
+				if (!deliveryResult) {
+					this.logger.warn(
+						`Load route geocode: delivery failed load_id=${trimmedLoadId}`,
+					);
+				}
 			}
 		}
 
