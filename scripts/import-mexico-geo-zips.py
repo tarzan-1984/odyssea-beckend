@@ -372,14 +372,17 @@ def main() -> None:
     files = list_mexico_geojson_files()
     print(f"Mexico GeoJSON state files: {len(files)}")
 
-    conn = psycopg2.connect(database_url)
+    print("Connecting to geo database...")
+    conn = psycopg2.connect(database_url, connect_timeout=60)
+    conn.autocommit = False
+    print("Connected.")
     try:
         with conn.cursor() as cur:
             cur.execute(
                 "DELETE FROM geo_zips WHERE country_code = %s",
                 (COUNTRY_CODE,),
             )
-            print(f"Cleared geo_zips for country_code={COUNTRY_CODE}")
+            print(f"Cleared geo_zips for country_code={COUNTRY_CODE} ({cur.rowcount} rows)")
 
         total_inserted = 0
         total_skipped = 0
