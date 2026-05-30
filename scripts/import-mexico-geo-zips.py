@@ -31,7 +31,7 @@ MEXICO_GEOJSON_API = (
 )
 
 # GeoNames admin_code1 (01-32) -> official 2-letter state abbreviations
-ADMIN_CODE_TO_STATE_CODE: dict[str, str] = {
+GEONAMES_ADMIN_CODE_TO_STATE_CODE: dict[str, str] = {
     "01": "AG",
     "02": "BC",
     "03": "BS",
@@ -40,6 +40,42 @@ ADMIN_CODE_TO_STATE_CODE: dict[str, str] = {
     "06": "CH",
     "07": "CO",
     "08": "CL",
+    "09": "DF",
+    "10": "DG",
+    "11": "GT",
+    "12": "GR",
+    "13": "HG",
+    "14": "JA",
+    "15": "EM",
+    "16": "MI",
+    "17": "MO",
+    "18": "NA",
+    "19": "NL",
+    "20": "OA",
+    "21": "PU",
+    "22": "QT",
+    "23": "QR",
+    "24": "SL",
+    "25": "SI",
+    "26": "SO",
+    "27": "TB",
+    "28": "TM",
+    "29": "TL",
+    "30": "VE",
+    "31": "YU",
+    "32": "ZA",
+}
+
+# SEPOMEX c_estado uses a different numbering than GeoNames admin_code1
+SEPOMEX_STATE_CODE_TO_ABBR: dict[str, str] = {
+    "01": "AG",
+    "02": "BC",
+    "03": "BS",
+    "04": "CM",
+    "05": "CO",
+    "06": "CL",
+    "07": "CS",
+    "08": "CH",
     "09": "DF",
     "10": "DG",
     "11": "GT",
@@ -154,7 +190,7 @@ def load_sepomex_postal_lookup() -> dict[str, tuple[str, str, str]]:
         if state:
             state_names[postal] = state
         if admin_code:
-            state_codes[postal] = ADMIN_CODE_TO_STATE_CODE.get(
+            state_codes[postal] = SEPOMEX_STATE_CODE_TO_ABBR.get(
                 admin_code.zfill(2),
                 admin_code,
             )
@@ -202,7 +238,7 @@ def load_geonames_postal_lookup() -> dict[str, tuple[str, str, str]]:
                 if state:
                     state_names[postal] = state
                 if admin_code:
-                    state_codes[postal] = ADMIN_CODE_TO_STATE_CODE.get(
+                    state_codes[postal] = GEONAMES_ADMIN_CODE_TO_STATE_CODE.get(
                         admin_code.zfill(2),
                         admin_code,
                     )
@@ -235,9 +271,23 @@ def merge_postal_lookups(
     return merged
 
 
+def build_prefix_city_lookup(
+    postal_lookup: dict[str, tuple[str, str, str]],
+) -> dict[tuple[str, str], Counter[str]]:
+    prefix_lookup: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    for postal, values in postal_lookup.items():
+        city, _, state_code = values
+        if not city or not state_code or not postal:
+            continue
+        for prefix_len in (3, 2, 1):
+            prefix_lookup[(state_code, postal[:prefix_len])][city] += 1
+    return prefix_lookup
+
+
 def resolve_postal_fields(
     postal: str,
     postal_lookup: dict[str, tuple[str, str, str]],
+    prefix_city_lookup: dict[tuple[str, str], Counter[str]],
     file_state: str,
     file_state_code: str,
 ) -> tuple[str, str, str]:
@@ -246,38 +296,46 @@ def resolve_postal_fields(
         state = file_state
     if not state_code:
         state_code = file_state_code
+    if not city and postal and state_code:
+        for prefix_len in (3, 2, 1):
+            counter = prefix_city_lookup.get((state_code, postal[:prefix_len]))
+            if counter:
+                city = counter.most_common(1)[0][0]
+                break
     return city, state, state_code
 
 
-def fill_missing_cities_from_nearest(conn: psycopg2.extensions.connection) -> int:
-    print("Filling missing cities from nearest polygon in the same state...")
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE geo_zips AS target
-            SET city = source.city
-            FROM (
-                SELECT DISTINCT ON (missing.id)
-                    missing.id,
-                    nearest.city
-                FROM geo_zips AS missing
-                INNER JOIN geo_zips AS nearest
-                    ON nearest.country_code = %s
-                   AND nearest.state_code = missing.state_code
-                   AND nearest.city IS NOT NULL
-                   AND nearest.city <> ''
-                WHERE missing.country_code = %s
-                  AND (missing.city IS NULL OR missing.city = '')
-                ORDER BY missing.id, missing.geom <-> nearest.geom
-            ) AS source
-            WHERE target.id = source.id
-            """,
-            (COUNTRY_CODE, COUNTRY_CODE),
+def enrich_rows_from_batch(rows: list[tuple]) -> list[tuple]:
+    batch_prefix: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    for row in rows:
+        postal, city, _, state_code, _, _ = row
+        if not city or not state_code or not postal:
+            continue
+        for prefix_len in (3, 2, 1):
+            batch_prefix[(state_code, postal[:prefix_len])][city] += 1
+
+    enriched: list[tuple] = []
+    for row in rows:
+        postal, city, state, state_code, country_code, geom_json = row
+        if city or not postal or not state_code:
+            enriched.append(row)
+            continue
+        for prefix_len in (3, 2, 1):
+            counter = batch_prefix.get((state_code, postal[:prefix_len]))
+            if counter:
+                city = counter.most_common(1)[0][0]
+                break
+        enriched.append(
+            (
+                postal,
+                truncate(city, 100),
+                state,
+                state_code,
+                country_code,
+                geom_json,
+            )
         )
-        updated = cur.rowcount
-    conn.commit()
-    print(f"Filled missing cities via nearest-neighbor fallback: {updated}")
-    return updated
+    return enriched
 
 
 def list_mexico_geojson_files() -> list[dict]:
@@ -307,7 +365,9 @@ def main() -> None:
         load_sepomex_postal_lookup(),
         load_geonames_postal_lookup(),
     )
+    prefix_city_lookup = build_prefix_city_lookup(postal_lookup)
     print(f"Combined postal lookup entries: {len(postal_lookup)}")
+    print(f"Postal-prefix city buckets: {len(prefix_city_lookup)}")
 
     files = list_mexico_geojson_files()
     print(f"Mexico GeoJSON state files: {len(files)}")
@@ -349,6 +409,7 @@ def main() -> None:
                 city, state, state_code = resolve_postal_fields(
                     postal,
                     postal_lookup,
+                    prefix_city_lookup,
                     file_state,
                     file_state_code,
                 )
@@ -366,6 +427,8 @@ def main() -> None:
             if not rows:
                 print(f"  No rows prepared for {name}")
                 continue
+
+            rows = enrich_rows_from_batch(rows)
 
             with conn.cursor() as cur:
                 execute_batch(
@@ -389,8 +452,6 @@ def main() -> None:
             conn.commit()
             total_inserted += len(rows)
             print(f"  Inserted {len(rows)} rows from {name}")
-
-        fill_missing_cities_from_nearest(conn)
 
         with conn.cursor() as cur:
             cur.execute(
