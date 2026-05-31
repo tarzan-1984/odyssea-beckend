@@ -14,6 +14,14 @@ function sanitizeLatinField(value: string): string {
 	return NON_LATIN_GEO.test(t) ? '' : t;
 }
 
+/** Prefer Latin labels; keep original (e.g. Cyrillic) rather than empty — zip-only is worse for UX. */
+function latinPreferredField(value: string): string {
+	const t = value.trim();
+	if (!t) return '';
+	const latin = sanitizeLatinField(t);
+	return latin || t;
+}
+
 const LOCALITY_KEYS = [
 	'city',
 	'town',
@@ -61,23 +69,41 @@ export function parseNominatimReverseResponse(
 		'';
 
 	const locality = localityFromOsmAddress(address);
-	const city =
+	let city =
 		locality ||
 		(address.district || '').trim() ||
-		(address.neighbourhood || '').trim();
-	const state = (address.state || address.region || '').trim();
+		(address.neighbourhood || '').trim() ||
+		(address.county || '').trim();
+	let state = (address.state || address.region || address.state_district || '').trim();
 	const zip = String(postcode).trim();
 	const country = (address.country || '').trim();
 
-	if (!city && !state && !zip && !country) {
+	city = latinPreferredField(city);
+	state = latinPreferredField(state);
+	const countryLabel = latinPreferredField(country);
+
+	if (!city || !state) {
+		const displayName = (data as { display_name?: string }).display_name?.trim();
+		if (displayName) {
+			const segments = displayName.split(',').map((s) => s.trim()).filter(Boolean);
+			if (!city && segments[0]) {
+				city = latinPreferredField(segments[0]) || segments[0];
+			}
+			if (!state && segments.length > 1) {
+				state = latinPreferredField(segments[1]) || segments[1];
+			}
+		}
+	}
+
+	if (!city && !state && !zip && !countryLabel) {
 		return null;
 	}
 
 	return {
-		city: sanitizeLatinField(city),
-		state: sanitizeLatinField(state),
+		city,
+		state,
 		zip,
-		country: sanitizeLatinField(country),
+		country: countryLabel,
 	};
 }
 

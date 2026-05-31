@@ -20,6 +20,20 @@ describe('nominatim-reverse-geocode.util', () => {
 		});
 	});
 
+	it('parseNominatimReverseResponse keeps Cyrillic when Latin unavailable', () => {
+		const result = parseNominatimReverseResponse({
+			display_name: 'Миколаїв, Миколаївська область, Україна',
+			address: {
+				postcode: '54058',
+				state: 'Миколаївська область',
+				country: 'Україна',
+			},
+		});
+		expect(result?.zip).toBe('54058');
+		expect(result?.city).toBe('Миколаїв');
+		expect(result?.state).toBe('Миколаївська область');
+	});
+
 	it('parseNominatimReverseResponse returns null when address empty', () => {
 		expect(parseNominatimReverseResponse({})).toBeNull();
 		expect(parseNominatimReverseResponse({ address: {} })).toBeNull();

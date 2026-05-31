@@ -127,7 +127,7 @@ export class DriverReverseGeocodeService {
 				state: nominatim.state,
 				stateCode: '',
 				zip: nominatim.zip,
-				countryCode: '',
+				countryCode: nominatim.country,
 				source: 'nominatim',
 			};
 		}

@@ -1085,7 +1085,10 @@ export class UsersService {
 					filled.push('city');
 				}
 				if (!resolvedState && geo.state) {
-					resolvedState = geo.state;
+					resolvedState =
+						geo.source === 'nominatim' && geo.countryCode?.trim()
+							? `${geo.state}, ${geo.countryCode}`.trim()
+							: geo.state;
 					filled.push('state');
 				}
 				if (!resolvedZip && geo.zip) {
