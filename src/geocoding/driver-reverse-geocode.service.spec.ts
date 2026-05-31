@@ -30,6 +30,7 @@ describe('DriverReverseGeocodeService', () => {
 			city: 'Kyiv',
 			state: 'Kyiv City',
 			zip: '01001',
+			country: 'Ukraine',
 		});
 		geoReverseCache.findByCoordinates.mockResolvedValue(null);
 

@@ -48,14 +48,14 @@ export class DriverReverseGeocodeService {
 		}
 
 		this.logger.log(
-			`[ServerGeocode] Nominatim (outside North America) — city=${nominatim.city} state=${nominatim.state} zip=${nominatim.zip}`,
+			`[ServerGeocode] Nominatim (outside North America) — city=${nominatim.city} state=${nominatim.state} zip=${nominatim.zip} country=${nominatim.country}`,
 		);
 		return {
 			city: nominatim.city,
 			state: nominatim.state,
 			stateCode: '',
 			zip: nominatim.zip,
-			countryCode: '',
+			countryCode: nominatim.country,
 			source: 'nominatim',
 		};
 	}

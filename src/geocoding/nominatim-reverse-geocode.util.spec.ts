@@ -16,6 +16,7 @@ describe('nominatim-reverse-geocode.util', () => {
 			city: 'Miami',
 			state: 'Florida',
 			zip: '33101',
+			country: '',
 		});
 	});
 

@@ -3,6 +3,7 @@ export type NominatimReverseAddress = {
 	city: string;
 	state: string;
 	zip: string;
+	country: string;
 };
 
 const NON_LATIN_GEO = /[\u0400-\u04FF\u0500-\u052F]/;
@@ -66,8 +67,9 @@ export function parseNominatimReverseResponse(
 		(address.neighbourhood || '').trim();
 	const state = (address.state || address.region || '').trim();
 	const zip = String(postcode).trim();
+	const country = (address.country || '').trim();
 
-	if (!city && !state && !zip) {
+	if (!city && !state && !zip && !country) {
 		return null;
 	}
 
@@ -75,6 +77,7 @@ export function parseNominatimReverseResponse(
 		city: sanitizeLatinField(city),
 		state: sanitizeLatinField(state),
 		zip,
+		country: sanitizeLatinField(country),
 	};
 }
 
