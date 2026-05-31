@@ -4,6 +4,7 @@ import { GeoPostgisReverseGeocodeService } from './geo-postgis-reverse-geocode.s
 import { GeoReverseCacheService } from './geo-reverse-cache.service';
 import { HerePlaywrightReverseGeocodeService } from './here-playwright-reverse-geocode.service';
 import { NominatimReverseGeocodeService } from './nominatim-reverse-geocode.service';
+import { isAllowedNorthAmericaLatLng } from './north-america-bbox.util';
 
 @Injectable()
 export class DriverReverseGeocodeService {
@@ -24,6 +25,45 @@ export class DriverReverseGeocodeService {
 			return null;
 		}
 
+		if (
+			!isAllowedNorthAmericaLatLng({ latitude, longitude })
+		) {
+			return this.reverseGeocodeOutsideNorthAmerica(latitude, longitude);
+		}
+
+		return this.reverseGeocodeNorthAmerica(latitude, longitude);
+	}
+
+	/** Dev/test abroad: Nominatim only — no geo_reverse_cache read/write outside NA. */
+	private async reverseGeocodeOutsideNorthAmerica(
+		latitude: number,
+		longitude: number,
+	): Promise<DriverReverseGeocodeResult | null> {
+		const nominatim = await this.nominatimReverseGeocode.reverseGeocode(
+			latitude,
+			longitude,
+		);
+		if (!nominatim) {
+			return null;
+		}
+
+		this.logger.log(
+			`[ServerGeocode] Nominatim (outside North America) — city=${nominatim.city} state=${nominatim.state} zip=${nominatim.zip}`,
+		);
+		return {
+			city: nominatim.city,
+			state: nominatim.state,
+			stateCode: '',
+			zip: nominatim.zip,
+			countryCode: '',
+			source: 'nominatim',
+		};
+	}
+
+	private async reverseGeocodeNorthAmerica(
+		latitude: number,
+		longitude: number,
+	): Promise<DriverReverseGeocodeResult | null> {
 		const postgis = await this.geoPostgisReverseGeocode.reverseGeocode(
 			latitude,
 			longitude,

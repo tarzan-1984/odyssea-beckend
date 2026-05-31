@@ -36,6 +36,8 @@ import {
 	type LocationUpdateRequestTrace,
 } from './utils/location-update-failure.logger';
 import { DriverReverseGeocodeService } from '../geocoding/driver-reverse-geocode.service';
+import type { DriverReverseGeocodeResult } from '../geocoding/driver-reverse-geocode.types';
+import { isAllowedNorthAmericaLatLng, type LatLng } from '../geocoding/north-america-bbox.util';
 
 function trimLocationField(value: unknown): string {
 	if (value === undefined || value === null) {
@@ -44,23 +46,16 @@ function trimLocationField(value: unknown): string {
 	return String(value).trim();
 }
 
-type LatLng = { latitude: number; longitude: number };
-type BBox = { minLat: number; maxLat: number; minLng: number; maxLng: number };
-
-function inBox(p: LatLng, b: BBox): boolean {
-	return (
-		p.latitude >= b.minLat &&
-		p.latitude <= b.maxLat &&
-		p.longitude >= b.minLng &&
-		p.longitude <= b.maxLng
-	);
+/** Human-readable label for background location logs (PostGIS / cache / HERE / etc.). */
+function formatAddressGeocodeSourceLabel(
+	geo: DriverReverseGeocodeResult,
+): string {
+	if (geo.source === 'geo_zips') {
+		return geo.match ? `geo_zips:${geo.match}` : 'geo_zips';
+	}
+	return geo.source;
 }
 
-// Rough geo-fence: USA/Canada/Mexico (per product constraints). Intentionally permissive.
-const US_CA_MAINLAND: BBox = { minLat: 24, maxLat: 71, minLng: -168, maxLng: -52 };
-const ALASKA: BBox = { minLat: 51, maxLat: 72, minLng: -179, maxLng: -129 };
-const HAWAII: BBox = { minLat: 18, maxLat: 23, minLng: -161, maxLng: -154 };
-const MEXICO: BBox = { minLat: 14, maxLat: 33, minLng: -119, maxLng: -86 };
 const DEFAULT_TRACKING_POINT_MIN_INTERVAL_MS = 30 * 60 * 1000;
 const TRACKING_POINT_MIN_DISTANCE_M = 5000;
 
@@ -76,16 +71,6 @@ function distanceMeters(a: LatLng, b: LatLng): number {
 			Math.sin(dLng / 2) ** 2;
 
 	return 2 * earthRadiusM * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function isAllowedNorthAmericaLatLng(p: LatLng): boolean {
-	if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return false;
-	return (
-		inBox(p, US_CA_MAINLAND) ||
-		inBox(p, ALASKA) ||
-		inBox(p, HAWAII) ||
-		inBox(p, MEXICO)
-	);
 }
 
 @Injectable()
@@ -998,9 +983,15 @@ export class UsersService {
 			}
 		}
 
-		// Geo-fence: reject obviously wrong fixes (e.g. Africa) for non-test drivers.
+		// Geo-fence: block automatic pings outside NA (wrong GPS). Manual Share allowed for dev/test abroad.
+		const isBackgroundPing =
+			locationDto.isBackgroundTaskLocationUpdate === true;
+		const isManualAction =
+			locationDto.isManualDriverLocationAction === true;
+
 		if (
 			!isTestDriver &&
+			!isManualAction &&
 			typeof locationDto.latitude === 'number' &&
 			typeof locationDto.longitude === 'number'
 		) {
@@ -1029,16 +1020,6 @@ export class UsersService {
 			}
 		}
 
-		const isBackgroundPing =
-			locationDto.isBackgroundTaskLocationUpdate === true;
-		const isManualAction =
-			locationDto.isManualDriverLocationAction === true;
-		if (isBackgroundPing) {
-			this.logger.log(
-				`Location update [background] userId=${id} role=${user.role} externalId=${user.externalId ?? ''} payload=${JSON.stringify(locationDto)}`,
-			);
-		}
-
 		const nowNy = (() => {
 			const parts = new Intl.DateTimeFormat('en-US', {
 				timeZone: 'America/New_York',
@@ -1062,6 +1043,11 @@ export class UsersService {
 		let resolvedState = trimLocationField(locationDto.state);
 		let resolvedZip = trimLocationField(locationDto.zip);
 
+		let addressGeocodeSource: string | null = null;
+		if (resolvedCity && resolvedState && resolvedZip) {
+			addressGeocodeSource = 'client';
+		}
+
 		const hasCoords =
 			typeof locationDto.latitude === 'number' &&
 			typeof locationDto.longitude === 'number' &&
@@ -1077,7 +1063,14 @@ export class UsersService {
 				.filter(Boolean)
 				.join(', ');
 			this.logger.log(
-				`[ServerGeocode] Missing address field(s) [${missingBefore}] — resolving via PostGIS → cache → HERE`,
+				`[ServerGeocode] Missing address field(s) [${missingBefore}] — resolving via ${
+					isAllowedNorthAmericaLatLng({
+						latitude: locationDto.latitude as number,
+						longitude: locationDto.longitude as number,
+					})
+						? 'PostGIS → cache → HERE'
+						: 'Nominatim (outside North America)'
+				}`,
 			);
 
 			const geo = await this.driverReverseGeocode.reverseGeocode(
@@ -1099,9 +1092,10 @@ export class UsersService {
 					resolvedZip = geo.zip;
 					filled.push('zip');
 				}
+				addressGeocodeSource = formatAddressGeocodeSourceLabel(geo);
 				if (filled.length > 0) {
 					this.logger.log(
-						`[ServerGeocode] Merged into save payload via ${geo.source} — filled: ${filled.join(', ')}`,
+						`[ServerGeocode] Merged into save payload via ${addressGeocodeSource} — filled: ${filled.join(', ')}`,
 					);
 				} else {
 					this.logger.warn(
@@ -1109,14 +1103,18 @@ export class UsersService {
 					);
 				}
 			} else if (!resolvedCity && !resolvedState && !resolvedZip) {
+				addressGeocodeSource = 'none';
 				this.logger.error(
 					'[ServerGeocode] FAILED — neither client nor server reverse geocode provided city/state/zip; saving coordinates only',
 				);
 			} else {
+				addressGeocodeSource = 'partial_client';
 				this.logger.warn(
 					'[ServerGeocode] FAILED — server reverse geocode unavailable; saving client fields + coordinates (missing columns unchanged)',
 				);
 			}
+		} else if (!addressGeocodeSource) {
+			addressGeocodeSource = 'unchanged';
 		}
 
 		const data: Prisma.UserUpdateInput = {
@@ -1204,6 +1202,15 @@ export class UsersService {
 				error: err,
 			});
 			throw err;
+		}
+
+		if (isBackgroundPing) {
+			this.logger.log(
+				`Location update [background] saved userId=${id} role=${user.role} externalId=${updatedUser.externalId ?? ''} ` +
+					`lat=${updatedUser.latitude} lng=${updatedUser.longitude} ` +
+					`city="${updatedUser.city ?? ''}" state="${updatedUser.state ?? ''}" zip="${updatedUser.zip ?? ''}" ` +
+					`addressSource=${addressGeocodeSource ?? 'unknown'}`,
+			);
 		}
 
 		const trackingPoint = await this.maybeCreateDriverTrackingPoint(updatedUser);
