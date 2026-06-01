@@ -1039,31 +1039,32 @@ export class UsersService {
 			)}:${get('second')}`;
 		})();
 
-		let resolvedCity = trimLocationField(locationDto.city);
-		let resolvedState = trimLocationField(locationDto.state);
-		let resolvedZip = trimLocationField(locationDto.zip);
-
-		let addressGeocodeSource: string | null = null;
-		if (resolvedCity && resolvedState && resolvedZip) {
-			addressGeocodeSource = 'client';
-		}
-
 		const hasCoords =
 			typeof locationDto.latitude === 'number' &&
 			typeof locationDto.longitude === 'number' &&
 			Number.isFinite(locationDto.latitude) &&
 			Number.isFinite(locationDto.longitude);
 
-		if (hasCoords && (!resolvedCity || !resolvedState || !resolvedZip)) {
-			const missingBefore = [
-				!resolvedCity && 'city',
-				!resolvedState && 'state',
-				!resolvedZip && 'zip',
-			]
-				.filter(Boolean)
-				.join(', ');
+		const clientCity = trimLocationField(locationDto.city);
+		const clientState = trimLocationField(locationDto.state);
+		const clientZip = trimLocationField(locationDto.zip);
+		const clientSentFullAddress = !!(clientCity && clientState && clientZip);
+
+		let resolvedCity = '';
+		let resolvedState = '';
+		let resolvedZip = '';
+		let addressGeocodeSource: string | null = null;
+
+		if (hasCoords) {
+			// Coordinates are authoritative: ignore legacy client Nominatim city/state/zip.
+			if (clientSentFullAddress || clientCity || clientState || clientZip) {
+				this.logger.log(
+					'[ServerGeocode] Client city/state/zip ignored — resolving address from coordinates only',
+				);
+			}
+
 			this.logger.log(
-				`[ServerGeocode] Missing address field(s) [${missingBefore}] — resolving via ${
+				`[ServerGeocode] Resolving from coordinates via ${
 					isAllowedNorthAmericaLatLng({
 						latitude: locationDto.latitude as number,
 						longitude: locationDto.longitude as number,
@@ -1080,44 +1081,46 @@ export class UsersService {
 
 			if (geo) {
 				const filled: string[] = [];
-				if (!resolvedCity && geo.city) {
-					resolvedCity = geo.city;
+				if (geo.city?.trim()) {
+					resolvedCity = geo.city.trim();
 					filled.push('city');
 				}
-				if (!resolvedState && geo.state) {
+				if (geo.state?.trim()) {
 					resolvedState =
 						geo.source === 'nominatim' && geo.countryCode?.trim()
-							? `${geo.state}, ${geo.countryCode}`.trim()
-							: geo.state;
+							? `${geo.state.trim()}, ${geo.countryCode.trim()}`.trim()
+							: geo.state.trim();
 					filled.push('state');
 				}
-				if (!resolvedZip && geo.zip) {
-					resolvedZip = geo.zip;
+				if (geo.zip?.trim()) {
+					resolvedZip = geo.zip.trim();
 					filled.push('zip');
 				}
 				addressGeocodeSource = formatAddressGeocodeSourceLabel(geo);
 				if (filled.length > 0) {
 					this.logger.log(
-						`[ServerGeocode] Merged into save payload via ${addressGeocodeSource} — filled: ${filled.join(', ')}`,
+						`[ServerGeocode] Applied ${addressGeocodeSource} — filled: ${filled.join(', ')}`,
 					);
 				} else {
 					this.logger.warn(
-						`[ServerGeocode] ${geo.source} OK but no new fields matched client gaps`,
+						`[ServerGeocode] ${geo.source} returned no usable city/state/zip`,
 					);
 				}
-			} else if (!resolvedCity && !resolvedState && !resolvedZip) {
+			} else {
 				addressGeocodeSource = 'none';
 				this.logger.error(
-					'[ServerGeocode] FAILED — neither client nor server reverse geocode provided city/state/zip; saving coordinates only',
-				);
-			} else {
-				addressGeocodeSource = 'partial_client';
-				this.logger.warn(
-					'[ServerGeocode] FAILED — server reverse geocode unavailable; saving client fields + coordinates (missing columns unchanged)',
+					'[ServerGeocode] FAILED — server reverse geocode unavailable; saving coordinates only (client address ignored)',
 				);
 			}
-		} else if (!addressGeocodeSource) {
-			addressGeocodeSource = 'unchanged';
+		} else {
+			resolvedCity = clientCity;
+			resolvedState = clientState;
+			resolvedZip = clientZip;
+			if (clientSentFullAddress) {
+				addressGeocodeSource = 'client';
+			} else {
+				addressGeocodeSource = 'unchanged';
+			}
 		}
 
 		const data: Prisma.UserUpdateInput = {

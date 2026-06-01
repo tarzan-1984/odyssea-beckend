@@ -12,7 +12,8 @@ export class UpdateUserLocationDto {
   location?: string;
 
   @ApiProperty({
-    description: 'City name',
+    description:
+      'City name (ignored when latitude/longitude are sent — server resolves city/state/zip from coordinates)',
     example: 'Nikolaev',
     required: false,
   })
@@ -21,7 +22,8 @@ export class UpdateUserLocationDto {
   city?: string;
 
   @ApiProperty({
-    description: 'State / region code',
+    description:
+      'State / region (ignored when latitude/longitude are sent — server resolves address from coordinates)',
     example: 'Mykolaiv',
     required: false,
   })
@@ -30,7 +32,8 @@ export class UpdateUserLocationDto {
   state?: string;
 
   @ApiProperty({
-    description: 'ZIP / postal code',
+    description:
+      'ZIP / postal code (ignored when latitude/longitude are sent — server resolves address from coordinates)',
     example: '54000',
     required: false,
   })
