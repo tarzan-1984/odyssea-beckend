@@ -274,7 +274,12 @@ export class MessagesService {
 			// Get receiver users info (role and driverStatus) for filtering
 			const receiverUsers = await this.prisma.user.findMany({
 				where: { id: { in: receiverIds } },
-				select: { id: true, role: true, driverStatus: true },
+				select: {
+					id: true,
+					role: true,
+					driverStatus: true,
+					notificationsEnabled: true,
+				},
 			});
 
 			// Get sender info (role) for filtering expired_documents drivers
@@ -286,6 +291,10 @@ export class MessagesService {
 			// Filter receivers based on driver status rules
 			const allowedReceiverIds = receiverUsers
 				.filter((receiver) => {
+					if (receiver.notificationsEnabled === false) {
+						return false;
+					}
+
 					// Block push only for admin-blocked accounts (not driver "Out of service" / banned)
 					if (
 						receiver.role === UserRole.DRIVER &&
