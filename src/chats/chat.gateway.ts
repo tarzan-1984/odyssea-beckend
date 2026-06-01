@@ -941,6 +941,13 @@ export class ChatGateway
 
 			// Notify new participants about the chat room
 			participantIds.forEach((participantId) => {
+				void this.server
+					.to(`user_${participantId}`)
+					.emit('addedToChatRoom', {
+						chatRoomId,
+						addedBy: userId,
+					});
+
 				const participantSocketId = this.userSockets.get(participantId);
 				if (participantSocketId) {
 					void this.server
