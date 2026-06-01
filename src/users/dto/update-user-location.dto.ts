@@ -3,8 +3,9 @@ import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserLocationDto {
   @ApiProperty({
-    description: 'Human readable location string (e.g. "City, State ZIP, Country")',
-    example: 'Nikolaev, Mykolaiv 54000, Ukraine',
+    description:
+      'TMS region code (e.g. MI, QC). When latitude/longitude are sent, server sets this from geo_zips state_code; client value is ignored.',
+    example: 'MI',
     required: false,
   })
   @IsOptional()

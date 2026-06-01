@@ -70,7 +70,7 @@ export class DriverReverseGeocodeService {
 		);
 		if (postgis && this.isCompleteAddress(postgis)) {
 			this.logger.log(
-				`[ServerGeocode] geo_zips ${postgis.match} — zip=${postgis.zip} city=${postgis.city}`,
+				`[ServerGeocode] geo_zips ${postgis.match} — zip=${postgis.zip} city=${postgis.city} state=${postgis.state} stateCode=${postgis.stateCode}`,
 			);
 			return {
 				city: postgis.city,

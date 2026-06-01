@@ -300,18 +300,12 @@ function lettersOnlyKey(s: string): string {
 		.replace(/[^a-z]/g, '');
 }
 
-/**
- * Maps free-text state/region (from DB, Nominatim, mobile) to TMS `current_location` code.
- */
-export function normalizeTmsCurrentLocation(
-	raw: string | null | undefined,
-): string {
-	if (raw == null) {
-		return DEFAULT_CODE;
-	}
+function resolveTmsLocationCodeFromString(
+	raw: string,
+): string | null {
 	const trimmed = raw.trim();
 	if (!trimmed) {
-		return DEFAULT_CODE;
+		return null;
 	}
 
 	const upper = trimmed.toUpperCase();
@@ -347,5 +341,34 @@ export function normalizeTmsCurrentLocation(
 		}
 	}
 
-	return DEFAULT_CODE;
+	return null;
+}
+
+/**
+ * Maps geo_zips `state_code` / region name to TMS `users.location` (e.g. MI, QC).
+ * Returns '' when unresolved (no default).
+ */
+export function resolveTmsLocationCode(
+	...inputs: (string | null | undefined)[]
+): string {
+	for (const input of inputs) {
+		if (input == null) {
+			continue;
+		}
+		const code = resolveTmsLocationCodeFromString(String(input));
+		if (code) {
+			return code;
+		}
+	}
+	return '';
+}
+
+/**
+ * Maps free-text state/region (from DB, Nominatim, mobile) to TMS `current_location` code.
+ */
+export function normalizeTmsCurrentLocation(
+	raw: string | null | undefined,
+): string {
+	const code = resolveTmsLocationCode(raw);
+	return code || DEFAULT_CODE;
 }

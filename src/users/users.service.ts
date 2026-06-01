@@ -38,6 +38,7 @@ import {
 import { DriverReverseGeocodeService } from '../geocoding/driver-reverse-geocode.service';
 import type { DriverReverseGeocodeResult } from '../geocoding/driver-reverse-geocode.types';
 import { isAllowedNorthAmericaLatLng, type LatLng } from '../geocoding/north-america-bbox.util';
+import { resolveTmsLocationCode } from '../tms/tms-current-location.util';
 
 function trimLocationField(value: unknown): string {
 	if (value === undefined || value === null) {
@@ -1053,6 +1054,7 @@ export class UsersService {
 		let resolvedCity = '';
 		let resolvedState = '';
 		let resolvedZip = '';
+		let resolvedTmsLocation = '';
 		let addressGeocodeSource: string | null = null;
 
 		if (hasCoords) {
@@ -1096,14 +1098,27 @@ export class UsersService {
 					resolvedZip = geo.zip.trim();
 					filled.push('zip');
 				}
+				const tmsCode = resolveTmsLocationCode(geo.stateCode, geo.state);
+				if (tmsCode) {
+					resolvedTmsLocation = tmsCode;
+					filled.push('location');
+				}
 				addressGeocodeSource = formatAddressGeocodeSourceLabel(geo);
 				if (filled.length > 0) {
 					this.logger.log(
-						`[ServerGeocode] Applied ${addressGeocodeSource} — filled: ${filled.join(', ')}`,
+						`[ServerGeocode] Applied ${addressGeocodeSource} — filled: ${filled.join(', ')}` +
+							(resolvedTmsLocation
+								? ` (location=${resolvedTmsLocation})`
+								: ''),
 					);
 				} else {
 					this.logger.warn(
 						`[ServerGeocode] ${geo.source} returned no usable city/state/zip`,
+					);
+				}
+				if (!resolvedTmsLocation && (geo.state?.trim() || geo.stateCode?.trim())) {
+					this.logger.warn(
+						`[ServerGeocode] Could not map region to TMS location code — stateCode="${geo.stateCode ?? ''}" state="${geo.state ?? ''}"`,
 					);
 				}
 			} else {
@@ -1141,14 +1156,18 @@ export class UsersService {
 			data.zip = resolvedZip;
 		}
 
-		// Do not overwrite DB `location` when client sends no TMS code (empty string).
-		const locationIncoming = locationDto.location;
-		if (
-			locationIncoming !== undefined &&
-			locationIncoming !== null &&
-			String(locationIncoming).trim() !== ''
-		) {
-			data.location = locationIncoming;
+		if (resolvedTmsLocation) {
+			data.location = resolvedTmsLocation;
+		} else if (!hasCoords) {
+			// No coordinates: legacy path may still send TMS code from client.
+			const locationIncoming = locationDto.location;
+			if (
+				locationIncoming !== undefined &&
+				locationIncoming !== null &&
+				String(locationIncoming).trim() !== ''
+			) {
+				data.location = String(locationIncoming).trim();
+			}
 		}
 
 		// Ignore empty/whitespace driverStatus (client may send "" from stale cache) — do not wipe DB or TMS.
