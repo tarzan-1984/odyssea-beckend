@@ -39,6 +39,7 @@ import { DriverReverseGeocodeService } from '../geocoding/driver-reverse-geocode
 import type { DriverReverseGeocodeResult } from '../geocoding/driver-reverse-geocode.types';
 import { isAllowedNorthAmericaLatLng, type LatLng } from '../geocoding/north-america-bbox.util';
 import { resolveTmsLocationCode } from '../tms/tms-current-location.util';
+import { formatDriverLocationPersistedLog } from '../geocoding/driver-location-save-log.util';
 
 function trimLocationField(value: unknown): string {
 	if (value === undefined || value === null) {
@@ -1106,10 +1107,10 @@ export class UsersService {
 				addressGeocodeSource = formatAddressGeocodeSourceLabel(geo);
 				if (filled.length > 0) {
 					this.logger.log(
-						`[ServerGeocode] Applied ${addressGeocodeSource} — filled: ${filled.join(', ')}` +
-							(resolvedTmsLocation
-								? ` (location=${resolvedTmsLocation})`
-								: ''),
+						`[ServerGeocode] Resolved via ${addressGeocodeSource} — will persist: ` +
+							`location=${resolvedTmsLocation || '(unmapped)'} ` +
+							`city="${resolvedCity}" state="${resolvedState}" zip="${resolvedZip}" ` +
+							`(fields: ${filled.join(', ')})`,
 					);
 				} else {
 					this.logger.warn(
@@ -1124,7 +1125,7 @@ export class UsersService {
 			} else {
 				addressGeocodeSource = 'none';
 				this.logger.error(
-					'[ServerGeocode] FAILED — server reverse geocode unavailable; saving coordinates only (client address ignored)',
+					`[ServerGeocode] FAILED — server reverse geocode unavailable; saving coordinates only (client address ignored) lat=${locationDto.latitude} lng=${locationDto.longitude}`,
 				);
 			}
 		} else {
@@ -1229,14 +1230,21 @@ export class UsersService {
 			throw err;
 		}
 
-		if (isBackgroundPing) {
-			this.logger.log(
-				`Location update [background] saved userId=${id} role=${user.role} externalId=${updatedUser.externalId ?? ''} ` +
-					`lat=${updatedUser.latitude} lng=${updatedUser.longitude} ` +
-					`city="${updatedUser.city ?? ''}" state="${updatedUser.state ?? ''}" zip="${updatedUser.zip ?? ''}" ` +
-					`addressSource=${addressGeocodeSource ?? 'unknown'}`,
-			);
-		}
+		const locationSavedContext = isBackgroundPing
+			? 'Location update [background] saved to DB'
+			: 'Location update saved to DB';
+		this.logger.log(
+			formatDriverLocationPersistedLog(
+				locationSavedContext,
+				updatedUser,
+				addressGeocodeSource,
+				{
+					userId: id,
+					role: String(user.role),
+					externalId: updatedUser.externalId ?? '',
+				},
+			),
+		);
 
 		const trackingPoint = await this.maybeCreateDriverTrackingPoint(updatedUser);
 

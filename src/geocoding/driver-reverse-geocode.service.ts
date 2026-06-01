@@ -5,6 +5,7 @@ import { GeoReverseCacheService } from './geo-reverse-cache.service';
 import { HerePlaywrightReverseGeocodeService } from './here-playwright-reverse-geocode.service';
 import { NominatimReverseGeocodeService } from './nominatim-reverse-geocode.service';
 import { isAllowedNorthAmericaLatLng } from './north-america-bbox.util';
+import { formatServerGeocodeResolvedLog } from './driver-location-save-log.util';
 
 @Injectable()
 export class DriverReverseGeocodeService {
@@ -48,7 +49,17 @@ export class DriverReverseGeocodeService {
 		}
 
 		this.logger.log(
-			`[ServerGeocode] Nominatim (outside North America) — city=${nominatim.city} state=${nominatim.state} zip=${nominatim.zip} country=${nominatim.country}`,
+			formatServerGeocodeResolvedLog(
+				`Nominatim (outside North America) country=${nominatim.country}`,
+				latitude,
+				longitude,
+				{
+					city: nominatim.city,
+					state: nominatim.state,
+					stateCode: '',
+					zip: nominatim.zip,
+				},
+			),
 		);
 		return {
 			city: nominatim.city,
@@ -70,7 +81,12 @@ export class DriverReverseGeocodeService {
 		);
 		if (postgis && this.isCompleteAddress(postgis)) {
 			this.logger.log(
-				`[ServerGeocode] geo_zips ${postgis.match} — zip=${postgis.zip} city=${postgis.city} state=${postgis.state} stateCode=${postgis.stateCode}`,
+				formatServerGeocodeResolvedLog(
+					`geo_zips ${postgis.match}`,
+					latitude,
+					longitude,
+					postgis,
+				),
 			);
 			return {
 				city: postgis.city,
@@ -89,7 +105,12 @@ export class DriverReverseGeocodeService {
 		);
 		if (cached && this.isCompleteAddress(cached)) {
 			this.logger.log(
-				`[ServerGeocode] geo_reverse_cache hit — zip=${cached.zip} city=${cached.city}`,
+				formatServerGeocodeResolvedLog(
+					'geo_reverse_cache hit',
+					latitude,
+					longitude,
+					cached,
+				),
 			);
 			return cached;
 		}
@@ -108,7 +129,12 @@ export class DriverReverseGeocodeService {
 					'here',
 				);
 				this.logger.log(
-					`[ServerGeocode] HERE OK — cached zip=${mapped.zip} city=${mapped.city}`,
+					formatServerGeocodeResolvedLog(
+						'HERE OK (cached to geo_reverse_cache)',
+						latitude,
+						longitude,
+						mapped,
+					),
 				);
 				return mapped;
 			}
@@ -120,7 +146,17 @@ export class DriverReverseGeocodeService {
 		);
 		if (nominatim) {
 			this.logger.log(
-				`[ServerGeocode] Nominatim fallback — zip=${nominatim.zip} city=${nominatim.city}`,
+				formatServerGeocodeResolvedLog(
+					'Nominatim fallback',
+					latitude,
+					longitude,
+					{
+						city: nominatim.city,
+						state: nominatim.state,
+						stateCode: '',
+						zip: nominatim.zip,
+					},
+				),
 			);
 			return {
 				city: nominatim.city,
