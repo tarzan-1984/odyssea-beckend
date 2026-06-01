@@ -106,7 +106,24 @@ export class UsersService {
 	private parseNaiveDateTime(value: string | null | undefined): Date | null {
 		const trimmed = value?.trim();
 		if (!trimmed) return null;
-		const parsed = new Date(trimmed.replace(' ', 'T'));
+		const match = trimmed.match(
+			/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/,
+		);
+		if (!match) {
+			const parsedFallback = new Date(trimmed.replace(' ', 'T'));
+			return Number.isFinite(parsedFallback.getTime()) ? parsedFallback : null;
+		}
+		const [, year, month, day, hour, minute, second] = match;
+		const parsed = new Date(
+			Date.UTC(
+				Number(year),
+				Number(month) - 1,
+				Number(day),
+				Number(hour),
+				Number(minute),
+				Number(second),
+			),
+		);
 		return Number.isFinite(parsed.getTime()) ? parsed : null;
 	}
 
@@ -221,6 +238,7 @@ export class UsersService {
 				loadId,
 				latitude: user.latitude,
 				longitude: user.longitude,
+				createdAt: pointTime,
 				updatedAt: pointTime,
 				placeLabel: this.formatTrackingPlaceLabel(
 					user.city,
