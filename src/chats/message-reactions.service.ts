@@ -1,9 +1,12 @@
 import {
 	BadRequestException,
 	Injectable,
+	Logger,
 	NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FcmPushService } from '../notifications/fcm-push.service';
+import { ExpoPushService } from '../notifications/expo-push.service';
 
 export type MessageReactionUser = {
 	id: string;
@@ -34,7 +37,13 @@ type ReactionRow = {
 
 @Injectable()
 export class MessageReactionsService {
-	constructor(private readonly prisma: PrismaService) {}
+	private readonly logger = new Logger(MessageReactionsService.name);
+
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly fcmPushService: FcmPushService,
+		private readonly expoPushService: ExpoPushService,
+	) {}
 
 	normalizeEmoji(emoji: string): string {
 		const trimmed = emoji.trim();
@@ -248,6 +257,20 @@ export class MessageReactionsService {
 			select: { firstName: true, lastName: true },
 		});
 
+		this.sendReactionPush({
+			chatRoomId: message.chatRoomId,
+			messageId,
+			messageSenderId: message.senderId,
+			actorUserId: userId,
+			actorFirstName: actor?.firstName ?? '',
+			actorLastName: actor?.lastName ?? '',
+			emoji: normalized,
+		}).catch((error) => {
+			this.logger.warn(
+				`Failed to send reaction push for message ${messageId}: ${(error as Error).message}`,
+			);
+		});
+
 		return {
 			messageId,
 			chatRoomId: message.chatRoomId,
@@ -258,6 +281,103 @@ export class MessageReactionsService {
 			emoji: normalized,
 			reactions,
 		};
+	}
+
+	private async sendReactionPush(params: {
+		chatRoomId: string;
+		messageId: string;
+		messageSenderId: string;
+		actorUserId: string;
+		actorFirstName: string;
+		actorLastName: string;
+		emoji: string;
+	}): Promise<void> {
+		if (params.messageSenderId === params.actorUserId) return;
+
+		const recipientParticipant =
+			await this.prisma.chatRoomParticipant.findUnique({
+				where: {
+					chatRoomId_userId: {
+						chatRoomId: params.chatRoomId,
+						userId: params.messageSenderId,
+					},
+				},
+				select: { mute: true },
+			});
+		if (!recipientParticipant || recipientParticipant.mute) return;
+
+		const recipient = await this.prisma.user.findUnique({
+			where: { id: params.messageSenderId },
+			select: { notificationsEnabled: true },
+		});
+		if (recipient?.notificationsEnabled === false) return;
+
+		const tokens = await this.prisma.pushToken.findMany({
+			where: { userId: params.messageSenderId },
+			select: { token: true },
+		});
+		if (tokens.length === 0) return;
+
+		const actor = await this.prisma.user.findUnique({
+			where: { id: params.actorUserId },
+			select: {
+				firstName: true,
+				lastName: true,
+				profilePhoto: true,
+			},
+		});
+
+		const actorName =
+			[
+				params.actorFirstName || actor?.firstName || '',
+				params.actorLastName || actor?.lastName || '',
+			]
+				.join(' ')
+				.trim() || 'Someone';
+		const title = actorName;
+		const body = `${actorName} reacted to your message ${params.emoji}`;
+		const data: Record<string, string> = {
+			type: 'message_reaction',
+			chatRoomId: params.chatRoomId,
+			messageId: params.messageId,
+			actorUserId: params.actorUserId,
+			emoji: params.emoji,
+		};
+		const imageUrl = actor?.profilePhoto || undefined;
+
+		const fcmTokens: string[] = [];
+		const expoPushTokens: string[] = [];
+		for (const { token } of tokens) {
+			if (!token) continue;
+			if (token.startsWith('ExponentPushToken[')) {
+				expoPushTokens.push(token);
+			} else {
+				fcmTokens.push(token);
+			}
+		}
+
+		if (fcmTokens.length > 0) {
+			await this.fcmPushService.sendToTokens(fcmTokens, {
+				title,
+				body,
+				imageUrl,
+				data,
+			});
+		}
+
+		if (expoPushTokens.length > 0) {
+			await this.expoPushService.send(
+				expoPushTokens.map((token) => ({
+					to: token,
+					title,
+					body,
+					data,
+					sound: 'livechat.wav',
+					priority: 'high' as const,
+					...(imageUrl ? { largeIcon: imageUrl } : {}),
+				})),
+			);
+		}
 	}
 
 	async removeReaction(

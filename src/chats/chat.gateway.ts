@@ -428,8 +428,7 @@ export class ChatGateway
 			fileSize,
 			replyData,
 			attachments,
-		} =
-			data;
+		} = data;
 		const userId = client.userId;
 
 		if (!userId) {
@@ -713,11 +712,16 @@ export class ChatGateway
 			...(meta ?? {}),
 		};
 
-		for (const participant of chatRoom.participants) {
-			void this.server
-				.to(`user_${participant.userId}`)
-				.emit('messageReactionsUpdated', payload);
-		}
+		const targetRooms = [
+			`chat_${chatRoomId}`,
+			...chatRoom.participants.map(
+				(participant) => `user_${participant.userId}`,
+			),
+		];
+
+		void this.server
+			.to(targetRooms)
+			.emit('messageReactionsUpdated', payload);
 	}
 
 	/**
