@@ -1,4 +1,16 @@
-import { Body, Controller, Post, UseGuards, Get, Query, Res } from '@nestjs/common';
+import {
+	BadRequestException,
+	Body,
+	Controller,
+	Post,
+	UseGuards,
+	Get,
+	Query,
+	Res,
+	UploadedFile,
+	UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
 	ApiTags,
 	ApiOperation,
@@ -51,6 +63,42 @@ export class StorageController {
 	async presign(@Body() dto: PresignDto) {
 		// Returns { uploadUrl, fileUrl, key }
 		return this.s3.createPresignedPut(dto.filename, dto.contentType);
+	}
+
+	@Post('convert-heic')
+	@UseInterceptors(FileInterceptor('file'))
+	@ApiOperation({
+		summary: 'Convert uploaded HEIC/HEIF image to JPEG',
+		description:
+			'Converts an uploaded HEIC/HEIF file to JPEG before the client uploads it to object storage',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Image converted successfully',
+		content: {
+			'image/jpeg': {
+				schema: {
+					type: 'string',
+					format: 'binary',
+				},
+			},
+		},
+	})
+	async convertUploadedHeicToJpeg(
+		@UploadedFile() file: Express.Multer.File | undefined,
+		@Res() res: Response,
+	) {
+		if (!file?.buffer?.length) {
+			throw new BadRequestException('Image file is required');
+		}
+
+		const jpegBuffer =
+			await this.imageConversionService.convertHeicBufferToJpeg(file.buffer);
+
+		res.setHeader('Content-Type', 'image/jpeg');
+		res.setHeader('Content-Length', jpegBuffer.length);
+		res.setHeader('Cache-Control', 'no-store');
+		return res.send(jpegBuffer);
 	}
 
 	@Get('convert-heic')

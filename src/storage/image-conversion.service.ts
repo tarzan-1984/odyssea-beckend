@@ -5,6 +5,38 @@ import * as http from 'http';
 
 @Injectable()
 export class ImageConversionService {
+	async convertHeicBufferToJpeg(imageBuffer: Buffer): Promise<Buffer> {
+		try {
+			const jpegBuffer = await convert({
+				buffer: imageBuffer,
+				format: 'JPEG',
+				quality: 0.92,
+			});
+
+			if (jpegBuffer instanceof ArrayBuffer) {
+				return Buffer.from(jpegBuffer);
+			} else if (jpegBuffer instanceof Uint8Array) {
+				return Buffer.from(jpegBuffer);
+			} else {
+				return Buffer.from(jpegBuffer);
+			}
+		} catch (error) {
+			console.error(
+				'[ImageConversionService] Failed to convert HEIC buffer to JPEG:',
+				error,
+			);
+
+			if (error instanceof Error) {
+				throw new InternalServerErrorException(
+					`Failed to convert HEIC image: ${error.message}`,
+				);
+			}
+			throw new InternalServerErrorException(
+				'Failed to convert HEIC image',
+			);
+		}
+	}
+
 	/**
 	 * Convert HEIC/HEIF image to JPEG
 	 * @param imageUrl - URL of the HEIC image to convert
@@ -20,27 +52,14 @@ export class ImageConversionService {
 				imageBuffer.length,
 			);
 
-			// Convert HEIC/HEIF to JPEG using heic-convert
-			// heic-convert is specifically designed for HEIC conversion
-			const jpegBuffer = await convert({
-				buffer: imageBuffer,
-				format: 'JPEG',
-				quality: 0.92,
-			});
+			const jpegBuffer = await this.convertHeicBufferToJpeg(imageBuffer);
 
 			console.log(
 				'[ImageConversionService] Conversion completed, JPEG size:',
 				jpegBuffer.length,
 			);
 
-			// heic-convert returns ArrayBuffer, convert to Buffer
-			if (jpegBuffer instanceof ArrayBuffer) {
-				return Buffer.from(jpegBuffer);
-			} else if (jpegBuffer instanceof Uint8Array) {
-				return Buffer.from(jpegBuffer);
-			} else {
-				return Buffer.from(jpegBuffer);
-			}
+			return jpegBuffer;
 		} catch (error) {
 			console.error(
 				'[ImageConversionService] Failed to convert HEIC to JPEG:',
