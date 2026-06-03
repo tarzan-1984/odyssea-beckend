@@ -525,8 +525,9 @@ export class UsersService {
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
 			status: UserStatus.ACTIVE,
-			OR: [{ deactivateAccount: null }, { deactivateAccount: false }],
 			AND: [
+				// Exclude TMS soft-removed drivers (deactivateAccount === true)
+				{ deactivateAccount: { not: true } },
 				{ OR: statusOr },
 				{ lastLocationUpdateAt: { not: null } },
 				{ NOT: { lastLocationUpdateAt: '' } },

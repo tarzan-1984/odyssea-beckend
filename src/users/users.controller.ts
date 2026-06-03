@@ -407,7 +407,7 @@ export class UsersController {
 	@ApiOperation({
 		summary: 'Drivers check list (stale location)',
 		description:
-			'ACTIVE drivers with loaded_enroute and/or available (filterable), last location update (NY wall time string) older than 3 hours. Sortable by last location via lastLocationSort (asc | desc), secondary sort by id.',
+			'ACTIVE drivers with loaded_enroute and/or available (filterable), deactivateAccount is not true, last location update (NY wall time string) older than 3 hours. Sortable by last location via lastLocationSort (asc | desc), secondary sort by id.',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
