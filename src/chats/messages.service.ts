@@ -848,6 +848,22 @@ export class MessagesService {
 		});
 	}
 
+	/** Latest readBy/isRead for WebSocket read-receipt payloads. */
+	async getMessagesReadBySnapshot(messageIds: string[]) {
+		if (messageIds.length === 0) {
+			return [];
+		}
+		const rows = await this.prisma.message.findMany({
+			where: { id: { in: messageIds } },
+			select: { id: true, readBy: true, isRead: true },
+		});
+		return rows.map((row) => ({
+			id: row.id,
+			readBy: (row.readBy as string[]) || [],
+			isRead: row.isRead,
+		}));
+	}
+
 	/**
 	 * Mark a specific message as UNREAD
 	 * Reverts read status and notifies chat participants via WebSocket (if provided)

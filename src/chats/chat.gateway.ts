@@ -269,18 +269,20 @@ export class ChatGateway
 
 			// If any messages were marked as read, notify all participants in the chat
 			if (updatedMessageIds.length > 0) {
-				// Emit to the client who joined
-				client.emit('messagesMarkedAsRead', {
+				const messages =
+					await this.messagesService.getMessagesReadBySnapshot(
+						updatedMessageIds,
+					);
+				const payload = {
 					chatRoomId,
 					messageIds: updatedMessageIds,
 					userId,
-				});
-				// Also emit to all other participants in the room (for read receipts)
-				client.to(`chat_${chatRoomId}`).emit('messagesMarkedAsRead', {
-					chatRoomId,
-					messageIds: updatedMessageIds,
-					userId,
-				});
+					messages,
+				};
+				client.emit('messagesMarkedAsRead', payload);
+				client
+					.to(`chat_${chatRoomId}`)
+					.emit('messagesMarkedAsRead', payload);
 			}
 
 			// Notify other participants that user is typing
@@ -545,17 +547,14 @@ export class ChatGateway
 		// Mark specific message as read
 		await this.messagesService.markMessageAsRead(messageId, userId);
 
-		// Notify sender that message was read
 		const message = await this.messagesService.getMessageById(messageId);
 		if (message && message.senderId !== userId) {
-			const senderSocketId = this.userSockets.get(message.senderId);
-			if (senderSocketId) {
-				void this.server.to(senderSocketId).emit('messageRead', {
-					messageId,
-					readBy: userId,
-					chatRoomId: message.chatRoomId,
-				});
-			}
+			// Notify everyone in the chat room (senders see read receipts in real time)
+			void this.server.to(`chat_${message.chatRoomId}`).emit('messageRead', {
+				messageId,
+				readBy: userId,
+				chatRoomId: message.chatRoomId,
+			});
 		}
 	}
 
@@ -581,21 +580,26 @@ export class ChatGateway
 			userId,
 		);
 
-		// Always notify the requesting client so unread UI can sync even when nothing
-		// changed in DB (already in readBy) — otherwise the frontend keeps a stale count.
-		client.emit('messagesMarkedAsRead', {
+		const readSnapshots =
+			await this.messagesService.getMessagesReadBySnapshot(
+				updatedMessageIds,
+			);
+		const payload = {
 			chatRoomId,
 			messageIds: updatedMessageIds,
 			userId,
-		});
+			messages: readSnapshots,
+		};
 
-		// Other participants only need updates when read receipts actually changed
+		// Always notify the requesting client so unread UI can sync even when nothing
+		// changed in DB (already in readBy) — otherwise the frontend keeps a stale count.
+		client.emit('messagesMarkedAsRead', payload);
+
+		// Other participants need full readBy snapshots for the "Read by" list
 		if (updatedMessageIds.length > 0) {
-			client.to(`chat_${chatRoomId}`).emit('messagesMarkedAsRead', {
-				chatRoomId,
-				messageIds: updatedMessageIds,
-				userId,
-			});
+			client
+				.to(`chat_${chatRoomId}`)
+				.emit('messagesMarkedAsRead', payload);
 		}
 	}
 

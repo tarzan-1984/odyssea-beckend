@@ -479,6 +479,10 @@ export class MessagesController {
 			const messageIds = result.messagesByChatRoom[chatRoomId] || [];
 
 			if (messageIds.length > 0) {
+				const messages =
+					await this.messagesService.getMessagesReadBySnapshot(
+						messageIds,
+					);
 				// Emit to all participants in the chat room
 				this.chatGateway.server
 					.to(`chat_${chatRoomId}`)
@@ -486,6 +490,7 @@ export class MessagesController {
 						chatRoomId,
 						messageIds,
 						userId,
+						messages,
 					});
 			}
 		}
