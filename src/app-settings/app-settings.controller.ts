@@ -3,7 +3,6 @@ import {
 	Controller,
 	ForbiddenException,
 	Get,
-	Post,
 	Put,
 	Request,
 	UseGuards,
@@ -36,7 +35,10 @@ export class AppSettingsController {
 		summary:
 			'Get mobile app settings: location throttling, environment gate (live/test), max concurrent offer bids',
 	})
-	@ApiResponse({ status: 200, description: 'Current mobile-related settings' })
+	@ApiResponse({
+		status: 200,
+		description: 'Current mobile-related settings',
+	})
 	async get(@Request() req: AuthenticatedRequest) {
 		void this.appSettingsService.recordUserLastActiveApp(req.user.id);
 		return this.appSettingsService.getMobileAppSettings();
@@ -65,7 +67,10 @@ export class AppSettingsController {
 	@ApiOperation({
 		summary: 'Get backend TMS batch location sync settings (admin UI)',
 	})
-	@ApiResponse({ status: 200, description: 'TMS batch interval and chunk size' })
+	@ApiResponse({
+		status: 200,
+		description: 'TMS batch interval and chunk size',
+	})
 	async getTmsBatch(@Request() req: AuthenticatedRequest) {
 		if (req.user.role !== UserRole.ADMINISTRATOR) {
 			throw new ForbiddenException(
@@ -96,10 +101,12 @@ export class AppSettingsController {
 
 	@Get('location-environment')
 	@ApiOperation({
-		summary:
-			'Get location environment (live vs test driver) — admin UI',
+		summary: 'Get location environment (live vs test driver) — admin UI',
 	})
-	@ApiResponse({ status: 200, description: 'Mode and test driver external id' })
+	@ApiResponse({
+		status: 200,
+		description: 'Mode and test driver external id',
+	})
 	async getLocationEnvironment(@Request() req: AuthenticatedRequest) {
 		if (req.user.role !== UserRole.ADMINISTRATOR) {
 			throw new ForbiddenException(
@@ -124,7 +131,9 @@ export class AppSettingsController {
 				'Only administrators can update location environment settings',
 			);
 		}
-		return this.appSettingsService.updateLocationEnvironmentAppSettings(dto);
+		return this.appSettingsService.updateLocationEnvironmentAppSettings(
+			dto,
+		);
 	}
 
 	@Get('offers')
@@ -165,7 +174,10 @@ export class AppSettingsController {
 		summary:
 			'Hours after deliveryAt before LOAD chats get isLoadArchived=true (admin UI, cleanup cron)',
 	})
-	@ApiResponse({ status: 200, description: 'Delivered LOAD chat retention hours' })
+	@ApiResponse({
+		status: 200,
+		description: 'Delivered LOAD chat retention hours',
+	})
 	async getDeliveredLoadChat(@Request() req: AuthenticatedRequest) {
 		if (req.user.role !== UserRole.ADMINISTRATOR) {
 			throw new ForbiddenException(
@@ -196,9 +208,12 @@ export class AppSettingsController {
 	@Get('usage-stats')
 	@ApiOperation({
 		summary:
-			'Get mobile app usage stats (ACTIVE users with a device snapshot) — admin UI',
+			'Get mobile app usage stats (ACTIVE, deactivateAccount not true, device snapshot) — admin UI',
 	})
-	@ApiResponse({ status: 200, description: 'Usage stats split by role and platform' })
+	@ApiResponse({
+		status: 200,
+		description: 'Usage stats split by role and platform',
+	})
 	async getUsageStats(@Request() req: AuthenticatedRequest) {
 		if (req.user.role !== UserRole.ADMINISTRATOR) {
 			throw new ForbiddenException(
@@ -240,6 +255,8 @@ export class AppSettingsController {
 				'Only administrators can update account deletion request settings',
 			);
 		}
-		return this.appSettingsService.updateAccountDeletionRequestSettings(body);
+		return this.appSettingsService.updateAccountDeletionRequestSettings(
+			body,
+		);
 	}
 }

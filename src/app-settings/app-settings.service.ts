@@ -26,7 +26,8 @@ function nowInTimeZoneAsNaiveDate(timeZone: string): Date {
 		hour12: false,
 	}).formatToParts(now);
 
-	const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+	const get = (type: string) =>
+		parts.find((p) => p.type === type)?.value ?? '';
 	const year = Number(get('year'));
 	const month = Number(get('month'));
 	const day = Number(get('day'));
@@ -85,9 +86,11 @@ export class AppSettingsService {
 					: {}),
 			},
 		});
-		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
-			updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
-		});
+		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated(
+			{
+				updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
+			},
+		);
 		return this.getMobileAppSettings();
 	}
 
@@ -104,10 +107,14 @@ export class AppSettingsService {
 			locationMinIntervalMs: row.locationMinIntervalMs,
 			locationMinDistanceM: row.locationMinDistanceM,
 			reverseGeocodeMinDistanceM: row.reverseGeocodeMinDistanceM,
-			driverTrackingPointMinIntervalMs: row.driverTrackingPointMinIntervalMs,
-			locationEnvironmentMode: row.locationEnvironmentMode as 'live' | 'test',
+			driverTrackingPointMinIntervalMs:
+				row.driverTrackingPointMinIntervalMs,
+			locationEnvironmentMode: row.locationEnvironmentMode as
+				| 'live'
+				| 'test',
 			locationTestDriverExternalId: row.locationTestDriverExternalId,
-			maxDriverOpenOfferParticipations: row.maxDriverOpenOfferParticipations,
+			maxDriverOpenOfferParticipations:
+				row.maxDriverOpenOfferParticipations,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};
@@ -123,7 +130,9 @@ export class AppSettingsService {
 		try {
 			await this.prisma.user.update({
 				where: { id: userId },
-				data: { lastActiveApp: nowInTimeZoneAsNaiveDate('America/New_York') },
+				data: {
+					lastActiveApp: nowInTimeZoneAsNaiveDate('America/New_York'),
+				},
 				select: { id: true },
 			});
 		} catch {
@@ -135,7 +144,8 @@ export class AppSettingsService {
 		const row = await this.getGlobal();
 		return {
 			id: row.id,
-			maxDriverOpenOfferParticipations: row.maxDriverOpenOfferParticipations,
+			maxDriverOpenOfferParticipations:
+				row.maxDriverOpenOfferParticipations,
 			updatedAt: row.updatedAt,
 		};
 	}
@@ -145,12 +155,15 @@ export class AppSettingsService {
 		const row = await this.prisma.appSetting.update({
 			where: { id: GLOBAL_APP_SETTINGS_ID },
 			data: {
-				maxDriverOpenOfferParticipations: dto.maxDriverOpenOfferParticipations,
+				maxDriverOpenOfferParticipations:
+					dto.maxDriverOpenOfferParticipations,
 			},
 		});
-		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
-			updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
-		});
+		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated(
+			{
+				updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
+			},
+		);
 		return this.getOffersAppSettings();
 	}
 
@@ -189,7 +202,8 @@ export class AppSettingsService {
 		const row = await this.getGlobal();
 		return {
 			id: row.id,
-			deliveredLoadChatArchiveAfterHours: row.deliveredLoadChatArchiveAfterHours,
+			deliveredLoadChatArchiveAfterHours:
+				row.deliveredLoadChatArchiveAfterHours,
 			updatedAt: row.updatedAt,
 		};
 	}
@@ -229,7 +243,9 @@ export class AppSettingsService {
 		const row = await this.getGlobal();
 		return {
 			id: row.id,
-			locationEnvironmentMode: row.locationEnvironmentMode as 'live' | 'test',
+			locationEnvironmentMode: row.locationEnvironmentMode as
+				| 'live'
+				| 'test',
 			locationTestDriverExternalId: row.locationTestDriverExternalId,
 			updatedAt: row.updatedAt,
 		};
@@ -262,15 +278,18 @@ export class AppSettingsService {
 					dto.locationTestDriverExternalId.trim(),
 			},
 		});
-		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated({
-			updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
-		});
+		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated(
+			{
+				updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
+			},
+		);
 		return this.getLocationEnvironmentAppSettings();
 	}
 
 	/**
 	 * Admin UI: usage stats based on:
 	 * - users.status === ACTIVE
+	 * - users.deactivateAccount is not true (exclude TMS soft-removed drivers)
 	 * - there is a device snapshot in user_devices (1 row per externalId)
 	 *
 	 * Drivers are users with role === DRIVER; "Users" are all other roles.
@@ -287,12 +306,17 @@ export class AppSettingsService {
 				user: { select: { role: true, status: true } },
 			},
 			where: {
-				user: { status: UserStatus.ACTIVE },
+				user: {
+					status: UserStatus.ACTIVE,
+					deactivateAccount: { not: true },
+				},
 			},
 		});
 
 		const norm = (p: string | null | undefined) =>
-			String(p ?? '').trim().toLowerCase();
+			String(p ?? '')
+				.trim()
+				.toLowerCase();
 
 		let usersIos = 0;
 		let usersAndroid = 0;
@@ -319,7 +343,11 @@ export class AppSettingsService {
 		return {
 			users: { ios: usersIos, android: usersAndroid },
 			drivers: { ios: driversIos, android: driversAndroid },
-			total: { ios: totalIos, android: totalAndroid, all: totalIos + totalAndroid },
+			total: {
+				ios: totalIos,
+				android: totalAndroid,
+				all: totalIos + totalAndroid,
+			},
 		};
 	}
 }
