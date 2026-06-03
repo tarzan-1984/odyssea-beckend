@@ -108,13 +108,19 @@ export class ChatRoomsController {
 		@Request() req: AuthenticatedRequest,
 	) {
 		const userId = req.user.id;
-		const chatRoom = await this.chatRoomsService.createChatRoom(
+		const { chatRoom, created } = await this.chatRoomsService.createChatRoom(
 			createChatRoomDto,
 			userId,
 		);
 
-		// Send WebSocket notification to all participants
-		this.chatGateway.notifyChatRoomCreated(chatRoom, createChatRoomDto.participantIds);
+		if (created) {
+			this.chatGateway.notifyChatRoomCreated(
+				chatRoom,
+				createChatRoomDto.participantIds,
+			);
+		} else {
+			this.chatGateway.notifyChatRoomCreated(chatRoom, [userId]);
+		}
 
 		return chatRoom;
 	}

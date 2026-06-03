@@ -38,6 +38,13 @@ export type CreateLoadChatResult = {
 	};
 };
 
+export type CreateChatRoomResult = {
+	chatRoom: any;
+	created: boolean;
+};
+
+type PrismaClientLike = PrismaService | Prisma.TransactionClient;
+
 @Injectable()
 export class ChatRoomsService {
 	constructor(
@@ -52,7 +59,7 @@ export class ChatRoomsService {
 	async createChatRoom(
 		createChatRoomDto: CreateChatRoomDto,
 		creatorId: string,
-	) {
+	): Promise<CreateChatRoomResult> {
 		const { name, type, loadId, offerId, avatar, participantIds } =
 			createChatRoomDto;
 
@@ -61,11 +68,16 @@ export class ChatRoomsService {
 			participantIds.push(creatorId);
 		}
 
-		// For direct and offer chats, ensure only 2 participants
-		if ((type === 'DIRECT' || type === 'OFFER') && participantIds.length !== 2) {
-			throw new BadRequestException(
-				'Direct and offer chats must have exactly 2 participants',
-			);
+		// For direct and offer chats, ensure exactly 2 unique participants
+		if (type === 'DIRECT' || type === 'OFFER') {
+			const uniqueParticipantIds = [...new Set(participantIds)];
+			if (uniqueParticipantIds.length !== 2) {
+				throw new BadRequestException(
+					'Direct and offer chats must have exactly 2 participants',
+				);
+			}
+			participantIds.length = 0;
+			participantIds.push(...uniqueParticipantIds);
 		}
 
 		// For group chats, ensure at least 2 participants
@@ -102,18 +114,38 @@ export class ChatRoomsService {
 		// Check if direct chat already exists between these users.
 		// For OFFER chats: we intentionally allow multiple chats with the same user (one per offer).
 		// Each offer needs its own chat with each driver, so we never check for existing OFFER chats.
-		if (type === 'DIRECT') {
+		const directPair =
+			type === 'DIRECT'
+				? ([participantIds[0], participantIds[1]] as [string, string])
+				: null;
+
+		if (directPair) {
 			const existingDirectChat = await this.findDirectChat(
-				participantIds[0],
-				participantIds[1],
+				directPair[0],
+				directPair[1],
 			);
 			if (existingDirectChat) {
-				return existingDirectChat;
+				const chatRoom = await this.reopenDirectChat(existingDirectChat.id);
+				return { chatRoom, created: false };
 			}
 		}
 
 		// Create chat room and participants in a transaction
 		return this.prisma.$transaction(async (prisma) => {
+			if (directPair) {
+				const existingInTx = await this.findDirectChat(
+					directPair[0],
+					directPair[1],
+					prisma,
+				);
+				if (existingInTx) {
+					const chatRoom = await this.reopenDirectChat(
+						existingInTx.id,
+						prisma,
+					);
+					return { chatRoom, created: false };
+				}
+			}
 			// For OFFER chats, name is always passed (offer card title); for others, use passed name or generate
 			const chatName =
 				type === 'OFFER' ? name!.trim() : (name || (await this.generateDefaultName(type, participantIds)));
@@ -215,8 +247,11 @@ export class ChatRoomsService {
 			}
 
 			return {
-				...chatRoom,
-				participants,
+				chatRoom: {
+					...chatRoom,
+					participants,
+				},
+				created: true,
 			};
 		});
 	}
@@ -253,7 +288,7 @@ export class ChatRoomsService {
 			if (!driver.externalId) continue;
 			const chatName = `${driver.firstName} ${driver.lastName} (id: ${offerId})\n${routeStr}`.trim();
 			const participantIds = [creatorId, driver.id];
-			const chatRoom = await this.createChatRoom(
+			const { chatRoom } = await this.createChatRoom(
 				{
 					name: chatName,
 					type: 'OFFER',
@@ -270,39 +305,80 @@ export class ChatRoomsService {
 		return created;
 	}
 
-	/**
-	 * Find a direct chat between two specific users
-	 * Used to prevent creating duplicate direct chats
-	 */
-	private async findDirectChat(userId1: string, userId2: string) {
-		return this.prisma.chatRoom.findFirst({
-			where: {
-				type: 'DIRECT',
-				participants: {
-					every: {
-						userId: {
-							in: [userId1, userId2],
-						},
-					},
-				},
-			},
+	private readonly directChatParticipantInclude = {
+		participants: {
 			include: {
-				participants: {
-					include: {
-						user: {
-							select: {
-								id: true,
-								firstName: true,
-								lastName: true,
-								role: true,
-								profilePhoto: true,
-								userColor: true,
-							},
-						},
+				user: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						role: true,
+						profilePhoto: true,
+						userColor: true,
 					},
 				},
 			},
+		},
+	} as const;
+
+	/**
+	 * Prisma filter: DIRECT room whose participants are exactly this pair (no extras).
+	 */
+	private directChatPairWhere(
+		userId1: string,
+		userId2: string,
+	): Prisma.ChatRoomWhereInput {
+		const ids = [userId1, userId2];
+		return {
+			type: 'DIRECT',
+			AND: [
+				{ participants: { some: { userId: userId1 } } },
+				{ participants: { some: { userId: userId2 } } },
+				{
+					participants: {
+						none: { userId: { notIn: ids } },
+					},
+				},
+			],
+		};
+	}
+
+	/**
+	 * Find a direct chat between two specific users.
+	 * Used to prevent creating duplicate direct chats.
+	 */
+	private async findDirectChat(
+		userId1: string,
+		userId2: string,
+		prisma: PrismaClientLike = this.prisma,
+	) {
+		const db = prisma as PrismaService;
+		return db.chatRoom.findFirst({
+			where: this.directChatPairWhere(userId1, userId2),
+			include: this.directChatParticipantInclude,
+			orderBy: { createdAt: 'asc' },
 		});
+	}
+
+	/** Unhide a direct chat for both users and return the room with participants. */
+	private async reopenDirectChat(
+		chatRoomId: string,
+		prisma: PrismaClientLike = this.prisma,
+	) {
+		const db = prisma as PrismaService;
+		await db.chatRoomParticipant.updateMany({
+			where: { chatRoomId },
+			data: { isHidden: false },
+		});
+		const chatRoom = await db.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			include: this.directChatParticipantInclude,
+		});
+		if (!chatRoom) {
+			throw new NotFoundException('Direct chat room not found');
+		}
+		return chatRoom;
 	}
 
 	/**

@@ -789,7 +789,7 @@ export class ChatGateway
 
 		try {
 			// Create chat room using the service
-			const chatRoom = await this.chatRoomsService.createChatRoom(
+			const { chatRoom, created } = await this.chatRoomsService.createChatRoom(
 				{
 					name,
 					type,
@@ -799,20 +799,20 @@ export class ChatGateway
 				userId,
 			);
 
-			// Join creator to the new chat room
+			// Join creator to the chat room
 			void client.join(`chat_${chatRoom.id}`);
 
-			// Notify all participants about the new chat room
-			for (const participantId of participantIds) {
-				const participantSocketId = this.userSockets.get(participantId);
-				if (participantSocketId) {
-					void this.server
-						.to(participantSocketId)
-						.emit('chatRoomCreated', chatRoom);
+			if (created) {
+				for (const participantId of participantIds) {
+					const participantSocketId = this.userSockets.get(participantId);
+					if (participantSocketId) {
+						void this.server
+							.to(participantSocketId)
+							.emit('chatRoomCreated', chatRoom);
+					}
 				}
 			}
 
-			// Send confirmation back to creator
 			client.emit('chatRoomCreated', chatRoom);
 
 			console.log(
