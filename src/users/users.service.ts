@@ -809,6 +809,7 @@ export class UsersService {
 				createdAt: true,
 				updatedAt: true,
 				lastLoginAt: true,
+				lastActiveApp: true,
 				isTracking: true,
 				trackingLoadId: true,
 			},
@@ -818,19 +819,26 @@ export class UsersService {
 			throw new NotFoundException('User not found');
 		}
 
+		const withLastActiveApp = {
+			...user,
+			lastActiveApp: user.lastActiveApp?.toISOString() ?? null,
+		};
+
 		if (options?.includeTmsLoadRouteLocations !== true) {
-			return user;
+			return withLastActiveApp;
 		}
 
-		const trackingLoadId = user.trackingLoadId?.trim() || null;
+		const trackingLoadId = withLastActiveApp.trackingLoadId?.trim() || null;
 		const [tmsLoadRouteLocations, loadHistory] = await Promise.all([
 			trackingLoadId
 				? this.tmsLoadDetails.fetchRouteLocations(trackingLoadId)
 				: Promise.resolve(null),
-			user.isTracking === true && trackingLoadId && user.externalId
+			withLastActiveApp.isTracking === true &&
+				trackingLoadId &&
+				withLastActiveApp.externalId
 				? this.prisma.driverTracking.findMany({
 						where: {
-							externalDriverId: user.externalId,
+							externalDriverId: withLastActiveApp.externalId,
 							loadId: trackingLoadId,
 						},
 						orderBy: {
@@ -845,7 +853,7 @@ export class UsersService {
 		]);
 
 		return {
-			...user,
+			...withLastActiveApp,
 			pick_up_location: tmsLoadRouteLocations?.pick_up_location ?? null,
 			delivery_location: tmsLoadRouteLocations?.delivery_location ?? null,
 			load_history: loadHistory.map((point) => [

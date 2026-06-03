@@ -85,6 +85,7 @@ export class TmsLoadTrackingService {
 							latitude: true,
 							longitude: true,
 							lastLocationUpdateAt: true,
+							lastActiveApp: true,
 							isTracking: true,
 							trackingLoadId: true,
 						},
@@ -120,8 +121,15 @@ export class TmsLoadTrackingService {
 
 		return {
 			drivers: uniqueDriverExternalIds
-				.map((externalId) => driversByExternalId.get(externalId))
-				.filter((driver): driver is (typeof drivers)[number] => Boolean(driver)),
+				.map((externalId) => {
+					const driver = driversByExternalId.get(externalId);
+					if (!driver) return null;
+					return {
+						...driver,
+						lastActiveApp: driver.lastActiveApp?.toISOString() ?? null,
+					};
+				})
+				.filter((driver): driver is NonNullable<typeof driver> => Boolean(driver)),
 			trackingPoints,
 			routeGeocode,
 		};
