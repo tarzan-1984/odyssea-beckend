@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { FcmPushService } from '../notifications/fcm-push.service';
 import { ExpoPushService } from '../notifications/expo-push.service';
+import { stripMarkdown } from './utils/strip-markdown.util';
 import { UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
 
@@ -372,8 +373,12 @@ export class MessagesService {
 						})()
 					: 0;
 
+			const rawContent =
+				message.content && String(message.content).trim()
+					? stripMarkdown(String(message.content))
+					: '';
 			const body =
-				(message.content && String(message.content).trim()) ||
+				rawContent ||
 				(pipeUrlCount > 0
 					? `Sent ${pipeUrlCount} files`
 					: message.fileName
