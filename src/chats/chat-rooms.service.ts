@@ -409,6 +409,8 @@ export class ChatRoomsService {
 						role: true,
 						profilePhoto: true,
 						userColor: true,
+						externalId: true,
+						phone: true,
 					},
 				},
 			},
