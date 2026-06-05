@@ -43,6 +43,21 @@ export type CreateChatRoomResult = {
 	created: boolean;
 };
 
+export type BulkDirectChatItemStatus = 'created' | 'existed' | 'error';
+
+export type BulkDirectChatItemResult = {
+	driverUserId: string;
+	status: BulkDirectChatItemStatus;
+	chatRoom?: any;
+};
+
+export type BulkDirectChatsResult = {
+	created: number;
+	existed: number;
+	errors: number;
+	items: BulkDirectChatItemResult[];
+};
+
 type PrismaClientLike = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
@@ -303,6 +318,96 @@ export class ChatRoomsService {
 			});
 		}
 		return created;
+	}
+
+	/**
+	 * Create private DIRECT chats with many drivers (check-list bulk action).
+	 * Skips non-ACTIVE drivers and existing direct chats; does not reopen duplicates.
+	 */
+	async createBulkDirectChats(
+		creatorId: string,
+		driverUserIds: string[],
+	): Promise<BulkDirectChatsResult> {
+		const uniqueDriverIds = [
+			...new Set(
+				(driverUserIds ?? []).filter(
+					(id) => typeof id === 'string' && id.trim() && id !== creatorId,
+				),
+			),
+		];
+
+		const items: BulkDirectChatItemResult[] = [];
+		let created = 0;
+		let existed = 0;
+		let errors = 0;
+
+		for (const driverUserId of uniqueDriverIds) {
+			try {
+				const driver = await this.prisma.user.findUnique({
+					where: { id: driverUserId },
+					select: {
+						id: true,
+						status: true,
+						firstName: true,
+						lastName: true,
+					},
+				});
+
+				if (!driver || driver.status !== 'ACTIVE') {
+					errors += 1;
+					items.push({ driverUserId, status: 'error' });
+					continue;
+				}
+
+				const existingChat = await this.findDirectChat(
+					creatorId,
+					driverUserId,
+				);
+				if (existingChat) {
+					existed += 1;
+					items.push({
+						driverUserId,
+						status: 'existed',
+						chatRoom: existingChat,
+					});
+					continue;
+				}
+
+				const chatName =
+					`${driver.firstName ?? ''} ${driver.lastName ?? ''}`.trim() ||
+					'Driver';
+
+				const { chatRoom, created: wasCreated } = await this.createChatRoom(
+					{
+						name: chatName,
+						type: 'DIRECT',
+						participantIds: [creatorId, driverUserId],
+					},
+					creatorId,
+				);
+
+				if (wasCreated) {
+					created += 1;
+					items.push({
+						driverUserId,
+						status: 'created',
+						chatRoom,
+					});
+				} else {
+					existed += 1;
+					items.push({
+						driverUserId,
+						status: 'existed',
+						chatRoom,
+					});
+				}
+			} catch {
+				errors += 1;
+				items.push({ driverUserId, status: 'error' });
+			}
+		}
+
+		return { created, existed, errors, items };
 	}
 
 	private readonly directChatParticipantInclude = {

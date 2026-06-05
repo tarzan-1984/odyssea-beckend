@@ -26,6 +26,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ChatRoomsService } from './chat-rooms.service';
 import { MessagesService } from './messages.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
+import { CreateBulkDirectChatsDto } from './dto/create-bulk-direct-chats.dto';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { AuthenticatedRequest } from '../types/request.types';
 import { ChatGateway } from './chat.gateway';
@@ -123,6 +124,35 @@ export class ChatRoomsController {
 		}
 
 		return chatRoom;
+	}
+
+	@Post('direct/bulk')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Bulk create private DIRECT chats with drivers',
+		description:
+			'Creates one DIRECT chat per driver user id. Skips non-ACTIVE drivers and existing direct chats.',
+	})
+	@ApiResponse({ status: 200, description: 'Bulk operation summary' })
+	async createBulkDirectChats(
+		@Body() dto: CreateBulkDirectChatsDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		const summary = await this.chatRoomsService.createBulkDirectChats(
+			userId,
+			dto.driverUserIds,
+		);
+
+		for (const item of summary.items) {
+			if (item.status !== 'created' || !item.chatRoom) continue;
+			this.chatGateway.notifyChatRoomCreated(item.chatRoom, [
+				userId,
+				item.driverUserId,
+			]);
+		}
+
+		return summary;
 	}
 
 	@Get()
