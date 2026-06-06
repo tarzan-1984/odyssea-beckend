@@ -328,6 +328,24 @@ describe('AuthService', () => {
 			expect(mockPrismaService.otpCode.findFirst).not.toHaveBeenCalled();
 			expect(mockPrismaService.otpCode.update).not.toHaveBeenCalled();
 		});
+
+		it('should verify universal QA OTP for any account without OTP row', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValueOnce({
+				email: 'test@example.com',
+			});
+			mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+			mockJwtService.signAsync.mockResolvedValue('jwt-token');
+			jest.spyOn(
+				service as any,
+				'generateRefreshToken',
+			).mockResolvedValue('refresh-token');
+
+			const result = await service.verifyOtp('test@example.com', '415746');
+
+			expect(result.accessToken).toBe('jwt-token');
+			expect(mockPrismaService.otpCode.findFirst).not.toHaveBeenCalled();
+			expect(mockPrismaService.otpCode.update).not.toHaveBeenCalled();
+		});
 	});
 
 	describe('socialLogin', () => {

