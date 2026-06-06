@@ -27,6 +27,7 @@ import { ChatRoomsService } from './chat-rooms.service';
 import { MessagesService } from './messages.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { CreateBulkDirectChatsDto } from './dto/create-bulk-direct-chats.dto';
+import { CreateBulkDirectChatsWithMessageDto } from './dto/create-bulk-direct-chats-with-message.dto';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { AuthenticatedRequest } from '../types/request.types';
 import { ChatGateway } from './chat.gateway';
@@ -153,6 +154,119 @@ export class ChatRoomsController {
 		}
 
 		return summary;
+	}
+
+	@Post('direct/bulk-with-message')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Bulk create private DIRECT chats and optionally send a message',
+		description:
+			'Creates or reuses one DIRECT chat per driver. When message is provided, sends it with WebSocket broadcast and push notifications.',
+	})
+	@ApiResponse({ status: 200, description: 'Bulk operation summary' })
+	async createBulkDirectChatsWithMessage(
+		@Body() dto: CreateBulkDirectChatsWithMessageDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		const summary = await this.chatRoomsService.createBulkDirectChats(
+			userId,
+			dto.driverUserIds,
+		);
+
+		for (const item of summary.items) {
+			if (item.status !== 'created' || !item.chatRoom) continue;
+			this.chatGateway.notifyChatRoomCreated(item.chatRoom, [
+				userId,
+				item.driverUserId,
+			]);
+		}
+
+		const trimmedMessage = dto.message?.trim() ?? '';
+		if (!trimmedMessage) {
+			return summary;
+		}
+
+		let messagesSent = 0;
+		let messageErrors = 0;
+
+		const enrichedItems = await Promise.all(
+			summary.items.map(async (item) => {
+				if (
+					(item.status !== 'created' && item.status !== 'existed') ||
+					!item.chatRoom?.id
+				) {
+					return item;
+				}
+
+				try {
+					const sent = await this.sendDirectChatMessage(
+						userId,
+						String(item.chatRoom.id),
+						trimmedMessage,
+					);
+					messagesSent += 1;
+					return {
+						...item,
+						messageSent: true,
+						messageId: sent.messageId,
+					};
+				} catch (error) {
+					messageErrors += 1;
+					return {
+						...item,
+						messageSent: false,
+						messageError:
+							error instanceof Error
+								? error.message
+								: 'Failed to send message',
+					};
+				}
+			}),
+		);
+
+		return {
+			...summary,
+			items: enrichedItems,
+			messagesSent,
+			messageErrors,
+		};
+	}
+
+	private async sendDirectChatMessage(
+		userId: string,
+		chatRoomId: string,
+		content: string,
+	): Promise<{ messageId: string }> {
+		const chatRoom = await this.chatRoomsService.getChatRoom(
+			chatRoomId,
+			userId,
+		);
+
+		if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
+			for (const participant of chatRoom.participants) {
+				const wasUnhidden =
+					await this.chatRoomsService.unhideChatRoom(
+						chatRoomId,
+						participant.userId,
+					);
+				if (wasUnhidden) {
+					this.chatGateway.notifyChatRoomRestored(
+						chatRoomId,
+						participant.userId,
+					);
+				}
+			}
+		}
+
+		const message = await this.messagesService.sendMessage(
+			{ chatRoomId, content },
+			userId,
+		);
+
+		void this.chatGateway.broadcastMessage(chatRoomId, message);
+
+		return { messageId: message.id };
 	}
 
 	@Get()
