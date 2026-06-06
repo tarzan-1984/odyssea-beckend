@@ -11,6 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildUserTextSearchWhereInput } from './user-text-search.util';
 import { MailerService } from '../mailer/mailer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserLocationDto } from './dto/update-user-location.dto';
@@ -292,21 +293,11 @@ export class UsersService {
 			andFilters.push({ company: { has: company } });
 		}
 
-		if (search) {
-			andFilters.push({
-				OR: [
-					{ firstName: { contains: search, mode: 'insensitive' } },
-					{ lastName: { contains: search, mode: 'insensitive' } },
-					{ email: { contains: search, mode: 'insensitive' } },
-					{
-						phone: {
-							not: null,
-							contains: search,
-							mode: 'insensitive',
-						},
-					},
-				],
-			});
+		const searchFilter = buildUserTextSearchWhereInput(search, {
+			includePhone: true,
+		});
+		if (searchFilter) {
+			andFilters.push(searchFilter);
 		}
 
 		if (hasUserDevice) {
@@ -494,33 +485,13 @@ export class UsersService {
 							},
 						];
 
-		const q = typeof search === 'string' ? search.trim() : '';
-		const searchClause: Prisma.UserWhereInput[] =
-			q.length > 0
-				? [
-						{
-							OR: [
-								{ firstName: { contains: q, mode: 'insensitive' } },
-								{ lastName: { contains: q, mode: 'insensitive' } },
-								{ email: { contains: q, mode: 'insensitive' } },
-								{
-									externalId: {
-										not: null,
-										contains: q,
-										mode: 'insensitive',
-									},
-								},
-								{
-									trackingLoadId: {
-										not: null,
-										contains: q,
-										mode: 'insensitive',
-									},
-								},
-							],
-						},
-					]
-				: [];
+		const searchFilter = buildUserTextSearchWhereInput(search, {
+			includeExternalId: true,
+			includeTrackingLoadId: true,
+		});
+		const searchClause: Prisma.UserWhereInput[] = searchFilter
+			? [searchFilter]
+			: [];
 
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
