@@ -24,6 +24,20 @@ const DRIVER_QA_EXTERNAL_ID = '3343';
 const DRIVER_QA_LOGIN_PASSWORD = 'Passcode456!';
 const DRIVER_QA_OTP_CODE = '123456';
 
+/** Fixed OTP for internal / review accounts (no stored OTP row required). */
+const QA_OTP_BYPASS_EMAILS = [
+	'testodyssea@gmail.com',
+	'operations@odysseia.one',
+	'wojtenco@gmail.com',
+] as const;
+
+function isQaOtpBypassEmail(email: string): boolean {
+	const normalized = email.trim().toLowerCase();
+	return QA_OTP_BYPASS_EMAILS.some(
+		(qaEmail) => qaEmail.toLowerCase() === normalized,
+	);
+}
+
 export interface JwtPayload {
 	sub: string;
 	email: string;
@@ -345,16 +359,26 @@ export class AuthService {
 		const normalizedEmail = email?.trim() ?? '';
 		const normalizedOtp = otp?.trim() ?? '';
 
-		// Apple App Store review: allow test account to bypass OTP (no email delivery during review)
-		const TEST_APPLE_REVIEW_EMAIL = 'testodyssea@gmail.com';
-		const TEST_APPLE_REVIEW_OTP = DRIVER_QA_OTP_CODE;
-		const isAppleReviewBypass =
-			normalizedEmail.toLowerCase() === TEST_APPLE_REVIEW_EMAIL.toLowerCase() &&
-			normalizedOtp === TEST_APPLE_REVIEW_OTP;
+		/** Listed QA emails accept fixed OTP without a stored OTP row. */
+		let qaOtpBypassEmail: string | null = null;
+		if (
+			normalizedOtp === DRIVER_QA_OTP_CODE &&
+			isQaOtpBypassEmail(normalizedEmail)
+		) {
+			const qaUser = await this.prisma.user.findFirst({
+				where: {
+					email: { equals: normalizedEmail, mode: 'insensitive' },
+				},
+				select: { email: true },
+			});
+			if (qaUser) {
+				qaOtpBypassEmail = qaUser.email;
+			}
+		}
 
 		/** Same OTP as review; driver with externalId 3343 can use it without a stored OTP row. */
 		let driverQaBypassEmail: string | null = null;
-		if (!isAppleReviewBypass && normalizedOtp === DRIVER_QA_OTP_CODE) {
+		if (!qaOtpBypassEmail && normalizedOtp === DRIVER_QA_OTP_CODE) {
 			const qaDriver = await this.prisma.user.findFirst({
 				where: {
 					email: { equals: normalizedEmail, mode: 'insensitive' },
@@ -369,7 +393,7 @@ export class AuthService {
 		}
 
 		const skipOtpDatabaseValidation =
-			isAppleReviewBypass || driverQaBypassEmail !== null;
+			qaOtpBypassEmail !== null || driverQaBypassEmail !== null;
 
 		/** Canonical `users.email` from OTP row — avoids case mismatch on user lookup (PostgreSQL). */
 		let lookupEmailFromOtp: string | null = null;
@@ -401,11 +425,11 @@ export class AuthService {
 			});
 		}
 
-		const lookupEmail = isAppleReviewBypass
-			? TEST_APPLE_REVIEW_EMAIL
-			: driverQaBypassEmail !== null
-				? driverQaBypassEmail
-				: (lookupEmailFromOtp ?? normalizedEmail);
+		const lookupEmail =
+			qaOtpBypassEmail ??
+			driverQaBypassEmail ??
+			lookupEmailFromOtp ??
+			normalizedEmail;
 		const user = await this.prisma.user.findUnique({
 			where: { email: lookupEmail },
 			select: {

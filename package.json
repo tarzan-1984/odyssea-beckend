@@ -40,7 +40,6 @@
 		"test:cron": "ts-node src/scripts/check-cron.ts",
 		"monitor:cron": "ts-node src/scripts/monitor-cron.ts",
 		"test:notifications-cleanup": "ts-node src/scripts/test-notifications-cleanup.ts",
-		"prepare": "husky",
 		"playwright:install": "playwright install chromium",
 		"playwright:install:render": "playwright install chromium"
 	},

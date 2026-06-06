@@ -54,7 +54,9 @@ describe('AuthService', () => {
 	};
 
 	const mockTmsDriverApplicationService = {
-		notifyDriverApplicationActivated: jest.fn().mockResolvedValue(undefined),
+		notifyDriverApplicationActivated: jest
+			.fn()
+			.mockResolvedValue(undefined),
 	};
 
 	beforeEach(async () => {
@@ -286,6 +288,30 @@ describe('AuthService', () => {
 			await expect(
 				service.verifyOtp('test@example.com', '123456'),
 			).rejects.toThrow(BadRequestException);
+		});
+
+		it('should verify fixed QA OTP for listed bypass emails without OTP row', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValueOnce({
+				email: 'wojtenco@gmail.com',
+			});
+			mockPrismaService.user.findUnique.mockResolvedValue({
+				...mockUser,
+				email: 'wojtenco@gmail.com',
+			});
+			mockJwtService.signAsync.mockResolvedValue('jwt-token');
+			jest.spyOn(
+				service as any,
+				'generateRefreshToken',
+			).mockResolvedValue('refresh-token');
+
+			const result = await service.verifyOtp(
+				'wojtenco@gmail.com',
+				'123456',
+			);
+
+			expect(result.accessToken).toBe('jwt-token');
+			expect(mockPrismaService.otpCode.findFirst).not.toHaveBeenCalled();
+			expect(mockPrismaService.otpCode.update).not.toHaveBeenCalled();
 		});
 	});
 
