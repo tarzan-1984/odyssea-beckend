@@ -290,6 +290,7 @@ export class AppSettingsService {
 	 * Admin UI: usage stats based on:
 	 * - users.status === ACTIVE
 	 * - users.deactivateAccount is not true (exclude TMS soft-removed drivers)
+	 * - drivers with driverStatus blocked or expired_documents are excluded
 	 * - there is a device snapshot in user_devices (1 row per externalId)
 	 *
 	 * Drivers are users with role === DRIVER; "Users" are all other roles.
@@ -303,7 +304,7 @@ export class AppSettingsService {
 		const rows = await this.prisma.userDevice.findMany({
 			select: {
 				platform: true,
-				user: { select: { role: true, status: true } },
+				user: { select: { role: true, status: true, driverStatus: true } },
 			},
 			where: {
 				user: {
@@ -327,6 +328,15 @@ export class AppSettingsService {
 			const platform = norm(r.platform);
 			if (platform !== 'ios' && platform !== 'android') continue;
 			const isDriver = r.user.role === UserRole.DRIVER;
+			if (isDriver) {
+				const driverStatus = r.user.driverStatus?.trim().toLowerCase();
+				if (
+					driverStatus === 'blocked' ||
+					driverStatus === 'expired_documents'
+				) {
+					continue;
+				}
+			}
 
 			if (isDriver) {
 				if (platform === 'ios') driversIos += 1;
