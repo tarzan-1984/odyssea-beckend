@@ -21,6 +21,7 @@ import {
 import { Response } from 'express';
 import { S3Service } from '../s3/s3.service';
 import { PresignDto } from './dto/presign.dto';
+import { PresignBatchDto } from './dto/presign-batch.dto';
 import { ImageConversionService } from './image-conversion.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -63,6 +64,37 @@ export class StorageController {
 	async presign(@Body() dto: PresignDto) {
 		// Returns { uploadUrl, fileUrl, key }
 		return this.s3.createPresignedPut(dto.filename, dto.contentType);
+	}
+
+	@Post('presign-batch')
+	@ApiOperation({
+		summary: 'Generate presigned URLs for multiple file uploads',
+		description:
+			'Creates presigned URLs for a batch of files. Legacy clients can keep using POST /presign for single files.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Presigned URLs generated successfully',
+		schema: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					uploadUrl: { type: 'string' },
+					fileUrl: { type: 'string' },
+					key: { type: 'string' },
+				},
+			},
+		},
+	})
+	@ApiResponse({ status: 400, description: 'Invalid file type or filename' })
+	@ApiResponse({ status: 401, description: 'Unauthorized' })
+	async presignBatch(@Body() dto: PresignBatchDto) {
+		return Promise.all(
+			dto.files.map((file) =>
+				this.s3.createPresignedPut(file.filename, file.contentType),
+			),
+		);
 	}
 
 	@Post('convert-heic')
