@@ -15,6 +15,9 @@ import {
 } from '../tms/tms-driver-draft-loads.service';
 import { TmsAppDraftLoadsService } from '../tms/tms-app-draft-loads.service';
 import { AppSettingsService } from '../app-settings/app-settings.service';
+import {
+	getOfferTitleFromRoute,
+} from './offer-route.util';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
@@ -78,27 +81,6 @@ function extendActionTimeUnix(
 			: currentUnixSeconds;
 
 	return baseUnixSeconds + BigInt(minutesToAdd * SECONDS_IN_MINUTE);
-}
-
-function getOfferTitleFromRoute(
-	route: unknown,
-	offerId: number,
-): string {
-	if (!Array.isArray(route) || route.length === 0) {
-		return `Offer #${offerId}`;
-	}
-
-	const points = route as Array<{ location?: unknown }>;
-	const firstLocation = String(points[0]?.location ?? '').trim();
-	const lastLocation = String(
-		points.length > 1 ? points[points.length - 1]?.location ?? '' : points[0]?.location ?? '',
-	).trim();
-
-	if (firstLocation && lastLocation) {
-		return `${firstLocation} → ${lastLocation}`;
-	}
-
-	return firstLocation || lastLocation || `Offer #${offerId}`;
 }
 
 /** Parses TMS offer_id like "OFF-3" or "3" into our numeric offer id. */
@@ -271,33 +253,6 @@ export class OffersService {
 
 			return offer;
 		});
-
-		if (driverIds.length > 0) {
-			const assignedUsers = await this.prisma.user.findMany({
-				where: {
-					externalId: { in: driverIds.map((driverId) => driverId.trim()).filter(Boolean) },
-				},
-				select: { id: true },
-			});
-			const offerTitle = getOfferTitleFromRoute(dto.route, offer.id);
-
-			await Promise.all(
-				assignedUsers.map((user) =>
-					this.notificationsService
-						.createOfferAddedNotification({
-							userId: user.id,
-							offerId: offer.id,
-							offerTitle,
-						})
-						.catch((error) => {
-							console.error(
-								`Failed to create new offer notification for user ${user.id}:`,
-								error,
-							);
-						}),
-				),
-			);
-		}
 
 		return offer;
 	}
@@ -1139,33 +1094,6 @@ export class OffersService {
 				},
 			});
 		});
-
-		if (newExternalIds.length > 0) {
-			const addedUsers = await this.prisma.user.findMany({
-				where: {
-					externalId: { in: newExternalIds },
-				},
-				select: { id: true },
-			});
-			const offerTitle = getOfferTitleFromRoute(offer.route, offer.id);
-
-			await Promise.all(
-				addedUsers.map((user) =>
-					this.notificationsService
-						.createOfferAddedNotification({
-							userId: user.id,
-							offerId: offer.id,
-							offerTitle,
-						})
-						.catch((error) => {
-							console.error(
-								`Failed to create added-to-offer notification for user ${user.id}:`,
-								error,
-							);
-						}),
-				),
-			);
-		}
 
 		const result: {
 			success: boolean;

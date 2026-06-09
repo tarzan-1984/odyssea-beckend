@@ -22,8 +22,6 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OffersService } from './offers.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ChatRoomsService } from '../chats/chat-rooms.service';
-import { ChatGateway } from '../chats/chat.gateway';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { GetDraftLoadsDto } from './dto/get-draft-loads.dto';
@@ -31,21 +29,11 @@ import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 import { OffersRealtimeService } from './offers-realtime.service';
-
-/** Get first and last route point locations for chat name (first = pick up, last = delivery) */
-function getRouteEndpoints(route: Array<{ location?: string }> | undefined): {
-	pickUp: string;
-	delivery: string;
-} {
-	if (!Array.isArray(route) || route.length === 0) {
-		return { pickUp: '', delivery: '' };
-	}
-	const first = route[0];
-	const last = route.length > 1 ? route[route.length - 1] : first;
-	const pickUp = (first?.location && String(first.location).trim()) || '';
-	const delivery = (last?.location && String(last.location).trim()) || '';
-	return { pickUp, delivery };
-}
+import { OfferPostCreateBackgroundService } from './offer-post-create-background.service';
+import {
+	getOfferTitleFromRoute,
+	getRouteEndpoints,
+} from './offer-route.util';
 
 @ApiTags('Offers')
 @ApiBearerAuth()
@@ -55,9 +43,8 @@ export class OffersController {
 	constructor(
 		private readonly offersService: OffersService,
 		private readonly notificationsService: NotificationsService,
-		private readonly chatRoomsService: ChatRoomsService,
-		private readonly chatGateway: ChatGateway,
 		private readonly offersRealtimeService: OffersRealtimeService,
+		private readonly offerPostCreateBackgroundService: OfferPostCreateBackgroundService,
 	) {}
 
 	@Get()
@@ -183,24 +170,26 @@ export class OffersController {
 		@Request() req: { user: { id: string } },
 	) {
 		const offer = await this.offersService.create(dto);
-		// Real-time refresh for admins + affected drivers (same pattern as other offer mutations)
 		await this.offersRealtimeService.emitOfferUpdated(offer.id, 'offer_created', {
 			affectedExternalIds: dto.driverIds ?? [],
 			requestingUserId: req.user.id,
 		});
-		const { pickUp, delivery } = getRouteEndpoints(dto.route);
-		// Create OFFER chats for each ACTIVE driver
-		const createdChats =
-			await this.chatRoomsService.createOfferChatsForNewOffer(
-				offer.id,
-				req.user.id,
-				dto.driverIds ?? [],
+
+		const driverExternalIds = (dto.driverIds ?? [])
+			.map((id) => String(id ?? '').trim())
+			.filter(Boolean);
+		if (driverExternalIds.length > 0) {
+			const { pickUp, delivery } = getRouteEndpoints(dto.route);
+			this.offerPostCreateBackgroundService.enqueue({
+				offerId: offer.id,
+				creatorUserId: req.user.id,
+				driverExternalIds,
 				pickUp,
 				delivery,
-			);
-		for (const { chatRoom, participantIds } of createdChats) {
-			this.chatGateway.notifyChatRoomCreated(chatRoom, participantIds);
+				offerTitle: getOfferTitleFromRoute(dto.route, offer.id),
+			});
 		}
+
 		return offer;
 	}
 
@@ -352,7 +341,6 @@ export class OffersController {
 		@Request() req: { user: { id: string } },
 	) {
 		const result = await this.offersService.addDriversToOffer(id, dto);
-		// Create OFFER chats for newly added drivers (same as when creating a new offer)
 		if (
 			result.addedDriverExternalIds &&
 			result.addedDriverExternalIds.length > 0 &&
@@ -360,17 +348,14 @@ export class OffersController {
 			result.route
 		) {
 			const { pickUp, delivery } = getRouteEndpoints(result.route);
-			const createdChats =
-				await this.chatRoomsService.createOfferChatsForNewOffer(
-					id,
-					req.user.id,
-					result.addedDriverExternalIds,
-					pickUp,
-					delivery,
-				);
-			for (const { chatRoom, participantIds } of createdChats) {
-				this.chatGateway.notifyChatRoomCreated(chatRoom, participantIds);
-			}
+			this.offerPostCreateBackgroundService.enqueue({
+				offerId: id,
+				creatorUserId: req.user.id,
+				driverExternalIds: result.addedDriverExternalIds,
+				pickUp,
+				delivery,
+				offerTitle: getOfferTitleFromRoute(result.route, id),
+			});
 		}
 		await this.offersRealtimeService.emitOfferUpdated(id, 'drivers_added', {
 			affectedExternalIds: result.addedDriverExternalIds ?? [],

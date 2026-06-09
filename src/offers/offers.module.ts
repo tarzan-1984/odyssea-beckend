@@ -8,6 +8,7 @@ import { OffersController } from './offers.controller';
 import { OffersService } from './offers.service';
 import { OffersRealtimeService } from './offers-realtime.service';
 import { OffersCleanupService } from './offers-cleanup.service';
+import { OfferPostCreateBackgroundService } from './offer-post-create-background.service';
 
 @Module({
 	imports: [
@@ -18,7 +19,12 @@ import { OffersCleanupService } from './offers-cleanup.service';
 		AppSettingsModule,
 	],
 	controllers: [OffersController],
-	providers: [OffersService, OffersRealtimeService, OffersCleanupService],
+	providers: [
+		OffersService,
+		OffersRealtimeService,
+		OffersCleanupService,
+		OfferPostCreateBackgroundService,
+	],
 	exports: [OffersService, OffersRealtimeService],
 })
 export class OffersModule {}
