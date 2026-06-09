@@ -1045,6 +1045,28 @@ export class UsersService {
 			Number.isFinite(locationDto.latitude) &&
 			Number.isFinite(locationDto.longitude);
 
+		const incomingDriverStatus =
+			locationDto.driverStatus !== undefined &&
+			String(locationDto.driverStatus).trim() !== ''
+				? String(locationDto.driverStatus).trim()
+				: undefined;
+
+		if (incomingDriverStatus === 'available' && !hasCoords) {
+			logLocationUpdateFailure(this.logger, {
+				userId: id,
+				externalId: externalIdForLogs,
+				source: 'validation',
+				httpStatus: HttpStatus.BAD_REQUEST,
+				reason:
+					'Driver status "available" requires latitude and longitude so the server can geocode zip/city/state.',
+				trace,
+				payload: locationDto,
+			});
+			throw new BadRequestException(
+				'Latitude and longitude are required when setting driver status to available',
+			);
+		}
+
 		const clientCity = trimLocationField(locationDto.city);
 		const clientState = trimLocationField(locationDto.state);
 		const clientZip = trimLocationField(locationDto.zip);
@@ -1061,6 +1083,12 @@ export class UsersService {
 			if (clientSentFullAddress || clientCity || clientState || clientZip) {
 				this.logger.log(
 					'[ServerGeocode] Client city/state/zip ignored — resolving address from coordinates only',
+				);
+			}
+
+			if (incomingDriverStatus === 'available') {
+				this.logger.log(
+					'[ServerGeocode] Driver status → available: resolving zip/city/state from GPS via geo_zips',
 				);
 			}
 
