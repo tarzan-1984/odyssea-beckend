@@ -1487,19 +1487,6 @@ export class UsersService {
 	}
 
 	/**
-	 * TMS driver webhook: persist address-like columns only when TMS sends these statuses.
-	 */
-	private isTmsWebhookLocationFieldsApplicable(
-		driverStatus: string | undefined | null,
-	): boolean {
-		const n = String(driverStatus ?? '')
-			.trim()
-			.toLowerCase()
-			.replace(/-/g, '_');
-		return n === 'available' || n === 'available_on';
-	}
-
-	/**
 	 * Processes webhook sync data from TMS
 	 * Handles add, update, and delete operations for drivers and employees
 	 */
@@ -1577,16 +1564,10 @@ export class UsersService {
 			driver_name,
 			driver_email,
 			driver_phone,
-			home_location,
 			vehicle_type,
 			vin,
 			driver_status,
 			status_date,
-			current_location,
-			current_city,
-			current_zipcode,
-			latitude,
-			longitude,
 			permission_view,
 		} = driver_data;
 
@@ -1619,54 +1600,17 @@ export class UsersService {
 		// Map TMS role to our UserRole
 		const mappedRole = UserRole.DRIVER;
 
-		// Helper function to parse coordinates
-		const parseCoordinate = (
-			coord: number | string | undefined,
-		): number | null => {
-			if (coord === undefined || coord === null) return null;
-			if (typeof coord === 'number') {
-				return Number.isNaN(coord) ? null : coord;
-			}
-			if (typeof coord === 'string') {
-				const parsed = parseFloat(coord);
-				return Number.isNaN(parsed) ? null : parsed;
-			}
-			return null;
-		};
-
-		// Extract only numeric zip from current_zipcode (TMS may send "City 80011" instead of just "80011")
-		const extractZipCode = (value: string | undefined): string | null => {
-			if (!value || typeof value !== 'string') return null;
-			const trimmed = value.trim();
-			// Match US zip (5 digits or 5+4) - handles "Aurora 80011", "80011", etc.
-			const match = trimmed.match(/\d{5}(-\d{4})?/);
-			if (match) return match[0];
-			// Pure digits (international postal codes)
-			if (/^\d+$/.test(trimmed)) return trimmed;
-			return null;
-		};
-
-		const applyWebhookLocationFields =
-			this.isTmsWebhookLocationFieldsApplicable(driver_status);
-
 		const userData: Prisma.UserUncheckedCreateInput = {
 			externalId: driverId,
 			email: driver_email,
 			firstName,
 			lastName,
 			phone: driver_phone,
-			location: applyWebhookLocationFields
-				? current_location || home_location || null
-				: null,
-			city: applyWebhookLocationFields ? current_city || null : null,
-			zip: applyWebhookLocationFields ? extractZipCode(current_zipcode) : null,
 			role: mappedRole,
 			vin,
 			type: vehicle_type,
 			driverStatus: driver_status ?? null,
 			statusDate: status_date ?? null,
-			latitude: parseCoordinate(latitude),
-			longitude: parseCoordinate(longitude),
 			company: normalizeCompany(permission_view),
 			// Only ACTIVE drivers should ever have is_autoupdate enabled (cron filters by ACTIVE).
 			// New users default to INACTIVE, so keep it false on create.
@@ -1760,7 +1704,8 @@ export class UsersService {
 			const oldDriverStatus = existingUser.driverStatus;
 
 			// Partial update: only set fields present in the webhook payload so we do not
-			// wipe driverStatus/zip/etc. when TMS omits them (was: driver_status || null).
+			// wipe driverStatus/etc. when TMS omits them.
+			// Location fields (lat/lng, city, zip, state, location) are mobile-only — not TMS.
 			const updateData: Prisma.UserUpdateInput = {
 				email: driver_email,
 				firstName,
@@ -1781,30 +1726,11 @@ export class UsersService {
 			if (status_date !== undefined) {
 				updateData.statusDate = status_date || null;
 			}
-			if (
-				applyWebhookLocationFields &&
-				(home_location !== undefined || current_location !== undefined)
-			) {
-				const loc = current_location ?? home_location;
-				updateData.location = loc ?? null;
-			}
-			if (applyWebhookLocationFields && current_city !== undefined) {
-				updateData.city = current_city || null;
-			}
-			if (applyWebhookLocationFields && current_zipcode !== undefined) {
-				updateData.zip = extractZipCode(current_zipcode);
-			}
 			if (vehicle_type !== undefined) {
 				updateData.type = vehicle_type || null;
 			}
 			if (vin !== undefined) {
 				updateData.vin = vin || null;
-			}
-			if (latitude !== undefined) {
-				updateData.latitude = parseCoordinate(latitude);
-			}
-			if (longitude !== undefined) {
-				updateData.longitude = parseCoordinate(longitude);
 			}
 			if (permission_view !== undefined) {
 				updateData.company = normalizeCompany(permission_view);

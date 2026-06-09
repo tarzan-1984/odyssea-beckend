@@ -227,13 +227,6 @@ export class ImportDriversQueueService {
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
-    // Parse coordinates - handle empty strings and invalid values
-    const parseCoordinate = (value: string | undefined): number | null => {
-      if (!value || value.trim() === '') return null;
-      const parsed = parseFloat(value);
-      return isNaN(parsed) ? null : parsed;
-    };
-
     const permissionView = driver.permission_view ?? [];
 
     const userData = {
@@ -242,12 +235,9 @@ export class ImportDriversQueueService {
       firstName: firstName,
       lastName: lastName,
       phone: driver.driver_phone || '',
-      location: driver.home_location || '',
       type: driver.type || '',
       vin: driver.vin || '',
       driverStatus: driver.driver_status || null,
-      latitude: parseCoordinate(driver.latitude),
-      longitude: parseCoordinate(driver.longitude),
       company: this.normalizeCompany(permissionView),
       role: UserRole.DRIVER,
       status: UserStatus.INACTIVE,
@@ -268,25 +258,22 @@ export class ImportDriversQueueService {
           firstName: userData.firstName,
           lastName: userData.lastName,
           phone: userData.phone,
-          location: userData.location,
           type: userData.type,
           vin: userData.vin,
           driverStatus: userData.driverStatus,
-          latitude: userData.latitude,
-          longitude: userData.longitude,
           company: userData.company,
           role: userData.role,
-          // Do not overwrite status, password, or profilePhoto for existing users.
+          // Do not overwrite status, password, profilePhoto, or mobile-only location fields.
         },
       });
-      this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
+      this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}`);
       return 'updated';
     } else {
       // User doesn't exist - create new one
       await this.prisma.user.create({
         data: userData,
       });
-      this.logger.log(`Created new driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}, latitude: ${userData.latitude}, longitude: ${userData.longitude}`);
+      this.logger.log(`Created new driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}`);
       return 'imported';
     }
   }
