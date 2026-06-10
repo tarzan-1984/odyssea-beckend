@@ -703,10 +703,12 @@ export class ChatRoomsService {
 	}
 
 	/**
-	 * Get a specific chat room with its messages and participants
+	 * Verify the user is a participant without loading messages or room metadata.
 	 */
-	async getChatRoom(chatRoomId: string, userId: string) {
-		// Verify user is participant
+	async assertChatRoomAccess(
+		chatRoomId: string,
+		userId: string,
+	): Promise<void> {
 		const participant = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
 				chatRoomId_userId: {
@@ -719,6 +721,13 @@ export class ChatRoomsService {
 		if (!participant) {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
+	}
+
+	/**
+	 * Get a specific chat room with its messages and participants
+	 */
+	async getChatRoom(chatRoomId: string, userId: string) {
+		await this.assertChatRoomAccess(chatRoomId, userId);
 
 		const chatRoom = await this.prisma.chatRoom.findUnique({
 			where: { id: chatRoomId },

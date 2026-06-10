@@ -235,7 +235,8 @@ export class ChatGateway
 
 	/**
 	 * Handle joining a specific chat room
-	 * Used when user opens a chat conversation
+	 * Used when user opens a chat conversation.
+	 * Mark-as-read is handled separately via markChatRoomAsRead.
 	 */
 	@SubscribeMessage('joinChatRoom')
 	@UseGuards(WsJwtGuard)
@@ -252,40 +253,12 @@ export class ChatGateway
 		}
 
 		try {
-			// Verify user has access to this chat room
-			await this.chatRoomsService.getChatRoom(chatRoomId, userId);
+			await this.chatRoomsService.assertChatRoomAccess(chatRoomId, userId);
 
-			// Join the specific chat room
 			void client.join(`chat_${chatRoomId}`);
-
-			// Mark messages as read and get the IDs of updated messages
-			const updatedMessageIds =
-				await this.messagesService.markMessagesAsRead(
-					chatRoomId,
-					userId,
-				);
 
 			client.emit('joinedChatRoom', { chatRoomId });
 
-			// If any messages were marked as read, notify all participants in the chat
-			if (updatedMessageIds.length > 0) {
-				const messages =
-					await this.messagesService.getMessagesReadBySnapshot(
-						updatedMessageIds,
-					);
-				const payload = {
-					chatRoomId,
-					messageIds: updatedMessageIds,
-					userId,
-					messages,
-				};
-				client.emit('messagesMarkedAsRead', payload);
-				client
-					.to(`chat_${chatRoomId}`)
-					.emit('messagesMarkedAsRead', payload);
-			}
-
-			// Notify other participants that user is typing
 			void client
 				.to(`chat_${chatRoomId}`)
 				.emit('userJoined', { userId, chatRoomId });
