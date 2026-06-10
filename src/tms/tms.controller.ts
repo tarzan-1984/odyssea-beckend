@@ -26,6 +26,7 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
 import { TmsLoadEnrichmentDto } from './dto/tms-load-enrichment.dto';
 import { UpdateLoadTrackingPointDto } from './dto/update-load-tracking-point.dto';
+import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { ActivateDriverApplicationBackfillDto } from './dto/activate-driver-application-backfill.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverApplicationBackfillBackgroundService } from './tms-driver-application-backfill-background.service';
@@ -208,7 +209,7 @@ export class TmsController {
 			data: {
 				latitude: lat,
 				longitude: lng,
-				updatedAt: new Date(),
+				updatedAt: nowInNewYorkAsNaiveDate(),
 			},
 			select: {
 				id: true,
