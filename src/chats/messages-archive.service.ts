@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { S3Service } from '../s3/s3.service';
+import { utcInstantToNyNaiveDate } from '../common/utils/ny-wall-clock';
 
 export interface ArchiveMessage {
   id: string;
@@ -78,7 +79,7 @@ export class MessagesArchiveService {
       if (participant.user?.role !== UserRole.DRIVER) {
         return null;
       }
-      return participant.joinedAt;
+      return utcInstantToNyNaiveDate(participant.joinedAt);
     } catch (error) {
       this.logger.error(`Failed to get user join date for ${userId} in chat room ${chatRoomId}:`, error);
       return null;

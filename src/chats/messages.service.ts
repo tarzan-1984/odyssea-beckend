@@ -10,11 +10,19 @@ import { ExpoPushService } from '../notifications/expo-push.service';
 import { stripMarkdown } from './utils/strip-markdown.util';
 import { UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
-import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
+import {
+	nowInNewYorkAsNaiveDate,
+	utcInstantToNyNaiveDate,
+} from '../common/utils/ny-wall-clock';
 
 /** Only drivers are restricted to messages after they joined; other roles see full history. */
 function shouldCutOffMessagesAtJoinedAt(role: UserRole | null | undefined): boolean {
 	return role === UserRole.DRIVER;
+}
+
+/** Align joinedAt (UTC instant) with message.createdAt (NY naive) before filtering. */
+function joinedAtCutoffForDriverMessages(joinedAt: Date): Date {
+	return utcInstantToNyNaiveDate(joinedAt);
 }
 
 @Injectable()
@@ -529,7 +537,7 @@ export class MessagesService {
 		}
 
 		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
-			? participant.joinedAt
+			? joinedAtCutoffForDriverMessages(participant.joinedAt)
 			: null;
 
 		// Base filter: full history for non-drivers; drivers only from joinedAt
@@ -725,7 +733,7 @@ export class MessagesService {
 		}
 
 		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
-			? participant.joinedAt
+			? joinedAtCutoffForDriverMessages(participant.joinedAt)
 			: null;
 
 		const messageFilter: any = {
@@ -980,7 +988,7 @@ export class MessagesService {
 		}
 
 		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
-			? participant.joinedAt
+			? joinedAtCutoffForDriverMessages(participant.joinedAt)
 			: null;
 
 		const where: any = {
@@ -1065,7 +1073,7 @@ export class MessagesService {
 		for (const message of messages) {
 			if (isDriver) {
 				const joined = joinedAtByRoom.get(message.chatRoomId);
-				if (joined && message.createdAt < joined) {
+				if (joined && message.createdAt < joinedAtCutoffForDriverMessages(joined)) {
 					continue;
 				}
 			}
@@ -1128,7 +1136,7 @@ export class MessagesService {
 				}
 
 				const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
-					? participant.joinedAt
+					? joinedAtCutoffForDriverMessages(participant.joinedAt)
 					: null;
 
 				const whereMessages: any = { chatRoomId };
@@ -1310,7 +1318,7 @@ export class MessagesService {
 		}
 
 		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
-			? participant.joinedAt
+			? joinedAtCutoffForDriverMessages(participant.joinedAt)
 			: null;
 
 		const searchWhere: any = {
@@ -1386,7 +1394,7 @@ export class MessagesService {
 		}
 
 		const periodStartDate = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
-			? participant.joinedAt
+			? joinedAtCutoffForDriverMessages(participant.joinedAt)
 			: participant.chatRoom.createdAt;
 
 		const [totalMessages, messagesToday, messagesThisWeek, fileMessages] =

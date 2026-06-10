@@ -4,10 +4,10 @@ export const AMERICA_NEW_YORK_TZ = 'America/New_York';
  * Builds a Date whose UTC components match the target TZ wall-clock time.
  * Use when storing `timestamp without time zone` in PostgreSQL (naive local time).
  */
-export function nowInTimeZoneAsNaiveDate(
+export function instantToTimeZoneNaiveDate(
+	instant: Date,
 	timeZone: string = AMERICA_NEW_YORK_TZ,
 ): Date {
-	const now = new Date();
 	const parts = new Intl.DateTimeFormat('en-US', {
 		timeZone,
 		year: 'numeric',
@@ -17,7 +17,7 @@ export function nowInTimeZoneAsNaiveDate(
 		minute: '2-digit',
 		second: '2-digit',
 		hour12: false,
-	}).formatToParts(now);
+	}).formatToParts(instant);
 
 	const get = (type: string) =>
 		parts.find((p) => p.type === type)?.value ?? '';
@@ -31,7 +31,21 @@ export function nowInTimeZoneAsNaiveDate(
 	return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
 }
 
+export function nowInTimeZoneAsNaiveDate(
+	timeZone: string = AMERICA_NEW_YORK_TZ,
+): Date {
+	return instantToTimeZoneNaiveDate(new Date(), timeZone);
+}
+
 /** Current wall-clock time in America/New_York as a naive Date for DB storage. */
 export function nowInNewYorkAsNaiveDate(): Date {
 	return nowInTimeZoneAsNaiveDate(AMERICA_NEW_YORK_TZ);
+}
+
+/**
+ * Converts a real UTC instant (e.g. participant.joinedAt) into the same naive
+ * NY wall-clock space used by message.createdAt for apples-to-apples comparison.
+ */
+export function utcInstantToNyNaiveDate(instant: Date): Date {
+	return instantToTimeZoneNaiveDate(instant, AMERICA_NEW_YORK_TZ);
 }
