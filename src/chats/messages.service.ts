@@ -10,6 +10,7 @@ import { ExpoPushService } from '../notifications/expo-push.service';
 import { stripMarkdown } from './utils/strip-markdown.util';
 import { UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
+import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 
 /** Only drivers are restricted to messages after they joined; other roles see full history. */
 function shouldCutOffMessagesAtJoinedAt(role: UserRole | null | undefined): boolean {
@@ -106,11 +107,14 @@ export class MessagesService {
 			select: { userId: true },
 		});
 
+		const createdAt = nowInNewYorkAsNaiveDate();
+
 		// Create message with sender automatically marked as read
 		const message = await this.prisma.message.create({
 			data: {
 				chatRoomId,
 				senderId,
+				createdAt,
 				content,
 				fileUrl: effectiveFileUrl,
 				fileName: effectiveFileName,
@@ -155,10 +159,10 @@ export class MessagesService {
 			},
 		});
 
-		// Update chat room's updatedAt timestamp
+		// Update chat room's updatedAt timestamp (NY wall-clock)
 		await this.prisma.chatRoom.update({
 			where: { id: chatRoomId },
-			data: { updatedAt: new Date() },
+			data: { updatedAt: createdAt },
 		});
 
 		// Transform profilePhoto to avatar for frontend compatibility
