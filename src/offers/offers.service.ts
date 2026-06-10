@@ -24,9 +24,13 @@ import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
+import {
+	AMERICA_NEW_YORK_TZ,
+	nowInNewYorkAsLocaleString,
+} from '../common/utils/ny-wall-clock';
 
 const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
-	timeZone: 'America/New_York',
+	timeZone: AMERICA_NEW_YORK_TZ,
 	year: 'numeric',
 	month: '2-digit',
 	day: '2-digit',
@@ -37,11 +41,6 @@ const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
 };
 
 const SECONDS_IN_MINUTE = 60;
-
-/** Returns current date/time string in America/New_York timezone */
-function getNewYorkTimeString(): string {
-	return new Date().toLocaleString('en-US', NY_FORMAT_OPTS);
-}
 
 function getCurrentUnixSeconds(): bigint {
 	return BigInt(Math.floor(Date.now() / 1000));
@@ -184,7 +183,7 @@ export class OffersService {
 			});
 		}
 
-		const nowNy = getNewYorkTimeString();
+		const nowNy = nowInNewYorkAsLocaleString();
 		const driversJson: Prisma.InputJsonValue | undefined =
 			driverIds.length > 0 ? driverIds : undefined;
 		const specialRequirementsJson: Prisma.InputJsonValue | undefined =
@@ -1069,7 +1068,7 @@ export class OffersService {
 			};
 		}
 
-		const nowNy = getNewYorkTimeString();
+		const nowNy = nowInNewYorkAsLocaleString();
 		const currentDriversJson = offer.drivers as string[] | null | undefined;
 		const currentDrivers = Array.isArray(currentDriversJson)
 			? [...currentDriversJson]
@@ -1124,7 +1123,10 @@ export class OffersService {
 		}
 		await this.prisma.offer.update({
 			where: { id: offerId },
-			data: { active: false },
+			data: {
+				active: false,
+				updateTime: nowInNewYorkAsLocaleString(),
+			},
 		});
 		return { success: true, message: 'Offer deactivated' };
 	}
@@ -1134,17 +1136,28 @@ export class OffersService {
 	 * Driver remains in administrators list, but becomes inactive.
 	 */
 	async removeDriverFromOffer(offerId: number, driverExternalId: string) {
-		const updated = await this.prisma.rateOffer.updateMany({
-			where: {
-				offerId,
-				driverId: driverExternalId,
-			},
-			data: {
-				active: false,
-				rate: null,
-				actionTime: null,
-				driverEta: null,
-			},
+		const nowNy = nowInNewYorkAsLocaleString();
+		const updated = await this.prisma.$transaction(async (tx) => {
+			const result = await tx.rateOffer.updateMany({
+				where: {
+					offerId,
+					driverId: driverExternalId,
+				},
+				data: {
+					active: false,
+					rate: null,
+					actionTime: null,
+					driverEta: null,
+				},
+			});
+			if (result.count === 0) {
+				return result;
+			}
+			await tx.offer.update({
+				where: { id: offerId },
+				data: { updateTime: nowNy },
+			});
+			return result;
 		});
 		if (updated.count === 0) {
 			throw new NotFoundException(
@@ -1211,12 +1224,23 @@ export class OffersService {
 	}
 
 	async returnDriverToOffer(offerId: number, driverExternalId: string) {
-		const updated = await this.prisma.rateOffer.updateMany({
-			where: {
-				offerId,
-				driverId: driverExternalId,
-			},
-			data: { active: true },
+		const nowNy = nowInNewYorkAsLocaleString();
+		const updated = await this.prisma.$transaction(async (tx) => {
+			const result = await tx.rateOffer.updateMany({
+				where: {
+					offerId,
+					driverId: driverExternalId,
+				},
+				data: { active: true },
+			});
+			if (result.count === 0) {
+				return result;
+			}
+			await tx.offer.update({
+				where: { id: offerId },
+				data: { updateTime: nowNy },
+			});
+			return result;
 		});
 		if (updated.count === 0) {
 			throw new NotFoundException(
@@ -1325,7 +1349,7 @@ export class OffersService {
 			throw new BadGatewayException(`TMS load draft failed: ${detail}`);
 		}
 
-		const nowNy = getNewYorkTimeString();
+		const nowNy = nowInNewYorkAsLocaleString();
 		const affectedDriverExternalIds = rateOffers
 			.map((rateOffer) => String(rateOffer.driverId ?? '').trim())
 			.filter(Boolean);

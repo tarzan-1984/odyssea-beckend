@@ -2,6 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackingTransferDto } from './dto/tracking-transfer.dto';
 import { ChatGateway } from '../chats/chat.gateway';
+import {
+	newParticipantJoinedAt,
+	parseInstantToNyNaiveDate,
+} from '../common/utils/ny-wall-clock';
 
 @Injectable()
 export class TrackingTransferService {
@@ -67,7 +71,9 @@ export class TrackingTransferService {
 			);
 		}
 
-		const joinedAt = dto.ts ? new Date(dto.ts) : new Date();
+		const joinedAt = dto.ts
+			? parseInstantToNyNaiveDate(dto.ts)
+			: newParticipantJoinedAt();
 
 		const oldParticipantRows = await this.prisma.chatRoomParticipant.findMany({
 			where: { chatRoomId: { in: chatRoomIds }, userId: oldUser.id },

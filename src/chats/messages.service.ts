@@ -10,10 +10,7 @@ import { ExpoPushService } from '../notifications/expo-push.service';
 import { stripMarkdown } from './utils/strip-markdown.util';
 import { UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
-import {
-	nowInNewYorkAsNaiveDate,
-	utcInstantToNyNaiveDate,
-} from '../common/utils/ny-wall-clock';
+import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 
 /** Only drivers are restricted to messages after they joined; other roles see full history. */
 function shouldCutOffMessagesAtJoinedAt(_role: UserRole | null | undefined): boolean {
@@ -21,9 +18,12 @@ function shouldCutOffMessagesAtJoinedAt(_role: UserRole | null | undefined): boo
 	return false;
 }
 
-/** Align joinedAt (UTC instant) with message.createdAt (NY naive) before filtering. */
+/**
+ * joinedAt is stored as naive NY wall-clock (same as message.createdAt).
+ * Legacy rows written as UTC before this change may still need migration.
+ */
 function joinedAtCutoffForDriverMessages(joinedAt: Date): Date {
-	return utcInstantToNyNaiveDate(joinedAt);
+	return joinedAt;
 }
 
 @Injectable()

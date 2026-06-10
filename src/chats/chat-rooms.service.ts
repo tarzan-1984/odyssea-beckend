@@ -10,6 +10,11 @@ import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+	newChatRoomTimestamps,
+	newParticipantJoinedAt,
+	nowInNewYorkAsNaiveDate,
+} from '../common/utils/ny-wall-clock';
 
 /**
  * ADMINISTRATOR users are auto-added as hidden LOAD chat participants unless their
@@ -164,6 +169,9 @@ export class ChatRoomsService {
 			// For OFFER chats, name is always passed (offer card title); for others, use passed name or generate
 			const chatName =
 				type === 'OFFER' ? name!.trim() : (name || (await this.generateDefaultName(type, participantIds)));
+			const roomTimestamps = newChatRoomTimestamps();
+			const joinedAt = newParticipantJoinedAt(roomTimestamps.createdAt);
+
 			const chatRoom = await prisma.chatRoom.create({
 				data: {
 					name: chatName,
@@ -173,6 +181,8 @@ export class ChatRoomsService {
 					avatar,
 					// for GROUP chats, set creator as admin; DIRECT and OFFER have no admin
 					adminId: type === 'GROUP' ? creatorId : null,
+					createdAt: roomTimestamps.createdAt,
+					updatedAt: roomTimestamps.updatedAt,
 				},
 			});
 
@@ -183,6 +193,7 @@ export class ChatRoomsService {
 						data: {
 							chatRoomId: chatRoom.id,
 							userId,
+							joinedAt,
 						},
 						include: {
 							user: {
@@ -823,6 +834,8 @@ export class ChatRoomsService {
 			},
 		});
 
+		const joinedAt = newParticipantJoinedAt();
+
 		// Add new participants
 		const newParticipants = await Promise.all(
 			participantIds.map((participantId) =>
@@ -830,6 +843,7 @@ export class ChatRoomsService {
 					data: {
 						chatRoomId,
 						userId: participantId,
+						joinedAt,
 					},
 					include: {
 						user: {
@@ -1584,8 +1598,11 @@ export class ChatRoomsService {
 								loadId: load_id,
 								name: title,
 								company,
+								updatedAt: nowInNewYorkAsNaiveDate(),
 							},
 						});
+
+						const addedJoinedAt = newParticipantJoinedAt();
 
 						for (const userId of toRemove) {
 							await tx.chatRoomParticipant.delete({
@@ -1605,6 +1622,7 @@ export class ChatRoomsService {
 									userId,
 									isHidden: false,
 									hideParticipant: hiddenIdSet.has(userId),
+									joinedAt: addedJoinedAt,
 								},
 							});
 						}
@@ -1693,6 +1711,9 @@ export class ChatRoomsService {
 					return { tag: 'noop' as const, chatRoom: dup };
 				}
 
+				const roomTimestamps = newChatRoomTimestamps();
+				const joinedAt = newParticipantJoinedAt(roomTimestamps.createdAt);
+
 				const chatRoom = await prisma.chatRoom.create({
 					data: {
 						name: title,
@@ -1701,6 +1722,8 @@ export class ChatRoomsService {
 						company,
 						avatar: null,
 						adminId: null,
+						createdAt: roomTimestamps.createdAt,
+						updatedAt: roomTimestamps.updatedAt,
 					},
 				});
 
@@ -1709,6 +1732,7 @@ export class ChatRoomsService {
 					userId,
 					isHidden: false,
 					hideParticipant: hiddenParticipantIds.includes(userId),
+					joinedAt,
 				}));
 
 				await prisma.chatRoomParticipant.createMany({
@@ -1809,10 +1833,16 @@ export class ChatRoomsService {
 		const originalParticipants = chatRoom.participants.map((p: any) => ({ userId: p.userId }));
 
 		// Apply changes in a transaction
+		const joinedAt = newParticipantJoinedAt();
+
 		await this.prisma.$transaction(async (tx) => {
 			if (toAdd.length > 0) {
 				await tx.chatRoomParticipant.createMany({
-					data: toAdd.map((userId) => ({ chatRoomId: chatRoom.id, userId })),
+					data: toAdd.map((userId) => ({
+						chatRoomId: chatRoom.id,
+						userId,
+						joinedAt,
+					})),
 				});
 			}
 
