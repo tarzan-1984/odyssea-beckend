@@ -325,6 +325,8 @@ model Message {
   sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   reactions  MessageReaction[]
 
+  @@index([chatRoomId, createdAt(sort: Desc)], map: "messages_chat_room_id_created_at_idx")
+  @@index([chatRoomId, senderId], map: "messages_chat_room_id_sender_id_idx")
   @@map("messages")
 }
 

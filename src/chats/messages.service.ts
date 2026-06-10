@@ -28,6 +28,33 @@ function joinedAtCutoffForDriverMessages(joinedAt: Date): Date {
 
 @Injectable()
 export class MessagesService {
+	private readonly messageWithUsersInclude = {
+		sender: {
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				profilePhoto: true,
+				userColor: true,
+				role: true,
+				externalId: true,
+				phone: true,
+			},
+		},
+		receiver: {
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				profilePhoto: true,
+				userColor: true,
+				role: true,
+				externalId: true,
+				phone: true,
+			},
+		},
+	} as const;
+
 	constructor(
 		private prisma: PrismaService,
 		private fcmPushService: FcmPushService,
@@ -577,95 +604,30 @@ export class MessagesService {
 				where: messageFilter,
 				orderBy: { createdAt: 'asc' },
 				take: limit,
-				include: {
-					sender: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							profilePhoto: true,
-							userColor: true,
-							role: true,
-							externalId: true,
-							phone: true,
-						},
-					},
-					receiver: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							profilePhoto: true,
-							userColor: true,
-							role: true,
-							externalId: true,
-							phone: true,
-						},
-					},
-				},
+				include: this.messageWithUsersInclude,
 			});
 
 			total = messages.length;
 			pages = 1;
 			hasMore = messages.length === limit;
 		} else {
-			// Default paginated mode (existing behaviour).
-			// Get total count first (filtered by join date)
-			total = await this.prisma.message.count({
+			// Index-friendly pagination: scan (chatRoomId, createdAt DESC) instead of COUNT + SKIP from start.
+			const safePage = Math.max(1, page);
+			const safeLimit = Math.min(Math.max(1, limit), 100);
+
+			const batch = await this.prisma.message.findMany({
 				where: messageFilter,
+				orderBy: { createdAt: 'desc' },
+				skip: (safePage - 1) * safeLimit,
+				take: safeLimit + 1,
+				include: this.messageWithUsersInclude,
 			});
 
-			// For chat, we want to get the most recent messages
-			// If page = 1, get the last 'limit' messages
-			// If page > 1, get older messages (for infinite scroll)
-			let skip: number;
-			let orderBy: { createdAt: 'asc' | 'desc' };
-
-			if (page === 1) {
-				// First page: get the most recent messages
-				skip = Math.max(0, total - limit);
-				orderBy = { createdAt: 'asc' }; // We'll reverse this later
-			} else {
-				// Subsequent pages: get older messages
-				skip = Math.max(0, total - page * limit);
-				orderBy = { createdAt: 'asc' }; // We'll reverse this later
-			}
-
-			messages = await this.prisma.message.findMany({
-				where: messageFilter,
-				orderBy,
-				skip,
-				take: limit,
-				include: {
-					sender: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							profilePhoto: true,
-							userColor: true,
-							role: true,
-							externalId: true,
-							phone: true,
-						},
-					},
-					receiver: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							profilePhoto: true,
-							userColor: true,
-							role: true,
-							externalId: true,
-							phone: true,
-						},
-					},
-				},
-			});
-
-			pages = Math.ceil(total / limit);
-			hasMore = Math.max(0, total - page * limit) > 0;
+			hasMore = batch.length > safeLimit;
+			messages = batch.slice(0, safeLimit).reverse();
+			// total is omitted (expensive COUNT on large rooms); clients rely on hasMore.
+			total = 0;
+			pages = hasMore ? safePage + 1 : safePage;
 		}
 
 		// Note: Messages are no longer automatically marked as read when fetching
