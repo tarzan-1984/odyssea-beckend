@@ -59,6 +59,9 @@ export class MessagesArchiveService {
     chatRoomId: string,
     userId: string,
   ): Promise<Date | null> {
+    // TEMP: join-date archive cutoff disabled (same as messages.service)
+    return null;
+
     try {
       const participant = await this.prisma.chatRoomParticipant.findUnique({
         where: {
