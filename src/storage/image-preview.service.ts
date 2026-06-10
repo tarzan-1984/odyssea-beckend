@@ -3,7 +3,7 @@ import {
 	Injectable,
 	InternalServerErrorException,
 } from '@nestjs/common';
-import sharp from 'sharp';
+import sharp = require('sharp');
 import { S3Service } from '../s3/s3.service';
 import { ImageConversionService } from './image-conversion.service';
 
@@ -31,9 +31,9 @@ export class ImagePreviewService {
 		maxWidth: number,
 		quality: number,
 	): Promise<Buffer> {
-		this.s3Service.assertAllowedObjectUrl(imageUrl);
+		const key = this.s3Service.assertAllowedObjectUrl(imageUrl);
 
-		const extension = this.getExtensionFromUrl(imageUrl);
+		const extension = this.getExtensionFromKey(key);
 		if (!extension || !PREVIEW_IMAGE_EXTENSIONS.has(extension)) {
 			throw new BadRequestException('Preview is not supported for this file type');
 		}
@@ -41,11 +41,13 @@ export class ImagePreviewService {
 		try {
 			let imageBuffer: Buffer;
 			if (extension === 'heic' || extension === 'heif') {
+				imageBuffer = await this.s3Service.getObjectBuffer(key);
 				imageBuffer =
-					await this.imageConversionService.convertHeicToJpeg(imageUrl);
+					await this.imageConversionService.convertHeicBufferToJpeg(
+						imageBuffer,
+					);
 			} else {
-				imageBuffer =
-					await this.imageConversionService.downloadImageBuffer(imageUrl);
+				imageBuffer = await this.s3Service.getObjectBuffer(key);
 			}
 
 			return await sharp(imageBuffer)
@@ -74,13 +76,8 @@ export class ImagePreviewService {
 		}
 	}
 
-	private getExtensionFromUrl(url: string): string | null {
-		try {
-			const pathname = new URL(url).pathname;
-			const ext = pathname.split('.').pop()?.toLowerCase() ?? '';
-			return ext && ext.length <= 8 ? ext : null;
-		} catch {
-			return null;
-		}
+	private getExtensionFromKey(key: string): string | null {
+		const ext = key.split('.').pop()?.toLowerCase() ?? '';
+		return ext && ext.length <= 8 ? ext : null;
 	}
 }

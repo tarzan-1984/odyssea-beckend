@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as crypto from 'crypto';
 import { ErrorWithResponse } from '../types/request.types';
@@ -39,7 +39,12 @@ export class S3Service {
 	}
 
 	/** Only URLs from our Wasabi bucket may be fetched server-side. */
-	assertAllowedObjectUrl(url: string): void {
+	assertAllowedObjectUrl(url: string): string {
+		return this.parseObjectKeyFromUrl(url);
+	}
+
+	/** Resolve S3 object key from a public file URL (path-style or virtual-hosted). */
+	parseObjectKeyFromUrl(url: string): string {
 		if (!url || !/^https?:\/\//i.test(url)) {
 			throw new BadRequestException('Invalid image URL');
 		}
@@ -52,20 +57,54 @@ export class S3Service {
 		}
 
 		const endpointHost = new URL(this.endpoint).host;
-		if (parsed.host !== endpointHost) {
-			throw new BadRequestException('Image URL host is not allowed');
+		let key: string | null = null;
+
+		if (parsed.host === endpointHost) {
+			const pathParts = parsed.pathname.replace(/^\/+/, '').split('/');
+			const [bucket, ...rest] = pathParts;
+			if (bucket === this.bucket && rest.length > 0) {
+				key = rest.join('/');
+			}
+		} else if (parsed.host.startsWith(`${this.bucket}.`)) {
+			key = parsed.pathname.replace(/^\/+/, '');
 		}
 
-		const pathParts = parsed.pathname.replace(/^\/+/, '').split('/');
-		const [bucket, ...rest] = pathParts;
-		if (bucket !== this.bucket || rest.length === 0) {
-			throw new BadRequestException('Image URL bucket or key is not allowed');
-		}
-
-		const key = rest.join('/');
-		if (!key.startsWith(this.prefix)) {
+		if (!key || !key.startsWith(this.prefix)) {
 			throw new BadRequestException('Image URL key is not allowed');
 		}
+
+		return key;
+	}
+
+	async getObjectBuffer(key: string): Promise<Buffer> {
+		try {
+			const response = await this.s3.send(
+				new GetObjectCommand({
+					Bucket: this.bucket,
+					Key: key,
+				}),
+			);
+
+			if (!response.Body) {
+				throw new BadRequestException('Object body is empty');
+			}
+
+			const bytes = await response.Body.transformToByteArray();
+			return Buffer.from(bytes);
+		} catch (error) {
+			const errorWithResponse = error as ErrorWithResponse;
+			if (error instanceof BadRequestException) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to read object from storage: ${errorWithResponse.message}`,
+			);
+		}
+	}
+
+	async getObjectBufferByUrl(url: string): Promise<Buffer> {
+		const key = this.parseObjectKeyFromUrl(url);
+		return this.getObjectBuffer(key);
 	}
 
 	// Create safe object key like "files/<uuid>.<ext>"
