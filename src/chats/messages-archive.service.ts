@@ -1,9 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { S3Service } from '../s3/s3.service';
-import { utcInstantToNyNaiveDate } from '../common/utils/ny-wall-clock';
 
 export interface ArchiveMessage {
   id: string;
@@ -56,37 +54,12 @@ export class MessagesArchiveService {
    * Drivers only see archive from joinedAt; other roles see the full archive.
    */
   private async getArchiveCutoffJoinDate(
-    chatRoomId: string,
-    userId: string,
+    _chatRoomId: string,
+    _userId: string,
   ): Promise<Date | null> {
-    // TEMP: join-date archive cutoff disabled (same as messages.service)
+    // TEMP: join-date archive cutoff disabled (same as messages.service).
+    // Restore driver joinedAt logic when re-enabling shouldCutOffMessagesAtJoinedAt.
     return null;
-
-    try {
-      const participant = await this.prisma.chatRoomParticipant.findUnique({
-        where: {
-          chatRoomId_userId: {
-            chatRoomId,
-            userId,
-          },
-        },
-        select: {
-          joinedAt: true,
-          user: { select: { role: true } },
-        },
-      });
-
-      if (!participant) {
-        return null;
-      }
-      if (participant.user?.role !== UserRole.DRIVER) {
-        return null;
-      }
-      return utcInstantToNyNaiveDate(participant.joinedAt);
-    } catch (error) {
-      this.logger.error(`Failed to get user join date for ${userId} in chat room ${chatRoomId}:`, error);
-      return null;
-    }
   }
 
   /**
