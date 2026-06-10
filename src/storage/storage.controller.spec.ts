@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { StorageController } from './storage.controller';
 import { S3Service } from '../s3/s3.service';
 import { PresignDto } from './dto/presign.dto';
+import { ImageConversionService } from './image-conversion.service';
+import { ImagePreviewService } from './image-preview.service';
 
 describe('StorageController', () => {
 	let controller: StorageController;
@@ -11,6 +13,16 @@ describe('StorageController', () => {
 		createPresignedPut: jest.fn(),
 	};
 
+	const mockImageConversionService = {
+		convertHeicToJpeg: jest.fn(),
+		convertHeicBufferToJpeg: jest.fn(),
+		downloadImageBuffer: jest.fn(),
+	};
+
+	const mockImagePreviewService = {
+		createPreview: jest.fn(),
+	};
+
 	beforeEach(async () => {
 		const module: TestingModule = await Test.createTestingModule({
 			controllers: [StorageController],
@@ -18,6 +30,14 @@ describe('StorageController', () => {
 				{
 					provide: S3Service,
 					useValue: mockS3Service,
+				},
+				{
+					provide: ImageConversionService,
+					useValue: mockImageConversionService,
+				},
+				{
+					provide: ImagePreviewService,
+					useValue: mockImagePreviewService,
 				},
 			],
 		}).compile();

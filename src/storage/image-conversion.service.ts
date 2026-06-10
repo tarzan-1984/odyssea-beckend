@@ -45,7 +45,7 @@ export class ImageConversionService {
 	async convertHeicToJpeg(imageUrl: string): Promise<Buffer> {
 		try {
 			// Download the image from URL
-			const imageBuffer = await this.downloadImage(imageUrl);
+			const imageBuffer = await this.downloadImageBuffer(imageUrl);
 
 			console.log(
 				'[ImageConversionService] Image downloaded, size:',
@@ -82,7 +82,7 @@ export class ImageConversionService {
 	 * @param url - URL of the image to download
 	 * @returns Buffer containing image data
 	 */
-	private async downloadImage(url: string): Promise<Buffer> {
+	async downloadImageBuffer(url: string): Promise<Buffer> {
 		return new Promise((resolve, reject) => {
 			const protocol = url.startsWith('https') ? https : http;
 

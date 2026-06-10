@@ -38,6 +38,36 @@ export class S3Service {
 		});
 	}
 
+	/** Only URLs from our Wasabi bucket may be fetched server-side. */
+	assertAllowedObjectUrl(url: string): void {
+		if (!url || !/^https?:\/\//i.test(url)) {
+			throw new BadRequestException('Invalid image URL');
+		}
+
+		let parsed: URL;
+		try {
+			parsed = new URL(url);
+		} catch {
+			throw new BadRequestException('Invalid image URL');
+		}
+
+		const endpointHost = new URL(this.endpoint).host;
+		if (parsed.host !== endpointHost) {
+			throw new BadRequestException('Image URL host is not allowed');
+		}
+
+		const pathParts = parsed.pathname.replace(/^\/+/, '').split('/');
+		const [bucket, ...rest] = pathParts;
+		if (bucket !== this.bucket || rest.length === 0) {
+			throw new BadRequestException('Image URL bucket or key is not allowed');
+		}
+
+		const key = rest.join('/');
+		if (!key.startsWith(this.prefix)) {
+			throw new BadRequestException('Image URL key is not allowed');
+		}
+	}
+
 	// Create safe object key like "files/<uuid>.<ext>"
 	private makeObjectKey(originalName?: string) {
 		const ext = (originalName?.split('.').pop() || '').toLowerCase();

@@ -23,6 +23,7 @@ import { S3Service } from '../s3/s3.service';
 import { PresignDto } from './dto/presign.dto';
 import { PresignBatchDto } from './dto/presign-batch.dto';
 import { ImageConversionService } from './image-conversion.service';
+import { ImagePreviewService } from './image-preview.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Storage')
@@ -33,6 +34,7 @@ export class StorageController {
 	constructor(
 		private readonly s3: S3Service,
 		private readonly imageConversionService: ImageConversionService,
+		private readonly imagePreviewService: ImagePreviewService,
 	) {}
 
 	@Post('presign')
@@ -131,6 +133,86 @@ export class StorageController {
 		res.setHeader('Content-Length', jpegBuffer.length);
 		res.setHeader('Cache-Control', 'no-store');
 		return res.send(jpegBuffer);
+	}
+
+	@Get('image-preview')
+	@ApiOperation({
+		summary: 'Create a compressed JPEG preview for chat thumbnails',
+		description:
+			'Downloads an image from object storage, optionally converts HEIC/HEIF, resizes and returns a JPEG preview',
+	})
+	@ApiQuery({
+		name: 'url',
+		description: 'URL of the source image in object storage',
+		required: true,
+		type: String,
+	})
+	@ApiQuery({
+		name: 'w',
+		description: 'Maximum preview width in pixels (default 640, max 1600)',
+		required: false,
+		type: Number,
+	})
+	@ApiQuery({
+		name: 'q',
+		description: 'JPEG quality 40-90 (default 72)',
+		required: false,
+		type: Number,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Preview generated successfully',
+		content: {
+			'image/jpeg': {
+				schema: {
+					type: 'string',
+					format: 'binary',
+				},
+			},
+		},
+	})
+	async createImagePreview(
+		@Query('url') imageUrl: string,
+		@Query('w') widthParam: string | undefined,
+		@Query('q') qualityParam: string | undefined,
+		@Res() res: Response,
+	) {
+		if (!imageUrl) {
+			return res.status(400).json({ error: 'Image URL is required' });
+		}
+
+		const parsedWidth = Number.parseInt(widthParam ?? '640', 10);
+		const maxWidth = Number.isFinite(parsedWidth)
+			? Math.min(Math.max(parsedWidth, 120), 1600)
+			: 640;
+
+		const parsedQuality = Number.parseInt(qualityParam ?? '72', 10);
+		const quality = Number.isFinite(parsedQuality)
+			? Math.min(Math.max(parsedQuality, 40), 90)
+			: 72;
+
+		try {
+			const jpegBuffer = await this.imagePreviewService.createPreview(
+				imageUrl,
+				maxWidth,
+				quality,
+			);
+
+			res.setHeader('Content-Type', 'image/jpeg');
+			res.setHeader('Content-Length', jpegBuffer.length);
+			res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+			return res.send(jpegBuffer);
+		} catch (error) {
+			console.error('[StorageController] Failed to create image preview:', error);
+			if (error instanceof BadRequestException) {
+				return res.status(400).json({ error: error.message });
+			}
+			if (error instanceof Error) {
+				return res.status(500).json({ error: error.message });
+			}
+			return res.status(500).json({ error: 'Failed to create image preview' });
+		}
 	}
 
 	@Get('convert-heic')
