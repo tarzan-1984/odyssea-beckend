@@ -11,6 +11,7 @@ import {
 	BadRequestException,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { CustomPushBackgroundService } from './custom-push-background.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,6 +23,7 @@ import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 export class NotificationsController {
 	constructor(
 		private readonly notificationsService: NotificationsService,
+		private readonly customPushBackgroundService: CustomPushBackgroundService,
 		private readonly prisma: PrismaService,
 	) {}
 
@@ -199,10 +201,17 @@ export class NotificationsController {
 			);
 		}
 
+		if (!userId) {
+			const result = await this.customPushBackgroundService.enqueueBroadcast({
+				message,
+				platform,
+			});
+			return { success: true, data: result };
+		}
+
 		const result = await this.notificationsService.sendCustomPush({
 			message,
 			userId,
-			platform,
 		});
 
 		return { success: true, data: result };

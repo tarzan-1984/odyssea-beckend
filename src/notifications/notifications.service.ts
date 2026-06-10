@@ -4,7 +4,6 @@ import { NotificationsWebSocketService } from './notifications-websocket.service
 import { Notification, User } from '@prisma/client';
 import { FcmPushService } from './fcm-push.service';
 import { ExpoPushService } from './expo-push.service';
-import { UserStatus } from '@prisma/client';
 
 @Injectable()
 export class NotificationsService {
@@ -172,57 +171,27 @@ export class NotificationsService {
   }
 
   /**
-   * Admin-only: send a custom push message either to a single user or to all ACTIVE users.
-   * Returns counts for basic UI feedback.
+   * Admin-only: send a custom push message to a single user.
+   * Broadcast to all ACTIVE users is handled by CustomPushBackgroundService.
    */
   async sendCustomPush(params: {
     message: string;
-    userId?: string;
-    platform?: 'ios' | 'android';
-  }): Promise<{ targeted: boolean; users: number; platform?: 'ios' | 'android' }> {
+    userId: string;
+  }): Promise<{ targeted: true; users: number }> {
     const message = (params.message ?? '').trim();
-    if (!message) return { targeted: Boolean(params.userId), users: 0, platform: params.platform };
+    if (!message) return { targeted: true, users: 0 };
 
-    const title = 'Odyssea';
+    await this.sendAdminBroadcastPushToUser(params.userId, message);
+    return { targeted: true, users: 1 };
+  }
 
-    if (params.userId) {
-      await this.sendPushToUser({
-        userId: params.userId,
-        title,
-        body: message,
-        payload: { type: 'admin_broadcast' },
-      });
-      return { targeted: true, users: 1, platform: params.platform };
-    }
-
-    // Broadcast to all ACTIVE users who have at least one push token
-    const users = await this.prisma.user.findMany({
-      where: {
-        status: UserStatus.ACTIVE,
-        pushTokens: { some: {} },
-        ...(params.platform
-          ? {
-              userDevices: {
-                some: {
-                  platform: { equals: params.platform, mode: 'insensitive' },
-                },
-              },
-            }
-          : {}),
-      },
-      select: { id: true },
+  async sendAdminBroadcastPushToUser(userId: string, message: string): Promise<void> {
+    await this.sendPushToUser({
+      userId,
+      title: 'Odyssea',
+      body: message,
+      payload: { type: 'admin_broadcast' },
     });
-
-    for (const u of users) {
-      await this.sendPushToUser({
-        userId: u.id,
-        title,
-        body: message,
-        payload: { type: 'admin_broadcast' },
-      });
-    }
-
-    return { targeted: false, users: users.length, platform: params.platform };
   }
 
   /**

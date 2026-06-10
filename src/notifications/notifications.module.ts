@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { CustomPushBackgroundService } from './custom-push-background.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsWebSocketService } from './notifications-websocket.service';
 import { NotificationsCleanupService } from './notifications-cleanup.service';
@@ -13,6 +14,7 @@ import { FirebaseModule } from '../firebase/firebase.module';
 	imports: [PrismaModule, FirebaseModule],
 	providers: [
 		NotificationsService,
+		CustomPushBackgroundService,
 		NotificationsWebSocketService,
 		NotificationsCleanupService,
 		ExpoPushService,
