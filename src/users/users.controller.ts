@@ -34,6 +34,7 @@ import { UpdateUserLocationDto } from './dto/update-user-location.dto';
 import { ImportDriversDto } from './dto/import-drivers.dto';
 import { ImportUsersDto } from './dto/import-users.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { SetDriverPasswordDto } from './dto/set-driver-password.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { ImportDriversService } from './services/import-drivers.service';
 import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
@@ -454,6 +455,34 @@ export class UsersController {
 			filter,
 			search,
 			locationSort,
+		);
+	}
+
+	@Post('drivers/set-password')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Set driver password and OTP manually (Admin / Recruiter TL)',
+		description:
+			'Sets bcrypt-hashed password and a numeric OTP for the driver identified by externalId. OTP is valid for 24 hours.',
+	})
+	@ApiResponse({ status: 200, description: 'Password and OTP set successfully' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Driver not found' })
+	async setDriverPassword(
+		@Body() dto: SetDriverPasswordDto,
+		@Request() req: AuthenticatedRequest,
+	): Promise<{ message: string }> {
+		const role = req.user.role;
+		if (role !== UserRole.ADMINISTRATOR && role !== UserRole.RECRUITER_TL) {
+			throw new ForbiddenException(
+				'You are not allowed to set driver password and OTP',
+			);
+		}
+
+		return this.usersService.setDriverPasswordAndOtp(
+			dto.externalId,
+			dto.password,
+			dto.otp,
 		);
 	}
 

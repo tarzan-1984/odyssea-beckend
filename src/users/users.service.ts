@@ -914,6 +914,57 @@ export class UsersService {
 		}
 	}
 
+	/** Manual driver credentials: bcrypt password + OTP valid for 24 hours. */
+	async setDriverPasswordAndOtp(
+		externalId: string,
+		password: string,
+		otp: string,
+	): Promise<{ message: string }> {
+		const normalizedExternalId = externalId.trim();
+		if (!normalizedExternalId) {
+			throw new BadRequestException('Driver external ID is required');
+		}
+
+		const driver = await this.prisma.user.findFirst({
+			where: {
+				externalId: normalizedExternalId,
+				role: UserRole.DRIVER,
+			},
+			select: { id: true, email: true },
+		});
+
+		if (!driver) {
+			throw new NotFoundException('Driver not found');
+		}
+
+		const normalizedOtp = otp.trim();
+		const hashedPassword = await bcrypt.hash(password, 12);
+		const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+		await this.prisma.$transaction([
+			this.prisma.user.update({
+				where: { id: driver.id },
+				data: { password: hashedPassword },
+			}),
+			this.prisma.otpCode.updateMany({
+				where: {
+					email: driver.email,
+					isUsed: false,
+				},
+				data: { isUsed: true },
+			}),
+			this.prisma.otpCode.create({
+				data: {
+					email: driver.email,
+					code: normalizedOtp,
+					expiresAt,
+				},
+			}),
+		]);
+
+		return { message: 'Driver password and OTP set successfully' };
+	}
+
 	/**
 	 * Updates user location fields (and optional driver status). After DB save, DRIVER users sync to TMS
 	 * unless `isBackgroundTaskLocationUpdate` is true (background task pings — DB + WebSocket only).
