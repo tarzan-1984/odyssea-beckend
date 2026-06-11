@@ -1017,7 +1017,13 @@ export class OffersService {
 
 		const offer = await this.prisma.offer.findUnique({
 			where: { id: offerId },
-			select: { id: true, drivers: true, updateTime: true, route: true },
+			select: {
+				id: true,
+				drivers: true,
+				updateTime: true,
+				route: true,
+				loadedMiles: true,
+			},
 		});
 		if (!offer) {
 			throw new NotFoundException(`Offer with id ${offerId} not found`);
@@ -1069,6 +1075,19 @@ export class OffersService {
 		}
 
 		const nowNy = nowInNewYorkAsLocaleString();
+		const loadedMilesNum =
+			offer.loadedMiles != null && !Number.isNaN(Number(offer.loadedMiles))
+				? Number(offer.loadedMiles)
+				: null;
+		const driverEmptyMiles = dto.driverEmptyMiles ?? {};
+		const externalIdToSourceId = new Map<string, string>();
+		for (const id of driverIds) {
+			const externalId = idToExternalId.get(id);
+			if (externalId && !externalIdToSourceId.has(externalId)) {
+				externalIdToSourceId.set(externalId, id);
+			}
+		}
+
 		const currentDriversJson = offer.drivers as string[] | null | undefined;
 		const currentDrivers = Array.isArray(currentDriversJson)
 			? [...currentDriversJson]
@@ -1079,11 +1098,36 @@ export class OffersService {
 
 		await this.prisma.$transaction(async (tx) => {
 			await tx.rateOffer.createMany({
-				data: newExternalIds.map((driverId) => ({
-					offerId: offer.id,
-					driverId,
-					rate: null,
-				})),
+				data: newExternalIds.map((driverId) => {
+					const sourceId =
+						externalIdToSourceId.get(driverId) ?? driverId;
+					const emptyMilesRaw =
+						driverEmptyMiles[sourceId] ??
+						driverEmptyMiles[driverId];
+					const emptyMiles =
+						emptyMilesRaw != null &&
+						!Number.isNaN(Number(emptyMilesRaw))
+							? Number(emptyMilesRaw)
+							: null;
+					const totalMiles =
+						loadedMilesNum != null && emptyMiles != null
+							? loadedMilesNum + emptyMiles
+							: null;
+					const rec: {
+						offerId: number;
+						driverId: string;
+						rate: null;
+						emptyMiles?: number;
+						totalMiles?: number;
+					} = {
+						offerId: offer.id,
+						driverId,
+						rate: null,
+					};
+					if (emptyMiles != null) rec.emptyMiles = emptyMiles;
+					if (totalMiles != null) rec.totalMiles = totalMiles;
+					return rec;
+				}),
 			});
 			await tx.offer.update({
 				where: { id: offerId },
