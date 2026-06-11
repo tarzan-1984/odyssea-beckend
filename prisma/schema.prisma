@@ -158,6 +158,11 @@ model AppSetting {
    * Hours after LOAD chat deliveryAt before the backend archives and deletes the chat (cron).
    */
   deliveredLoadChatArchiveAfterHours Int      @default(5) @map("delivered_load_chat_archive_after_hours")
+  /**
+   * Minimum mobile app marketing version (semver). Empty = no server-side force-update gate.
+   * Exposed via GET /v1/app-settings; compared on device with nativeApplicationVersion.
+   */
+  minimumAppVersion                String   @default("") @map("minimum_app_version")
   createdAt                        DateTime @default(now()) @map("created_at")
   updatedAt                        DateTime @updatedAt @map("updated_at")
 

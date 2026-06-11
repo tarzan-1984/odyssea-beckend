@@ -22,6 +22,7 @@ import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-setting
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
 import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
 import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-load-chat-app-settings.dto';
+import { UpdateMinimumAppVersionDto } from './dto/update-minimum-app-version.dto';
 
 @ApiTags('App settings')
 @ApiBearerAuth()
@@ -33,7 +34,7 @@ export class AppSettingsController {
 	@Get()
 	@ApiOperation({
 		summary:
-			'Get mobile app settings: location throttling, environment gate (live/test), max concurrent offer bids',
+			'Get mobile app settings: location throttling, environment gate (live/test), max concurrent offer bids, minimum app version',
 	})
 	@ApiResponse({
 		status: 200,
@@ -134,6 +135,39 @@ export class AppSettingsController {
 		return this.appSettingsService.updateLocationEnvironmentAppSettings(
 			dto,
 		);
+	}
+
+	@Get('minimum-app-version')
+	@ApiOperation({
+		summary:
+			'Get minimum required mobile app version (admin UI). Empty = disabled.',
+	})
+	@ApiResponse({ status: 200, description: 'Minimum app version settings' })
+	async getMinimumAppVersion(@Request() req: AuthenticatedRequest) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can read minimum app version settings',
+			);
+		}
+		return this.appSettingsService.getMinimumAppVersionSettings();
+	}
+
+	@Put('minimum-app-version')
+	@ApiOperation({
+		summary:
+			'Set minimum required mobile app version (admin only). Broadcasts appLocationSettingsUpdated.',
+	})
+	@ApiResponse({ status: 200, description: 'Updated' })
+	async updateMinimumAppVersion(
+		@Request() req: AuthenticatedRequest,
+		@Body() dto: UpdateMinimumAppVersionDto,
+	) {
+		if (req.user.role !== UserRole.ADMINISTRATOR) {
+			throw new ForbiddenException(
+				'Only administrators can update minimum app version settings',
+			);
+		}
+		return this.appSettingsService.updateMinimumAppVersionSettings(dto);
 	}
 
 	@Get('offers')

@@ -5,6 +5,7 @@ import { UpdateTmsBatchAppSettingsDto } from './dto/update-tms-batch-app-setting
 import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-environment-app-settings.dto';
 import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
 import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-load-chat-app-settings.dto';
+import { UpdateMinimumAppVersionDto } from './dto/update-minimum-app-version.dto';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { UserRole, UserStatus } from '@prisma/client';
 
@@ -115,6 +116,7 @@ export class AppSettingsService {
 			locationTestDriverExternalId: row.locationTestDriverExternalId,
 			maxDriverOpenOfferParticipations:
 				row.maxDriverOpenOfferParticipations,
+			minimumAppVersion: row.minimumAppVersion ?? '',
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};
@@ -138,6 +140,30 @@ export class AppSettingsService {
 		} catch {
 			// Best-effort: never fail settings fetch due to tracking update.
 		}
+	}
+
+	async getMinimumAppVersionSettings() {
+		const row = await this.getGlobal();
+		return {
+			id: row.id,
+			minimumAppVersion: row.minimumAppVersion ?? '',
+			updatedAt: row.updatedAt,
+		};
+	}
+
+	async updateMinimumAppVersionSettings(dto: UpdateMinimumAppVersionDto) {
+		await this.getGlobal();
+		const minimumAppVersion = String(dto.minimumAppVersion ?? '').trim();
+		const row = await this.prisma.appSetting.update({
+			where: { id: GLOBAL_APP_SETTINGS_ID },
+			data: { minimumAppVersion },
+		});
+		void this.notificationsWebSocketService.broadcastAppLocationSettingsUpdated(
+			{
+				updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
+			},
+		);
+		return this.getMinimumAppVersionSettings();
 	}
 
 	async getOffersAppSettings() {
