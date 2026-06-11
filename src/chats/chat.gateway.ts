@@ -194,43 +194,52 @@ export class ChatGateway
 	 */
 	handleDisconnect(client: AuthenticatedSocket) {
 		const userId = client.userId;
-		if (userId) {
-			// Clear any existing offline timeout for this user
-			const existingTimeout = this.offlineTimeouts.get(userId);
-			if (existingTimeout) {
-				clearTimeout(existingTimeout);
+		if (!userId) {
+			return;
+		}
+
+		const disconnectedSocketId = client.id;
+
+		// Clear any existing offline timeout for this user
+		const existingTimeout = this.offlineTimeouts.get(userId);
+		if (existingTimeout) {
+			clearTimeout(existingTimeout);
+		}
+
+		// Set a 5-second timeout before marking user as offline
+		const offlineTimeout = setTimeout(() => {
+			// User may have reconnected on a new socket — do not mark offline for a stale disconnect
+			if (this.userSockets.get(userId) !== disconnectedSocketId) {
+				this.offlineTimeouts.delete(userId);
+				return;
 			}
 
-			// Set a 5-second timeout before marking user as offline
-			const offlineTimeout = setTimeout(() => {
-				this.userSockets.delete(userId);
-				this.offlineTimeouts.delete(userId);
+			this.userSockets.delete(userId);
+			this.offlineTimeouts.delete(userId);
 
-				// Notify other participants that user is offline (for all chat types)
-				this.chatRoomsService
-					.getUserChatRooms(userId)
-					.then((chatRooms) => {
-						for (const room of chatRooms) {
-							// Notify all participants in the room that user is offline
-							void this.server
-								.to(`chat_${room.id}`)
-								.emit('userOnline', {
-									userId: userId,
-									chatRoomId: room.id,
-									isOnline: false,
-								});
-						}
-					})
-					.catch((error) => {
-						console.error(
-							'Error notifying about user offline status:',
-							error,
-						);
-					});
-			}, 5000);
+			// Notify other participants that user is offline (for all chat types)
+			this.chatRoomsService
+				.getUserChatRooms(userId)
+				.then((chatRooms) => {
+					for (const room of chatRooms) {
+						void this.server
+							.to(`chat_${room.id}`)
+							.emit('userOnline', {
+								userId: userId,
+								chatRoomId: room.id,
+								isOnline: false,
+							});
+					}
+				})
+				.catch((error) => {
+					console.error(
+						'Error notifying about user offline status:',
+						error,
+					);
+				});
+		}, 5000);
 
-			this.offlineTimeouts.set(userId, offlineTimeout);
-		}
+		this.offlineTimeouts.set(userId, offlineTimeout);
 	}
 
 	/**
