@@ -11,6 +11,7 @@ import { stripMarkdown } from './utils/strip-markdown.util';
 import { UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
+import { ThumbnailService } from '../storage/thumbnail.service';
 
 /** Only drivers are restricted to messages after they joined; other roles see full history. */
 function shouldCutOffMessagesAtJoinedAt(_role: UserRole | null | undefined): boolean {
@@ -60,6 +61,7 @@ export class MessagesService {
 		private fcmPushService: FcmPushService,
 		private expoPushService: ExpoPushService,
 		private messageReactionsService: MessageReactionsService,
+		private thumbnailService: ThumbnailService,
 	) {}
 
 	/**
@@ -222,6 +224,17 @@ export class MessagesService {
 
 		// Fire-and-forget push notifications to other participants
 		this.sendPushToParticipants(transformedMessage).catch(() => {});
+
+		// Pre-generate chat image thumbnails in object storage (direct CDN URLs in UI)
+		this.thumbnailService
+			.ensureThumbnailsForMessage(
+				effectiveFileUrl,
+				effectiveFileName,
+				attachmentList,
+			)
+			.catch((error) => {
+				console.error('[MessagesService] Thumbnail generation failed:', error);
+			});
 
 		const [withReactions] =
 			await this.messageReactionsService.attachReactionsToMessages(

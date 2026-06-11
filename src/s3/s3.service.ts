@@ -1,5 +1,11 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+	S3Client,
+	PutObjectCommand,
+	ListObjectsV2Command,
+	GetObjectCommand,
+	HeadObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as crypto from 'crypto';
 import { ErrorWithResponse } from '../types/request.types';
@@ -105,6 +111,56 @@ export class S3Service {
 	async getObjectBufferByUrl(url: string): Promise<Buffer> {
 		const key = this.parseObjectKeyFromUrl(url);
 		return this.getObjectBuffer(key);
+	}
+
+	getPublicUrlForKey(key: string): string {
+		return `${this.endpoint}/${this.bucket}/${key}`;
+	}
+
+	async objectExists(key: string): Promise<boolean> {
+		try {
+			await this.s3.send(
+				new HeadObjectCommand({
+					Bucket: this.bucket,
+					Key: key,
+				}),
+			);
+			return true;
+		} catch (error) {
+			const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+			if (
+				err.name === 'NotFound' ||
+				err.name === 'NoSuchKey' ||
+				err.$metadata?.httpStatusCode === 404
+			) {
+				return false;
+			}
+			throw error;
+		}
+	}
+
+	async putImageObject(
+		key: string,
+		data: Buffer,
+		cacheControl = 'public, max-age=31536000, immutable',
+	): Promise<string> {
+		try {
+			await this.s3.send(
+				new PutObjectCommand({
+					Bucket: this.bucket,
+					Key: key,
+					Body: data,
+					ContentType: 'image/jpeg',
+					CacheControl: cacheControl,
+				}),
+			);
+			return this.getPublicUrlForKey(key);
+		} catch (error) {
+			const errorWithResponse = error as ErrorWithResponse;
+			throw new BadRequestException(
+				`Failed to upload image: ${errorWithResponse.message}`,
+			);
+		}
 	}
 
 	/** Any image/* or text/*, plus PDF and common chat document/audio attachments. */

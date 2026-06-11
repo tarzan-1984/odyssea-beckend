@@ -24,6 +24,11 @@ import { PresignDto } from './dto/presign.dto';
 import { PresignBatchDto } from './dto/presign-batch.dto';
 import { ImageConversionService } from './image-conversion.service';
 import { ImagePreviewService } from './image-preview.service';
+import { ThumbnailService } from './thumbnail.service';
+import {
+	DEFAULT_THUMBNAIL_MAX_WIDTH,
+	DEFAULT_THUMBNAIL_QUALITY,
+} from './chat-thumbnail.util';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Storage')
@@ -35,6 +40,7 @@ export class StorageController {
 		private readonly s3: S3Service,
 		private readonly imageConversionService: ImageConversionService,
 		private readonly imagePreviewService: ImagePreviewService,
+		private readonly thumbnailService: ThumbnailService,
 	) {}
 
 	@Post('presign')
@@ -133,6 +139,84 @@ export class StorageController {
 		res.setHeader('Content-Length', jpegBuffer.length);
 		res.setHeader('Cache-Control', 'no-store');
 		return res.send(jpegBuffer);
+	}
+
+	@Get('ensure-thumbnail')
+	@ApiOperation({
+		summary: 'Ensure a chat image thumbnail exists in object storage',
+		description:
+			'Returns a direct object-storage URL for a compressed JPEG thumbnail, generating and uploading it on first request',
+	})
+	@ApiQuery({
+		name: 'url',
+		description: 'URL of the source image in object storage',
+		required: true,
+		type: String,
+	})
+	@ApiQuery({
+		name: 'fileName',
+		description: 'Original file name (used to detect image types)',
+		required: true,
+		type: String,
+	})
+	@ApiQuery({
+		name: 'w',
+		description: 'Maximum preview width in pixels (default 640, max 1600)',
+		required: false,
+		type: Number,
+	})
+	@ApiQuery({
+		name: 'q',
+		description: 'JPEG quality 40-90 (default 72)',
+		required: false,
+		type: Number,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Thumbnail URL returned',
+		schema: {
+			type: 'object',
+			properties: {
+				thumbnailUrl: { type: 'string' },
+				created: { type: 'boolean' },
+			},
+		},
+	})
+	async ensureThumbnail(
+		@Query('url') imageUrl: string,
+		@Query('fileName') fileName: string,
+		@Query('w') widthParam: string | undefined,
+		@Query('q') qualityParam: string | undefined,
+	) {
+		if (!imageUrl) {
+			throw new BadRequestException('Image URL is required');
+		}
+		if (!fileName?.trim()) {
+			throw new BadRequestException('fileName is required');
+		}
+
+		const parsedWidth = Number.parseInt(widthParam ?? String(DEFAULT_THUMBNAIL_MAX_WIDTH), 10);
+		const maxWidth = Number.isFinite(parsedWidth)
+			? Math.min(Math.max(parsedWidth, 120), 1600)
+			: DEFAULT_THUMBNAIL_MAX_WIDTH;
+
+		const parsedQuality = Number.parseInt(qualityParam ?? String(DEFAULT_THUMBNAIL_QUALITY), 10);
+		const quality = Number.isFinite(parsedQuality)
+			? Math.min(Math.max(parsedQuality, 40), 90)
+			: DEFAULT_THUMBNAIL_QUALITY;
+
+		const result = await this.thumbnailService.ensureThumbnail(
+			imageUrl,
+			fileName.trim(),
+			maxWidth,
+			quality,
+		);
+
+		if (!result) {
+			throw new BadRequestException('Thumbnail is not supported for this file type');
+		}
+
+		return result;
 	}
 
 	@Get('image-preview')

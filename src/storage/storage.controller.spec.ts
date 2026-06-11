@@ -4,6 +4,7 @@ import { S3Service } from '../s3/s3.service';
 import { PresignDto } from './dto/presign.dto';
 import { ImageConversionService } from './image-conversion.service';
 import { ImagePreviewService } from './image-preview.service';
+import { ThumbnailService } from './thumbnail.service';
 
 describe('StorageController', () => {
 	let controller: StorageController;
@@ -23,6 +24,10 @@ describe('StorageController', () => {
 		createPreview: jest.fn(),
 	};
 
+	const mockThumbnailService = {
+		ensureThumbnail: jest.fn(),
+	};
+
 	beforeEach(async () => {
 		const module: TestingModule = await Test.createTestingModule({
 			controllers: [StorageController],
@@ -38,6 +43,10 @@ describe('StorageController', () => {
 				{
 					provide: ImagePreviewService,
 					useValue: mockImagePreviewService,
+				},
+				{
+					provide: ThumbnailService,
+					useValue: mockThumbnailService,
 				},
 			],
 		}).compile();
