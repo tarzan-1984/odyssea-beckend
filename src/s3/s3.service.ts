@@ -107,6 +107,28 @@ export class S3Service {
 		return this.getObjectBuffer(key);
 	}
 
+	/** Any image/* or text/*, plus PDF and common chat document/audio attachments. */
+	private isAllowedUploadContentType(contentType: string): boolean {
+		if (
+			contentType.startsWith('image/') ||
+			contentType.startsWith('text/')
+		) {
+			return true;
+		}
+
+		const allowedNonImageTypes = [
+			'application/pdf',
+			'application/msword',
+			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			'audio/mpeg',
+			'audio/mp3',
+			'audio/wav',
+			'audio/x-wav',
+		];
+
+		return allowedNonImageTypes.includes(contentType);
+	}
+
 	// Create safe object key like "files/<uuid>.<ext>"
 	private makeObjectKey(originalName?: string) {
 		const ext = (originalName?.split('.').pop() || '').toLowerCase();
@@ -125,27 +147,15 @@ export class S3Service {
 			throw new BadRequestException('Filename too long');
 		}
 
-		// Validate content type
-		const allowedTypes = [
-			'image/jpeg',
-			'image/png',
-			'image/gif',
-			'image/webp',
-			'image/heic',
-			'image/heif',
-			'image/bmp',
-			'image/tiff',
-			'application/pdf',
-			'text/plain',
-			'application/msword',
-			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-			'audio/mpeg',
-			'audio/mp3',
-			'audio/wav',
-			'audio/x-wav',
-		];
+		const normalizedContentType = contentType
+			?.split(';')[0]
+			?.trim()
+			.toLowerCase();
 
-		if (contentType && !allowedTypes.includes(contentType)) {
+		if (
+			normalizedContentType &&
+			!this.isAllowedUploadContentType(normalizedContentType)
+		) {
 			throw new BadRequestException('File type not allowed');
 		}
 
@@ -153,7 +163,7 @@ export class S3Service {
 		const cmd = new PutObjectCommand({
 			Bucket: this.bucket,
 			Key,
-			ContentType: contentType || 'application/octet-stream',
+			ContentType: normalizedContentType || 'application/octet-stream',
 			// If you plan to make objects public via ACL, uncomment (and set bucket policy accordingly):
 			// ACL: 'public-read',
 		});
