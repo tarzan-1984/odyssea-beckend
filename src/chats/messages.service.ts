@@ -147,68 +147,65 @@ export class MessagesService {
 
 		const createdAt = nowInNewYorkAsNaiveDate();
 
-		// Create message with sender automatically marked as read
-		const message = await this.prisma.message.create({
-			data: {
+		const message = await this.prisma.$transaction(async (tx) => {
+			const created = await tx.message.create({
+				data: {
+					chatRoomId,
+					senderId,
+					createdAt,
+					content,
+					fileUrl: effectiveFileUrl,
+					fileName: effectiveFileName,
+					fileSize: effectiveFileSize,
+					attachments: undefined,
+					replyData,
+					receiverId:
+						participants.length === 2
+							? participants.find((p) => p.userId !== senderId)?.userId
+							: null,
+					isRead: false,
+					readBy: [senderId],
+				},
+				include: {
+					sender: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							profilePhoto: true,
+							userColor: true,
+							role: true,
+							externalId: true,
+							phone: true,
+						},
+					},
+					receiver: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							profilePhoto: true,
+							userColor: true,
+							role: true,
+							externalId: true,
+							phone: true,
+						},
+					},
+				},
+			});
+
+			await tx.chatRoom.update({
+				where: { id: chatRoomId },
+				data: { updatedAt: createdAt },
+			});
+
+			await this.incrementUnreadCountForOtherParticipants(
 				chatRoomId,
 				senderId,
-				createdAt,
-				content,
-				fileUrl: effectiveFileUrl,
-				fileName: effectiveFileName,
-				fileSize: effectiveFileSize,
-				attachments: undefined,
-				replyData, // Store reply data as JSON
-				// For direct chats, set receiverId; for group chats, leave null
-				receiverId:
-					participants.length === 2
-						? participants.find((p) => p.userId !== senderId)
-								?.userId
-						: null,
-				// Sender is automatically marked as having read the message
-				isRead: false, // Global read status starts as false (no one has read it yet)
-				readBy: [senderId], // Only sender is in readBy array initially
-			},
-			include: {
-				sender: {
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						profilePhoto: true,
-						userColor: true,
-						role: true,
-						externalId: true,
-						phone: true,
-					},
-				},
-				receiver: {
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						profilePhoto: true,
-						userColor: true,
-						role: true,
-						externalId: true,
-						phone: true,
-					},
-				},
-			},
-		});
+				tx,
+			);
 
-		// Update chat room's updatedAt timestamp (NY wall-clock)
-		await this.prisma.chatRoom.update({
-			where: { id: chatRoomId },
-			data: { updatedAt: createdAt },
-		});
-
-		await this.prisma.chatRoomParticipant.updateMany({
-			where: {
-				chatRoomId,
-				userId: { not: senderId },
-			},
-			data: { unreadCount: { increment: 1 } },
+			return created;
 		});
 
 		// Transform profilePhoto to avatar for frontend compatibility
@@ -958,6 +955,23 @@ export class MessagesService {
 		}
 
 		return { success: true, messageId, chatRoomId: message.chatRoomId };
+	}
+
+	/**
+	 * +1 unread for every participant except the sender (DIRECT, GROUP, LOAD, OFFER).
+	 */
+	private async incrementUnreadCountForOtherParticipants(
+		chatRoomId: string,
+		senderId: string,
+		prisma: Prisma.TransactionClient | PrismaService = this.prisma,
+	): Promise<void> {
+		await prisma.chatRoomParticipant.updateMany({
+			where: {
+				chatRoomId,
+				userId: { not: senderId },
+			},
+			data: { unreadCount: { increment: 1 } },
+		});
 	}
 
 	private async resetParticipantUnreadCount(
