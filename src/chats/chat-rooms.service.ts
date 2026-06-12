@@ -551,11 +551,6 @@ export class ChatRoomsService {
 				},
 			},
 		},
-		_count: {
-			select: {
-				messages: true,
-			},
-		},
 	};
 
 	/**

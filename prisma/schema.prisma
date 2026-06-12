@@ -291,6 +291,8 @@ model ChatRoom {
 
   /// One LOAD chat per loadId (TMS race-safe; pairs with null loadId are not constrained).
   @@unique([loadId, type], map: "chat_rooms_load_id_type_key")
+  @@index([type, isLoadArchived, updatedAt(sort: Desc)], map: "chat_rooms_load_archived_updated_idx")
+  @@index([type, isLoadArchived, deliveryAt], map: "chat_rooms_load_delivery_archive_idx")
   @@map("chat_rooms")
 }
 
@@ -307,6 +309,8 @@ model ChatRoomParticipant {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([chatRoomId, userId])
+  @@index([userId], map: "chat_room_participants_user_id_idx")
+  @@index([userId, chatRoomId], map: "chat_room_participants_user_visible_idx")
   @@map("chat_room_participants")
 }
 
