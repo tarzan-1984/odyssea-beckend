@@ -8,7 +8,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { FcmPushService } from '../notifications/fcm-push.service';
 import { ExpoPushService } from '../notifications/expo-push.service';
 import { stripMarkdown } from './utils/strip-markdown.util';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { ThumbnailService } from '../storage/thumbnail.service';
@@ -941,6 +941,46 @@ export class MessagesService {
 	}
 
 	/**
+	 * Mark all unread messages in a room as read for one user (single UPDATE, not per-row).
+	 */
+	private async batchMarkUnreadMessagesAsReadForUser(
+		chatRoomId: string,
+		userId: string,
+		options?: {
+			joinedAtCutoff?: Date | null;
+			excludeOwnMessages?: boolean;
+		},
+	): Promise<string[]> {
+		const userJsonArray = JSON.stringify([userId]);
+		const excludeOwnMessages = options?.excludeOwnMessages ?? true;
+		const joinedAtCutoff = options?.joinedAtCutoff ?? null;
+
+		const whereParts: Prisma.Sql[] = [
+			Prisma.sql`"chatRoomId" = ${chatRoomId}`,
+			Prisma.sql`("readBy" IS NULL OR NOT ("readBy" @> ${Prisma.raw(`'${userJsonArray}'::jsonb`)}))`,
+		];
+		if (excludeOwnMessages) {
+			whereParts.push(Prisma.sql`"senderId" <> ${userId}`);
+		}
+		if (joinedAtCutoff) {
+			whereParts.push(Prisma.sql`"createdAt" >= ${joinedAtCutoff}`);
+		}
+
+		const rows = await this.prisma.$queryRaw<{ id: string }[]>(
+			Prisma.sql`
+				UPDATE "messages"
+				SET
+					"readBy" = COALESCE("readBy", '[]'::jsonb) || jsonb_build_array(${userId}::text),
+					"isRead" = true
+				WHERE ${Prisma.join(whereParts, ' AND ')}
+				RETURNING "id"
+			`,
+		);
+
+		return rows.map((row) => row.id);
+	}
+
+	/**
 	 * Mark messages as read for a specific user in a chat room
 	 * This is called when user opens the chat or scrolls through messages
 	 * For group chats, marks all messages except user's own messages
@@ -967,47 +1007,10 @@ export class MessagesService {
 			? joinedAtCutoffForDriverMessages(participant.joinedAt)
 			: null;
 
-		const where: any = {
-			chatRoomId,
-			senderId: { not: userId },
-		};
-		if (joinedAtCutoff) {
-			where.createdAt = { gte: joinedAtCutoff };
-		}
-
-		// Get messages in this chat room that the user hasn't read yet (respecting driver history cutoff)
-		const messages = await this.prisma.message.findMany({
-			where,
-			select: {
-				id: true,
-				readBy: true,
-			},
+		return this.batchMarkUnreadMessagesAsReadForUser(chatRoomId, userId, {
+			joinedAtCutoff,
+			excludeOwnMessages: true,
 		});
-
-		const messagesToUpdate: string[] = [];
-
-		// Process each message
-		for (const message of messages) {
-			const readBy = (message.readBy as string[]) || [];
-			const alreadyRead = readBy.includes(userId);
-
-			if (!alreadyRead) {
-				// Add user to readBy array
-				const updatedReadBy = [...readBy, userId];
-
-				await this.prisma.message.update({
-					where: { id: message.id },
-					data: {
-						isRead: true, // Global read status
-						readBy: updatedReadBy, // Per-user read status
-					},
-				});
-
-				messagesToUpdate.push(message.id);
-			}
-		}
-
-		return messagesToUpdate;
 	}
 
 	/**
@@ -1115,56 +1118,20 @@ export class MessagesService {
 					? joinedAtCutoffForDriverMessages(participant.joinedAt)
 					: null;
 
-				const whereMessages: any = { chatRoomId };
-				if (joinedAtCutoff) {
-					whereMessages.createdAt = { gte: joinedAtCutoff };
-				}
-
-				// Find all messages in this chat room (after join cutoff for drivers only)
-				// We'll filter by readBy in JavaScript since Prisma doesn't support JSON array contains easily
-				const allMessages = await this.prisma.message.findMany({
-					where: whereMessages,
-					select: {
-						id: true,
-						readBy: true,
-						isRead: true,
+				const updatedIds = await this.batchMarkUnreadMessagesAsReadForUser(
+					chatRoomId,
+					userId,
+					{
+						joinedAtCutoff,
+						// Match legacy "read all": any message where user is not in readBy yet.
+						excludeOwnMessages: false,
 					},
-				});
+				);
 
-				// Filter messages where user is not in readBy array
-				const unreadMessages = allMessages.filter((message) => {
-					const readBy = (message.readBy as string[]) || [];
-					return !readBy.includes(userId);
-				});
-
-				// Process each message
-				for (const message of unreadMessages) {
-					const readBy = (message.readBy as string[]) || [];
-					const alreadyRead = readBy.includes(userId);
-
-					if (!alreadyRead) {
-						// Add user to readBy array
-						const updatedReadBy = [...readBy, userId];
-
-						// Update message: add userId to readBy
-						// If isRead is false, set it to true; if it's already true, keep it true
-						await this.prisma.message.update({
-							where: { id: message.id },
-							data: {
-								readBy: updatedReadBy,
-								isRead: true, // Set to true when user reads it
-							},
-						});
-
-						allMessageIds.push(message.id);
-						affectedChatRoomIds.add(chatRoomId);
-
-						// Group message IDs by chat room
-						if (!messagesByChatRoom[chatRoomId]) {
-							messagesByChatRoom[chatRoomId] = [];
-						}
-						messagesByChatRoom[chatRoomId].push(message.id);
-					}
+				if (updatedIds.length > 0) {
+					allMessageIds.push(...updatedIds);
+					affectedChatRoomIds.add(chatRoomId);
+					messagesByChatRoom[chatRoomId] = updatedIds;
 				}
 			} catch (error) {
 				// Continue processing other chat rooms if one fails
