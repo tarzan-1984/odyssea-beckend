@@ -474,16 +474,27 @@ export class MessagesController {
 				userId,
 			);
 
-		// Send WebSocket events for each affected chat room
-		for (const chatRoomId of result.chatRoomIds) {
+		// Notify the user who marked all as read (personal room for multi-device sync)
+		for (const chatRoomId of chatRoomIds) {
 			const messageIds = result.messagesByChatRoom[chatRoomId] || [];
+			const messages =
+				messageIds.length > 0
+					? await this.messagesService.getMessagesReadBySnapshot(
+							messageIds,
+						)
+					: [];
+
+			this.chatGateway.server
+				.to(`user_${userId}`)
+				.emit('messagesMarkedAsRead', {
+					chatRoomId,
+					messageIds,
+					userId,
+					messages,
+				});
+			this.chatGateway.emitChatUnreadCountUpdated(userId, chatRoomId, 0);
 
 			if (messageIds.length > 0) {
-				const messages =
-					await this.messagesService.getMessagesReadBySnapshot(
-						messageIds,
-					);
-				// Emit to all participants in the chat room
 				this.chatGateway.server
 					.to(`chat_${chatRoomId}`)
 					.emit('messagesMarkedAsRead', {

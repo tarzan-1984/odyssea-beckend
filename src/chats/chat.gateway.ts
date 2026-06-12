@@ -530,13 +530,26 @@ export class ChatGateway
 		await this.messagesService.markMessageAsRead(messageId, userId);
 
 		const message = await this.messagesService.getMessageById(messageId);
-		if (message && message.senderId !== userId) {
-			// Notify everyone in the chat room (senders see read receipts in real time)
-			void this.server.to(`chat_${message.chatRoomId}`).emit('messageRead', {
-				messageId,
-				readBy: userId,
-				chatRoomId: message.chatRoomId,
-			});
+		if (message) {
+			const unreadCount =
+				await this.messagesService.getParticipantUnreadCount(
+					message.chatRoomId,
+					userId,
+				);
+			this.emitChatUnreadCountUpdated(
+				userId,
+				message.chatRoomId,
+				unreadCount,
+			);
+
+			if (message.senderId !== userId) {
+				// Notify everyone in the chat room (senders see read receipts in real time)
+				void this.server.to(`chat_${message.chatRoomId}`).emit('messageRead', {
+					messageId,
+					readBy: userId,
+					chatRoomId: message.chatRoomId,
+				});
+			}
 		}
 	}
 
@@ -576,12 +589,51 @@ export class ChatGateway
 		// Always notify the requesting client so unread UI can sync even when nothing
 		// changed in DB (already in readBy) — otherwise the frontend keeps a stale count.
 		client.emit('messagesMarkedAsRead', payload);
+		this.emitChatUnreadCountUpdated(userId, chatRoomId, 0);
 
 		// Other participants need full readBy snapshots for the "Read by" list
 		if (updatedMessageIds.length > 0) {
 			client
 				.to(`chat_${chatRoomId}`)
 				.emit('messagesMarkedAsRead', payload);
+		}
+	}
+
+	/**
+	 * Push authoritative per-room unread count (new clients).
+	 * Old mobile ignores this event and keeps local +/- logic.
+	 */
+	emitChatUnreadCountUpdated(
+		userId: string,
+		chatRoomId: string,
+		unreadCount: number,
+	): void {
+		if (!this.server) {
+			return;
+		}
+		void this.server
+			.to(`user_${userId}`)
+			.emit('chatUnreadCountUpdated', { chatRoomId, unreadCount });
+	}
+
+	private async broadcastChatUnreadCountsAfterNewMessage(
+		chatRoomId: string,
+		senderId: string,
+	): Promise<void> {
+		const participants = await this.prisma.chatRoomParticipant.findMany({
+			where: {
+				chatRoomId,
+				userId: { not: senderId },
+			},
+			select: { userId: true, unreadCount: true },
+		});
+
+		for (const participant of participants) {
+			this.emitChatUnreadCountUpdated(
+				participant.userId,
+				chatRoomId,
+				participant.unreadCount,
+			);
 		}
 	}
 
@@ -659,6 +711,11 @@ export class ChatGateway
 				.to(`user_${participant.userId}`)
 				.emit('newMessage', messageData);
 		}
+
+		void this.broadcastChatUnreadCountsAfterNewMessage(
+			chatRoomId,
+			message.senderId,
+		);
 
 		// Also emit to general chat updates for chat list updates
 		void this.server.emit('chatUpdated', { chatRoomId });

@@ -952,6 +952,16 @@ export class MessagesService {
 					messageIds: [messageId],
 					userId,
 				});
+
+			const unreadCount = await this.getParticipantUnreadCount(
+				message.chatRoomId,
+				userId,
+			);
+			chatGateway.emitChatUnreadCountUpdated?.(
+				userId,
+				message.chatRoomId,
+				unreadCount,
+			);
 		}
 
 		return { success: true, messageId, chatRoomId: message.chatRoomId };
@@ -972,6 +982,19 @@ export class MessagesService {
 			},
 			data: { unreadCount: { increment: 1 } },
 		});
+	}
+
+	async getParticipantUnreadCount(
+		chatRoomId: string,
+		userId: string,
+	): Promise<number> {
+		const participant = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: { chatRoomId, userId },
+			},
+			select: { unreadCount: true },
+		});
+		return participant?.unreadCount ?? 0;
 	}
 
 	private async resetParticipantUnreadCount(
@@ -1071,9 +1094,8 @@ export class MessagesService {
 			},
 		);
 
-		if (updatedIds.length > 0) {
-			await this.resetParticipantUnreadCount(chatRoomId, userId);
-		}
+		// Always reset counter when user opens the chat, even if messages were already in readBy
+		await this.resetParticipantUnreadCount(chatRoomId, userId);
 
 		return updatedIds;
 	}
@@ -1152,11 +1174,15 @@ export class MessagesService {
 					},
 				);
 
+				await this.resetParticipantUnreadCount(chatRoomId, userId);
+
 				if (updatedIds.length > 0) {
 					allMessageIds.push(...updatedIds);
 					affectedChatRoomIds.add(chatRoomId);
 					messagesByChatRoom[chatRoomId] = updatedIds;
-					await this.resetParticipantUnreadCount(chatRoomId, userId);
+				} else {
+					affectedChatRoomIds.add(chatRoomId);
+					messagesByChatRoom[chatRoomId] = [];
 				}
 			} catch (error) {
 				// Continue processing other chat rooms if one fails
@@ -1215,6 +1241,20 @@ export class MessagesService {
 			);
 		}
 
+		const readBy = (message.readBy as string[]) || [];
+		const participantsToDecrement = message.chatRoom.participants.filter(
+			(p) =>
+				p.userId !== message.senderId &&
+				!readBy.includes(p.userId),
+		);
+
+		for (const participant of participantsToDecrement) {
+			await this.decrementParticipantUnreadCount(
+				message.chatRoomId,
+				participant.userId,
+			);
+		}
+
 		// Hard delete the message from database
 		await this.prisma.message.delete({
 			where: { id: messageId },
@@ -1247,6 +1287,18 @@ export class MessagesService {
 						deletedByRole: userRole,
 					});
 			});
+
+			for (const participant of participantsToDecrement) {
+				const unreadCount = await this.getParticipantUnreadCount(
+					message.chatRoomId,
+					participant.userId,
+				);
+				chatGateway.emitChatUnreadCountUpdated?.(
+					participant.userId,
+					message.chatRoomId,
+					unreadCount,
+				);
+			}
 		}
 
 		return {

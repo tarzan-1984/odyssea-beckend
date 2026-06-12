@@ -60,6 +60,7 @@ export class ChatRoomsController {
 	) {
 		const userId = req.user.id;
 		await this.messagesService.markMessagesAsRead(id, userId);
+		this.chatGateway.emitChatUnreadCountUpdated(userId, id, 0);
 		return { success: true };
 	}
 
