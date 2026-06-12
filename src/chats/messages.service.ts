@@ -203,6 +203,14 @@ export class MessagesService {
 			data: { updatedAt: createdAt },
 		});
 
+		await this.prisma.chatRoomParticipant.updateMany({
+			where: {
+				chatRoomId,
+				userId: { not: senderId },
+			},
+			data: { unreadCount: { increment: 1 } },
+		});
+
 		// Transform profilePhoto to avatar for frontend compatibility
 		const transformedMessage = {
 			...message,
@@ -839,6 +847,8 @@ export class MessagesService {
 				readBy: updatedReadBy, // Per-user read status
 			},
 		});
+
+		await this.decrementParticipantUnreadCount(message.chatRoomId, userId);
 	}
 
 	/** Latest readBy/isRead for WebSocket read-receipt payloads. */
@@ -927,6 +937,16 @@ export class MessagesService {
 			});
 		}
 
+		await this.prisma.chatRoomParticipant.update({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId: message.chatRoomId,
+					userId,
+				},
+			},
+			data: { unreadCount: { increment: 1 } },
+		});
+
 		if (chatGateway) {
 			chatGateway.server
 				.to(`chat_${message.chatRoomId}`)
@@ -938,6 +958,27 @@ export class MessagesService {
 		}
 
 		return { success: true, messageId, chatRoomId: message.chatRoomId };
+	}
+
+	private async resetParticipantUnreadCount(
+		chatRoomId: string,
+		userId: string,
+	): Promise<void> {
+		await this.prisma.chatRoomParticipant.updateMany({
+			where: { chatRoomId, userId },
+			data: { unreadCount: 0 },
+		});
+	}
+
+	private async decrementParticipantUnreadCount(
+		chatRoomId: string,
+		userId: string,
+	): Promise<void> {
+		await this.prisma.$executeRaw`
+			UPDATE "chat_room_participants"
+			SET "unreadCount" = GREATEST("unreadCount" - 1, 0)
+			WHERE "chatRoomId" = ${chatRoomId} AND "userId" = ${userId}
+		`;
 	}
 
 	/**
@@ -1007,63 +1048,32 @@ export class MessagesService {
 			? joinedAtCutoffForDriverMessages(participant.joinedAt)
 			: null;
 
-		return this.batchMarkUnreadMessagesAsReadForUser(chatRoomId, userId, {
-			joinedAtCutoff,
-			excludeOwnMessages: true,
-		});
+		const updatedIds = await this.batchMarkUnreadMessagesAsReadForUser(
+			chatRoomId,
+			userId,
+			{
+				joinedAtCutoff,
+				excludeOwnMessages: true,
+			},
+		);
+
+		if (updatedIds.length > 0) {
+			await this.resetParticipantUnreadCount(chatRoomId, userId);
+		}
+
+		return updatedIds;
 	}
 
 	/**
 	 * Get unread message count for a user across all chat rooms
 	 */
 	async getUnreadCount(userId: string) {
-		const user = await this.prisma.user.findUnique({
-			where: { id: userId },
-			select: { role: true },
-		});
-		const isDriver = user?.role === UserRole.DRIVER;
-
-		const userChatRooms = await this.prisma.chatRoomParticipant.findMany({
+		const result = await this.prisma.chatRoomParticipant.aggregate({
 			where: { userId },
-			select: { chatRoomId: true, joinedAt: true },
+			_sum: { unreadCount: true },
 		});
 
-		const chatRoomIds = userChatRooms.map((room) => room.chatRoomId);
-		const joinedAtByRoom = new Map(
-			userChatRooms.map((r) => [r.chatRoomId, r.joinedAt]),
-		);
-
-		// Get all messages not sent by user in their chat rooms
-		const messages = await this.prisma.message.findMany({
-			where: {
-				chatRoomId: { in: chatRoomIds },
-				senderId: { not: userId },
-			},
-			select: {
-				id: true,
-				readBy: true,
-				chatRoomId: true,
-				createdAt: true,
-			},
-		});
-
-		// Count messages where user is not in readBy array
-		let unreadCount = 0;
-		for (const message of messages) {
-			if (isDriver) {
-				const joined = joinedAtByRoom.get(message.chatRoomId);
-				if (joined && message.createdAt < joinedAtCutoffForDriverMessages(joined)) {
-					continue;
-				}
-			}
-			const readBy = (message.readBy as string[]) || [];
-			const isRead = readBy.includes(userId);
-			if (!isRead) {
-				unreadCount++;
-			}
-		}
-
-		return { unreadCount };
+		return { unreadCount: result._sum.unreadCount ?? 0 };
 	}
 
 	/**
@@ -1132,6 +1142,7 @@ export class MessagesService {
 					allMessageIds.push(...updatedIds);
 					affectedChatRoomIds.add(chatRoomId);
 					messagesByChatRoom[chatRoomId] = updatedIds;
+					await this.resetParticipantUnreadCount(chatRoomId, userId);
 				}
 			} catch (error) {
 				// Continue processing other chat rooms if one fails

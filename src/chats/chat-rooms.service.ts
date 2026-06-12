@@ -556,24 +556,7 @@ export class ChatRoomsService {
 	/**
 	 * Map raw ChatRoom rows (with participantListInclude) to API list shape with unread counts.
 	 */
-	private async formatChatRoomsListForUser(chatRooms: any[], userId: string) {
-		const roomIds = chatRooms.map((r) => r.id);
-		let unreadByRoom = new Map<string, number>();
-		if (roomIds.length > 0) {
-			const userJsonArray = JSON.stringify([userId]);
-			const rows = await this.prisma.$queryRaw<
-				{ chatRoomId: string; count: number }[]
-			>(Prisma.sql`
-				SELECT "chatRoomId", COUNT(*)::int AS "count"
-				FROM "messages"
-				WHERE "chatRoomId" IN (${Prisma.join(roomIds)})
-				  AND "senderId" <> ${userId}
-				  AND ("readBy" IS NULL OR NOT ("readBy" @> ${Prisma.raw(`'${userJsonArray}'::jsonb`)}))
-				GROUP BY "chatRoomId"
-			`);
-			unreadByRoom = new Map(rows.map((r) => [r.chatRoomId, Number(r.count)]));
-		}
-
+	private formatChatRoomsListForUser(chatRooms: any[], userId: string) {
 		const sortedChatRooms = chatRooms.sort((a, b) => {
 			const aParticipant = a.participants.find(
 				(p: { userId: string }) => p.userId === userId,
@@ -595,7 +578,7 @@ export class ChatRoomsService {
 				(p: { userId: string }) => p.userId === userId,
 			);
 
-			const unreadCount = unreadByRoom.get(room.id) || 0;
+			const unreadCount = currentUserParticipant?.unreadCount ?? 0;
 
 			return {
 				...room,
@@ -685,7 +668,7 @@ export class ChatRoomsService {
 		const hasMore = chatRooms.length > limit;
 		const pageRows = hasMore ? chatRooms.slice(0, limit) : chatRooms;
 
-		const chatRoomsMapped = await this.formatChatRoomsListForUser(pageRows, userId);
+		const chatRoomsMapped = this.formatChatRoomsListForUser(pageRows, userId);
 
 		return {
 			chatRooms: chatRoomsMapped,

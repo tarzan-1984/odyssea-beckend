@@ -305,6 +305,7 @@ model ChatRoomParticipant {
   mute            Boolean  @default(false)
   pin             Boolean  @default(false)
   hideParticipant Boolean  @default(false)
+  unreadCount     Int      @default(0)
   chatRoom        ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
