@@ -1,10 +1,12 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import * as convert from 'heic-convert';
-import * as https from 'https';
-import * as http from 'http';
+import sharp = require('sharp');
+import { S3Service } from '../s3/s3.service';
 
 @Injectable()
 export class ImageConversionService {
+	constructor(private readonly s3Service: S3Service) {}
+
 	async convertHeicBufferToJpeg(imageBuffer: Buffer): Promise<Buffer> {
 		try {
 			const jpegBuffer = await convert({
@@ -15,40 +17,53 @@ export class ImageConversionService {
 
 			if (jpegBuffer instanceof ArrayBuffer) {
 				return Buffer.from(jpegBuffer);
-			} else if (jpegBuffer instanceof Uint8Array) {
-				return Buffer.from(jpegBuffer);
-			} else {
+			}
+			if (jpegBuffer instanceof Uint8Array) {
 				return Buffer.from(jpegBuffer);
 			}
-		} catch (error) {
-			console.error(
-				'[ImageConversionService] Failed to convert HEIC buffer to JPEG:',
-				error,
+			return Buffer.from(jpegBuffer);
+		} catch (heicConvertError) {
+			console.warn(
+				'[ImageConversionService] heic-convert failed, trying sharp:',
+				heicConvertError,
 			);
 
-			if (error instanceof Error) {
+			try {
+				return await sharp(imageBuffer)
+					.rotate()
+					.jpeg({ quality: 92, mozjpeg: true })
+					.toBuffer();
+			} catch (sharpError) {
+				console.error(
+					'[ImageConversionService] Failed to convert HEIC buffer to JPEG:',
+					sharpError,
+				);
+
+				const message =
+					sharpError instanceof Error
+						? sharpError.message
+						: heicConvertError instanceof Error
+							? heicConvertError.message
+							: 'Unknown conversion error';
+
 				throw new InternalServerErrorException(
-					`Failed to convert HEIC image: ${error.message}`,
+					`Failed to convert HEIC image: ${message}`,
 				);
 			}
-			throw new InternalServerErrorException(
-				'Failed to convert HEIC image',
-			);
 		}
 	}
 
 	/**
 	 * Convert HEIC/HEIF image to JPEG
-	 * @param imageUrl - URL of the HEIC image to convert
+	 * @param imageUrl - URL of the HEIC image in object storage
 	 * @returns Buffer containing JPEG image data
 	 */
 	async convertHeicToJpeg(imageUrl: string): Promise<Buffer> {
 		try {
-			// Download the image from URL
-			const imageBuffer = await this.downloadImageBuffer(imageUrl);
+			const imageBuffer = await this.s3Service.getObjectBufferByUrl(imageUrl);
 
 			console.log(
-				'[ImageConversionService] Image downloaded, size:',
+				'[ImageConversionService] Image loaded from storage, size:',
 				imageBuffer.length,
 			);
 
@@ -66,6 +81,10 @@ export class ImageConversionService {
 				error,
 			);
 
+			if (error instanceof InternalServerErrorException) {
+				throw error;
+			}
+
 			if (error instanceof Error) {
 				throw new InternalServerErrorException(
 					`Failed to convert HEIC image: ${error.message}`,
@@ -75,34 +94,5 @@ export class ImageConversionService {
 				'Failed to convert HEIC image',
 			);
 		}
-	}
-
-	/**
-	 * Download image from URL
-	 * @param url - URL of the image to download
-	 * @returns Buffer containing image data
-	 */
-	async downloadImageBuffer(url: string): Promise<Buffer> {
-		return new Promise((resolve, reject) => {
-			const protocol = url.startsWith('https') ? https : http;
-
-			protocol
-				.get(url, (response) => {
-					if (response.statusCode !== 200) {
-						reject(
-							new Error(
-								`Failed to download image: ${response.statusCode} ${response.statusMessage}`,
-							),
-						);
-						return;
-					}
-
-					const chunks: Buffer[] = [];
-					response.on('data', (chunk) => chunks.push(chunk));
-					response.on('end', () => resolve(Buffer.concat(chunks)));
-					response.on('error', reject);
-				})
-				.on('error', reject);
-		});
 	}
 }
