@@ -34,6 +34,7 @@ import { ChatGateway } from './chat.gateway';
 import { AuthenticatedRequest } from '../types/request.types';
 import { MessageReactionsService } from './message-reactions.service';
 import { SetMessageReactionDto } from './dto/set-message-reaction.dto';
+import { SyncMessagesBatchDto } from './dto/sync-messages-batch.dto';
 
 @ApiTags('Messages')
 @Controller('messages')
@@ -179,6 +180,25 @@ export class MessagesController {
 		);
 
 		return result;
+	}
+
+	@Post('sync-batch')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Batch sync missing chat messages after reconnect',
+		description:
+			'Client sends chat rooms with the last locally known message id. Server returns only missing messages plus authoritative unreadCount and lastMessage per room.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Batch sync completed',
+	})
+	async syncMessagesBatch(
+		@Body() body: SyncMessagesBatchDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		return this.messagesService.syncMessagesBatch(userId, body.rooms);
 	}
 
 	@Get('chat-room/:chatRoomId')

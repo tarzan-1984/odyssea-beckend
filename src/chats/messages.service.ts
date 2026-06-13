@@ -702,6 +702,220 @@ export class MessagesService {
 	}
 
 	/**
+	 * Batch sync: for each room, compare client's last known message id with the server tail.
+	 * Returns only missing messages plus authoritative unreadCount / lastMessage.
+	 */
+	async syncMessagesBatch(
+		userId: string,
+		rooms: { chatRoomId: string; lastMessageId?: string | null }[],
+		limit: number = 50,
+	) {
+		const safeLimit = Math.min(Math.max(1, limit), 100);
+		const results: Awaited<
+			ReturnType<MessagesService['syncMessagesBatchForRoom']>
+		>[] = [];
+
+		for (const room of rooms) {
+			results.push(
+				await this.syncMessagesBatchForRoom(
+					userId,
+					room.chatRoomId,
+					room.lastMessageId ?? null,
+					safeLimit,
+				),
+			);
+		}
+
+		return { rooms: results };
+	}
+
+	private mapMessageForClientResponse(message: {
+		id: string;
+		sender: { profilePhoto?: string | null; [key: string]: unknown };
+		receiver?: { profilePhoto?: string | null; [key: string]: unknown } | null;
+		[key: string]: unknown;
+	}) {
+		return {
+			...message,
+			sender: {
+				...message.sender,
+				avatar: message.sender.profilePhoto,
+				profilePhoto: undefined,
+			},
+			receiver: message.receiver
+				? {
+						...message.receiver,
+						avatar: message.receiver.profilePhoto,
+						profilePhoto: undefined,
+					}
+				: undefined,
+		};
+	}
+
+	private async syncMessagesBatchForRoom(
+		userId: string,
+		chatRoomId: string,
+		clientLastMessageId: string | null,
+		limit: number,
+	) {
+		const participant = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+			include: {
+				user: { select: { role: true } },
+			},
+		});
+
+		if (!participant) {
+			return {
+				chatRoomId,
+				messages: [],
+				unreadCount: 0,
+				lastMessage: null,
+				upToDate: true,
+				skipped: true,
+			};
+		}
+
+		const joinedAtCutoff = shouldCutOffMessagesAtJoinedAt(participant.user?.role)
+			? joinedAtCutoffForDriverMessages(participant.joinedAt)
+			: null;
+
+		const roomFilter: Prisma.MessageWhereInput = { chatRoomId };
+		if (joinedAtCutoff) {
+			roomFilter.createdAt = { gte: joinedAtCutoff };
+		}
+
+		const latestMessage = await this.prisma.message.findFirst({
+			where: roomFilter,
+			orderBy: { createdAt: 'desc' },
+			include: this.messageWithUsersInclude,
+		});
+
+		const unreadCount = participant.unreadCount ?? 0;
+
+		if (!latestMessage) {
+			return {
+				chatRoomId,
+				messages: [],
+				unreadCount,
+				lastMessage: null,
+				upToDate: true,
+			};
+		}
+
+		const serverLastMessage =
+			this.mapMessageForClientResponse(latestMessage);
+
+		if (
+			clientLastMessageId &&
+			clientLastMessageId === latestMessage.id
+		) {
+			const [lastWithReactions] =
+				await this.messageReactionsService.attachReactionsToMessages(
+					[serverLastMessage],
+					userId,
+				);
+			return {
+				chatRoomId,
+				messages: [],
+				unreadCount,
+				lastMessage: lastWithReactions,
+				upToDate: true,
+			};
+		}
+
+		let messagesToReturn: typeof latestMessage[] = [];
+
+		if (!clientLastMessageId) {
+			messagesToReturn = await this.prisma.message.findMany({
+				where: roomFilter,
+				orderBy: { createdAt: 'desc' },
+				take: limit,
+				include: this.messageWithUsersInclude,
+			});
+			messagesToReturn = messagesToReturn.reverse();
+		} else {
+			const anchor = await this.prisma.message.findFirst({
+				where: {
+					id: clientLastMessageId,
+					chatRoomId,
+				},
+				select: { id: true, createdAt: true },
+			});
+
+			if (!anchor) {
+				messagesToReturn = await this.prisma.message.findMany({
+					where: roomFilter,
+					orderBy: { createdAt: 'desc' },
+					take: limit,
+					include: this.messageWithUsersInclude,
+				});
+				messagesToReturn = messagesToReturn.reverse();
+			} else if (anchor.id === latestMessage.id) {
+				const [lastWithReactions] =
+					await this.messageReactionsService.attachReactionsToMessages(
+						[serverLastMessage],
+						userId,
+					);
+				return {
+					chatRoomId,
+					messages: [],
+					unreadCount,
+					lastMessage: lastWithReactions,
+					upToDate: true,
+				};
+			} else {
+				const afterFilter: Prisma.MessageWhereInput = {
+					...roomFilter,
+					createdAt: {
+						gt: joinedAtCutoff
+							? anchor.createdAt > joinedAtCutoff
+								? anchor.createdAt
+								: joinedAtCutoff
+							: anchor.createdAt,
+					},
+				};
+
+				messagesToReturn = await this.prisma.message.findMany({
+					where: afterFilter,
+					orderBy: { createdAt: 'asc' },
+					take: limit,
+					include: this.messageWithUsersInclude,
+				});
+			}
+		}
+
+		const transformed = messagesToReturn.map((m) =>
+			this.mapMessageForClientResponse(m),
+		);
+		const messagesWithReactions =
+			await this.messageReactionsService.attachReactionsToMessages(
+				transformed,
+				userId,
+			);
+
+		const [lastWithReactions] =
+			await this.messageReactionsService.attachReactionsToMessages(
+				[serverLastMessage],
+				userId,
+			);
+
+		return {
+			chatRoomId,
+			messages: messagesWithReactions,
+			unreadCount,
+			lastMessage: lastWithReactions,
+			upToDate: messagesWithReactions.length === 0,
+			hasMore: messagesWithReactions.length === limit,
+		};
+	}
+
+	/**
 	 * Get files (messages with fileUrl) for a specific chat room with pagination
 	 * For drivers only: files from messages after joinedAt. Other roles: full history.
 	 */
