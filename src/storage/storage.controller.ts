@@ -161,13 +161,13 @@ export class StorageController {
 	})
 	@ApiQuery({
 		name: 'w',
-		description: 'Maximum preview width in pixels (default 640, max 1600)',
+		description: 'Maximum preview width in pixels (default 400, max 1600)',
 		required: false,
 		type: Number,
 	})
 	@ApiQuery({
 		name: 'q',
-		description: 'JPEG quality 40-90 (default 72)',
+		description: 'JPEG quality 40-90 (default 50)',
 		required: false,
 		type: Number,
 	})
@@ -233,13 +233,13 @@ export class StorageController {
 	})
 	@ApiQuery({
 		name: 'w',
-		description: 'Maximum preview width in pixels (default 640, max 1600)',
+		description: 'Maximum preview width in pixels (default 400, max 1600)',
 		required: false,
 		type: Number,
 	})
 	@ApiQuery({
 		name: 'q',
-		description: 'JPEG quality 40-90 (default 72)',
+		description: 'JPEG quality 40-90 (default 50)',
 		required: false,
 		type: Number,
 	})
@@ -265,15 +265,21 @@ export class StorageController {
 			return res.status(400).json({ error: 'Image URL is required' });
 		}
 
-		const parsedWidth = Number.parseInt(widthParam ?? '640', 10);
+		const parsedWidth = Number.parseInt(
+			widthParam ?? String(DEFAULT_THUMBNAIL_MAX_WIDTH),
+			10,
+		);
 		const maxWidth = Number.isFinite(parsedWidth)
 			? Math.min(Math.max(parsedWidth, 120), 1600)
-			: 640;
+			: DEFAULT_THUMBNAIL_MAX_WIDTH;
 
-		const parsedQuality = Number.parseInt(qualityParam ?? '72', 10);
+		const parsedQuality = Number.parseInt(
+			qualityParam ?? String(DEFAULT_THUMBNAIL_QUALITY),
+			10,
+		);
 		const quality = Number.isFinite(parsedQuality)
 			? Math.min(Math.max(parsedQuality, 40), 90)
-			: 72;
+			: DEFAULT_THUMBNAIL_QUALITY;
 
 		try {
 			const jpegBuffer = await this.imagePreviewService.createPreview(

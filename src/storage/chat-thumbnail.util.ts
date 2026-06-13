@@ -1,5 +1,5 @@
-export const DEFAULT_THUMBNAIL_MAX_WIDTH = 640;
-export const DEFAULT_THUMBNAIL_QUALITY = 72;
+export const DEFAULT_THUMBNAIL_MAX_WIDTH = 400;
+export const DEFAULT_THUMBNAIL_QUALITY = 50;
 
 const THUMBNAIL_EXTENSIONS = new Set([
 	'jpg',

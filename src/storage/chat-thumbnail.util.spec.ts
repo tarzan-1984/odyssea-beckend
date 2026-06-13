@@ -12,7 +12,7 @@ describe('chat-thumbnail.util', () => {
 
 	it('builds thumbnail object key from original key', () => {
 		expect(getThumbnailObjectKey('files/uuid.jpg')).toBe(
-			'files/thumbs/uuid_w640_q72.jpg',
+			'files/thumbs/uuid_w400_q50.jpg',
 		);
 		expect(getThumbnailObjectKey('files/uuid.heic', 400, 80)).toBe(
 			'files/thumbs/uuid_w400_q80.jpg',
@@ -23,7 +23,7 @@ describe('chat-thumbnail.util', () => {
 		const fileUrl =
 			'https://s3.eu-central-1.wasabisys.com/tms-chat/files/6e6e74e0.jpg';
 		expect(buildThumbnailUrlFromFileUrl(fileUrl)).toBe(
-			'https://s3.eu-central-1.wasabisys.com/tms-chat/files/thumbs/6e6e74e0_w640_q72.jpg',
+			'https://s3.eu-central-1.wasabisys.com/tms-chat/files/thumbs/6e6e74e0_w400_q50.jpg',
 		);
 	});
 });

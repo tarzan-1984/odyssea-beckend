@@ -12,6 +12,7 @@ import { Prisma, UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { ThumbnailService } from '../storage/thumbnail.service';
+import { HeicAttachmentService } from '../storage/heic-attachment.service';
 
 /** Only drivers are restricted to messages after they joined; other roles see full history. */
 function shouldCutOffMessagesAtJoinedAt(_role: UserRole | null | undefined): boolean {
@@ -62,6 +63,7 @@ export class MessagesService {
 		private expoPushService: ExpoPushService,
 		private messageReactionsService: MessageReactionsService,
 		private thumbnailService: ThumbnailService,
+		private heicAttachmentService: HeicAttachmentService,
 	) {}
 
 	/**
@@ -138,6 +140,18 @@ export class MessagesService {
 				'You are not a participant in this chat room',
 			);
 		}
+
+		const normalizedAttachments =
+			await this.heicAttachmentService.normalizeMessageAttachments({
+				fileUrl: effectiveFileUrl,
+				fileName: effectiveFileName,
+				fileSize: effectiveFileSize,
+				attachmentList,
+			});
+		effectiveFileUrl = normalizedAttachments.fileUrl;
+		effectiveFileName = normalizedAttachments.fileName;
+		effectiveFileSize = normalizedAttachments.fileSize;
+		const normalizedAttachmentList = normalizedAttachments.attachmentList;
 
 		// Get all participants to determine receivers
 		const participants = await this.prisma.chatRoomParticipant.findMany({
@@ -235,7 +249,7 @@ export class MessagesService {
 			.ensureThumbnailsForMessage(
 				effectiveFileUrl,
 				effectiveFileName,
-				attachmentList,
+				normalizedAttachmentList,
 			)
 			.catch((error) => {
 				console.error('[MessagesService] Thumbnail generation failed:', error);

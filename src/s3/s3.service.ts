@@ -193,6 +193,11 @@ export class S3Service {
 		return `${this.prefix}${id}${safeExt}`;
 	}
 
+	/** Public helper for server-side chat uploads (e.g. HEIC → JPEG replacement). */
+	createChatObjectKey(originalName?: string): string {
+		return this.makeObjectKey(originalName);
+	}
+
 	/**
 	 * Create presigned PUT URL for direct browser upload.
 	 * Returns URL for upload and final public-ish file URL (path-style).
