@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MessagesArchiveService } from '../messages-archive.service';
 import * as fs from 'fs';
@@ -48,6 +49,7 @@ export class ArchiveBackgroundService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly messagesArchiveService: MessagesArchiveService,
+    private readonly configService: ConfigService,
   ) {
     // Ensure temp directory exists
     if (!fs.existsSync(this.TEMP_DIR)) {
@@ -250,8 +252,9 @@ export class ArchiveBackgroundService {
     if (!job) return;
 
     try {
+      const retentionMonths = this.configService.get<number>('ARCHIVE_RETENTION_MONTHS', 2);
       const cutoffDate = new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - 3); // 3 months retention
+      cutoffDate.setMonth(cutoffDate.getMonth() - retentionMonths);
 
       this.logger.log(`Starting archive process for messages older than ${cutoffDate.toISOString()}`);
 

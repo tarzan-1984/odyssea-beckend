@@ -58,7 +58,7 @@ export class MessagesArchiveScheduler {
     this.logger.log('Starting weekly archive and cleanup process (backup)...');
     
     try {
-      // Step 1: Archive old messages (older than 3 months)
+      // Step 1: Archive old messages (older than retention period)
       this.logger.log('Step 1: Archiving old messages (backup)...');
       await this.messagesArchiveService.archiveOldMessages();
       this.logger.log('Step 1 completed: Old messages archived successfully (backup)');

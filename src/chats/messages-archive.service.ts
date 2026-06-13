@@ -46,7 +46,7 @@ export class MessagesArchiveService {
     private readonly configService: ConfigService,
     private readonly s3Service: S3Service,
   ) {
-    this.archiveRetentionMonths = this.configService.get('ARCHIVE_RETENTION_MONTHS', 3);
+    this.archiveRetentionMonths = this.configService.get('ARCHIVE_RETENTION_MONTHS', 2);
   }
 
   /**
