@@ -23,7 +23,7 @@ import {
 	ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ChatRoomsService } from './chat-rooms.service';
+import { ChatRoomsService, BulkDirectChatItemResult } from './chat-rooms.service';
 import { MessagesService } from './messages.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { CreateBulkDirectChatsDto } from './dto/create-bulk-direct-chats.dto';
@@ -191,7 +191,13 @@ export class ChatRoomsController {
 		let messagesSent = 0;
 		let messageErrors = 0;
 
-		const enrichedItems = [];
+		type BulkDirectChatItemWithMessage = BulkDirectChatItemResult & {
+			messageSent?: boolean;
+			messageId?: string;
+			messageError?: string;
+		};
+
+		const enrichedItems: BulkDirectChatItemWithMessage[] = [];
 		for (const item of summary.items) {
 			if (
 				(item.status !== 'created' && item.status !== 'existed') ||
