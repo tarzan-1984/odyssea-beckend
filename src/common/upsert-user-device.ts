@@ -37,9 +37,94 @@ function buildUserDeviceSnapshotFields(input: UserDeviceLegacySnapshotInput): {
 	};
 }
 
+function trimOrNull(value: string | null | undefined): string | null {
+	const t = value?.trim();
+	return t || null;
+}
+
 /**
- * Legacy mobile clients (no stable deviceId): keep/update one row with deviceId=null.
+ * Legacy row (deviceId=null) that likely represents the same physical phone before app upgrade.
+ * Prefer pushToken match, then platform + model.
  */
+async function findLegacyUserDeviceRowForMerge(
+	prisma:
+		| Prisma.TransactionClient
+		| { userDevice: Prisma.TransactionClient['userDevice'] },
+	userExternalId: string,
+	input: UserDeviceLegacySnapshotInput,
+): Promise<{ id: string } | null> {
+	const pushToken = trimOrNull(input.pushToken);
+	if (pushToken) {
+		const byToken = await prisma.userDevice.findFirst({
+			where: {
+				userExternalId,
+				deviceId: null,
+				pushToken,
+			},
+			orderBy: { updatedAt: 'desc' },
+			select: { id: true },
+		});
+		if (byToken) {
+			return byToken;
+		}
+	}
+
+	const platform = trimOrNull(input.platform);
+	const model = trimOrNull(input.model);
+	if (platform && model) {
+		const byPlatformModel = await prisma.userDevice.findFirst({
+			where: {
+				userExternalId,
+				deviceId: null,
+				platform: { equals: platform, mode: 'insensitive' },
+				model: { equals: model, mode: 'insensitive' },
+			},
+			orderBy: { updatedAt: 'desc' },
+			select: { id: true },
+		});
+		if (byPlatformModel) {
+			return byPlatformModel;
+		}
+	}
+
+	return null;
+}
+
+/** Remove orphaned legacy rows after the same phone was registered with a stable deviceId. */
+async function deleteMatchingLegacyUserDeviceOrphans(
+	prisma:
+		| Prisma.TransactionClient
+		| { userDevice: Prisma.TransactionClient['userDevice'] },
+	userExternalId: string,
+	input: UserDeviceLegacySnapshotInput,
+): Promise<void> {
+	const pushToken = trimOrNull(input.pushToken);
+	const platform = trimOrNull(input.platform);
+	const model = trimOrNull(input.model);
+
+	const orFilters: Prisma.UserDeviceWhereInput[] = [];
+	if (pushToken) {
+		orFilters.push({ pushToken });
+	}
+	if (platform && model) {
+		orFilters.push({
+			platform: { equals: platform, mode: 'insensitive' },
+			model: { equals: model, mode: 'insensitive' },
+		});
+	}
+	if (orFilters.length === 0) {
+		return;
+	}
+
+	await prisma.userDevice.deleteMany({
+		where: {
+			userExternalId,
+			deviceId: null,
+			OR: orFilters,
+		},
+	});
+}
+
 export async function upsertUserDeviceLegacySnapshot(
 	prisma:
 		| Prisma.TransactionClient
@@ -152,15 +237,46 @@ export async function upsertUserDeviceSnapshot(
 		platform,
 	});
 
-	await prisma.userDevice.upsert({
+	const existingByDeviceId = await prisma.userDevice.findUnique({
 		where: {
 			userExternalId_deviceId: { userExternalId, deviceId },
 		},
-		create: {
+		select: { id: true },
+	});
+
+	if (existingByDeviceId) {
+		await prisma.userDevice.update({
+			where: { id: existingByDeviceId.id },
+			data: snapshot,
+		});
+		await deleteMatchingLegacyUserDeviceOrphans(prisma, userExternalId, {
+			...input,
+			platform,
+		});
+		return;
+	}
+
+	const legacyRow = await findLegacyUserDeviceRowForMerge(
+		prisma,
+		userExternalId,
+		{ ...input, platform },
+	);
+	if (legacyRow) {
+		await prisma.userDevice.update({
+			where: { id: legacyRow.id },
+			data: {
+				deviceId,
+				...snapshot,
+			},
+		});
+		return;
+	}
+
+	await prisma.userDevice.create({
+		data: {
 			userExternalId,
 			deviceId,
 			...snapshot,
 		},
-		update: snapshot,
 	});
 }
