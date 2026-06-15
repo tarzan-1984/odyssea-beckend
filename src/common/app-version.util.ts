@@ -50,19 +50,19 @@ export function getLowestAppVersion(
 	versions: Array<string | null | undefined>,
 ): string | null {
 	let lowest: string | null = null;
+	let hasEmpty = false;
+
 	for (const version of versions) {
 		const v = typeof version === 'string' ? version.trim() : '';
-		if (!lowest) {
-			lowest = v || null;
-			continue;
-		}
 		if (!v) {
-			lowest = '';
+			hasEmpty = true;
 			continue;
 		}
 		if (!lowest || compareAppVersions(v, lowest) < 0) {
 			lowest = v;
 		}
 	}
+
+	if (hasEmpty) return '';
 	return lowest;
 }
