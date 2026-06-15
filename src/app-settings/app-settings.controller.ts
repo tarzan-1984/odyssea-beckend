@@ -4,6 +4,7 @@ import {
 	ForbiddenException,
 	Get,
 	Put,
+	Query,
 	Request,
 	UseGuards,
 } from '@nestjs/common';
@@ -23,6 +24,7 @@ import { UpdateLocationEnvironmentAppSettingsDto } from './dto/update-location-e
 import { UpdateOffersAppSettingsDto } from './dto/update-offers-app-settings.dto';
 import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-load-chat-app-settings.dto';
 import { UpdateMinimumAppVersionDto } from './dto/update-minimum-app-version.dto';
+import { MobileDeviceSyncQueryDto } from './dto/mobile-device-sync-query.dto';
 
 @ApiTags('App settings')
 @ApiBearerAuth()
@@ -40,8 +42,14 @@ export class AppSettingsController {
 		status: 200,
 		description: 'Current mobile-related settings',
 	})
-	async get(@Request() req: AuthenticatedRequest) {
-		void this.appSettingsService.recordUserLastActiveApp(req.user.id);
+	async get(
+		@Request() req: AuthenticatedRequest,
+		@Query() deviceSync: MobileDeviceSyncQueryDto,
+	) {
+		void this.appSettingsService.recordUserLastActiveApp(
+			req.user.id,
+			deviceSync,
+		);
 		return this.appSettingsService.getMobileAppSettings();
 	}
 

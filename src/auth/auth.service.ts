@@ -18,6 +18,9 @@ import { AxiosError } from '../types/request.types';
 import { generateRandomPassword } from '../helpers/helper';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
+import { registerUserDeviceActivity } from '../common/upsert-user-device';
+import { parseMobileDeviceSyncPayload } from '../common/mobile-device-sync.util';
+import { nowInTimeZoneAsNaiveDate } from '../common/utils/ny-wall-clock';
 
 /** QA / App Review: fixed TMS driver id and bypass credentials (see validateUser, verifyOtp). */
 const DRIVER_QA_EXTERNAL_ID = '3343';
@@ -1027,46 +1030,25 @@ export class AuthService {
 			throw new BadRequestException('User has no externalId');
 		}
 
-		const userExternalId = user.externalId.trim();
-		const platform = String(dto.platform).trim();
+		const lastActiveAt = nowInTimeZoneAsNaiveDate('America/New_York');
+		const devicePayload = parseMobileDeviceSyncPayload(dto);
 
-		// Keep a single snapshot per userExternalId. If duplicates exist, keep one and delete the rest.
-		await this.prisma.$transaction(async (tx) => {
-			const existing = await tx.userDevice.findMany({
-				where: { userExternalId },
-				select: { id: true },
-				orderBy: { updatedAt: 'desc' },
-			});
+		await registerUserDeviceActivity(this.prisma, {
+			userExternalId: user.externalId.trim(),
+			deviceId: devicePayload?.deviceId,
+			platform: devicePayload?.platform ?? dto.platform,
+			appVersion: devicePayload?.appVersion ?? dto.appVersion,
+			deviceName: devicePayload?.deviceName ?? dto.deviceName,
+			model: devicePayload?.model ?? dto.model,
+			osVersion: devicePayload?.osVersion ?? dto.osVersion,
+			pushToken: devicePayload?.pushToken ?? dto.pushToken,
+			lastActiveAt,
+		});
 
-			const data = {
-				platform,
-				appVersion: dto.appVersion ?? null,
-				deviceName: dto.deviceName ?? null,
-				model: dto.model ?? null,
-				osVersion: dto.osVersion ?? null,
-				pushToken: dto.pushToken ?? null,
-			};
-
-			if (existing.length === 0) {
-				await tx.userDevice.create({
-					data: { userExternalId, ...data },
-				});
-				return;
-			}
-
-			// Update the most recent row, delete the rest (prevents multiple devices per externalId).
-			await tx.userDevice.update({
-				where: { id: existing[0].id },
-				data,
-			});
-
-			if (existing.length > 1) {
-				await tx.userDevice.deleteMany({
-					where: {
-						id: { in: existing.slice(1).map((r) => r.id) },
-					},
-				});
-			}
+		await this.prisma.user.update({
+			where: { id: userId },
+			data: { lastActiveApp: lastActiveAt },
+			select: { id: true },
 		});
 	}
 }

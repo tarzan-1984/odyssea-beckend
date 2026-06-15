@@ -31,6 +31,11 @@ import { TmsLoadDetailsService } from '../tms/tms-load-details.service';
 import { formatTmsStatusDate } from '../tms/tms-status-date.util';
 import type { ExternalApiConfig } from '../config/env.config';
 import { AppSettingsService } from '../app-settings/app-settings.service';
+import {
+	normalizeLocationDeviceSnapshot,
+	upsertUserDeviceSnapshot,
+	type LocationDeviceSnapshot,
+} from '../common/upsert-user-device';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
 	logLocationUpdateFailure,
@@ -163,20 +168,23 @@ export class UsersService {
 		)}:${get('second')}`;
 	}
 
-	private async maybeCreateDriverTrackingPoint(user: {
-		id: string;
-		externalId: string | null;
-		role: UserRole;
-		isTracking: boolean;
-		trackingLoadId: string | null;
-		driverStatus: string | null;
-		latitude: number | null;
-		longitude: number | null;
-		lastLocationUpdateAt: string | null;
-		city: string | null;
-		state: string | null;
-		zip: string | null;
-	}): Promise<{
+	private async maybeCreateDriverTrackingPoint(
+		user: {
+			id: string;
+			externalId: string | null;
+			role: UserRole;
+			isTracking: boolean;
+			trackingLoadId: string | null;
+			driverStatus: string | null;
+			latitude: number | null;
+			longitude: number | null;
+			lastLocationUpdateAt: string | null;
+			city: string | null;
+			state: string | null;
+			zip: string | null;
+		},
+		deviceSnapshot?: LocationDeviceSnapshot | null,
+	): Promise<{
 		externalDriverId: string;
 		loadId: string;
 		latitude: number;
@@ -184,6 +192,10 @@ export class UsersService {
 		createdAt: Date;
 		updatedAt: Date;
 		placeLabel: string | null;
+		deviceId: string | null;
+		deviceModel: string | null;
+		deviceName: string | null;
+		devicePlatform: string | null;
 	} | null> {
 		if (user.role !== UserRole.DRIVER || !user.isTracking) return null;
 		if (user.driverStatus?.trim().toLowerCase() !== 'loaded_enroute') {
@@ -246,6 +258,10 @@ export class UsersService {
 					user.state,
 					user.zip,
 				),
+				deviceId: deviceSnapshot?.deviceId ?? null,
+				deviceModel: deviceSnapshot?.deviceModel ?? null,
+				deviceName: deviceSnapshot?.deviceName ?? null,
+				devicePlatform: deviceSnapshot?.devicePlatform ?? null,
 			},
 			select: {
 				externalDriverId: true,
@@ -255,6 +271,10 @@ export class UsersService {
 				createdAt: true,
 				updatedAt: true,
 				placeLabel: true,
+				deviceId: true,
+				deviceModel: true,
+				deviceName: true,
+				devicePlatform: true,
 			},
 		});
 	}
@@ -1001,6 +1021,25 @@ export class UsersService {
 
 		const externalIdForLogs = user.externalId ?? null;
 
+		const deviceSnapshot = normalizeLocationDeviceSnapshot(locationDto);
+		if (deviceSnapshot && user.externalId?.trim()) {
+			try {
+				await upsertUserDeviceSnapshot(this.prisma, {
+					userExternalId: user.externalId.trim(),
+					deviceId: deviceSnapshot.deviceId!,
+					platform: deviceSnapshot.devicePlatform,
+					deviceName: deviceSnapshot.deviceName,
+					model: deviceSnapshot.deviceModel,
+				});
+			} catch (deviceErr) {
+				this.logger.warn(
+					`Failed to upsert user device snapshot userId=${id} deviceId=${deviceSnapshot.deviceId}: ${
+						deviceErr instanceof Error ? deviceErr.message : String(deviceErr)
+					}`,
+				);
+			}
+		}
+
 		const env =
 			await this.appSettingsService.getLocationEnvironmentAppSettings();
 		const allowedTestExternalId = env.locationTestDriverExternalId.trim();
@@ -1323,7 +1362,10 @@ export class UsersService {
 			),
 		);
 
-		const trackingPoint = await this.maybeCreateDriverTrackingPoint(updatedUser);
+		const trackingPoint = await this.maybeCreateDriverTrackingPoint(
+			updatedUser,
+			deviceSnapshot,
+		);
 
 		// Emit websocket event so Next.js/admin UI can react to location changes
 		void this.notificationsWebSocketService.sendUserLocationUpdate(id, {

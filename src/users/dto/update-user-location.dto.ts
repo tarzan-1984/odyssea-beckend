@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserLocationDto {
@@ -126,6 +126,38 @@ export class UpdateUserLocationDto {
   @IsOptional()
   @IsBoolean()
   isManualDriverLocationAction?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Stable per-installation device id from the mobile client (react-native-device-info unique id)',
+  })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Device model name at the time of the location update',
+    example: 'SM-G991B',
+  })
+  @IsOptional()
+  @IsString()
+  deviceModel?: string;
+
+  @ApiPropertyOptional({
+    description: 'User-visible device name at the time of the location update',
+    example: "John's Galaxy",
+  })
+  @IsOptional()
+  @IsString()
+  deviceName?: string;
+
+  @ApiPropertyOptional({
+    description: 'react-native Platform.OS (ios | android)',
+    example: 'android',
+  })
+  @IsOptional()
+  @IsString()
+  devicePlatform?: string;
 }
 
 

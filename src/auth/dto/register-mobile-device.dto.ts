@@ -2,6 +2,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class RegisterMobileDeviceDto {
+	@ApiPropertyOptional({
+		example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+		description:
+			'Stable per-installation device id (react-native-device-info unique id). Omit on legacy app builds.',
+	})
+	@IsOptional()
+	@IsString()
+	deviceId?: string;
+
 	@ApiProperty({
 		example: 'ios',
 		description: 'react-native Platform.OS',

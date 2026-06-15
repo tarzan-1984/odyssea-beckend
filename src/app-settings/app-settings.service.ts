@@ -8,6 +8,13 @@ import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-lo
 import { UpdateMinimumAppVersionDto } from './dto/update-minimum-app-version.dto';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { UserRole, UserStatus } from '@prisma/client';
+import { registerUserDeviceActivity } from '../common/upsert-user-device';
+import {
+	parseMobileDeviceSyncPayload,
+	hasAnyMobileDeviceSyncInput,
+	type MobileDeviceSyncPayload,
+} from '../common/mobile-device-sync.util';
+import type { MobileDeviceSyncQueryDto } from './dto/mobile-device-sync-query.dto';
 
 const GLOBAL_APP_SETTINGS_ID = 'global';
 
@@ -127,15 +134,38 @@ export class AppSettingsService {
 		return row.driverTrackingPointMinIntervalMs;
 	}
 
-	async recordUserLastActiveApp(userId: string): Promise<void> {
+	async recordUserLastActiveApp(
+		userId: string,
+		deviceSync?: MobileDeviceSyncQueryDto | MobileDeviceSyncPayload | null,
+	): Promise<void> {
 		if (!userId) return;
+		const lastActiveAt = nowInTimeZoneAsNaiveDate('America/New_York');
 		try {
-			await this.prisma.user.update({
+			const user = await this.prisma.user.update({
 				where: { id: userId },
 				data: {
-					lastActiveApp: nowInTimeZoneAsNaiveDate('America/New_York'),
+					lastActiveApp: lastActiveAt,
 				},
-				select: { id: true },
+				select: { id: true, externalId: true },
+			});
+
+			const devicePayload = parseMobileDeviceSyncPayload(deviceSync ?? null);
+			const externalId = user.externalId?.trim();
+			if (!externalId || !hasAnyMobileDeviceSyncInput(deviceSync ?? null)) {
+				return;
+			}
+
+			const syncInput = deviceSync ?? null;
+			await registerUserDeviceActivity(this.prisma, {
+				userExternalId: externalId,
+				deviceId: devicePayload?.deviceId,
+				platform: devicePayload?.platform ?? syncInput?.platform,
+				appVersion: devicePayload?.appVersion ?? syncInput?.appVersion,
+				deviceName: devicePayload?.deviceName ?? syncInput?.deviceName,
+				model: devicePayload?.model ?? syncInput?.model,
+				osVersion: devicePayload?.osVersion ?? syncInput?.osVersion,
+				pushToken: devicePayload?.pushToken ?? syncInput?.pushToken,
+				lastActiveAt,
 			});
 		} catch {
 			// Best-effort: never fail settings fetch due to tracking update.
@@ -317,10 +347,10 @@ export class AppSettingsService {
 	 * - users.status === ACTIVE
 	 * - users.deactivateAccount is not true (exclude TMS soft-removed drivers)
 	 * - drivers with driverStatus blocked or expired_documents are excluded
-	 * - there is a device snapshot in user_devices (1 row per externalId)
+	 * - there is at least one device row in user_devices (multiple devices per account allowed)
 	 *
 	 * Drivers are users with role === DRIVER; "Users" are all other roles.
-	 * Split counts by platform from user_devices.platform (case-insensitive).
+	 * Counts dedupe by user externalId per platform (one user with two phones counts once per platform).
 	 */
 	async getMobileUsageStats(): Promise<{
 		users: { ios: number; android: number };
@@ -330,6 +360,7 @@ export class AppSettingsService {
 		const rows = await this.prisma.userDevice.findMany({
 			select: {
 				platform: true,
+				userExternalId: true,
 				user: { select: { role: true, status: true, driverStatus: true } },
 			},
 			where: {
@@ -345,10 +376,10 @@ export class AppSettingsService {
 				.trim()
 				.toLowerCase();
 
-		let usersIos = 0;
-		let usersAndroid = 0;
-		let driversIos = 0;
-		let driversAndroid = 0;
+		const usersIos = new Set<string>();
+		const usersAndroid = new Set<string>();
+		const driversIos = new Set<string>();
+		const driversAndroid = new Set<string>();
 
 		for (const r of rows) {
 			const platform = norm(r.platform);
@@ -364,21 +395,24 @@ export class AppSettingsService {
 				}
 			}
 
+			const key = r.userExternalId.trim();
+			if (!key) continue;
+
 			if (isDriver) {
-				if (platform === 'ios') driversIos += 1;
-				else driversAndroid += 1;
+				if (platform === 'ios') driversIos.add(key);
+				else driversAndroid.add(key);
 			} else {
-				if (platform === 'ios') usersIos += 1;
-				else usersAndroid += 1;
+				if (platform === 'ios') usersIos.add(key);
+				else usersAndroid.add(key);
 			}
 		}
 
-		const totalIos = usersIos + driversIos;
-		const totalAndroid = usersAndroid + driversAndroid;
+		const totalIos = usersIos.size + driversIos.size;
+		const totalAndroid = usersAndroid.size + driversAndroid.size;
 
 		return {
-			users: { ios: usersIos, android: usersAndroid },
-			drivers: { ios: driversIos, android: driversAndroid },
+			users: { ios: usersIos.size, android: usersAndroid.size },
+			drivers: { ios: driversIos.size, android: driversAndroid.size },
 			total: {
 				ios: totalIos,
 				android: totalAndroid,
