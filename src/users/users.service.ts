@@ -11,7 +11,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { isAppVersionBelowMinimum } from '../common/app-version.util';
+import {
+	compareAppVersionValues,
+	getLowestAppVersion,
+	isAppVersionBelowMinimum,
+} from '../common/app-version.util';
 import { buildUserTextSearchWhereInput } from './user-text-search.util';
 import { MailerService } from '../mailer/mailer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -585,13 +589,14 @@ export class UsersService {
 	}
 
 	/**
-	 * Drivers with at least one user_devices row whose app version is below minimumAppVersion.
+	 * Drivers with outdated app version and/or multiple devices on one account.
 	 * Returns all devices per matching driver. Paginated by driver.
 	 */
 	async findDriversCheckListVersion(
 		page: number = 1,
 		limit: number = 10,
 		search?: string,
+		appVersionSort: 'asc' | 'desc' = 'asc',
 	) {
 		const safePage = Math.max(1, page);
 		const safeLimit = Math.min(100, Math.max(1, limit));
@@ -668,15 +673,45 @@ export class UsersService {
 				},
 			});
 
-			const matching = rows.filter((user) =>
-				user.userDevices.some((device) =>
+			const matching = rows.filter((user) => {
+				if (user.userDevices.length >= 2) {
+					return true;
+				}
+				return user.userDevices.some((device) =>
 					isAppVersionBelowMinimum(device.appVersion, minimumAppVersion),
-				),
-			);
+				);
+			});
+
+			const sortMultiplier = appVersionSort === 'desc' ? -1 : 1;
+			matching.sort((a, b) => {
+				const versionCmp =
+					compareAppVersionValues(
+						getLowestAppVersion(a.userDevices.map((d) => d.appVersion)),
+						getLowestAppVersion(b.userDevices.map((d) => d.appVersion)),
+					) * sortMultiplier;
+				if (versionCmp !== 0) return versionCmp;
+				const lastCmp = a.lastName.localeCompare(b.lastName, undefined, {
+					sensitivity: 'base',
+				});
+				if (lastCmp !== 0) return lastCmp;
+				const firstCmp = a.firstName.localeCompare(b.firstName, undefined, {
+					sensitivity: 'base',
+				});
+				if (firstCmp !== 0) return firstCmp;
+				return a.id.localeCompare(b.id);
+			});
 
 			const total = matching.length;
 			const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
 			const pageRows = matching.slice(skip, skip + safeLimit);
+
+			const sortDevices = (
+				devices: (typeof rows)[number]['userDevices'],
+			) =>
+				[...devices].sort(
+					(a, b) =>
+						compareAppVersionValues(a.appVersion, b.appVersion) * sortMultiplier,
+				);
 
 			return {
 				drivers: pageRows.map((d) => ({
@@ -686,7 +721,7 @@ export class UsersService {
 					email: d.email,
 					externalId: d.externalId,
 					phone: d.phone ?? '',
-					devices: d.userDevices.map((device) => ({
+					devices: sortDevices(d.userDevices).map((device) => ({
 						id: device.id,
 						platform: device.platform,
 						appVersion: device.appVersion,

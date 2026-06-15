@@ -1,5 +1,7 @@
 import {
 	compareAppVersions,
+	compareAppVersionValues,
+	getLowestAppVersion,
 	isAppVersionBelowMinimum,
 } from './app-version.util';
 
@@ -25,5 +27,19 @@ describe('isAppVersionBelowMinimum', () => {
 		expect(isAppVersionBelowMinimum('2.1.4', '2.1.6')).toBe(true);
 		expect(isAppVersionBelowMinimum('2.1.6', '2.1.6')).toBe(false);
 		expect(isAppVersionBelowMinimum('2.2.0', '2.1.6')).toBe(false);
+	});
+});
+
+describe('compareAppVersionValues', () => {
+	it('sorts empty versions before numeric versions', () => {
+		expect(compareAppVersionValues(null, '2.1.0')).toBeLessThan(0);
+		expect(compareAppVersionValues('2.1.0', null)).toBeGreaterThan(0);
+	});
+});
+
+describe('getLowestAppVersion', () => {
+	it('returns the lowest version from a list', () => {
+		expect(getLowestAppVersion(['2.1.6', '2.1.2', '2.2.0'])).toBe('2.1.2');
+		expect(getLowestAppVersion(['2.1.6', null, '2.1.2'])).toBe('');
 	});
 });

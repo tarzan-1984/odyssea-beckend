@@ -462,7 +462,7 @@ export class UsersController {
 	@ApiOperation({
 		summary: 'Drivers check list (outdated app version)',
 		description:
-			'ACTIVE drivers (not deactivated, not blocked) with at least one user_devices row whose app version is below minimumAppVersion from app settings. Returns all devices per matching driver. Search matches name, email, externalId (no load id).',
+			'ACTIVE drivers (not deactivated, not blocked) with at least one outdated app version or multiple devices on one account. Returns all devices per matching driver. Search matches name, email, externalId (no load id). Default sort: lowest app version first (appVersionSort asc | desc).',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -472,17 +472,28 @@ export class UsersController {
 		description:
 			'Filter by first name, last name, email, or externalId (driver ID). Substring, case-insensitive.',
 	})
+	@ApiQuery({
+		name: 'appVersionSort',
+		required: false,
+		enum: ['asc', 'desc'],
+		description:
+			'Sort by lowest app version on the account: asc = oldest first (default), desc = newest first.',
+	})
 	async getDriversCheckListVersion(
 		@Query('page') page?: number,
 		@Query('limit') limit?: number,
 		@Query('search') search?: string,
+		@Query('appVersionSort') appVersionSort?: string,
 	) {
 		const pageNum = page ? Number(page) : 1;
 		const limitNum = limit ? Number(limit) : 10;
+		const sortRaw = (appVersionSort ?? 'asc').trim().toLowerCase();
+		const versionSort: 'asc' | 'desc' = sortRaw === 'desc' ? 'desc' : 'asc';
 		return this.usersService.findDriversCheckListVersion(
 			pageNum,
 			limitNum,
 			search,
+			versionSort,
 		);
 	}
 

@@ -32,3 +32,37 @@ export function isAppVersionBelowMinimum(
 	if (!inst) return true;
 	return compareAppVersions(inst, min) < 0;
 }
+
+/** Empty/missing versions sort before any numeric version (asc). */
+export function compareAppVersionValues(
+	a: string | null | undefined,
+	b: string | null | undefined,
+): number {
+	const va = typeof a === 'string' ? a.trim() : '';
+	const vb = typeof b === 'string' ? b.trim() : '';
+	if (!va && !vb) return 0;
+	if (!va) return -1;
+	if (!vb) return 1;
+	return compareAppVersions(va, vb);
+}
+
+export function getLowestAppVersion(
+	versions: Array<string | null | undefined>,
+): string | null {
+	let lowest: string | null = null;
+	for (const version of versions) {
+		const v = typeof version === 'string' ? version.trim() : '';
+		if (!lowest) {
+			lowest = v || null;
+			continue;
+		}
+		if (!v) {
+			lowest = '';
+			continue;
+		}
+		if (!lowest || compareAppVersions(v, lowest) < 0) {
+			lowest = v;
+		}
+	}
+	return lowest;
+}
