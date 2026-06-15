@@ -114,6 +114,22 @@ export class UsersService {
 		private readonly driverReverseGeocode: DriverReverseGeocodeService,
 	) {}
 
+	private async buildExcludeLocationTestDriverClause(): Promise<
+		Prisma.UserWhereInput[]
+	> {
+		const env =
+			await this.appSettingsService.getLocationEnvironmentAppSettings();
+		const testExtId = env.locationTestDriverExternalId?.trim();
+		if (!testExtId) return [];
+		return [
+			{
+				NOT: {
+					externalId: { equals: testExtId, mode: 'insensitive' },
+				},
+			},
+		];
+	}
+
 	private parseNaiveDateTime(value: string | null | undefined): Date | null {
 		const trimmed = value?.trim();
 		if (!trimmed) return null;
@@ -517,6 +533,8 @@ export class UsersService {
 		const searchClause: Prisma.UserWhereInput[] = searchFilter
 			? [searchFilter]
 			: [];
+		const excludeTestDriverClause =
+			await this.buildExcludeLocationTestDriverClause();
 
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
@@ -528,6 +546,7 @@ export class UsersService {
 				{ lastLocationUpdateAt: { not: null } },
 				{ NOT: { lastLocationUpdateAt: '' } },
 				{ lastLocationUpdateAt: { lt: threeHoursAgoNy } },
+				...excludeTestDriverClause,
 				...searchClause,
 			],
 		};
@@ -629,6 +648,8 @@ export class UsersService {
 		const searchClause: Prisma.UserWhereInput[] = searchFilter
 			? [searchFilter]
 			: [];
+		const excludeTestDriverClause =
+			await this.buildExcludeLocationTestDriverClause();
 
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
@@ -641,6 +662,7 @@ export class UsersService {
 					},
 				},
 				{ userDevices: { some: {} } },
+				...excludeTestDriverClause,
 				...searchClause,
 			],
 		};
