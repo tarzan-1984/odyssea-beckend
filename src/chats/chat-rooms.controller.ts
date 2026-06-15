@@ -355,6 +355,27 @@ export class ChatRoomsController {
 		);
 	}
 
+	@Get('by-load/:loadId')
+	@ApiOperation({
+		summary: 'Get LOAD chat by TMS load id',
+		description:
+			'Returns the LOAD chat room for the current user by loadId (active or archived).',
+	})
+	@ApiParam({
+		name: 'loadId',
+		description: 'TMS load id',
+		example: '23267',
+	})
+	async getLoadChatRoomByLoadId(
+		@Request() req: AuthenticatedRequest,
+		@Param('loadId') loadId: string,
+	) {
+		return await this.chatRoomsService.getLoadChatRoomByLoadId(
+			req.user.id,
+			loadId,
+		);
+	}
+
 	@Get(':id')
 	@ApiOperation({
 		summary: 'Get specific chat room',

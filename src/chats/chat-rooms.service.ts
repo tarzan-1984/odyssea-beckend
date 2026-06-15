@@ -681,6 +681,37 @@ export class ChatRoomsService {
 	}
 
 	/**
+	 * Resolve a LOAD chat by TMS load id for the current user (active or archived).
+	 */
+	async getLoadChatRoomByLoadId(userId: string, loadIdRaw: string) {
+		const loadId = loadIdRaw?.trim();
+		if (!loadId) {
+			throw new BadRequestException('loadId is required');
+		}
+
+		const chatRoom = await this.prisma.chatRoom.findFirst({
+			where: {
+				type: 'LOAD',
+				loadId,
+				isArchived: false,
+				participants: {
+					some: {
+						userId,
+						isHidden: false,
+					},
+				},
+			},
+			include: this.participantListInclude as any,
+		});
+
+		if (!chatRoom) {
+			throw new NotFoundException('LOAD chat not found or access denied');
+		}
+
+		return this.formatChatRoomsListForUser([chatRoom], userId)[0];
+	}
+
+	/**
 	 * Verify the user is a participant without loading messages or room metadata.
 	 */
 	async assertChatRoomAccess(
