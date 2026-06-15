@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { isAppVersionBelowMinimum } from '../common/app-version.util';
+import { buildUserTextSearchWhereInput } from './user-text-search.util';
 import { MailerService } from '../mailer/mailer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserLocationDto } from './dto/update-user-location.dto';
