@@ -191,40 +191,40 @@ export class ChatRoomsController {
 		let messagesSent = 0;
 		let messageErrors = 0;
 
-		const enrichedItems = await Promise.all(
-			summary.items.map(async (item) => {
-				if (
-					(item.status !== 'created' && item.status !== 'existed') ||
-					!item.chatRoom?.id
-				) {
-					return item;
-				}
+		const enrichedItems = [];
+		for (const item of summary.items) {
+			if (
+				(item.status !== 'created' && item.status !== 'existed') ||
+				!item.chatRoom?.id
+			) {
+				enrichedItems.push(item);
+				continue;
+			}
 
-				try {
-					const sent = await this.sendDirectChatMessage(
-						userId,
-						String(item.chatRoom.id),
-						trimmedMessage,
-					);
-					messagesSent += 1;
-					return {
-						...item,
-						messageSent: true,
-						messageId: sent.messageId,
-					};
-				} catch (error) {
-					messageErrors += 1;
-					return {
-						...item,
-						messageSent: false,
-						messageError:
-							error instanceof Error
-								? error.message
-								: 'Failed to send message',
-					};
-				}
-			}),
-		);
+			try {
+				const sent = await this.sendDirectChatMessage(
+					userId,
+					String(item.chatRoom.id),
+					trimmedMessage,
+				);
+				messagesSent += 1;
+				enrichedItems.push({
+					...item,
+					messageSent: true,
+					messageId: sent.messageId,
+				});
+			} catch (error) {
+				messageErrors += 1;
+				enrichedItems.push({
+					...item,
+					messageSent: false,
+					messageError:
+						error instanceof Error
+							? error.message
+							: 'Failed to send message',
+				});
+			}
+		}
 
 		return {
 			...summary,
