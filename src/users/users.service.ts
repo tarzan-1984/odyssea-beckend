@@ -608,7 +608,7 @@ export class UsersService {
 	}
 
 	/**
-	 * Drivers with outdated app version and/or multiple devices on one account.
+	 * Drivers with at least one outdated app version.
 	 * Returns all devices per matching driver. Paginated by driver.
 	 */
 	async findDriversCheckListVersion(
@@ -617,21 +617,10 @@ export class UsersService {
 		search?: string,
 		appVersionSort: 'asc' | 'desc' = 'asc',
 	) {
-		const safePage = Math.max(1, page);
-		const safeLimit = Math.min(100, Math.max(1, limit));
-		const skip = (safePage - 1) * safeLimit;
-
 		const settings = await this.appSettingsService.getMinimumAppVersionSettings();
 		const minimumAppVersion = (settings.minimumAppVersion ?? '').trim();
 
-		const emptyPagination = {
-			current_page: safePage,
-			per_page: safeLimit,
-			total_count: 0,
-			total_pages: 0,
-			has_next_page: false,
-			has_prev_page: false,
-		};
+		const emptyPagination = this.buildCheckListEmptyPagination(page, limit);
 
 		if (!minimumAppVersion) {
 			return {
@@ -641,6 +630,67 @@ export class UsersService {
 			};
 		}
 
+		try {
+			const rows = await this.fetchActiveDriversWithDevicesForCheckList(search);
+			const matching = rows.filter((user) =>
+				user.userDevices.some((device) =>
+					isAppVersionBelowMinimum(device.appVersion, minimumAppVersion),
+				),
+			);
+
+			return this.paginateDriverDeviceCheckList(
+				matching,
+				page,
+				limit,
+				appVersionSort,
+				minimumAppVersion,
+			);
+		} catch (err: unknown) {
+			this.logger.error('findDriversCheckListVersion failed', err);
+			throw err;
+		}
+	}
+
+	/**
+	 * ACTIVE drivers with two or more devices on one account.
+	 * Returns all devices per matching driver. Paginated by driver.
+	 */
+	async findDriversCheckListSeveralDevices(
+		page: number = 1,
+		limit: number = 10,
+		search?: string,
+		appVersionSort: 'asc' | 'desc' = 'asc',
+	) {
+		try {
+			const rows = await this.fetchActiveDriversWithDevicesForCheckList(search);
+			const matching = rows.filter((user) => user.userDevices.length >= 2);
+
+			return this.paginateDriverDeviceCheckList(
+				matching,
+				page,
+				limit,
+				appVersionSort,
+			);
+		} catch (err: unknown) {
+			this.logger.error('findDriversCheckListSeveralDevices failed', err);
+			throw err;
+		}
+	}
+
+	private buildCheckListEmptyPagination(page: number, limit: number) {
+		const safePage = Math.max(1, page);
+		const safeLimit = Math.min(100, Math.max(1, limit));
+		return {
+			current_page: safePage,
+			per_page: safeLimit,
+			total_count: 0,
+			total_pages: 0,
+			has_next_page: false,
+			has_prev_page: false,
+		};
+	}
+
+	private async fetchActiveDriversWithDevicesForCheckList(search?: string) {
 		const searchFilter = buildUserTextSearchWhereInput(search, {
 			includeExternalId: true,
 			includeTrackingLoadId: false,
@@ -667,104 +717,104 @@ export class UsersService {
 			],
 		};
 
-		try {
-			const rows = await this.prisma.user.findMany({
-				where,
-				orderBy: [
-					{ lastName: 'asc' },
-					{ firstName: 'asc' },
-					{ id: 'asc' },
-				],
-				select: {
-					id: true,
-					firstName: true,
-					lastName: true,
-					email: true,
-					externalId: true,
-					phone: true,
-					userDevices: {
-						select: {
-							id: true,
-							platform: true,
-							appVersion: true,
-							deviceName: true,
-							model: true,
-						},
-						orderBy: [{ platform: 'asc' }, { updatedAt: 'desc' }],
+		return this.prisma.user.findMany({
+			where,
+			orderBy: [
+				{ lastName: 'asc' },
+				{ firstName: 'asc' },
+				{ id: 'asc' },
+			],
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				email: true,
+				externalId: true,
+				phone: true,
+				userDevices: {
+					select: {
+						id: true,
+						platform: true,
+						appVersion: true,
+						deviceName: true,
+						model: true,
 					},
+					orderBy: [{ platform: 'asc' }, { updatedAt: 'desc' }],
 				},
+			},
+		});
+	}
+
+	private paginateDriverDeviceCheckList(
+		matching: Awaited<
+			ReturnType<UsersService['fetchActiveDriversWithDevicesForCheckList']>
+		>,
+		page: number,
+		limit: number,
+		appVersionSort: 'asc' | 'desc',
+		minimumAppVersion?: string,
+	) {
+		const safePage = Math.max(1, page);
+		const safeLimit = Math.min(100, Math.max(1, limit));
+		const skip = (safePage - 1) * safeLimit;
+		const sortMultiplier = appVersionSort === 'desc' ? -1 : 1;
+
+		const sorted = [...matching].sort((a, b) => {
+			const versionCmp =
+				compareAppVersionValues(
+					getLowestAppVersion(a.userDevices.map((d) => d.appVersion)),
+					getLowestAppVersion(b.userDevices.map((d) => d.appVersion)),
+				) * sortMultiplier;
+			if (versionCmp !== 0) return versionCmp;
+			const lastCmp = a.lastName.localeCompare(b.lastName, undefined, {
+				sensitivity: 'base',
 			});
-
-			const matching = rows.filter((user) => {
-				if (user.userDevices.length >= 2) {
-					return true;
-				}
-				return user.userDevices.some((device) =>
-					isAppVersionBelowMinimum(device.appVersion, minimumAppVersion),
-				);
+			if (lastCmp !== 0) return lastCmp;
+			const firstCmp = a.firstName.localeCompare(b.firstName, undefined, {
+				sensitivity: 'base',
 			});
+			if (firstCmp !== 0) return firstCmp;
+			return a.id.localeCompare(b.id);
+		});
 
-			const sortMultiplier = appVersionSort === 'desc' ? -1 : 1;
-			matching.sort((a, b) => {
-				const versionCmp =
-					compareAppVersionValues(
-						getLowestAppVersion(a.userDevices.map((d) => d.appVersion)),
-						getLowestAppVersion(b.userDevices.map((d) => d.appVersion)),
-					) * sortMultiplier;
-				if (versionCmp !== 0) return versionCmp;
-				const lastCmp = a.lastName.localeCompare(b.lastName, undefined, {
-					sensitivity: 'base',
-				});
-				if (lastCmp !== 0) return lastCmp;
-				const firstCmp = a.firstName.localeCompare(b.firstName, undefined, {
-					sensitivity: 'base',
-				});
-				if (firstCmp !== 0) return firstCmp;
-				return a.id.localeCompare(b.id);
-			});
+		const total = sorted.length;
+		const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+		const pageRows = sorted.slice(skip, skip + safeLimit);
 
-			const total = matching.length;
-			const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
-			const pageRows = matching.slice(skip, skip + safeLimit);
+		const sortDevices = (
+			devices: (typeof matching)[number]['userDevices'],
+		) =>
+			[...devices].sort(
+				(a, b) =>
+					compareAppVersionValues(a.appVersion, b.appVersion) * sortMultiplier,
+			);
 
-			const sortDevices = (
-				devices: (typeof rows)[number]['userDevices'],
-			) =>
-				[...devices].sort(
-					(a, b) =>
-						compareAppVersionValues(a.appVersion, b.appVersion) * sortMultiplier,
-				);
-
-			return {
-				drivers: pageRows.map((d) => ({
-					id: d.id,
-					firstName: d.firstName,
-					lastName: d.lastName,
-					email: d.email,
-					externalId: d.externalId,
-					phone: d.phone ?? '',
-					devices: sortDevices(d.userDevices).map((device) => ({
-						id: device.id,
-						platform: device.platform,
-						appVersion: device.appVersion,
-						deviceName: device.deviceName,
-						model: device.model,
-					})),
+		return {
+			drivers: pageRows.map((d) => ({
+				id: d.id,
+				firstName: d.firstName,
+				lastName: d.lastName,
+				email: d.email,
+				externalId: d.externalId,
+				phone: d.phone ?? '',
+				devices: sortDevices(d.userDevices).map((device) => ({
+					id: device.id,
+					platform: device.platform,
+					appVersion: device.appVersion,
+					deviceName: device.deviceName,
+					model: device.model,
 				})),
-				minimumAppVersion,
-				pagination: {
-					current_page: safePage,
-					per_page: safeLimit,
-					total_count: total,
-					total_pages: totalPages,
-					has_next_page: safePage < totalPages,
-					has_prev_page: safePage > 1,
-				},
-			};
-		} catch (err: unknown) {
-			this.logger.error('findDriversCheckListVersion failed', err);
-			throw err;
-		}
+			})),
+			...(minimumAppVersion !== undefined ? { minimumAppVersion } : {}),
+			pagination: {
+				current_page: safePage,
+				per_page: safeLimit,
+				total_count: total,
+				total_pages: totalPages,
+				has_next_page: safePage < totalPages,
+				has_prev_page: safePage > 1,
+			},
+		};
 	}
 
 	/**
