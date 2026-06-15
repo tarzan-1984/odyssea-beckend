@@ -229,6 +229,96 @@ export class NotificationsController {
 	}
 
 	/**
+	 * Send custom email to a single driver (userId, externalId, or email).
+	 */
+	@Post('email')
+	async sendCustomEmail(
+		@Request() req: AuthenticatedRequest,
+		@Body()
+		body: {
+			message: string;
+			subject?: string | null;
+			userId?: string | null;
+			externalId?: string | null;
+			email?: string | null;
+		},
+	) {
+		const message = typeof body?.message === 'string' ? body.message.trim() : '';
+		const subject =
+			typeof body?.subject === 'string' && body.subject.trim()
+				? body.subject.trim()
+				: 'Odyssea';
+		let userId =
+			typeof body?.userId === 'string' && body.userId.trim()
+				? body.userId.trim()
+				: undefined;
+		const externalId =
+			typeof body?.externalId === 'string' && body.externalId.trim()
+				? body.externalId.trim()
+				: undefined;
+		const email =
+			typeof body?.email === 'string' && body.email.trim()
+				? body.email.trim()
+				: undefined;
+
+		if (!message) {
+			throw new BadRequestException('message is required');
+		}
+
+		if (!userId && !externalId && !email) {
+			throw new BadRequestException(
+				'userId, externalId, or email is required',
+			);
+		}
+
+		if (!userId && externalId) {
+			const user = await this.prisma.user.findUnique({
+				where: { externalId },
+				select: { id: true },
+			});
+			if (!user) {
+				throw new BadRequestException('No user found for this externalId');
+			}
+			userId = user.id;
+		}
+
+		const sender = await this.prisma.user.findUnique({
+			where: { id: req.user.id },
+			select: { email: true, firstName: true, lastName: true },
+		});
+		const senderEmail = (sender?.email ?? req.user.email ?? '').trim();
+		if (!senderEmail) {
+			throw new BadRequestException('Your account has no email address');
+		}
+		const senderName = `${sender?.firstName ?? ''} ${sender?.lastName ?? ''}`.trim();
+		const senderFrom = senderName
+			? `"${senderName}" <${senderEmail}>`
+			: senderEmail;
+
+		const result = await this.notificationsService.sendCustomEmail({
+			message,
+			subject,
+			userId,
+			externalId,
+			email,
+			from: senderFrom,
+			replyTo: senderEmail,
+		});
+
+		if (!result.sent) {
+			if (result.reason === 'no_email') {
+				throw new BadRequestException('Driver has no email address');
+			}
+			if (result.reason === 'send_failed') {
+				throw new BadRequestException('Failed to send email');
+			}
+			throw new BadRequestException('Failed to send email');
+		}
+
+		return { success: true, data: result };
+	}
+
+	/**
 	 * Open TMS endpoint: send custom push by TMS externalId.
 	 */
 	@Post('push/tms')

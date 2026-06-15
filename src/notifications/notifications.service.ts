@@ -4,6 +4,7 @@ import { NotificationsWebSocketService } from './notifications-websocket.service
 import { Notification, User } from '@prisma/client';
 import { FcmPushService } from './fcm-push.service';
 import { ExpoPushService } from './expo-push.service';
+import { MailerService } from '../mailer/mailer.service';
 
 @Injectable()
 export class NotificationsService {
@@ -14,6 +15,7 @@ export class NotificationsService {
     private readonly notificationsWebSocketService: NotificationsWebSocketService,
     private readonly fcmPushService: FcmPushService,
     private readonly expoPushService: ExpoPushService,
+    private readonly mailerService: MailerService,
   ) {}
 
   /**
@@ -183,6 +185,58 @@ export class NotificationsService {
 
     await this.sendAdminBroadcastPushToUser(params.userId, message);
     return { targeted: true, users: 1 };
+  }
+
+  async sendCustomEmail(params: {
+    message: string;
+    subject?: string;
+    userId?: string;
+    externalId?: string;
+    email?: string;
+    from?: string;
+    replyTo?: string;
+  }): Promise<{ sent: boolean; email?: string; reason?: string }> {
+    const message = (params.message ?? '').trim();
+    const subject = (params.subject ?? 'Odyssea').trim() || 'Odyssea';
+    if (!message) {
+      return { sent: false, reason: 'empty_message' };
+    }
+
+    let email = (params.email ?? '').trim();
+    let userId = (params.userId ?? '').trim();
+
+    if (!email && (params.externalId ?? '').trim()) {
+      const user = await this.prisma.user.findUnique({
+        where: { externalId: params.externalId!.trim() },
+        select: { id: true, email: true },
+      });
+      if (user) {
+        userId = user.id;
+        email = (user.email ?? '').trim();
+      }
+    }
+
+    if (!email && userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      });
+      email = (user?.email ?? '').trim();
+    }
+
+    if (!email) {
+      return { sent: false, reason: 'no_email' };
+    }
+
+    const sent = await this.mailerService.sendEmail(email, subject, message, undefined, {
+      from: params.from,
+      replyTo: params.replyTo,
+    });
+    if (!sent) {
+      return { sent: false, email, reason: 'send_failed' };
+    }
+
+    return { sent: true, email };
   }
 
   async sendAdminBroadcastPushToUser(userId: string, message: string): Promise<void> {
