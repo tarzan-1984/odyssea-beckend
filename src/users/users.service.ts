@@ -11,7 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { buildUserTextSearchWhereInput } from './user-text-search.util';
+import { isAppVersionBelowMinimum } from '../common/app-version.util';
 import { MailerService } from '../mailer/mailer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserLocationDto } from './dto/update-user-location.dto';
@@ -579,6 +579,132 @@ export class UsersService {
 			};
 		} catch (err: unknown) {
 			this.logger.error('findDriversCheckList failed', err);
+			throw err;
+		}
+	}
+
+	/**
+	 * Drivers with at least one user_devices row whose app version is below minimumAppVersion.
+	 * Returns all devices per matching driver. Paginated by driver.
+	 */
+	async findDriversCheckListVersion(
+		page: number = 1,
+		limit: number = 10,
+		search?: string,
+	) {
+		const safePage = Math.max(1, page);
+		const safeLimit = Math.min(100, Math.max(1, limit));
+		const skip = (safePage - 1) * safeLimit;
+
+		const settings = await this.appSettingsService.getMinimumAppVersionSettings();
+		const minimumAppVersion = (settings.minimumAppVersion ?? '').trim();
+
+		const emptyPagination = {
+			current_page: safePage,
+			per_page: safeLimit,
+			total_count: 0,
+			total_pages: 0,
+			has_next_page: false,
+			has_prev_page: false,
+		};
+
+		if (!minimumAppVersion) {
+			return {
+				drivers: [],
+				minimumAppVersion: '',
+				pagination: emptyPagination,
+			};
+		}
+
+		const searchFilter = buildUserTextSearchWhereInput(search, {
+			includeExternalId: true,
+			includeTrackingLoadId: false,
+		});
+		const searchClause: Prisma.UserWhereInput[] = searchFilter
+			? [searchFilter]
+			: [];
+
+		const where: Prisma.UserWhereInput = {
+			role: UserRole.DRIVER,
+			status: UserStatus.ACTIVE,
+			AND: [
+				{ deactivateAccount: { not: true } },
+				{
+					NOT: {
+						driverStatus: { equals: 'blocked', mode: 'insensitive' },
+					},
+				},
+				{ userDevices: { some: {} } },
+				...searchClause,
+			],
+		};
+
+		try {
+			const rows = await this.prisma.user.findMany({
+				where,
+				orderBy: [
+					{ lastName: 'asc' },
+					{ firstName: 'asc' },
+					{ id: 'asc' },
+				],
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+					externalId: true,
+					phone: true,
+					userDevices: {
+						select: {
+							id: true,
+							platform: true,
+							appVersion: true,
+							deviceName: true,
+							model: true,
+						},
+						orderBy: [{ platform: 'asc' }, { updatedAt: 'desc' }],
+					},
+				},
+			});
+
+			const matching = rows.filter((user) =>
+				user.userDevices.some((device) =>
+					isAppVersionBelowMinimum(device.appVersion, minimumAppVersion),
+				),
+			);
+
+			const total = matching.length;
+			const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+			const pageRows = matching.slice(skip, skip + safeLimit);
+
+			return {
+				drivers: pageRows.map((d) => ({
+					id: d.id,
+					firstName: d.firstName,
+					lastName: d.lastName,
+					email: d.email,
+					externalId: d.externalId,
+					phone: d.phone ?? '',
+					devices: d.userDevices.map((device) => ({
+						id: device.id,
+						platform: device.platform,
+						appVersion: device.appVersion,
+						deviceName: device.deviceName,
+						model: device.model,
+					})),
+				})),
+				minimumAppVersion,
+				pagination: {
+					current_page: safePage,
+					per_page: safeLimit,
+					total_count: total,
+					total_pages: totalPages,
+					has_next_page: safePage < totalPages,
+					has_prev_page: safePage > 1,
+				},
+			};
+		} catch (err: unknown) {
+			this.logger.error('findDriversCheckListVersion failed', err);
 			throw err;
 		}
 	}

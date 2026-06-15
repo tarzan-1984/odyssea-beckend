@@ -458,6 +458,34 @@ export class UsersController {
 		);
 	}
 
+	@Get('drivers/check-list/version')
+	@ApiOperation({
+		summary: 'Drivers check list (outdated app version)',
+		description:
+			'ACTIVE drivers (not deactivated, not blocked) with at least one user_devices row whose app version is below minimumAppVersion from app settings. Returns all devices per matching driver. Search matches name, email, externalId (no load id).',
+	})
+	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	@ApiQuery({
+		name: 'search',
+		required: false,
+		description:
+			'Filter by first name, last name, email, or externalId (driver ID). Substring, case-insensitive.',
+	})
+	async getDriversCheckListVersion(
+		@Query('page') page?: number,
+		@Query('limit') limit?: number,
+		@Query('search') search?: string,
+	) {
+		const pageNum = page ? Number(page) : 1;
+		const limitNum = limit ? Number(limit) : 10;
+		return this.usersService.findDriversCheckListVersion(
+			pageNum,
+			limitNum,
+			search,
+		);
+	}
+
 	@Post('drivers/set-password')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
