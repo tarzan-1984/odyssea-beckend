@@ -630,7 +630,7 @@ export class MessagesController {
 	@ApiOperation({
 		summary: 'Delete message',
 		description:
-			'Delete a message. Non-driver users can delete only their own messages. Sends WebSocket notification to all chat participants.',
+			'Delete a message. Drivers cannot delete. Other users can delete their own messages; administrators can delete any message in the chat. Sends WebSocket notification to all chat participants.',
 	})
 	@ApiParam({
 		name: 'id',

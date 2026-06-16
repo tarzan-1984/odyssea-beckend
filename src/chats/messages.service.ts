@@ -1456,14 +1456,15 @@ export class MessagesService {
 			throw new NotFoundException('Message not found');
 		}
 
-		// Only non-driver users can delete their own messages.
+		// Drivers cannot delete messages. Others may delete own messages; admins may delete any.
 		const isOwner = message.senderId === userId;
+		const isAdmin = userRole === UserRole.ADMINISTRATOR;
 
 		if (userRole === UserRole.DRIVER) {
 			throw new BadRequestException('Drivers cannot delete messages');
 		}
 
-		if (!isOwner) {
+		if (!isOwner && !isAdmin) {
 			throw new BadRequestException(
 				'You can only delete your own messages',
 			);
