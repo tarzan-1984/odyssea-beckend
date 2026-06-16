@@ -29,6 +29,11 @@ import {
 	nowInNewYorkAsLocaleString,
 } from '../common/utils/ny-wall-clock';
 
+/** TMS externalIds excluded from offer-related push/in-app notifications. */
+const ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_OFFER_NOTIFICATIONS = ['1'] as const;
+const EXCLUDED_OFFER_NOTIFICATION_EXTERNAL_IDS: readonly string[] =
+	ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_OFFER_NOTIFICATIONS;
+
 const NY_FORMAT_OPTS: Intl.DateTimeFormatOptions = {
 	timeZone: AMERICA_NEW_YORK_TZ,
 	year: 'numeric',
@@ -1243,7 +1248,10 @@ export class OffersService {
 
 		const recipientIds = new Set<string>();
 
-		if (offer.externalUserId) {
+		if (
+			offer.externalUserId &&
+			!EXCLUDED_OFFER_NOTIFICATION_EXTERNAL_IDS.includes(offer.externalUserId)
+		) {
 			const creator = await this.prisma.user.findUnique({
 				where: { externalId: offer.externalUserId },
 				select: { id: true },
@@ -1252,7 +1260,12 @@ export class OffersService {
 		}
 
 		const admins = await this.prisma.user.findMany({
-			where: { role: 'ADMINISTRATOR' },
+			where: {
+				role: 'ADMINISTRATOR',
+				AND: ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_OFFER_NOTIFICATIONS.map(
+					(externalId) => ({ NOT: { externalId } }),
+				),
+			},
 			select: { id: true },
 		});
 		if (admins.length > 0) {
