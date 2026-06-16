@@ -15,9 +15,8 @@ import { ThumbnailService } from '../storage/thumbnail.service';
 import { HeicAttachmentService } from '../storage/heic-attachment.service';
 
 /** Only drivers are restricted to messages after they joined; other roles see full history. */
-function shouldCutOffMessagesAtJoinedAt(_role: UserRole | null | undefined): boolean {
-	// TEMP: join-date history cutoff disabled until timezone/join rules are stable
-	return false;
+function shouldCutOffMessagesAtJoinedAt(role: UserRole | null | undefined): boolean {
+	return role === UserRole.DRIVER;
 }
 
 /**
