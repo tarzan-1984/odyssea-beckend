@@ -8,9 +8,10 @@ import {
 	Query,
 	Res,
 	UploadedFile,
+	UploadedFiles,
 	UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
 	ApiTags,
 	ApiOperation,
@@ -22,7 +23,7 @@ import { Response } from 'express';
 import { S3Service } from '../s3/s3.service';
 import { PresignDto } from './dto/presign.dto';
 import { PresignBatchDto } from './dto/presign-batch.dto';
-import { ImageConversionService } from './image-conversion.service';
+import { ImageConversionService, CHAT_UPLOAD_HEIC_JPEG_QUALITY } from './image-conversion.service';
 import { ImagePreviewService } from './image-preview.service';
 import { ThumbnailService } from './thumbnail.service';
 import {
@@ -30,6 +31,7 @@ import {
 	DEFAULT_THUMBNAIL_QUALITY,
 } from './chat-thumbnail.util';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { toJpegFilename } from './heic-attachment.util';
 
 @ApiTags('Storage')
 @Controller('storage')
@@ -133,12 +135,79 @@ export class StorageController {
 		}
 
 		const jpegBuffer =
-			await this.imageConversionService.convertHeicBufferToJpeg(file.buffer);
+			await this.imageConversionService.convertHeicBufferToJpeg(
+				file.buffer,
+				CHAT_UPLOAD_HEIC_JPEG_QUALITY,
+			);
 
 		res.setHeader('Content-Type', 'image/jpeg');
 		res.setHeader('Content-Length', jpegBuffer.length);
 		res.setHeader('Cache-Control', 'no-store');
 		return res.send(jpegBuffer);
+	}
+
+	@Post('convert-heic-batch')
+	@UseInterceptors(FilesInterceptor('files', 20))
+	@ApiOperation({
+		summary: 'Convert multiple uploaded HEIC/HEIF images to JPEG',
+		description:
+			'Fallback for mobile clients when on-device conversion fails. Returns JPEG payloads as base64 in request order.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Images converted successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				items: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							index: { type: 'number' },
+							fileName: { type: 'string' },
+							mimeType: { type: 'string' },
+							size: { type: 'number' },
+							data: { type: 'string', description: 'Base64-encoded JPEG' },
+						},
+					},
+				},
+			},
+		},
+	})
+	async convertUploadedHeicBatchToJpeg(
+		@UploadedFiles() files: Express.Multer.File[] | undefined,
+	) {
+		if (!files?.length) {
+			throw new BadRequestException('At least one image file is required');
+		}
+
+		const items = await Promise.all(
+			files.map(async (file, index) => {
+				if (!file.buffer?.length) {
+					throw new BadRequestException(
+						`Image file at index ${index} is empty`,
+					);
+				}
+
+				const jpegBuffer =
+					await this.imageConversionService.convertHeicBufferToJpeg(
+						file.buffer,
+						CHAT_UPLOAD_HEIC_JPEG_QUALITY,
+					);
+				const originalName = file.originalname?.trim() || `image-${index}.heic`;
+
+				return {
+					index,
+					fileName: toJpegFilename(originalName),
+					mimeType: 'image/jpeg',
+					size: jpegBuffer.length,
+					data: jpegBuffer.toString('base64'),
+				};
+			}),
+		);
+
+		return { items };
 	}
 
 	@Get('ensure-thumbnail')

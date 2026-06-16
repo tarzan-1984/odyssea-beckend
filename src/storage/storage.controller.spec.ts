@@ -120,4 +120,45 @@ describe('StorageController', () => {
 			await expect(controller.presign(dto)).rejects.toThrow('S3 Error');
 		});
 	});
+
+	describe('convertUploadedHeicBatchToJpeg', () => {
+		it('should convert multiple uploaded HEIC files to JPEG base64 payloads', async () => {
+			const jpegBuffer = Buffer.from('jpeg-batch');
+			mockImageConversionService.convertHeicBufferToJpeg.mockResolvedValue(
+				jpegBuffer,
+			);
+
+			const files = [
+				{
+					buffer: Buffer.from('heic-1'),
+					originalname: 'photo1.heic',
+				},
+				{
+					buffer: Buffer.from('heic-2'),
+					originalname: 'photo2.heif',
+				},
+			] as Express.Multer.File[];
+
+			const result = await controller.convertUploadedHeicBatchToJpeg(files);
+
+			expect(result.items).toHaveLength(2);
+			expect(result.items[0]).toEqual({
+				index: 0,
+				fileName: 'photo1.jpg',
+				mimeType: 'image/jpeg',
+				size: jpegBuffer.length,
+				data: jpegBuffer.toString('base64'),
+			});
+			expect(result.items[1].fileName).toBe('photo2.jpg');
+			expect(mockImageConversionService.convertHeicBufferToJpeg).toHaveBeenCalledTimes(
+				2,
+			);
+		});
+
+		it('should reject empty batch', async () => {
+			await expect(
+				controller.convertUploadedHeicBatchToJpeg(undefined),
+			).rejects.toThrow('At least one image file is required');
+		});
+	});
 });

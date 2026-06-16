@@ -3,16 +3,24 @@ import * as convert from 'heic-convert';
 import sharp = require('sharp');
 import { S3Service } from '../s3/s3.service';
 
+export const DEFAULT_HEIC_JPEG_QUALITY = 0.92;
+/** JPEG quality for chat upload conversion (client fallback / batch endpoint). */
+export const CHAT_UPLOAD_HEIC_JPEG_QUALITY = 0.5;
+
 @Injectable()
 export class ImageConversionService {
 	constructor(private readonly s3Service: S3Service) {}
 
-	async convertHeicBufferToJpeg(imageBuffer: Buffer): Promise<Buffer> {
+	async convertHeicBufferToJpeg(
+		imageBuffer: Buffer,
+		quality: number = DEFAULT_HEIC_JPEG_QUALITY,
+	): Promise<Buffer> {
+		const normalizedQuality = Math.min(Math.max(quality, 0.1), 1);
 		try {
 			const jpegBuffer = await convert({
 				buffer: imageBuffer,
 				format: 'JPEG',
-				quality: 0.92,
+				quality: normalizedQuality,
 			});
 
 			if (jpegBuffer instanceof ArrayBuffer) {
@@ -31,7 +39,10 @@ export class ImageConversionService {
 			try {
 				return await sharp(imageBuffer)
 					.rotate()
-					.jpeg({ quality: 92, mozjpeg: true })
+					.jpeg({
+						quality: Math.round(normalizedQuality * 100),
+						mozjpeg: true,
+					})
 					.toBuffer();
 			} catch (sharpError) {
 				console.error(
