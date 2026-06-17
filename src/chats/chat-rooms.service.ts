@@ -733,6 +733,38 @@ export class ChatRoomsService {
 	}
 
 	/**
+	 * Lightweight chat room context for outgoing message / typing flows.
+	 * Does not load message history (unlike getChatRoom).
+	 */
+	async getChatRoomOutboundContext(chatRoomId: string, userId: string) {
+		await this.assertChatRoomAccess(chatRoomId, userId);
+
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			select: {
+				id: true,
+				type: true,
+				participants: {
+					select: {
+						userId: true,
+						user: {
+							select: {
+								firstName: true,
+							},
+						},
+					},
+				},
+			},
+		});
+
+		if (!chatRoom) {
+			throw new NotFoundException('Chat room not found');
+		}
+
+		return chatRoom;
+	}
+
+	/**
 	 * Get a specific chat room with its messages and participants
 	 */
 	async getChatRoom(chatRoomId: string, userId: string) {

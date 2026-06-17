@@ -325,7 +325,7 @@ export class ChatGateway
 		// Verify user has access to this chat room and get user data
 		let userFirstName = 'Someone';
 		try {
-			const chatRoom = await this.chatRoomsService.getChatRoom(
+			const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
 				chatRoomId,
 				userId,
 			);
@@ -426,8 +426,8 @@ export class ChatGateway
 			// Ensure user is in the chat room for WebSocket
 			void client.join(`chat_${chatRoomId}`);
 
-			// Verify user has access to this chat room
-			const chatRoom = await this.chatRoomsService.getChatRoom(
+			// Verify user has access to this chat room (no message history load)
+			const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
 				chatRoomId,
 				userId,
 			);
@@ -465,15 +465,14 @@ export class ChatGateway
 				userId,
 			);
 
-			// Broadcast message to all participants in the chat room
-			void this.broadcastMessage(chatRoomId, message);
-
-			// Send confirmation back to sender
+			// Ack sender immediately after persist; broadcast can follow asynchronously.
 			client.emit('messageSent', {
 				messageId: message.id,
 				chatRoomId,
 				clientMessageId: message.clientMessageId ?? undefined,
 			});
+
+			void this.broadcastMessage(chatRoomId, message);
 
 			console.log('✅ Message sent:', {
 				userId,
@@ -686,24 +685,16 @@ export class ChatGateway
 			content: message.content.substring(0, 50) + '...',
 		});
 
-		// Get chat room participants from database
-		const chatRoom = await this.prisma.chatRoom.findUnique({
-			where: { id: chatRoomId },
-			include: {
-				participants: {
-					include: {
-						user: true,
-					},
-				},
-			},
+		// Participant ids only — message payload already includes sender/receiver.
+		const participants = await this.prisma.chatRoomParticipant.findMany({
+			where: { chatRoomId },
+			select: { userId: true },
 		});
 
-		if (!chatRoom) {
-			console.error(`Chat room ${chatRoomId} not found`);
+		if (participants.length === 0) {
+			console.error(`Chat room ${chatRoomId} has no participants`);
 			return;
 		}
-
-		const participants = chatRoom.participants;
 
 		// Send to all participants' personal notification rooms
 		// This ensures users receive messages even when not in the specific chat

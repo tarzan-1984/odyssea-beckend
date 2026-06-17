@@ -102,7 +102,7 @@ export class MessagesController {
 		const userId = req.user.id;
 
 		// For DIRECT and OFFER chats: unhide chat for all participants if hidden
-		const chatRoom = await this.chatRoomsService.getChatRoom(
+		const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
 			sendMessageDto.chatRoomId,
 			userId,
 		);

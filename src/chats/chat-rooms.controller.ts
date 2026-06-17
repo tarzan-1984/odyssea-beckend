@@ -245,7 +245,7 @@ export class ChatRoomsController {
 		chatRoomId: string,
 		content: string,
 	): Promise<{ messageId: string }> {
-		const chatRoom = await this.chatRoomsService.getChatRoom(
+		const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
 			chatRoomId,
 			userId,
 		);
