@@ -19,6 +19,16 @@ export class SendMessageDto {
 	content: string;
 
 	@ApiProperty({
+		description:
+			'Optional client-generated message id for idempotent send (mobile optimistic UI / retry).',
+		required: false,
+		example: 'cmid_abc123',
+	})
+	@IsOptional()
+	@IsString()
+	clientMessageId?: string;
+
+	@ApiProperty({
 		description: 'URL of the uploaded file (optional)',
 		example: 'https://drive.google.com/file/123',
 		required: false,

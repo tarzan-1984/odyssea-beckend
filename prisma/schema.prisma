@@ -321,25 +321,28 @@ model ChatRoomParticipant {
 }
 
 model Message {
-  id         String   @id @default(cuid())
-  chatRoomId String
-  senderId   String
-  receiverId String?
-  content    String
-  fileUrl    String?
-  fileName   String?
-  fileSize   Int?
+  id              String   @id @default(cuid())
+  chatRoomId      String
+  senderId        String
+  receiverId      String?
+  content         String
+  fileUrl         String?
+  fileName        String?
+  fileSize        Int?
+  /// Client-generated id for idempotent send / optimistic UI (optional, mobile).
+  clientMessageId String?  @map("client_message_id")
   /// Legacy: JSON array of attachments. New multi-file messages use pipe "|" inside fileUrl and fileName (same indexes).
-  attachments Json?
-  createdAt  DateTime @default(now())
-  readBy     Json?
-  isRead     Boolean  @default(false)
-  replyData  Json?
-  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  receiver   User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-  sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  reactions  MessageReaction[]
+  attachments     Json?
+  createdAt       DateTime @default(now())
+  readBy          Json?
+  isRead          Boolean  @default(false)
+  replyData       Json?
+  chatRoom        ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  receiver        User?    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender          User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  reactions       MessageReaction[]
 
+  @@unique([chatRoomId, clientMessageId], map: "messages_chat_room_client_message_id_key")
   @@index([chatRoomId, createdAt(sort: Desc)], map: "messages_chat_room_id_created_at_idx")
   @@index([chatRoomId, senderId], map: "messages_chat_room_id_sender_id_idx")
   @@map("messages")

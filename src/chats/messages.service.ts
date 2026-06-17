@@ -78,7 +78,29 @@ export class MessagesService {
 			fileSize,
 			replyData,
 			attachments,
+			clientMessageId: rawClientMessageId,
 		} = sendMessageDto;
+
+		const clientMessageId = rawClientMessageId?.trim() || null;
+		if (clientMessageId) {
+			const existing = await this.prisma.message.findFirst({
+				where: {
+					chatRoomId,
+					senderId,
+					clientMessageId,
+				},
+				include: this.messageWithUsersInclude,
+			});
+			if (existing) {
+				const transformed = this.transformMessageForClient(existing);
+				const [withReactions] =
+					await this.messageReactionsService.attachReactionsToMessages(
+						[transformed],
+						senderId,
+					);
+				return withReactions;
+			}
+		}
 
 		const trimmedContent = content?.trim() ?? '';
 		const attachmentList =
@@ -170,6 +192,7 @@ export class MessagesService {
 					fileUrl: effectiveFileUrl,
 					fileName: effectiveFileName,
 					fileSize: effectiveFileSize,
+					clientMessageId,
 					attachments: undefined,
 					replyData,
 					receiverId:
@@ -222,23 +245,7 @@ export class MessagesService {
 		});
 
 		// Transform profilePhoto to avatar for frontend compatibility
-		const transformedMessage = {
-			...message,
-			sender: {
-				...message.sender,
-				avatar: message.sender.profilePhoto,
-				profilePhoto: undefined,
-			},
-			receiver: message.receiver
-				? {
-						...message.receiver,
-						avatar: message.receiver.profilePhoto,
-						profilePhoto: undefined,
-					}
-				: undefined,
-			// Add isRead field for WebSocket compatibility (always false for new messages)
-			isRead: message.isRead,
-		};
+		const transformedMessage = this.transformMessageForClient(message);
 
 		// Fire-and-forget push notifications to other participants
 		this.sendPushToParticipants(transformedMessage).catch(() => {});
@@ -261,6 +268,61 @@ export class MessagesService {
 			);
 
 		return withReactions;
+	}
+
+	private transformMessageForClient(message: {
+		id: string;
+		chatRoomId: string;
+		senderId: string;
+		receiverId?: string | null;
+		content: string;
+		fileUrl?: string | null;
+		fileName?: string | null;
+		fileSize?: number | null;
+		clientMessageId?: string | null;
+		attachments?: unknown;
+		createdAt: Date;
+		readBy?: unknown;
+		isRead: boolean;
+		replyData?: unknown;
+		sender: {
+			id: string;
+			firstName: string;
+			lastName: string;
+			profilePhoto: string | null;
+			userColor?: string | null;
+			role: string;
+			externalId?: string | null;
+			phone?: string | null;
+		};
+		receiver?: {
+			id: string;
+			firstName: string;
+			lastName: string;
+			profilePhoto: string | null;
+			userColor?: string | null;
+			role: string;
+			externalId?: string | null;
+			phone?: string | null;
+		} | null;
+	}) {
+		return {
+			...message,
+			clientMessageId: message.clientMessageId ?? undefined,
+			sender: {
+				...message.sender,
+				avatar: message.sender.profilePhoto,
+				profilePhoto: undefined,
+			},
+			receiver: message.receiver
+				? {
+						...message.receiver,
+						avatar: message.receiver.profilePhoto,
+						profilePhoto: undefined,
+					}
+				: undefined,
+			isRead: message.isRead,
+		};
 	}
 
 	/**

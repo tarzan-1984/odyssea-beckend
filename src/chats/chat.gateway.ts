@@ -387,6 +387,7 @@ export class ChatGateway
 		data: {
 			chatRoomId: string;
 			content: string;
+			clientMessageId?: string;
 			fileUrl?: string;
 			fileName?: string;
 			fileSize?: number;
@@ -407,6 +408,7 @@ export class ChatGateway
 		const {
 			chatRoomId,
 			content,
+			clientMessageId,
 			fileUrl,
 			fileName,
 			fileSize,
@@ -453,6 +455,7 @@ export class ChatGateway
 				{
 					chatRoomId,
 					content,
+					clientMessageId,
 					fileUrl,
 					fileName,
 					fileSize,
@@ -466,7 +469,11 @@ export class ChatGateway
 			void this.broadcastMessage(chatRoomId, message);
 
 			// Send confirmation back to sender
-			client.emit('messageSent', { messageId: message.id, chatRoomId });
+			client.emit('messageSent', {
+				messageId: message.id,
+				chatRoomId,
+				clientMessageId: message.clientMessageId ?? undefined,
+			});
 
 			console.log('✅ Message sent:', {
 				userId,
