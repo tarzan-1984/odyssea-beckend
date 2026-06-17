@@ -56,6 +56,21 @@ export class MessagesService {
 		},
 	} as const;
 
+	private readonly messageSenderOnlyInclude = {
+		sender: {
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				profilePhoto: true,
+				userColor: true,
+				role: true,
+				externalId: true,
+				phone: true,
+			},
+		},
+	} as const;
+
 	constructor(
 		private prisma: PrismaService,
 		private fcmPushService: FcmPushService,
@@ -64,6 +79,53 @@ export class MessagesService {
 		private thumbnailService: ThumbnailService,
 		private heicAttachmentService: HeicAttachmentService,
 	) {}
+
+	private isClientMessageIdUniqueViolation(error: unknown): boolean {
+		if (
+			!(error instanceof Prisma.PrismaClientKnownRequestError) ||
+			error.code !== 'P2002'
+		) {
+			return false;
+		}
+		const target = error.meta?.target;
+		if (Array.isArray(target)) {
+			return target.some(
+				(field) =>
+					field === 'client_message_id' ||
+					field === 'clientMessageId' ||
+					String(field).includes('client_message'),
+			);
+		}
+		if (typeof target === 'string') {
+			return target.includes('client_message');
+		}
+		return false;
+	}
+
+	private async findExistingClientOutboundMessage(
+		chatRoomId: string,
+		senderId: string,
+		clientMessageId: string,
+		includeReceiver: boolean,
+	) {
+		const existing = await this.prisma.message.findFirst({
+			where: {
+				chatRoomId,
+				clientMessageId,
+				senderId,
+			},
+			include: includeReceiver
+				? this.messageWithUsersInclude
+				: this.messageSenderOnlyInclude,
+		});
+		if (!existing) {
+			return null;
+		}
+		return {
+			...this.transformMessageForClient(existing),
+			reactions: [],
+		};
+	}
 
 	/**
 	 * Send a message to a chat room
@@ -86,25 +148,6 @@ export class MessagesService {
 		} = sendMessageDto;
 
 		const clientMessageId = rawClientMessageId?.trim() || null;
-		if (clientMessageId) {
-			const existing = await this.prisma.message.findFirst({
-				where: {
-					chatRoomId,
-					senderId,
-					clientMessageId,
-				},
-				include: this.messageWithUsersInclude,
-			});
-			if (existing) {
-				const transformed = this.transformMessageForClient(existing);
-				const [withReactions] =
-					await this.messageReactionsService.attachReactionsToMessages(
-						[transformed],
-						senderId,
-					);
-				return withReactions;
-			}
-		}
 
 		const trimmedContent = content?.trim() ?? '';
 		const attachmentList =
@@ -197,68 +240,63 @@ export class MessagesService {
 					});
 
 		const createdAt = nowInNewYorkAsNaiveDate();
+		const isDirectChat = participants.length === 2;
+		const createInclude = isDirectChat
+			? this.messageWithUsersInclude
+			: this.messageSenderOnlyInclude;
+		const receiverId = isDirectChat
+			? participants.find((p) => p.userId !== senderId)?.userId ?? null
+			: null;
 
-		const message = await this.prisma.$transaction(async (tx) => {
-			const created = await tx.message.create({
-				data: {
+		let message;
+		try {
+			message = await this.prisma.$transaction(async (tx) => {
+				const created = await tx.message.create({
+					data: {
+						chatRoomId,
+						senderId,
+						createdAt,
+						content,
+						fileUrl: effectiveFileUrl,
+						fileName: effectiveFileName,
+						fileSize: effectiveFileSize,
+						clientMessageId,
+						attachments: undefined,
+						replyData,
+						receiverId,
+						isRead: false,
+						readBy: [senderId],
+					},
+					include: createInclude,
+				});
+
+				await tx.chatRoom.update({
+					where: { id: chatRoomId },
+					data: { updatedAt: createdAt },
+				});
+
+				await this.incrementUnreadCountForOtherParticipants(
 					chatRoomId,
 					senderId,
-					createdAt,
-					content,
-					fileUrl: effectiveFileUrl,
-					fileName: effectiveFileName,
-					fileSize: effectiveFileSize,
+					tx,
+				);
+
+				return created;
+			});
+		} catch (error) {
+			if (clientMessageId && this.isClientMessageIdUniqueViolation(error)) {
+				const existing = await this.findExistingClientOutboundMessage(
+					chatRoomId,
+					senderId,
 					clientMessageId,
-					attachments: undefined,
-					replyData,
-					receiverId:
-						participants.length === 2
-							? participants.find((p) => p.userId !== senderId)?.userId
-							: null,
-					isRead: false,
-					readBy: [senderId],
-				},
-				include: {
-					sender: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							profilePhoto: true,
-							userColor: true,
-							role: true,
-							externalId: true,
-							phone: true,
-						},
-					},
-					receiver: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							profilePhoto: true,
-							userColor: true,
-							role: true,
-							externalId: true,
-							phone: true,
-						},
-					},
-				},
-			});
-
-			await tx.chatRoom.update({
-				where: { id: chatRoomId },
-				data: { updatedAt: createdAt },
-			});
-
-			await this.incrementUnreadCountForOtherParticipants(
-				chatRoomId,
-				senderId,
-				tx,
-			);
-
-			return created;
-		});
+					isDirectChat,
+				);
+				if (existing) {
+					return existing;
+				}
+			}
+			throw error;
+		}
 
 		// Transform profilePhoto to avatar for frontend compatibility
 		const transformedMessage = this.transformMessageForClient(message);
