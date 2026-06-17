@@ -735,10 +735,9 @@ export class ChatRoomsService {
 	/**
 	 * Lightweight chat room context for outgoing message / typing flows.
 	 * Does not load message history (unlike getChatRoom).
+	 * Access check and room load are done in a single query.
 	 */
 	async getChatRoomOutboundContext(chatRoomId: string, userId: string) {
-		await this.assertChatRoomAccess(chatRoomId, userId);
-
 		const chatRoom = await this.prisma.chatRoom.findUnique({
 			where: { id: chatRoomId },
 			select: {
@@ -759,6 +758,13 @@ export class ChatRoomsService {
 
 		if (!chatRoom) {
 			throw new NotFoundException('Chat room not found');
+		}
+
+		const isParticipant = chatRoom.participants.some(
+			(participant) => participant.userId === userId,
+		);
+		if (!isParticipant) {
+			throw new NotFoundException('Chat room not found or access denied');
 		}
 
 		return chatRoom;

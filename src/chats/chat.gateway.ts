@@ -476,6 +476,7 @@ export class ChatGateway
 				messageId: message.id,
 				chatRoomId,
 				clientMessageId: message.clientMessageId ?? undefined,
+				message,
 			});
 
 			void this.broadcastMessage(chatRoomId, message, participantUserIds);
