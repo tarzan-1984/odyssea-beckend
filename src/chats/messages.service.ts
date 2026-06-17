@@ -69,7 +69,11 @@ export class MessagesService {
 	 * Send a message to a chat room
 	 * This method handles text messages and file attachments
 	 */
-	async sendMessage(sendMessageDto: SendMessageDto, senderId: string) {
+	async sendMessage(
+		sendMessageDto: SendMessageDto,
+		senderId: string,
+		options?: { participantUserIds?: string[] },
+	) {
 		const {
 			chatRoomId,
 			content,
@@ -146,20 +150,29 @@ export class MessagesService {
 			);
 		}
 
-		// Verify sender is participant in the chat room
-		const participant = await this.prisma.chatRoomParticipant.findUnique({
-			where: {
-				chatRoomId_userId: {
-					chatRoomId,
-					userId: senderId,
+		// Verify sender is participant in the chat room (skip when caller already validated access)
+		const participantUserIds = options?.participantUserIds;
+		if (participantUserIds) {
+			if (!participantUserIds.includes(senderId)) {
+				throw new BadRequestException(
+					'You are not a participant in this chat room',
+				);
+			}
+		} else {
+			const participant = await this.prisma.chatRoomParticipant.findUnique({
+				where: {
+					chatRoomId_userId: {
+						chatRoomId,
+						userId: senderId,
+					},
 				},
-			},
-		});
+			});
 
-		if (!participant) {
-			throw new BadRequestException(
-				'You are not a participant in this chat room',
-			);
+			if (!participant) {
+				throw new BadRequestException(
+					'You are not a participant in this chat room',
+				);
+			}
 		}
 
 		const normalizedAttachments =
@@ -175,10 +188,13 @@ export class MessagesService {
 		const normalizedAttachmentList = normalizedAttachments.attachmentList;
 
 		// Get all participants to determine receivers
-		const participants = await this.prisma.chatRoomParticipant.findMany({
-			where: { chatRoomId },
-			select: { userId: true },
-		});
+		const participants =
+			participantUserIds !== undefined
+				? participantUserIds.map((userId) => ({ userId }))
+				: await this.prisma.chatRoomParticipant.findMany({
+						where: { chatRoomId },
+						select: { userId: true },
+					});
 
 		const createdAt = nowInNewYorkAsNaiveDate();
 
@@ -261,13 +277,10 @@ export class MessagesService {
 				console.error('[MessagesService] Thumbnail generation failed:', error);
 			});
 
-		const [withReactions] =
-			await this.messageReactionsService.attachReactionsToMessages(
-				[transformedMessage],
-				senderId,
-			);
-
-		return withReactions;
+		return {
+			...transformedMessage,
+			reactions: [],
+		};
 	}
 
 	private transformMessageForClient(message: {

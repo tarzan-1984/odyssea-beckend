@@ -434,21 +434,26 @@ export class ChatGateway
 
 			// For DIRECT and OFFER chats: unhide chat for all participants if hidden
 			if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
-				for (const participant of chatRoom.participants) {
-					const wasUnhidden =
-						await this.chatRoomsService.unhideChatRoom(
-							chatRoomId,
-							participant.userId,
-						);
-					if (wasUnhidden) {
-						// Notify the user that their chat was restored
-						this.notifyChatRoomRestored(
-							chatRoomId,
-							participant.userId,
-						);
-					}
-				}
+				await Promise.all(
+					chatRoom.participants.map(async (participant) => {
+						const wasUnhidden =
+							await this.chatRoomsService.unhideChatRoom(
+								chatRoomId,
+								participant.userId,
+							);
+						if (wasUnhidden) {
+							this.notifyChatRoomRestored(
+								chatRoomId,
+								participant.userId,
+							);
+						}
+					}),
+				);
 			}
+
+			const participantUserIds = chatRoom.participants.map(
+				(participant) => participant.userId,
+			);
 
 			// Create message using the service
 			const message = await this.messagesService.sendMessage(
@@ -463,6 +468,7 @@ export class ChatGateway
 					attachments,
 				},
 				userId,
+				{ participantUserIds },
 			);
 
 			// Ack sender immediately after persist; broadcast can follow asynchronously.
@@ -472,7 +478,7 @@ export class ChatGateway
 				clientMessageId: message.clientMessageId ?? undefined,
 			});
 
-			void this.broadcastMessage(chatRoomId, message);
+			void this.broadcastMessage(chatRoomId, message, participantUserIds);
 
 			console.log('✅ Message sent:', {
 				userId,
@@ -677,6 +683,7 @@ export class ChatGateway
 				role: string;
 			} | null;
 		},
+		participantUserIds?: string[],
 	) {
 		console.log(`📤 Broadcasting newMessage to room chat_${chatRoomId}:`, {
 			chatRoomId,
@@ -685,11 +692,13 @@ export class ChatGateway
 			content: message.content.substring(0, 50) + '...',
 		});
 
-		// Participant ids only — message payload already includes sender/receiver.
-		const participants = await this.prisma.chatRoomParticipant.findMany({
-			where: { chatRoomId },
-			select: { userId: true },
-		});
+		const participants =
+			participantUserIds !== undefined
+				? participantUserIds.map((userId) => ({ userId }))
+				: await this.prisma.chatRoomParticipant.findMany({
+						where: { chatRoomId },
+						select: { userId: true },
+					});
 
 		if (participants.length === 0) {
 			console.error(`Chat room ${chatRoomId} has no participants`);

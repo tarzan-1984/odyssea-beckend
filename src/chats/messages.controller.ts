@@ -108,30 +108,37 @@ export class MessagesController {
 		);
 
 		if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
-			for (const participant of chatRoom.participants) {
-				const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
-					sendMessageDto.chatRoomId,
-					participant.userId,
-				);
-				if (wasUnhidden) {
-					// Notify the user that their chat was restored
-					this.chatGateway.notifyChatRoomRestored(
+			await Promise.all(
+				chatRoom.participants.map(async (participant) => {
+					const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
 						sendMessageDto.chatRoomId,
 						participant.userId,
 					);
-				}
-			}
+					if (wasUnhidden) {
+						this.chatGateway.notifyChatRoomRestored(
+							sendMessageDto.chatRoomId,
+							participant.userId,
+						);
+					}
+				}),
+			);
 		}
+
+		const participantUserIds = chatRoom.participants.map(
+			(participant) => participant.userId,
+		);
 
 		const message = await this.messagesService.sendMessage(
 			sendMessageDto,
 			userId,
+			{ participantUserIds },
 		);
 
 		// Broadcast message via WebSocket to all participants
 		void this.chatGateway.broadcastMessage(
 			sendMessageDto.chatRoomId,
 			message,
+			participantUserIds,
 		);
 
 		return message;
