@@ -38,7 +38,6 @@ import type { ExternalApiConfig } from '../config/env.config';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import {
 	normalizeLocationDeviceSnapshot,
-	upsertUserDeviceSnapshot,
 	type LocationDeviceSnapshot,
 } from '../common/upsert-user-device';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -731,7 +730,7 @@ export class UsersService {
 						driverStatus: { equals: 'blocked', mode: 'insensitive' },
 					},
 				},
-				{ userDevices: { some: {} } },
+				{ userDevices: { some: { deviceId: { not: null } } } },
 				...excludeTestDriverClause,
 				...searchClause,
 			],
@@ -752,8 +751,10 @@ export class UsersService {
 				externalId: true,
 				phone: true,
 				userDevices: {
+					where: { deviceId: { not: null } },
 					select: {
 						id: true,
+						deviceId: true,
 						platform: true,
 						appVersion: true,
 						deviceName: true,
@@ -1275,24 +1276,10 @@ export class UsersService {
 
 		const externalIdForLogs = user.externalId ?? null;
 
+		// Device metadata for user_devices is synced on app foreground / login via
+		// GET /app-settings and POST /auth/mobile-device only. Location pings attach
+		// device fields to driver_tracking history points when applicable.
 		const deviceSnapshot = normalizeLocationDeviceSnapshot(locationDto);
-		if (deviceSnapshot && user.externalId?.trim()) {
-			try {
-				await upsertUserDeviceSnapshot(this.prisma, {
-					userExternalId: user.externalId.trim(),
-					deviceId: deviceSnapshot.deviceId!,
-					platform: deviceSnapshot.devicePlatform,
-					deviceName: deviceSnapshot.deviceName,
-					model: deviceSnapshot.deviceModel,
-				});
-			} catch (deviceErr) {
-				this.logger.warn(
-					`Failed to upsert user device snapshot userId=${id} deviceId=${deviceSnapshot.deviceId}: ${
-						deviceErr instanceof Error ? deviceErr.message : String(deviceErr)
-					}`,
-				);
-			}
-		}
 
 		const env =
 			await this.appSettingsService.getLocationEnvironmentAppSettings();
