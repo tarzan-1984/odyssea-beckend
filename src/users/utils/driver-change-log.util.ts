@@ -148,3 +148,45 @@ export function buildTmsDriverWebhookUpdateChanges(
 
 	return buildDriverChangesText(candidates);
 }
+
+export type DriverLocationStatusSnapshot = {
+	driverStatus: string | null;
+	statusDate: string | null;
+	isAutoupdate: boolean;
+	latitude: number | null;
+	longitude: number | null;
+	location: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+};
+
+/** Mobile manual status update: includes status fields and persisted location data. */
+export function buildMobileDriverStatusUpdateChanges(
+	before: DriverLocationStatusSnapshot,
+	after: DriverLocationStatusSnapshot,
+): string {
+	return buildDriverChangesText([
+		{ label: 'Status', oldValue: before.driverStatus, newValue: after.driverStatus },
+		{
+			label: 'Status Date',
+			oldValue: before.statusDate,
+			newValue: after.statusDate,
+		},
+		{
+			label: 'Auto Update',
+			oldValue: before.isAutoupdate,
+			newValue: after.isAutoupdate,
+		},
+		{ label: 'Latitude', oldValue: before.latitude, newValue: after.latitude },
+		{
+			label: 'Longitude',
+			oldValue: before.longitude,
+			newValue: after.longitude,
+		},
+		{ label: 'Location', oldValue: before.location, newValue: after.location },
+		{ label: 'City', oldValue: before.city, newValue: after.city },
+		{ label: 'State', oldValue: before.state, newValue: after.state },
+		{ label: 'Zip', oldValue: before.zip, newValue: after.zip },
+	]);
+}

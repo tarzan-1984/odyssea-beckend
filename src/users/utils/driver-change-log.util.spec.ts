@@ -1,5 +1,6 @@
 import {
 	buildDriverChangeLine,
+	buildMobileDriverStatusUpdateChanges,
 	buildTmsDriverWebhookUpdateChanges,
 } from './driver-change-log.util';
 
@@ -55,5 +56,36 @@ describe('driver-change-log.util', () => {
 		});
 
 		expect(text).toBe('First Name: John → Jane');
+	});
+
+	it('builds mobile status update log with location fields', () => {
+		const text = buildMobileDriverStatusUpdateChanges(
+			{
+				driverStatus: 'loaded_enroute',
+				statusDate: '06/18/26 7:24 AM',
+				isAutoupdate: false,
+				latitude: 40.1,
+				longitude: -74.2,
+				location: 'NJ',
+				city: 'Newark',
+				state: 'NJ',
+				zip: '07102',
+			},
+			{
+				driverStatus: 'available',
+				statusDate: '06/16/2026 16:30',
+				isAutoupdate: true,
+				latitude: 40.7128,
+				longitude: -74.006,
+				location: 'NY',
+				city: 'New York',
+				state: 'NY',
+				zip: '10001',
+			},
+		);
+
+		expect(text).toContain('Status: loaded_enroute → available');
+		expect(text).toContain('Latitude: 40.1 → 40.7128');
+		expect(text).toContain('City: Newark → New York');
 	});
 });

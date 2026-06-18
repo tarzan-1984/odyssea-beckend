@@ -52,7 +52,10 @@ import { isAllowedNorthAmericaLatLng, type LatLng } from '../geocoding/north-ame
 import { resolveTmsLocationCode } from '../tms/tms-current-location.util';
 import { formatDriverLocationPersistedLog } from '../geocoding/driver-location-save-log.util';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
-import { buildTmsDriverWebhookUpdateChanges } from './utils/driver-change-log.util';
+import {
+	buildMobileDriverStatusUpdateChanges,
+	buildTmsDriverWebhookUpdateChanges,
+} from './utils/driver-change-log.util';
 
 function trimLocationField(value: unknown): string {
 	if (value === undefined || value === null) {
@@ -1599,6 +1602,43 @@ export class UsersService {
 				error: err,
 			});
 			throw err;
+		}
+
+		if (
+			isManualAction &&
+			driverStatusPatch !== undefined &&
+			user.role === UserRole.DRIVER &&
+			user.externalId?.trim()
+		) {
+			const mobileChangesText = buildMobileDriverStatusUpdateChanges(
+				{
+					driverStatus: user.driverStatus,
+					statusDate: user.statusDate,
+					isAutoupdate: user.isAutoupdate,
+					latitude: user.latitude,
+					longitude: user.longitude,
+					location: user.location,
+					city: user.city,
+					state: user.state,
+					zip: user.zip,
+				},
+				{
+					driverStatus: updatedUser.driverStatus,
+					statusDate: updatedUser.statusDate,
+					isAutoupdate: updatedUser.isAutoupdate,
+					latitude: updatedUser.latitude,
+					longitude: updatedUser.longitude,
+					location: updatedUser.location,
+					city: updatedUser.city,
+					state: updatedUser.state,
+					zip: updatedUser.zip,
+				},
+			);
+			await this.recordDriverChangeLog(
+				user.externalId.trim(),
+				mobileChangesText,
+				DriverLogSource.mobileApp,
+			);
 		}
 
 		const locationSavedContext = isBackgroundPing
