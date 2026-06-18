@@ -43,7 +43,7 @@ describe('driver-change-log.util', () => {
 		});
 
 		expect(text).toBe(
-			'Status: → available\nDate Available: → 2026-06-17 15:54:00',
+			'Status: → available\nStatus Date: → 2026-06-17 15:54:00',
 		);
 	});
 

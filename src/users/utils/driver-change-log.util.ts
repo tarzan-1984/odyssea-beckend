@@ -112,7 +112,7 @@ export function buildTmsDriverWebhookUpdateChanges(
 	}
 	if ('statusDate' in patch) {
 		candidates.push({
-			label: 'Date Available',
+			label: 'Status Date',
 			oldValue: existing.statusDate,
 			newValue: patch.statusDate,
 		});
