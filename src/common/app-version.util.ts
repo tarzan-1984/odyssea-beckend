@@ -33,6 +33,16 @@ export function isAppVersionBelowMinimum(
 	return compareAppVersions(inst, min) < 0;
 }
 
+/** Like isAppVersionBelowMinimum, but ignores empty/missing installed (check-list version tab). */
+export function isRecordedAppVersionBelowMinimum(
+	installed: string | null | undefined,
+	minimum: string,
+): boolean {
+	const inst = typeof installed === 'string' ? installed.trim() : '';
+	if (!inst) return false;
+	return isAppVersionBelowMinimum(inst, minimum);
+}
+
 /** Empty/missing versions sort before any numeric version (asc). */
 export function compareAppVersionValues(
 	a: string | null | undefined,

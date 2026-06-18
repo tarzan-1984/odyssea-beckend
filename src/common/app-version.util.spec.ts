@@ -3,6 +3,7 @@ import {
 	compareAppVersionValues,
 	getLowestAppVersion,
 	isAppVersionBelowMinimum,
+	isRecordedAppVersionBelowMinimum,
 } from './app-version.util';
 
 describe('compareAppVersions', () => {
@@ -27,6 +28,18 @@ describe('isAppVersionBelowMinimum', () => {
 		expect(isAppVersionBelowMinimum('2.1.4', '2.1.6')).toBe(true);
 		expect(isAppVersionBelowMinimum('2.1.6', '2.1.6')).toBe(false);
 		expect(isAppVersionBelowMinimum('2.2.0', '2.1.6')).toBe(false);
+	});
+});
+
+describe('isRecordedAppVersionBelowMinimum', () => {
+	it('ignores missing installed version', () => {
+		expect(isRecordedAppVersionBelowMinimum(null, '2.1.6')).toBe(false);
+		expect(isRecordedAppVersionBelowMinimum('', '2.1.6')).toBe(false);
+	});
+
+	it('detects outdated recorded version', () => {
+		expect(isRecordedAppVersionBelowMinimum('2.1.4', '2.1.6')).toBe(true);
+		expect(isRecordedAppVersionBelowMinimum('2.1.6', '2.1.6')).toBe(false);
 	});
 });
 

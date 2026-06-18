@@ -14,7 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
 	compareAppVersionValues,
 	getLowestAppVersion,
-	isAppVersionBelowMinimum,
+	isRecordedAppVersionBelowMinimum,
 } from '../common/app-version.util';
 import { buildUserTextSearchWhereInput } from './user-text-search.util';
 import { MailerService } from '../mailer/mailer.service';
@@ -651,7 +651,10 @@ export class UsersService {
 			const rows = await this.fetchActiveDriversWithDevicesForCheckList(search);
 			const matching = rows.filter((user) =>
 				user.userDevices.some((device) =>
-					isAppVersionBelowMinimum(device.appVersion, minimumAppVersion),
+					isRecordedAppVersionBelowMinimum(
+						device.appVersion,
+						minimumAppVersion,
+					),
 				),
 			);
 
