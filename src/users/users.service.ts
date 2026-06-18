@@ -25,7 +25,7 @@ import {
 	WebhookType,
 	WebhookRole,
 } from './dto/webhook-sync.dto';
-import { Prisma, UserRole, UserStatus } from '@prisma/client';
+import { Prisma, UserRole, UserStatus, DriverLogSource } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 import {
@@ -51,6 +51,8 @@ import type { DriverReverseGeocodeResult } from '../geocoding/driver-reverse-geo
 import { isAllowedNorthAmericaLatLng, type LatLng } from '../geocoding/north-america-bbox.util';
 import { resolveTmsLocationCode } from '../tms/tms-current-location.util';
 import { formatDriverLocationPersistedLog } from '../geocoding/driver-location-save-log.util';
+import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
+import { buildTmsDriverWebhookUpdateChanges } from './utils/driver-change-log.util';
 
 function trimLocationField(value: unknown): string {
 	if (value === undefined || value === null) {
@@ -99,6 +101,25 @@ export class UsersService {
 		}
 		const n = driverStatus.trim().toLowerCase();
 		return n === 'loaded_enroute' || n === 'available';
+	}
+
+	private async recordDriverChangeLog(
+		driverExternalId: string,
+		changes: string,
+		source: DriverLogSource,
+	): Promise<void> {
+		const trimmed = changes.trim();
+		if (!trimmed) {
+			return;
+		}
+		await this.prisma.driverLog.create({
+			data: {
+				driverId: driverExternalId,
+				changes: trimmed,
+				source,
+				createdAt: nowInNewYorkAsNaiveDate(),
+			},
+		});
 	}
 
 	constructor(
@@ -2091,6 +2112,52 @@ export class UsersService {
 				updateData.company = normalizeCompany(permission_view);
 			}
 
+			const changePatch: Parameters<
+				typeof buildTmsDriverWebhookUpdateChanges
+			>[1] = {
+				email: driver_email,
+				firstName,
+				lastName,
+			};
+			if (driver_phone !== undefined) {
+				changePatch.phone = driver_phone || null;
+			}
+			if (driver_status !== undefined) {
+				changePatch.driverStatus = driver_status || null;
+				changePatch.isAutoupdate =
+					existingUser.status === UserStatus.ACTIVE
+						? this.isAutoupdateForTmsDriverStatus(driver_status)
+						: false;
+			}
+			if (status_date !== undefined) {
+				changePatch.statusDate = status_date || null;
+			}
+			if (vehicle_type !== undefined) {
+				changePatch.vehicleType = vehicle_type || null;
+			}
+			if (vin !== undefined) {
+				changePatch.vin = vin || null;
+			}
+			if (permission_view !== undefined) {
+				changePatch.company = normalizeCompany(permission_view);
+			}
+
+			const driverChangesText = buildTmsDriverWebhookUpdateChanges(
+				{
+					email: existingUser.email,
+					firstName: existingUser.firstName,
+					lastName: existingUser.lastName,
+					phone: existingUser.phone,
+					driverStatus: existingUser.driverStatus,
+					statusDate: existingUser.statusDate,
+					type: existingUser.type,
+					vin: existingUser.vin,
+					company: existingUser.company,
+					isAutoupdate: existingUser.isAutoupdate,
+				},
+				changePatch,
+			);
+
 			const updatedUser = await this.prisma.user.update({
 				where: { id: existingUser.id },
 				data: updateData,
@@ -2116,6 +2183,12 @@ export class UsersService {
 					deactivateAccount: true,
 				},
 			});
+
+			await this.recordDriverChangeLog(
+				driverId,
+				driverChangesText,
+				DriverLogSource.TMS,
+			);
 
 			await this.notificationsWebSocketService.sendDriverProfileSync(
 				existingUser.id,
