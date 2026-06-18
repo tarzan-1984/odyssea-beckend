@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { UsersService } from './users.service';
+import { DriverLogService } from './driver-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { MailerService } from '../mailer/mailer.service';
@@ -119,6 +120,10 @@ describe('UsersService', () => {
 				{
 					provide: TmsLoadDetailsService,
 					useValue: {},
+				},
+				{
+					provide: DriverLogService,
+					useValue: { record: jest.fn().mockResolvedValue(undefined) },
 				},
 			],
 		}).compile();

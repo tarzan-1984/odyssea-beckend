@@ -3,6 +3,7 @@ import {
 	buildDriverChangeLine,
 	buildMobileDriverStatusUpdateChanges,
 	buildTmsDriverWebhookUpdateChanges,
+	buildTmsLoadStatusDriverChanges,
 } from './driver-change-log.util';
 
 describe('driver-change-log.util', () => {
@@ -96,5 +97,49 @@ describe('driver-change-log.util', () => {
 		expect(appendDriverTrackingPointCreatedNote('', 'LOAD-991')).toBe(
 			'Tracking History Point: → Created for load LOAD-991',
 		);
+	});
+
+	it('builds TMS load status driver change log', () => {
+		const text = buildTmsLoadStatusDriverChanges(
+			{
+				driverStatus: 'available',
+				isTracking: false,
+				trackingLoadId: null,
+			},
+			{
+				driverStatus: 'loaded_enroute',
+				isTracking: true,
+				trackingLoadId: '99123',
+			},
+			{ loadId: '99123', normalizedLoadStatus: 'loaded_enroute' },
+		);
+
+		expect(text).toContain(
+			'Load Status Change: → loaded_enroute (load 99123)',
+		);
+		expect(text).toContain('Status: available → loaded_enroute');
+		expect(text).toContain('Is Tracking: false → true');
+		expect(text).toContain('Tracking Load Id: → 99123');
+	});
+
+	it('builds TMS terminal load status cleanup log', () => {
+		const text = buildTmsLoadStatusDriverChanges(
+			{
+				driverStatus: 'loaded_enroute',
+				isTracking: true,
+				trackingLoadId: '99123',
+			},
+			{
+				driverStatus: 'loaded_enroute',
+				isTracking: false,
+				trackingLoadId: null,
+			},
+			{ loadId: '99123', normalizedLoadStatus: 'delivered' },
+		);
+
+		expect(text).toContain('Load Status Change: → delivered (load 99123)');
+		expect(text).not.toContain('Status: loaded_enroute →');
+		expect(text).toContain('Is Tracking: true → false');
+		expect(text).toContain('Tracking Load Id: 99123 →');
 	});
 });

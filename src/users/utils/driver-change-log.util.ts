@@ -184,3 +184,40 @@ export function appendDriverTrackingPointCreatedNote(
 	const trimmed = changesText.trim();
 	return trimmed ? `${trimmed}\n${line}` : line;
 }
+
+export type TmsLoadStatusDriverSnapshot = {
+	driverStatus: string | null;
+	isTracking: boolean;
+	trackingLoadId: string | null;
+};
+
+/** TMS load status webhook: driver fields set/cleared for tracking. */
+export function buildTmsLoadStatusDriverChanges(
+	before: TmsLoadStatusDriverSnapshot,
+	after: TmsLoadStatusDriverSnapshot,
+	params: { loadId: string; normalizedLoadStatus: string },
+): string {
+	const eventLabel = `${params.normalizedLoadStatus} (load ${params.loadId})`;
+	return buildDriverChangesText([
+		{
+			label: 'Load Status Change',
+			oldValue: null,
+			newValue: eventLabel,
+		},
+		{
+			label: 'Status',
+			oldValue: before.driverStatus,
+			newValue: after.driverStatus,
+		},
+		{
+			label: 'Is Tracking',
+			oldValue: before.isTracking,
+			newValue: after.isTracking,
+		},
+		{
+			label: 'Tracking Load Id',
+			oldValue: before.trackingLoadId,
+			newValue: after.trackingLoadId,
+		},
+	]);
+}

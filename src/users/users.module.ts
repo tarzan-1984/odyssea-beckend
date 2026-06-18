@@ -13,6 +13,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { TmsModule } from '../tms/tms.module';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
 import { GeocodingModule } from '../geocoding/geocoding.module';
+import { DriverLogModule } from './driver-log.module';
 
 @Module({
 	imports: [
@@ -22,6 +23,7 @@ import { GeocodingModule } from '../geocoding/geocoding.module';
 		TmsModule,
 		AppSettingsModule,
 		GeocodingModule,
+		DriverLogModule,
 	],
 		controllers: [UsersController, SyncController, DriversWebhookController],
 	providers: [

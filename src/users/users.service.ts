@@ -51,6 +51,7 @@ import type { DriverReverseGeocodeResult } from '../geocoding/driver-reverse-geo
 import { isAllowedNorthAmericaLatLng, type LatLng } from '../geocoding/north-america-bbox.util';
 import { resolveTmsLocationCode } from '../tms/tms-current-location.util';
 import { formatDriverLocationPersistedLog } from '../geocoding/driver-location-save-log.util';
+import { DriverLogService } from './driver-log.service';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { formatStatusDateNyDisplay } from '../common/utils/status-date-ny.util';
 import {
@@ -113,22 +114,12 @@ export class UsersService {
 		changes: string,
 		source: DriverLogSource,
 	): Promise<void> {
-		const trimmed = changes.trim();
-		if (!trimmed) {
-			return;
-		}
-		await this.prisma.driverLog.create({
-			data: {
-				driverId: driverExternalId,
-				changes: trimmed,
-				source,
-				createdAt: nowInNewYorkAsNaiveDate(),
-			},
-		});
+		await this.driverLogService.record(driverExternalId, changes, source);
 	}
 
 	constructor(
 		private readonly prisma: PrismaService,
+		private readonly driverLogService: DriverLogService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly notificationsService: NotificationsService,
 		private readonly mailerService: MailerService,

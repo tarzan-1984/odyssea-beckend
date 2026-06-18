@@ -16,7 +16,7 @@ import {
 	UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { UserRole, UserStatus } from '@prisma/client';
+import { UserRole, UserStatus, DriverLogSource } from '@prisma/client';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -36,6 +36,8 @@ import {
 	TmsLoadDetailsService,
 } from './tms-load-details.service';
 import { TmsLoadTrackingService } from './tms-load-tracking.service';
+import { DriverLogService } from '../users/driver-log.service';
+import { buildTmsLoadStatusDriverChanges } from '../users/utils/driver-change-log.util';
 /** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
 const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
 
@@ -74,6 +76,7 @@ export class TmsController {
 		private readonly prisma: PrismaService,
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly notificationsService: NotificationsService,
+		private readonly driverLogService: DriverLogService,
 	) {}
 
 	@Get('driver/loads')
@@ -422,6 +425,8 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 				role: true,
 				status: true,
 				driverStatus: true,
+				isTracking: true,
+				trackingLoadId: true,
 			},
 		});
 
@@ -458,6 +463,11 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 		}
 
 		const oldDriverStatus = driver.driverStatus ?? null;
+		const beforeLoadStatusDriver = {
+			driverStatus: driver.driverStatus ?? null,
+			isTracking: driver.isTracking,
+			trackingLoadId: driver.trackingLoadId,
+		};
 
 		if (isTmsLoadTerminalStatus(normalizedLoadStatus)) {
 			const deliveredAt = new Date();
@@ -494,6 +504,20 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 
 			this.logger.log(
 				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=driver_tracking_stopped load_status=${normalizedLoadStatus} load_id=${loadId} driver_id=${driverId} driver_tracking_rows_preserved deletedRouteGeocode=${geocodeCleanup.count} load_chat_delivery_at_updated=${loadChatDeliveryUpdate.count} (driver_status_unchanged)`,
+			);
+
+			await this.driverLogService.record(
+				driverId,
+				buildTmsLoadStatusDriverChanges(
+					beforeLoadStatusDriver,
+					{
+						driverStatus: updatedDriver.driverStatus ?? null,
+						isTracking: updatedDriver.isTracking,
+						trackingLoadId: updatedDriver.trackingLoadId,
+					},
+					{ loadId, normalizedLoadStatus },
+				),
+				DriverLogSource.TMS,
 			);
 
 			await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
@@ -578,6 +602,20 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- detail=offer_cleanup load_id=${loadId} offers=${offerCleanup.offers} rateOffers=${offerCleanup.rateOffers}`,
 			);
 		}
+
+		await this.driverLogService.record(
+			driverId,
+			buildTmsLoadStatusDriverChanges(
+				beforeLoadStatusDriver,
+				{
+					driverStatus: updatedDriver.driverStatus ?? null,
+					isTracking: updatedDriver.isTracking,
+					trackingLoadId: updatedDriver.trackingLoadId,
+				},
+				{ loadId, normalizedLoadStatus },
+			),
+			DriverLogSource.TMS,
+		);
 
 		await this.notificationsWebSocketService.sendDriverProfileSync(driver.id, {
 			driverStatus: updatedDriver.driverStatus ?? null,
