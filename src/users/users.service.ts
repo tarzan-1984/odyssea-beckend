@@ -730,7 +730,7 @@ export class UsersService {
 						driverStatus: { equals: 'blocked', mode: 'insensitive' },
 					},
 				},
-				{ userDevices: { some: { deviceId: { not: null } } } },
+				{ userDevices: { some: {} } },
 				...excludeTestDriverClause,
 				...searchClause,
 			],
@@ -751,7 +751,6 @@ export class UsersService {
 				externalId: true,
 				phone: true,
 				userDevices: {
-					where: { deviceId: { not: null } },
 					select: {
 						id: true,
 						deviceId: true,
