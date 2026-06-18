@@ -12,7 +12,6 @@ describe('driver-change-log.util', () => {
 		lastName: 'Doe',
 		phone: null,
 		driverStatus: null,
-		statusDate: null,
 		type: null,
 		vin: null,
 		company: [] as string[],
@@ -41,12 +40,9 @@ describe('driver-change-log.util', () => {
 			firstName: 'John',
 			lastName: 'Doe',
 			driverStatus: 'available',
-			statusDate: '2026-06-17 15:54:00',
 		});
 
-		expect(text).toBe(
-			'Status: → available\nStatus Date: → 2026-06-17 15:54:00',
-		);
+		expect(text).toBe('Status: → available');
 	});
 
 	it('skips fields not present in webhook patch', () => {
@@ -63,7 +59,6 @@ describe('driver-change-log.util', () => {
 		const text = buildMobileDriverStatusUpdateChanges(
 			{
 				driverStatus: 'loaded_enroute',
-				statusDate: '06/18/26 7:24 AM',
 				isAutoupdate: false,
 				latitude: 40.1,
 				longitude: -74.2,
@@ -74,7 +69,6 @@ describe('driver-change-log.util', () => {
 			},
 			{
 				driverStatus: 'available',
-				statusDate: '06/16/2026 16:30',
 				isAutoupdate: true,
 				latitude: 40.7128,
 				longitude: -74.006,

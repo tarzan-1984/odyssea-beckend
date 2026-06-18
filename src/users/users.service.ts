@@ -52,6 +52,7 @@ import { isAllowedNorthAmericaLatLng, type LatLng } from '../geocoding/north-ame
 import { resolveTmsLocationCode } from '../tms/tms-current-location.util';
 import { formatDriverLocationPersistedLog } from '../geocoding/driver-location-save-log.util';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
+import { formatStatusDateNyDisplay } from '../common/utils/status-date-ny.util';
 import {
 	appendDriverTrackingPointCreatedNote,
 	buildMobileDriverStatusUpdateChanges,
@@ -1556,7 +1557,16 @@ export class UsersService {
 			data.driverStatus = driverStatusPatch;
 		}
 		if (locationDto.statusDate !== undefined) {
-			data.statusDate = locationDto.statusDate;
+			if (
+				isManualAction &&
+				driverStatusPatch !== undefined &&
+				driverStatusPatch.trim().toLowerCase() !== 'available_on'
+			) {
+				// Manual status submit uses server NY wall-clock (not device local time).
+				data.statusDate = formatStatusDateNyDisplay(new Date());
+			} else {
+				data.statusDate = locationDto.statusDate;
+			}
 		}
 		if (locationDto.isAutoupdate !== undefined) {
 			data.isAutoupdate = locationDto.isAutoupdate;
@@ -1656,7 +1666,6 @@ export class UsersService {
 			let mobileChangesText = buildMobileDriverStatusUpdateChanges(
 				{
 					driverStatus: user.driverStatus,
-					statusDate: user.statusDate,
 					isAutoupdate: user.isAutoupdate,
 					latitude: user.latitude,
 					longitude: user.longitude,
@@ -1667,7 +1676,6 @@ export class UsersService {
 				},
 				{
 					driverStatus: updatedUser.driverStatus,
-					statusDate: updatedUser.statusDate,
 					isAutoupdate: updatedUser.isAutoupdate,
 					latitude: updatedUser.latitude,
 					longitude: updatedUser.longitude,
@@ -2176,9 +2184,6 @@ export class UsersService {
 						? this.isAutoupdateForTmsDriverStatus(driver_status)
 						: false;
 			}
-			if (status_date !== undefined) {
-				changePatch.statusDate = status_date || null;
-			}
 			if (vehicle_type !== undefined) {
 				changePatch.vehicleType = vehicle_type || null;
 			}
@@ -2196,7 +2201,6 @@ export class UsersService {
 					lastName: existingUser.lastName,
 					phone: existingUser.phone,
 					driverStatus: existingUser.driverStatus,
-					statusDate: existingUser.statusDate,
 					type: existingUser.type,
 					vin: existingUser.vin,
 					company: existingUser.company,

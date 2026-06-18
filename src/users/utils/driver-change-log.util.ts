@@ -57,7 +57,6 @@ export type ExistingDriverChangeSnapshot = {
 	lastName: string;
 	phone: string | null;
 	driverStatus: string | null;
-	statusDate: string | null;
 	type: string | null;
 	vin: string | null;
 	company: string[];
@@ -70,7 +69,6 @@ export type TmsDriverWebhookChangePatch = {
 	lastName: string;
 	phone?: string | null;
 	driverStatus?: string | null;
-	statusDate?: string | null;
 	vehicleType?: string | null;
 	vin?: string | null;
 	company?: string[];
@@ -110,13 +108,6 @@ export function buildTmsDriverWebhookUpdateChanges(
 			newValue: patch.driverStatus,
 		});
 	}
-	if ('statusDate' in patch) {
-		candidates.push({
-			label: 'Status Date',
-			oldValue: existing.statusDate,
-			newValue: patch.statusDate,
-		});
-	}
 	if ('vehicleType' in patch) {
 		candidates.push({
 			label: 'Vehicle Type',
@@ -151,7 +142,6 @@ export function buildTmsDriverWebhookUpdateChanges(
 
 export type DriverLocationStatusSnapshot = {
 	driverStatus: string | null;
-	statusDate: string | null;
 	isAutoupdate: boolean;
 	latitude: number | null;
 	longitude: number | null;
@@ -168,11 +158,6 @@ export function buildMobileDriverStatusUpdateChanges(
 ): string {
 	return buildDriverChangesText([
 		{ label: 'Status', oldValue: before.driverStatus, newValue: after.driverStatus },
-		{
-			label: 'Status Date',
-			oldValue: before.statusDate,
-			newValue: after.statusDate,
-		},
 		{
 			label: 'Auto Update',
 			oldValue: before.isAutoupdate,
