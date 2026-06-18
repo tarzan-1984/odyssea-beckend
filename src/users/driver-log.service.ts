@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { DriverLogSource } from '@prisma/client';
-import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
+import {
+	getNyWallClockHoursAgo,
+	nowInNewYorkAsNaiveDate,
+} from '../common/utils/ny-wall-clock';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -24,5 +27,16 @@ export class DriverLogService {
 				createdAt: nowInNewYorkAsNaiveDate(),
 			},
 		});
+	}
+
+	/** Deletes rows with createdAt strictly older than N hours (NY wall-clock). */
+	async purgeOlderThanNyHours(hours: number): Promise<number> {
+		const cutoff = getNyWallClockHoursAgo(hours);
+		const result = await this.prisma.driverLog.deleteMany({
+			where: {
+				createdAt: { lt: cutoff },
+			},
+		});
+		return result.count;
 	}
 }
