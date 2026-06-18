@@ -15,6 +15,7 @@ import {
 	newParticipantJoinedAt,
 	nowInNewYorkAsNaiveDate,
 } from '../common/utils/ny-wall-clock';
+import { buildArchivedLoadChatSearchWhereInput } from './chat-room-search.util';
 
 /**
  * ADMINISTRATOR users are auto-added as hidden LOAD chat participants unless their
@@ -643,22 +644,30 @@ export class ChatRoomsService {
 		userId: string,
 		page: number,
 		limitRaw: number,
+		searchRaw?: string,
 	) {
 		const limit = Math.min(Math.max(limitRaw || 10, 1), 50);
 		const skip = Math.max(page - 1, 0) * limit;
 
-		const chatRooms = await this.prisma.chatRoom.findMany({
-			where: {
-				type: 'LOAD',
-				isLoadArchived: true,
-				isArchived: false,
-				participants: {
-					some: {
-						userId,
-						isHidden: false,
-					},
+		const baseWhere: Prisma.ChatRoomWhereInput = {
+			type: 'LOAD',
+			isLoadArchived: true,
+			isArchived: false,
+			participants: {
+				some: {
+					userId,
+					isHidden: false,
 				},
 			},
+		};
+
+		const searchFilter = buildArchivedLoadChatSearchWhereInput(searchRaw);
+		const where: Prisma.ChatRoomWhereInput = searchFilter
+			? { AND: [baseWhere, searchFilter] }
+			: baseWhere;
+
+		const chatRooms = await this.prisma.chatRoom.findMany({
+			where,
 			orderBy: { updatedAt: 'desc' },
 			skip,
 			take: limit + 1,

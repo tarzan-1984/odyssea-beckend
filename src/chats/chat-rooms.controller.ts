@@ -340,10 +340,16 @@ export class ChatRoomsController {
 	})
 	@ApiQuery({ name: 'page', required: false, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, example: 10 })
+	@ApiQuery({
+		name: 'search',
+		required: false,
+		description: 'Filter archived LOAD chats by name, loadId, or participant',
+	})
 	async getArchivedLoadChatRooms(
 		@Request() req: AuthenticatedRequest,
 		@Query('page') pageStr?: string,
 		@Query('limit') limitStr?: string,
+		@Query('search') search?: string,
 	) {
 		const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
 		const limit = parseInt(limitStr || '10', 10);
@@ -352,6 +358,7 @@ export class ChatRoomsController {
 			userId,
 			page,
 			limit,
+			search,
 		);
 	}
 
