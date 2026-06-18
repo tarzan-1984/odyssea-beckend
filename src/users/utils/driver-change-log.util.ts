@@ -161,7 +161,7 @@ export type DriverLocationStatusSnapshot = {
 	zip: string | null;
 };
 
-/** Mobile manual status update: includes status fields and persisted location data. */
+/** Mobile location/status update: includes status fields and persisted location data. */
 export function buildMobileDriverStatusUpdateChanges(
 	before: DriverLocationStatusSnapshot,
 	after: DriverLocationStatusSnapshot,
@@ -189,4 +189,13 @@ export function buildMobileDriverStatusUpdateChanges(
 		{ label: 'State', oldValue: before.state, newValue: after.state },
 		{ label: 'Zip', oldValue: before.zip, newValue: after.zip },
 	]);
+}
+
+export function appendDriverTrackingPointCreatedNote(
+	changesText: string,
+	loadId: string,
+): string {
+	const line = `Tracking History Point: → Created for load ${loadId}`;
+	const trimmed = changesText.trim();
+	return trimmed ? `${trimmed}\n${line}` : line;
 }

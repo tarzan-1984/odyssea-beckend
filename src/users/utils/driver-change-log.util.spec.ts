@@ -1,4 +1,5 @@
 import {
+	appendDriverTrackingPointCreatedNote,
 	buildDriverChangeLine,
 	buildMobileDriverStatusUpdateChanges,
 	buildTmsDriverWebhookUpdateChanges,
@@ -87,5 +88,19 @@ describe('driver-change-log.util', () => {
 		expect(text).toContain('Status: loaded_enroute → available');
 		expect(text).toContain('Latitude: 40.1 → 40.7128');
 		expect(text).toContain('City: Newark → New York');
+	});
+
+	it('appends tracking history point note with load id', () => {
+		expect(
+			appendDriverTrackingPointCreatedNote(
+				'Latitude: 40.1 → 40.2',
+				'LOAD-991',
+			),
+		).toBe(
+			'Latitude: 40.1 → 40.2\nTracking History Point: → Created for load LOAD-991',
+		);
+		expect(appendDriverTrackingPointCreatedNote('', 'LOAD-991')).toBe(
+			'Tracking History Point: → Created for load LOAD-991',
+		);
 	});
 });

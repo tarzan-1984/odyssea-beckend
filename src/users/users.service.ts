@@ -53,6 +53,7 @@ import { resolveTmsLocationCode } from '../tms/tms-current-location.util';
 import { formatDriverLocationPersistedLog } from '../geocoding/driver-location-save-log.util';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import {
+	appendDriverTrackingPointCreatedNote,
 	buildMobileDriverStatusUpdateChanges,
 	buildTmsDriverWebhookUpdateChanges,
 } from './utils/driver-change-log.util';
@@ -1604,42 +1605,10 @@ export class UsersService {
 			throw err;
 		}
 
-		if (
-			isManualAction &&
-			driverStatusPatch !== undefined &&
+		const shouldLogMobileDriverChanges =
 			user.role === UserRole.DRIVER &&
-			user.externalId?.trim()
-		) {
-			const mobileChangesText = buildMobileDriverStatusUpdateChanges(
-				{
-					driverStatus: user.driverStatus,
-					statusDate: user.statusDate,
-					isAutoupdate: user.isAutoupdate,
-					latitude: user.latitude,
-					longitude: user.longitude,
-					location: user.location,
-					city: user.city,
-					state: user.state,
-					zip: user.zip,
-				},
-				{
-					driverStatus: updatedUser.driverStatus,
-					statusDate: updatedUser.statusDate,
-					isAutoupdate: updatedUser.isAutoupdate,
-					latitude: updatedUser.latitude,
-					longitude: updatedUser.longitude,
-					location: updatedUser.location,
-					city: updatedUser.city,
-					state: updatedUser.state,
-					zip: updatedUser.zip,
-				},
-			);
-			await this.recordDriverChangeLog(
-				user.externalId.trim(),
-				mobileChangesText,
-				DriverLogSource.mobileApp,
-			);
-		}
+			user.externalId?.trim() &&
+			((isManualAction && driverStatusPatch !== undefined) || isBackgroundPing);
 
 		const locationSavedContext = isBackgroundPing
 			? 'Location update [background] saved to DB'
@@ -1680,6 +1649,44 @@ export class UsersService {
 		if (trackingPoint) {
 			void this.notificationsWebSocketService.sendDriverTrackingPointCreated(
 				trackingPoint,
+			);
+		}
+
+		if (shouldLogMobileDriverChanges) {
+			let mobileChangesText = buildMobileDriverStatusUpdateChanges(
+				{
+					driverStatus: user.driverStatus,
+					statusDate: user.statusDate,
+					isAutoupdate: user.isAutoupdate,
+					latitude: user.latitude,
+					longitude: user.longitude,
+					location: user.location,
+					city: user.city,
+					state: user.state,
+					zip: user.zip,
+				},
+				{
+					driverStatus: updatedUser.driverStatus,
+					statusDate: updatedUser.statusDate,
+					isAutoupdate: updatedUser.isAutoupdate,
+					latitude: updatedUser.latitude,
+					longitude: updatedUser.longitude,
+					location: updatedUser.location,
+					city: updatedUser.city,
+					state: updatedUser.state,
+					zip: updatedUser.zip,
+				},
+			);
+			if (isBackgroundPing && trackingPoint) {
+				mobileChangesText = appendDriverTrackingPointCreatedNote(
+					mobileChangesText,
+					trackingPoint.loadId,
+				);
+			}
+			await this.recordDriverChangeLog(
+				user.externalId!.trim(),
+				mobileChangesText,
+				DriverLogSource.mobileApp,
 			);
 		}
 
