@@ -205,6 +205,17 @@ export class UsersService {
 		)}:${get('second')}`;
 	}
 
+	/** Naive NY wall-clock TIMESTAMP from user_devices.last_active_at. */
+	private formatNaiveTimestampForApi(
+		value: Date | null | undefined,
+	): string | null {
+		if (!value) return null;
+		const ms = value.getTime();
+		if (!Number.isFinite(ms)) return null;
+		const pad = (n: number) => String(n).padStart(2, '0');
+		return `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())} ${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}:${pad(value.getUTCSeconds())}`;
+	}
+
 	private async maybeCreateDriverTrackingPoint(
 		user: {
 			id: string;
@@ -758,6 +769,7 @@ export class UsersService {
 						appVersion: true,
 						deviceName: true,
 						model: true,
+						lastActiveAt: true,
 					},
 					orderBy: [{ platform: 'asc' }, { updatedAt: 'desc' }],
 				},
@@ -823,6 +835,9 @@ export class UsersService {
 					appVersion: device.appVersion,
 					deviceName: device.deviceName,
 					model: device.model,
+					lastActiveAt: this.formatNaiveTimestampForApi(
+						device.lastActiveAt,
+					),
 				})),
 			})),
 			...(minimumAppVersion !== undefined ? { minimumAppVersion } : {}),
