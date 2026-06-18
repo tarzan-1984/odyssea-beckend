@@ -1185,28 +1185,17 @@ export class OffersService {
 	 * Driver remains in administrators list, but becomes inactive.
 	 */
 	async removeDriverFromOffer(offerId: number, driverExternalId: string) {
-		const nowNy = nowInNewYorkAsLocaleString();
-		const updated = await this.prisma.$transaction(async (tx) => {
-			const result = await tx.rateOffer.updateMany({
-				where: {
-					offerId,
-					driverId: driverExternalId,
-				},
-				data: {
-					active: false,
-					rate: null,
-					actionTime: null,
-					driverEta: null,
-				},
-			});
-			if (result.count === 0) {
-				return result;
-			}
-			await tx.offer.update({
-				where: { id: offerId },
-				data: { updateTime: nowNy },
-			});
-			return result;
+		const updated = await this.prisma.rateOffer.updateMany({
+			where: {
+				offerId,
+				driverId: driverExternalId,
+			},
+			data: {
+				active: false,
+				rate: null,
+				actionTime: null,
+				driverEta: null,
+			},
 		});
 		if (updated.count === 0) {
 			throw new NotFoundException(

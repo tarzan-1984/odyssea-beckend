@@ -3,12 +3,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { isNyLocaleStringOlderThanHours } from '../common/utils/ny-wall-clock';
 
-const OFFER_UPDATE_TIME_RETENTION_HOURS = 24;
+const OFFER_UPDATE_TIME_RETENTION_HOURS = 12;
 
 /**
  * Cron job that runs daily to delete:
  * - inactive offers (active = false)
- * - offers whose update_time is older than 24 hours (America/New_York wall clock)
+ * - offers whose update_time is older than 12 hours (America/New_York wall clock)
  * Also deletes linked chat rooms (and their messages, participants) and rate_offers.
  */
 @Injectable()

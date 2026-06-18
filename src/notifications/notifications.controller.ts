@@ -17,8 +17,6 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
-import { nowInNewYorkAsLocaleString } from '../common/utils/ny-wall-clock';
-
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
@@ -157,8 +155,6 @@ export class NotificationsController {
 			userId?: string | null;
 			externalId?: string | null;
 			platform?: 'all' | 'ios' | 'android' | null;
-			/** When set, updates offers.update_time (NY) after a successful single-user push. */
-			offerId?: number | string | null;
 		},
 	) {
 		const message = typeof body?.message === 'string' ? body.message.trim() : '';
@@ -216,14 +212,6 @@ export class NotificationsController {
 			message,
 			userId,
 		});
-
-		const offerId = this.parseOptionalOfferId(body?.offerId);
-		if (offerId != null) {
-			await this.prisma.offer.updateMany({
-				where: { id: offerId },
-				data: { updateTime: nowInNewYorkAsLocaleString() },
-			});
-		}
 
 		return { success: true, data: result };
 	}
@@ -348,19 +336,5 @@ export class NotificationsController {
 		});
 
 		return { success: result.sent, data: result };
-	}
-
-	private parseOptionalOfferId(value: unknown): number | null {
-		if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-			return value;
-		}
-		if (typeof value === 'string') {
-			const trimmed = value.trim();
-			if (/^\d+$/.test(trimmed)) {
-				const parsed = parseInt(trimmed, 10);
-				return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-			}
-		}
-		return null;
 	}
 }
