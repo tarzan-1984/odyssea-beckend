@@ -3,7 +3,19 @@
  * until clients ship UI updates that hide them.
  */
 export const MOBILE_LOAD_META_BOOKED_RATE_KEY = 'booked_rate' as const;
-export const MOBILE_LOAD_META_ATTACHED_FILES_KEY = 'attached_files' as const;
+
+/** Single WP media id fields shown on the mobile Documents tab. */
+export const MOBILE_HIDDEN_LOAD_DOCUMENT_SINGLE_KEYS = [
+	'proof_of_delivery',
+	'updated_rate_confirmation',
+	'screen_picture',
+] as const;
+
+/** Multi-file WP media id fields shown on the mobile Documents tab. */
+export const MOBILE_HIDDEN_LOAD_DOCUMENT_ARRAY_KEYS = [
+	'freight_pictures',
+	'attached_files',
+] as const;
 
 export const MOBILE_DRIVER_HIDDEN_LOAD_META_KEYS = [
 	'load_type',
@@ -25,7 +37,13 @@ export function sanitizeMobileLoadMeta(
 
 	const next = { ...meta };
 	next[MOBILE_LOAD_META_BOOKED_RATE_KEY] = '';
-	next[MOBILE_LOAD_META_ATTACHED_FILES_KEY] = [];
+
+	for (const key of MOBILE_HIDDEN_LOAD_DOCUMENT_SINGLE_KEYS) {
+		next[key] = '';
+	}
+	for (const key of MOBILE_HIDDEN_LOAD_DOCUMENT_ARRAY_KEYS) {
+		next[key] = [];
+	}
 
 	if (options.forDriver) {
 		for (const key of MOBILE_DRIVER_HIDDEN_LOAD_META_KEYS) {

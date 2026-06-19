@@ -5,11 +5,15 @@ import {
 } from './tms-load-meta-sanitize.util';
 
 describe('tms-load-meta-sanitize.util', () => {
-	it('always clears booked_rate and attached_files', () => {
+	it('always clears booked_rate and all Documents tab fields', () => {
 		expect(
 			sanitizeMobileLoadMeta(
 				{
 					booked_rate: '1500',
+					proof_of_delivery: '111',
+					updated_rate_confirmation: '222',
+					screen_picture: '333',
+					freight_pictures: '[444,445]',
 					attached_files: '[52614,52615]',
 					load_type: 'ltl',
 					source: 'dat',
@@ -19,6 +23,10 @@ describe('tms-load-meta-sanitize.util', () => {
 			),
 		).toEqual({
 			booked_rate: '',
+			proof_of_delivery: '',
+			updated_rate_confirmation: '',
+			screen_picture: '',
+			freight_pictures: [],
 			attached_files: [],
 			load_type: 'ltl',
 			source: 'dat',
@@ -29,11 +37,23 @@ describe('tms-load-meta-sanitize.util', () => {
 	it('clears driver-only fields when forDriver is true', () => {
 		expect(
 			sanitizeMobileLoadMeta(
-				{ booked_rate: '1500', load_type: 'ltl', source: 'dat', profit: '200' },
+				{
+					booked_rate: '1500',
+					proof_of_delivery: '111',
+					freight_pictures: '[444]',
+					attached_files: '[52614]',
+					load_type: 'ltl',
+					source: 'dat',
+					profit: '200',
+				},
 				{ forDriver: true },
 			),
 		).toEqual({
 			booked_rate: '',
+			proof_of_delivery: '',
+			updated_rate_confirmation: '',
+			screen_picture: '',
+			freight_pictures: [],
 			attached_files: [],
 			load_type: '',
 			source: '',
@@ -50,6 +70,7 @@ describe('tms-load-meta-sanitize.util', () => {
 						id: '1',
 						meta_data: {
 							booked_rate: '1500',
+							attached_files: '[52614]',
 							load_type: 'ltl',
 							source: 'dat',
 							profit: '200',
@@ -68,6 +89,10 @@ describe('tms-load-meta-sanitize.util', () => {
 						id: '1',
 						meta_data: {
 							booked_rate: '',
+							proof_of_delivery: '',
+							updated_rate_confirmation: '',
+							screen_picture: '',
+							freight_pictures: [],
 							attached_files: [],
 							load_type: '',
 							source: '',
@@ -86,6 +111,7 @@ describe('tms-load-meta-sanitize.util', () => {
 			data: {
 				meta_data: {
 					booked_rate: '1500',
+					proof_of_delivery: '111',
 					load_type: 'ltl',
 				},
 			},
@@ -98,10 +124,14 @@ describe('tms-load-meta-sanitize.util', () => {
 			data: {
 				meta_data: {
 					booked_rate: '',
-					attached_files: [],
+					proof_of_delivery: '',
 					load_type: '',
 					source: '',
 					profit: '',
+					freight_pictures: [],
+					attached_files: [],
+					updated_rate_confirmation: '',
+					screen_picture: '',
 				},
 			},
 		});
