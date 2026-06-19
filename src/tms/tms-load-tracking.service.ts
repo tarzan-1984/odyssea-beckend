@@ -4,6 +4,35 @@ import { TmsLoadDetailsService } from './tms-load-details.service';
 import { TmsLoadRouteGeocodeService } from './tms-load-route-geocode.service';
 import type { TmsShipperLike } from './tms-route-geocode-address.util';
 
+type LoadEnrichmentDriver = {
+	id: string;
+	externalId: string | null;
+	email: string | null;
+	firstName: string | null;
+	lastName: string | null;
+	phone: string | null;
+	profilePhoto: string | null;
+	role: string;
+	status: string;
+	driverStatus: string | null;
+	city: string | null;
+	state: string | null;
+	zip: string | null;
+	latitude: number | null;
+	longitude: number | null;
+	lastLocationUpdateAt: string | null;
+	lastActiveApp: Date | null;
+	isTracking: boolean;
+	trackingLoadId: string | null;
+};
+
+function normalizeExternalIdValue(value: unknown): string {
+	if (typeof value === 'string' || typeof value === 'number') {
+		return String(value).trim();
+	}
+	return '';
+}
+
 @Injectable()
 export class TmsLoadTrackingService {
 	constructor(
@@ -18,7 +47,8 @@ export class TmsLoadTrackingService {
 			return { success: false, data: null };
 		}
 
-		const loadDetails = await this.tmsLoadDetailsService.fetchLoadDetails(cleanLoadId);
+		const loadDetails =
+			await this.tmsLoadDetailsService.fetchLoadDetails(cleanLoadId);
 		if (!loadDetails?.data) {
 			return { success: false, data: null };
 		}
@@ -56,13 +86,13 @@ export class TmsLoadTrackingService {
 			metaData?.attached_second_driver,
 			metaData?.attached_third_driver,
 		]
-			.map((value) => String(value ?? '').trim())
+			.map((value) => normalizeExternalIdValue(value))
 			.filter(Boolean);
 
 		const uniqueDriverExternalIds = Array.from(new Set(driverExternalIds));
-		const drivers =
+		const driversPromise: Promise<LoadEnrichmentDriver[]> =
 			uniqueDriverExternalIds.length > 0
-				? await this.prisma.user.findMany({
+				? this.prisma.user.findMany({
 						where: {
 							externalId: {
 								in: uniqueDriverExternalIds,
@@ -90,8 +120,8 @@ export class TmsLoadTrackingService {
 							trackingLoadId: true,
 						},
 					})
-				: [];
-		const trackingPoints = await this.prisma.driverTracking.findMany({
+				: Promise.resolve([]);
+		const trackingPointsPromise = this.prisma.driverTracking.findMany({
 			where: { loadId },
 			select: {
 				id: true,
@@ -108,20 +138,27 @@ export class TmsLoadTrackingService {
 			},
 			orderBy: { createdAt: 'asc' },
 		});
-
-		const driversByExternalId = new Map(
-			drivers
-				.filter((driver) => driver.externalId)
-				.map((driver) => [driver.externalId as string, driver] as const),
-		);
-
-		const routeGeocode =
-			await this.tmsLoadRouteGeocodeService.getRouteGeocodeForLoad(
+		const routeGeocodePromise =
+			this.tmsLoadRouteGeocodeService.getRouteGeocodeForLoad(
 				loadId,
 				metaData?.pick_up_location,
 				metaData?.delivery_location,
 				shippers,
 			);
+
+		const [drivers, trackingPoints, routeGeocode] = await Promise.all([
+			driversPromise,
+			trackingPointsPromise,
+			routeGeocodePromise,
+		]);
+
+		const driversByExternalId = new Map(
+			drivers
+				.filter((driver) => driver.externalId)
+				.map(
+					(driver) => [driver.externalId as string, driver] as const,
+				),
+		);
 
 		return {
 			drivers: uniqueDriverExternalIds
@@ -130,10 +167,13 @@ export class TmsLoadTrackingService {
 					if (!driver) return null;
 					return {
 						...driver,
-						lastActiveApp: driver.lastActiveApp?.toISOString() ?? null,
+						lastActiveApp:
+							driver.lastActiveApp?.toISOString() ?? null,
 					};
 				})
-				.filter((driver): driver is NonNullable<typeof driver> => Boolean(driver)),
+				.filter((driver): driver is NonNullable<typeof driver> =>
+					Boolean(driver),
+				),
 			trackingPoints,
 			routeGeocode,
 		};
