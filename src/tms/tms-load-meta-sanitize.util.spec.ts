@@ -5,14 +5,21 @@ import {
 } from './tms-load-meta-sanitize.util';
 
 describe('tms-load-meta-sanitize.util', () => {
-	it('always clears booked_rate', () => {
+	it('always clears booked_rate and attached_files', () => {
 		expect(
 			sanitizeMobileLoadMeta(
-				{ booked_rate: '1500', load_type: 'ltl', source: 'dat', profit: '200' },
+				{
+					booked_rate: '1500',
+					attached_files: '[52614,52615]',
+					load_type: 'ltl',
+					source: 'dat',
+					profit: '200',
+				},
 				{ forDriver: false },
 			),
 		).toEqual({
 			booked_rate: '',
+			attached_files: [],
 			load_type: 'ltl',
 			source: 'dat',
 			profit: '200',
@@ -27,6 +34,7 @@ describe('tms-load-meta-sanitize.util', () => {
 			),
 		).toEqual({
 			booked_rate: '',
+			attached_files: [],
 			load_type: '',
 			source: '',
 			profit: '',
@@ -60,6 +68,7 @@ describe('tms-load-meta-sanitize.util', () => {
 						id: '1',
 						meta_data: {
 							booked_rate: '',
+							attached_files: [],
 							load_type: '',
 							source: '',
 							profit: '',
@@ -89,6 +98,7 @@ describe('tms-load-meta-sanitize.util', () => {
 			data: {
 				meta_data: {
 					booked_rate: '',
+					attached_files: [],
 					load_type: '',
 					source: '',
 					profit: '',

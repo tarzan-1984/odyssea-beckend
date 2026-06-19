@@ -3,6 +3,7 @@
  * until clients ship UI updates that hide them.
  */
 export const MOBILE_LOAD_META_BOOKED_RATE_KEY = 'booked_rate' as const;
+export const MOBILE_LOAD_META_ATTACHED_FILES_KEY = 'attached_files' as const;
 
 export const MOBILE_DRIVER_HIDDEN_LOAD_META_KEYS = [
 	'load_type',
@@ -24,6 +25,7 @@ export function sanitizeMobileLoadMeta(
 
 	const next = { ...meta };
 	next[MOBILE_LOAD_META_BOOKED_RATE_KEY] = '';
+	next[MOBILE_LOAD_META_ATTACHED_FILES_KEY] = [];
 
 	if (options.forDriver) {
 		for (const key of MOBILE_DRIVER_HIDDEN_LOAD_META_KEYS) {
