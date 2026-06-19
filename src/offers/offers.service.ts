@@ -419,6 +419,14 @@ export class OffersService {
 				specialRequirements: true,
 				notes: true,
 				route: true,
+				creator: {
+					select: {
+						externalId: true,
+						firstName: true,
+						lastName: true,
+						role: true,
+					},
+				},
 			},
 		});
 
@@ -816,6 +824,14 @@ export class OffersService {
 			notes: true,
 			specialRequirements: true,
 			route: true,
+			creator: {
+				select: {
+					externalId: true,
+					firstName: true,
+					lastName: true,
+					role: true,
+				},
+			},
 		} as const;
 
 		const isExpiredFilter = dto.is_expired;
@@ -887,6 +903,12 @@ export class OffersService {
 			notes: string | null;
 			specialRequirements: unknown;
 			route: unknown;
+			creator?: {
+				externalId: string | null;
+				firstName: string;
+				lastName: string;
+				role: string;
+			} | null;
 		}>,
 		page: number,
 		limit: number,
@@ -989,6 +1011,14 @@ export class OffersService {
 				special_requirements: o.specialRequirements,
 				notes: o.notes,
 				route: o.route ?? null,
+				creator: o.creator
+					? {
+							firstName: o.creator.firstName,
+							lastName: o.creator.lastName,
+							externalId: o.creator.externalId,
+							role: o.creator.role,
+						}
+					: null,
 				drivers,
 			};
 		});
