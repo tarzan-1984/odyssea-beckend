@@ -317,6 +317,7 @@ model ChatRoomParticipant {
   @@unique([chatRoomId, userId])
   @@index([userId], map: "chat_room_participants_user_id_idx")
   @@index([userId, chatRoomId], map: "chat_room_participants_user_visible_idx")
+  @@index([userId, isHidden, chatRoomId], map: "chat_room_participants_user_hidden_room_idx")
   @@map("chat_room_participants")
 }
 
