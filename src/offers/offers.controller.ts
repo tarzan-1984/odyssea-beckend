@@ -9,6 +9,7 @@ import {
 	ParseIntPipe,
 	UseGuards,
 	Request,
+	ForbiddenException,
 } from '@nestjs/common';
 import {
 	ApiTags,
@@ -20,6 +21,8 @@ import {
 	ApiParam,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { canModifyOffers } from '../common/user-role-access';
+import { AuthenticatedRequest } from '../types/request.types';
 import { OffersService } from './offers.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -46,6 +49,12 @@ export class OffersController {
 		private readonly offersRealtimeService: OffersRealtimeService,
 		private readonly offerPostCreateBackgroundService: OfferPostCreateBackgroundService,
 	) {}
+
+	private ensureCanModifyOffers(role: AuthenticatedRequest['user']['role']): void {
+		if (!canModifyOffers(role)) {
+			throw new ForbiddenException('Guests cannot modify offers');
+		}
+	}
 
 	@Get()
 	@ApiOperation({
@@ -167,8 +176,9 @@ export class OffersController {
 	})
 	async create(
 		@Body() dto: CreateOfferDto,
-		@Request() req: { user: { id: string } },
+		@Request() req: AuthenticatedRequest,
 	) {
+		this.ensureCanModifyOffers(req.user.role);
 		const offer = await this.offersService.create(dto);
 		await this.offersRealtimeService.emitOfferUpdated(offer.id, 'offer_created', {
 			affectedExternalIds: dto.driverIds ?? [],
@@ -204,8 +214,9 @@ export class OffersController {
 	@ApiResponse({ status: 404, description: 'Offer not found' })
 	async deactivateOffer(
 		@Param('id', ParseIntPipe) id: number,
-		@Request() req: { user: { id: string } },
+		@Request() req: AuthenticatedRequest,
 	) {
+		this.ensureCanModifyOffers(req.user.role);
 		const result = await this.offersService.deactivateOffer(id);
 		await this.offersRealtimeService.emitOfferUpdated(id, 'offer_deactivated', {
 			requestingUserId: req.user?.id,
@@ -232,8 +243,9 @@ export class OffersController {
 	async removeDriverFromOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
-		@Request() req: { user: { id: string } },
+		@Request() req: AuthenticatedRequest,
 	) {
+		this.ensureCanModifyOffers(req.user.role);
 		const result = await this.offersService.removeDriverFromOffer(
 			id,
 			driverExternalId,
@@ -275,8 +287,9 @@ export class OffersController {
 	async returnDriverToOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
-		@Request() req: { user: { id: string } },
+		@Request() req: AuthenticatedRequest,
 	) {
+		this.ensureCanModifyOffers(req.user.role);
 		const result = await this.offersService.returnDriverToOffer(
 			id,
 			driverExternalId,
@@ -307,8 +320,9 @@ export class OffersController {
 	async selectDriverForOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
-		@Request() req: { user: { id: string } },
+		@Request() req: AuthenticatedRequest,
 	) {
+		this.ensureCanModifyOffers(req.user.role);
 		const result = await this.offersService.selectDriverForOffer(
 			id,
 			driverExternalId,
@@ -338,8 +352,9 @@ export class OffersController {
 	async addDriversToOffer(
 		@Param('id', ParseIntPipe) id: number,
 		@Body() dto: AddDriversToOfferDto,
-		@Request() req: { user: { id: string } },
+		@Request() req: AuthenticatedRequest,
 	) {
+		this.ensureCanModifyOffers(req.user.role);
 		const result = await this.offersService.addDriversToOffer(id, dto);
 		if (
 			result.addedDriverExternalIds &&
@@ -440,8 +455,9 @@ export class OffersController {
 		@Param('id', ParseIntPipe) id: number,
 		@Param('driverExternalId') driverExternalId: string,
 		@Body() dto: ExtendDriverTimeDto,
-		@Request() req: { user: { id: string } },
+		@Request() req: AuthenticatedRequest,
 	) {
+		this.ensureCanModifyOffers(req.user.role);
 		const result = await this.offersService.extendDriverTime(
 			id,
 			driverExternalId,

@@ -1,9 +1,11 @@
 // Request types for better type safety
+import { UserRole } from '@prisma/client';
+
 export interface AuthenticatedRequest {
 	user: {
 		id: string;
 		email: string;
-		role: string;
+		role: UserRole;
 	};
 }
 

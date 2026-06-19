@@ -38,6 +38,7 @@ import {
 import { TmsLoadTrackingService } from './tms-load-tracking.service';
 import { DriverLogService } from '../users/driver-log.service';
 import { buildTmsLoadStatusDriverChanges } from '../users/utils/driver-change-log.util';
+import { sanitizeMobileLoadDetailsResponse } from './tms-load-meta-sanitize.util';
 /** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
 const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
 
@@ -86,8 +87,12 @@ export class TmsController {
 			'Proxies GET https://www.endurance-tms.com/wp-json/tms/v1/driver/loads. All query params are provided by the mobile app and forwarded as-is (whitelisted).',
 	})
 	@ApiResponse({ status: 200, description: 'TMS response (proxied)' })
-	async getDriverLoads(@Query() query: GetDriverLoadsDto) {
-		return this.tmsDriverLoadsService.fetchDriverLoads(query);
+	async getDriverLoads(
+		@Request() req: AuthenticatedRequest,
+		@Query() query: GetDriverLoadsDto,
+	) {
+		const forDriver = req.user?.role === UserRole.DRIVER;
+		return this.tmsDriverLoadsService.fetchDriverLoads(query, { forDriver });
 	}
 
 	@Get('load/:loadId')
@@ -97,9 +102,15 @@ export class TmsController {
 			'Proxies GET TMS load/:loadId and attaches DB drivers + tracking history. Requires authentication.',
 	})
 	@ApiResponse({ status: 200, description: 'TMS load details response' })
-	async getLoadDetails(@Param('loadId') loadId: string) {
+	async getLoadDetails(
+		@Request() req: AuthenticatedRequest,
+		@Param('loadId') loadId: string,
+	) {
 		const loadDetails = await this.tmsLoadDetailsService.fetchLoadDetails(loadId);
-		return this.attachLoadDriversAndTracking(loadId, loadDetails);
+		const enriched = await this.attachLoadDriversAndTracking(loadId, loadDetails);
+		return sanitizeMobileLoadDetailsResponse(enriched, {
+			forDriver: req.user?.role === UserRole.DRIVER,
+		});
 	}
 
 	@Post('load/:loadId/enrichment')

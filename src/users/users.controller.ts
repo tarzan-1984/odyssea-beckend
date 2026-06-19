@@ -701,6 +701,7 @@ export class UsersController {
 									'MORNING_TRACKING',
 									'EXPEDITE_MANAGER',
 									'DRIVER',
+									'GAST',
 								],
 								description: 'User role',
 							},

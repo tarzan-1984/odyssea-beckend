@@ -14,7 +14,7 @@ import {
 	ApiResponse,
 	ApiTags,
 } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { canAccessAppSettings, canModifyAppSettings } from '../common/user-role-access';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { AppSettingsService } from './app-settings.service';
@@ -32,6 +32,14 @@ import { MobileDeviceSyncQueryDto } from './dto/mobile-device-sync-query.dto';
 @UseGuards(JwtAuthGuard)
 export class AppSettingsController {
 	constructor(private readonly appSettingsService: AppSettingsService) {}
+
+	private ensureCanModifyAppSettings(role: AuthenticatedRequest['user']['role']): void {
+		if (!canModifyAppSettings(role)) {
+			throw new ForbiddenException(
+				'Only administrators can update app settings',
+			);
+		}
+	}
 
 	@Get()
 	@ApiOperation({
@@ -64,11 +72,7 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Body() dto: UpdateAppSettingsDto,
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException(
-				'Only administrators can update app settings',
-			);
-		}
+		this.ensureCanModifyAppSettings(req.user.role);
 		return this.appSettingsService.updateGlobal(dto);
 	}
 
@@ -81,7 +85,7 @@ export class AppSettingsController {
 		description: 'TMS batch interval and chunk size',
 	})
 	async getTmsBatch(@Request() req: AuthenticatedRequest) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
+		if (!canAccessAppSettings(req.user.role)) {
 			throw new ForbiddenException(
 				'Only administrators can read TMS batch settings',
 			);
@@ -100,11 +104,7 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Body() dto: UpdateTmsBatchAppSettingsDto,
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException(
-				'Only administrators can update TMS batch settings',
-			);
-		}
+		this.ensureCanModifyAppSettings(req.user.role);
 		return this.appSettingsService.updateTmsBatchAppSettings(dto);
 	}
 
@@ -117,7 +117,7 @@ export class AppSettingsController {
 		description: 'Mode and test driver external id',
 	})
 	async getLocationEnvironment(@Request() req: AuthenticatedRequest) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
+		if (!canAccessAppSettings(req.user.role)) {
 			throw new ForbiddenException(
 				'Only administrators can read location environment settings',
 			);
@@ -135,11 +135,7 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Body() dto: UpdateLocationEnvironmentAppSettingsDto,
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException(
-				'Only administrators can update location environment settings',
-			);
-		}
+		this.ensureCanModifyAppSettings(req.user.role);
 		return this.appSettingsService.updateLocationEnvironmentAppSettings(
 			dto,
 		);
@@ -152,7 +148,7 @@ export class AppSettingsController {
 	})
 	@ApiResponse({ status: 200, description: 'Minimum app version settings' })
 	async getMinimumAppVersion(@Request() req: AuthenticatedRequest) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
+		if (!canAccessAppSettings(req.user.role)) {
 			throw new ForbiddenException(
 				'Only administrators can read minimum app version settings',
 			);
@@ -170,11 +166,7 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Body() dto: UpdateMinimumAppVersionDto,
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException(
-				'Only administrators can update minimum app version settings',
-			);
-		}
+		this.ensureCanModifyAppSettings(req.user.role);
 		return this.appSettingsService.updateMinimumAppVersionSettings(dto);
 	}
 
@@ -185,7 +177,7 @@ export class AppSettingsController {
 	})
 	@ApiResponse({ status: 200, description: 'Offers-related app settings' })
 	async getOffers(@Request() req: AuthenticatedRequest) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
+		if (!canAccessAppSettings(req.user.role)) {
 			throw new ForbiddenException(
 				'Only administrators can read offers app settings',
 			);
@@ -203,11 +195,7 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Body() dto: UpdateOffersAppSettingsDto,
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException(
-				'Only administrators can update offers app settings',
-			);
-		}
+		this.ensureCanModifyAppSettings(req.user.role);
 		return this.appSettingsService.updateOffersAppSettings(dto);
 	}
 
@@ -221,7 +209,7 @@ export class AppSettingsController {
 		description: 'Delivered LOAD chat retention hours',
 	})
 	async getDeliveredLoadChat(@Request() req: AuthenticatedRequest) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
+		if (!canAccessAppSettings(req.user.role)) {
 			throw new ForbiddenException(
 				'Only administrators can read delivered LOAD chat settings',
 			);
@@ -239,11 +227,7 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Body() dto: UpdateDeliveredLoadChatAppSettingsDto,
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException(
-				'Only administrators can update delivered LOAD chat settings',
-			);
-		}
+		this.ensureCanModifyAppSettings(req.user.role);
 		return this.appSettingsService.updateDeliveredLoadChatAppSettings(dto);
 	}
 
@@ -257,7 +241,7 @@ export class AppSettingsController {
 		description: 'Usage stats split by role and platform',
 	})
 	async getUsageStats(@Request() req: AuthenticatedRequest) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
+		if (!canAccessAppSettings(req.user.role)) {
 			throw new ForbiddenException(
 				'Only administrators can read usage stats',
 			);
@@ -275,7 +259,7 @@ export class AppSettingsController {
 	})
 	@ApiResponse({ status: 200, description: 'Current recipient email' })
 	async getAccountDeletionRequest(@Request() req: AuthenticatedRequest) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
+		if (!canAccessAppSettings(req.user.role)) {
 			throw new ForbiddenException(
 				'Only administrators can read account deletion request settings',
 			);
@@ -292,11 +276,7 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Body() body: { accountDeletionRequestEmail: string },
 	) {
-		if (req.user.role !== UserRole.ADMINISTRATOR) {
-			throw new ForbiddenException(
-				'Only administrators can update account deletion request settings',
-			);
-		}
+		this.ensureCanModifyAppSettings(req.user.role);
 		return this.appSettingsService.updateAccountDeletionRequestSettings(
 			body,
 		);

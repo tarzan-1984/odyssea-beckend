@@ -4,6 +4,10 @@ import axios from 'axios';
 import { AxiosError } from '../types/request.types';
 import type { ExternalApiConfig } from '../config/env.config';
 import { GetDriverLoadsDto } from './dto/get-driver-loads.dto';
+import {
+	sanitizeMobileDriverLoadsResponse,
+	type SanitizeMobileLoadMetaOptions,
+} from './tms-load-meta-sanitize.util';
 
 @Injectable()
 export class TmsDriverLoadsService {
@@ -15,7 +19,10 @@ export class TmsDriverLoadsService {
 	 * Proxies TMS GET /driver/loads. All query params are forwarded from the mobile app.
 	 * We do not hardcode parameter values; only validate/whitelist keys via DTO.
 	 */
-	async fetchDriverLoads(query: GetDriverLoadsDto): Promise<unknown> {
+	async fetchDriverLoads(
+		query: GetDriverLoadsDto,
+		sanitizeOptions?: SanitizeMobileLoadMetaOptions,
+	): Promise<unknown> {
 		const apiKey = this.configService.get<string>('externalApi.tmsApiKey');
 		if (!apiKey) {
 			throw new Error('TMS_API_KEY is not configured');
@@ -55,7 +62,9 @@ export class TmsDriverLoadsService {
 				},
 				timeout: 30000,
 			});
-			return data;
+			return sanitizeMobileDriverLoadsResponse(data, {
+				forDriver: sanitizeOptions?.forDriver === true,
+			});
 		} catch (error) {
 			const ax = error as AxiosError;
 			if (ax.response?.data != null) {

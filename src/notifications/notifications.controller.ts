@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
+import { canSendCheckListMessages } from '../common/user-role-access';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
@@ -157,6 +158,9 @@ export class NotificationsController {
 			platform?: 'all' | 'ios' | 'android' | null;
 		},
 	) {
+		if (!canSendCheckListMessages(req.user.role)) {
+			throw new ForbiddenException('Guests cannot send push notifications');
+		}
 		const message = typeof body?.message === 'string' ? body.message.trim() : '';
 		let userId =
 			typeof body?.userId === 'string' && body.userId.trim()
@@ -231,6 +235,9 @@ export class NotificationsController {
 			email?: string | null;
 		},
 	) {
+		if (!canSendCheckListMessages(req.user.role)) {
+			throw new ForbiddenException('Guests cannot send emails');
+		}
 		const message = typeof body?.message === 'string' ? body.message.trim() : '';
 		const subject =
 			typeof body?.subject === 'string' && body.subject.trim()

@@ -463,6 +463,7 @@ enum UserRole {
   MORNING_TRACKING
   EXPEDITE_MANAGER
   DRIVER
+  GAST
 }
 
 enum UserStatus {

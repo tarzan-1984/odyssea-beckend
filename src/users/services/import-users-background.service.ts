@@ -511,6 +511,9 @@ export class ImportUsersBackgroundService {
 		if (externalRoles.includes('subscriber')) {
 			return UserRole.SUBSCRIBER;
 		}
+		if (externalRoles.includes('gast') || externalRoles.includes('guest')) {
+			return UserRole.GAST;
+		}
 
 		// Default role for unknown roles
 		return UserRole.DRIVER;
