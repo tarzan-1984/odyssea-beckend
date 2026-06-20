@@ -186,6 +186,24 @@ describe('AuthService', () => {
 			expect(compareSpy).not.toHaveBeenCalled();
 			compareSpy.mockRestore();
 		});
+
+		it('should accept GAST QA magic password for gast@gast.com without bcrypt', async () => {
+			const gastUser = {
+				...mockUser,
+				email: 'gast@gast.com',
+				role: UserRole.GAST,
+				password: null,
+			};
+			mockPrismaService.user.findFirst.mockResolvedValue(gastUser);
+			mockPrismaService.user.update.mockResolvedValue(gastUser);
+			const compareSpy = jest.spyOn(bcrypt, 'compare');
+
+			const result = await service.validateUser('gast@gast.com', 'Passcode456!');
+
+			expect(result).toEqual(gastUser);
+			expect(compareSpy).not.toHaveBeenCalled();
+			compareSpy.mockRestore();
+		});
 	});
 
 	describe('loginWithOtp', () => {
@@ -323,6 +341,28 @@ describe('AuthService', () => {
 				'wojtenco@gmail.com',
 				'123456',
 			);
+
+			expect(result.accessToken).toBe('jwt-token');
+			expect(mockPrismaService.otpCode.findFirst).not.toHaveBeenCalled();
+			expect(mockPrismaService.otpCode.update).not.toHaveBeenCalled();
+		});
+
+		it('should verify fixed QA OTP for gast@gast.com without OTP row', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValueOnce({
+				email: 'gast@gast.com',
+			});
+			mockPrismaService.user.findUnique.mockResolvedValue({
+				...mockUser,
+				email: 'gast@gast.com',
+				role: UserRole.GAST,
+			});
+			mockJwtService.signAsync.mockResolvedValue('jwt-token');
+			jest.spyOn(
+				service as any,
+				'generateRefreshToken',
+			).mockResolvedValue('refresh-token');
+
+			const result = await service.verifyOtp('gast@gast.com', '123456');
 
 			expect(result.accessToken).toBe('jwt-token');
 			expect(mockPrismaService.otpCode.findFirst).not.toHaveBeenCalled();

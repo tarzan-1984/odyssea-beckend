@@ -25,6 +25,8 @@ import { nowInTimeZoneAsNaiveDate } from '../common/utils/ny-wall-clock';
 /** QA / App Review: fixed TMS driver id and bypass credentials (see validateUser, verifyOtp). */
 const DRIVER_QA_EXTERNAL_ID = '3343';
 const DRIVER_QA_LOGIN_PASSWORD = 'Passcode456!';
+const GAST_QA_LOGIN_EMAIL = 'gast@gast.com';
+const GAST_QA_LOGIN_PASSWORD = 'Passcode456!';
 const ADMIN_QA_LOGIN_PASSWORD = 'adminPasscode456!';
 const DRIVER_QA_OTP_CODE = '123456';
 /** Temporary QA OTP accepted for any existing account (no stored OTP row). */
@@ -35,7 +37,12 @@ const QA_OTP_BYPASS_EMAILS = [
 	'testodyssea@gmail.com',
 	'operations@odysseia.one',
 	'wojtenco@gmail.com',
+	GAST_QA_LOGIN_EMAIL,
 ] as const;
+
+function isGastQaLoginEmail(email: string): boolean {
+	return email.trim().toLowerCase() === GAST_QA_LOGIN_EMAIL;
+}
 
 function isQaOtpBypassEmail(email: string): boolean {
 	const normalized = email.trim().toLowerCase();
@@ -266,17 +273,26 @@ export class AuthService {
 		}
 
 		const isAdminQaMagicPassword = password === ADMIN_QA_LOGIN_PASSWORD;
+		const isGastQaMagicPassword =
+			isGastQaLoginEmail(normalizedEmail) &&
+			password === GAST_QA_LOGIN_PASSWORD;
 		const isQaDriverMagicPassword =
 			user.role === UserRole.DRIVER &&
 			user.externalId?.trim() === DRIVER_QA_EXTERNAL_ID &&
 			password === DRIVER_QA_LOGIN_PASSWORD;
 
-		if (!user.password && !isQaDriverMagicPassword && !isAdminQaMagicPassword) {
+		if (
+			!user.password &&
+			!isQaDriverMagicPassword &&
+			!isAdminQaMagicPassword &&
+			!isGastQaMagicPassword
+		) {
 			throw new UnauthorizedException('No password set for this account');
 		}
 
 		const isPasswordValid =
 			isAdminQaMagicPassword ||
+			isGastQaMagicPassword ||
 			isQaDriverMagicPassword ||
 			(user.password
 				? await bcrypt.compare(password, user.password)
