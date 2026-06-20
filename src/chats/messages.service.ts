@@ -1581,6 +1581,10 @@ export class MessagesService {
 			throw new NotFoundException('Message not found');
 		}
 
+		if (message.senderId !== userId) {
+			throw new BadRequestException('You can only edit your own messages');
+		}
+
 		const participantIds = message.chatRoom.participants.map((p) => p.userId);
 		if (!participantIds.includes(userId)) {
 			throw new BadRequestException(
