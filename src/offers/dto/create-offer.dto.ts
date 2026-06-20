@@ -28,6 +28,20 @@ export class RoutePointDto {
 	@ApiProperty({ description: 'Time', example: '2025-02-15 08:00' })
 	@IsString()
 	time: string;
+
+	@ApiPropertyOptional({ description: 'Latitude from geocoding', example: 39.8083 })
+	@IsOptional()
+	@Transform(({ value }) => parseNumber(value))
+	@Type(() => Number)
+	@IsNumber()
+	latitude?: number;
+
+	@ApiPropertyOptional({ description: 'Longitude from geocoding', example: -104.9339 })
+	@IsOptional()
+	@Transform(({ value }) => parseNumber(value))
+	@Type(() => Number)
+	@IsNumber()
+	longitude?: number;
 }
 
 function parseNumber(value: unknown): number | undefined {
@@ -70,8 +84,20 @@ export class CreateOfferDto {
 			'Route: array of points (pick_up_location / delivery_location) in order. Format: [{ type, location, time }, ...]',
 		type: [RoutePointDto],
 		example: [
-			{ type: 'pick_up_location', location: 'Warehouse A', time: '08:00' },
-			{ type: 'delivery_location', location: 'Site B', time: '14:00' },
+			{
+				type: 'pick_up_location',
+				location: 'Warehouse A',
+				time: '08:00',
+				latitude: 39.8083,
+				longitude: -104.9339,
+			},
+			{
+				type: 'delivery_location',
+				location: 'Site B',
+				time: '14:00',
+				latitude: 38.5976,
+				longitude: -80.4549,
+			},
 		],
 	})
 	@IsArray()
