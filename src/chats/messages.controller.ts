@@ -29,6 +29,7 @@ import { MessagesService } from './messages.service';
 import { FileUploadService } from './file-upload.service';
 import { ChatRoomsService } from './chat-rooms.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { UpdateMessageDto } from './dto/update-message.dto';
 import { MarkAllReadDto } from './dto/mark-all-read.dto';
 import { ChatGateway } from './chat.gateway';
 import { AuthenticatedRequest } from '../types/request.types';
@@ -142,6 +143,48 @@ export class MessagesController {
 		);
 
 		return message;
+	}
+
+	@Put(':id')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Update message',
+		description:
+			'Update message text. Only ADMINISTRATOR and DRIVER_UPDATES users can edit messages in chats they participate in. Sends WebSocket notification to all chat participants.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Message ID',
+		example: 'message_123',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Message updated successfully',
+	})
+	@ApiResponse({
+		status: 400,
+		description: 'Bad request - cannot update message',
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Unauthorized - invalid or missing JWT token',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'Message not found',
+	})
+	async updateMessage(
+		@Param('id') id: string,
+		@Body() updateMessageDto: UpdateMessageDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		return await this.messagesService.updateMessage(
+			id,
+			updateMessageDto.content,
+			req.user.id,
+			req.user.role,
+			this.chatGateway,
+		);
 	}
 
 	@Post('upload')

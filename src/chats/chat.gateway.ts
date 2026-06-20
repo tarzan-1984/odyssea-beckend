@@ -500,6 +500,44 @@ export class ChatGateway
 		}
 	}
 
+	@SubscribeMessage('editMessage')
+	@UseGuards(WsJwtGuard)
+	async handleEditMessage(
+		@MessageBody()
+		data: {
+			messageId: string;
+			content: string;
+		},
+		@ConnectedSocket() client: AuthenticatedSocket,
+	) {
+		const userId = client.userId;
+		const userRole = client.userRole;
+
+		if (!userId) {
+			return { error: 'Unauthorized' };
+		}
+
+		try {
+			await this.messagesService.updateMessage(
+				data.messageId,
+				data.content,
+				userId,
+				userRole,
+				this,
+			);
+		} catch (error) {
+			console.error('❌ WebSocket editMessage: Error', {
+				userId,
+				messageId: data.messageId,
+				error: (error as Error).message,
+			});
+			client.emit('error', {
+				message: 'Failed to edit message',
+				details: (error as Error).message,
+			});
+		}
+	}
+
 	/**
 	 * Handle message delivery confirmation
 	 * Used to track message delivery status
@@ -726,6 +764,24 @@ export class ChatGateway
 		);
 
 		// Also emit to general chat updates for chat list updates
+		void this.server.emit('chatUpdated', { chatRoomId });
+	}
+
+	broadcastMessageUpdated(
+		chatRoomId: string,
+		message: unknown,
+		participantUserIds: string[],
+	) {
+		const payload = { chatRoomId, message };
+
+		this.server.to(`chat_${chatRoomId}`).emit('messageUpdated', payload);
+
+		for (const participantId of participantUserIds) {
+			this.server
+				.to(`user_${participantId}`)
+				.emit('messageUpdated', payload);
+		}
+
 		void this.server.emit('chatUpdated', { chatRoomId });
 	}
 

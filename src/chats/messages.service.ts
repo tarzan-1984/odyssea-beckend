@@ -1545,6 +1545,71 @@ export class MessagesService {
 	/**
 	 * Delete a message (only by sender)
 	 */
+	async updateMessage(
+		messageId: string,
+		content: string,
+		userId: string,
+		userRole?: string,
+		chatGateway?: any,
+	) {
+		const trimmedContent = content?.trim() ?? '';
+		if (!trimmedContent) {
+			throw new BadRequestException('Message content is required');
+		}
+
+		const canEdit =
+			userRole === UserRole.ADMINISTRATOR ||
+			userRole === UserRole.DRIVER_UPDATES;
+		if (!canEdit) {
+			throw new BadRequestException('You cannot edit messages');
+		}
+
+		const message = await this.prisma.message.findUnique({
+			where: { id: messageId },
+			include: {
+				chatRoom: {
+					include: {
+						participants: {
+							select: { userId: true },
+						},
+					},
+				},
+			},
+		});
+
+		if (!message) {
+			throw new NotFoundException('Message not found');
+		}
+
+		const participantIds = message.chatRoom.participants.map((p) => p.userId);
+		if (!participantIds.includes(userId)) {
+			throw new BadRequestException(
+				'You are not a participant in this chat room',
+			);
+		}
+
+		const includeReceiver = participantIds.length === 2;
+		const updatedMessage = await this.prisma.message.update({
+			where: { id: messageId },
+			data: { content: trimmedContent },
+			include: includeReceiver
+				? this.messageWithUsersInclude
+				: this.messageSenderOnlyInclude,
+		});
+
+		const transformed = this.transformMessageForClient(updatedMessage);
+
+		if (chatGateway) {
+			chatGateway.broadcastMessageUpdated?.(
+				message.chatRoomId,
+				transformed,
+				participantIds,
+			);
+		}
+
+		return transformed;
+	}
+
 	async deleteMessage(
 		messageId: string,
 		userId: string,
