@@ -145,6 +145,89 @@ export class MessagesController {
 		return message;
 	}
 
+	@Put('read-all')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Mark all messages as read for specific chat rooms',
+		description:
+			'Mark all unread messages as read for the authenticated user in the specified chat rooms. Only marks messages created after user joined each chat room.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'All messages marked as read successfully',
+		schema: {
+			example: {
+				success: true,
+				chatRoomIds: ['chat_1', 'chat_2'],
+				messageIds: ['msg_1', 'msg_2', 'msg_3'],
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Unauthorized - invalid or missing JWT token',
+	})
+	async markAllMessagesAsReadByChatRooms(
+		@Body() markAllReadDto: MarkAllReadDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		const userId = req.user.id;
+		const { chatRoomIds } = markAllReadDto;
+
+		if (
+			!chatRoomIds ||
+			!Array.isArray(chatRoomIds) ||
+			chatRoomIds.length === 0
+		) {
+			return {
+				success: true,
+				chatRoomIds: [],
+				messageIds: [],
+			};
+		}
+
+		// Mark messages as read
+		const result =
+			await this.messagesService.markAllMessagesAsReadByChatRooms(
+				chatRoomIds,
+				userId,
+			);
+
+		// Notify the user who marked all as read (personal room for multi-device sync)
+		for (const chatRoomId of chatRoomIds) {
+			const messageIds = result.messagesByChatRoom[chatRoomId] || [];
+			const messages =
+				messageIds.length > 0
+					? await this.messagesService.getMessagesReadBySnapshot(
+							messageIds,
+						)
+					: [];
+
+			this.chatGateway.server
+				.to(`user_${userId}`)
+				.emit('messagesMarkedAsRead', {
+					chatRoomId,
+					messageIds,
+					userId,
+					messages,
+				});
+			this.chatGateway.emitChatUnreadCountUpdated(userId, chatRoomId, 0);
+
+			if (messageIds.length > 0) {
+				this.chatGateway.server
+					.to(`chat_${chatRoomId}`)
+					.emit('messagesMarkedAsRead', {
+						chatRoomId,
+						messageIds,
+						userId,
+						messages,
+					});
+			}
+		}
+
+		return result;
+	}
+
 	@Put(':id')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
@@ -494,89 +577,6 @@ export class MessagesController {
 	async getUnreadCount(@Request() req: AuthenticatedRequest) {
 		const userId = req.user.id;
 		return await this.messagesService.getUnreadCount(userId);
-	}
-
-	@Put('read-all')
-	@HttpCode(HttpStatus.OK)
-	@ApiOperation({
-		summary: 'Mark all messages as read for specific chat rooms',
-		description:
-			'Mark all unread messages as read for the authenticated user in the specified chat rooms. Only marks messages created after user joined each chat room.',
-	})
-	@ApiResponse({
-		status: 200,
-		description: 'All messages marked as read successfully',
-		schema: {
-			example: {
-				success: true,
-				chatRoomIds: ['chat_1', 'chat_2'],
-				messageIds: ['msg_1', 'msg_2', 'msg_3'],
-			},
-		},
-	})
-	@ApiResponse({
-		status: 401,
-		description: 'Unauthorized - invalid or missing JWT token',
-	})
-	async markAllMessagesAsReadByChatRooms(
-		@Body() markAllReadDto: MarkAllReadDto,
-		@Request() req: AuthenticatedRequest,
-	) {
-		const userId = req.user.id;
-		const { chatRoomIds } = markAllReadDto;
-
-		if (
-			!chatRoomIds ||
-			!Array.isArray(chatRoomIds) ||
-			chatRoomIds.length === 0
-		) {
-			return {
-				success: true,
-				chatRoomIds: [],
-				messageIds: [],
-			};
-		}
-
-		// Mark messages as read
-		const result =
-			await this.messagesService.markAllMessagesAsReadByChatRooms(
-				chatRoomIds,
-				userId,
-			);
-
-		// Notify the user who marked all as read (personal room for multi-device sync)
-		for (const chatRoomId of chatRoomIds) {
-			const messageIds = result.messagesByChatRoom[chatRoomId] || [];
-			const messages =
-				messageIds.length > 0
-					? await this.messagesService.getMessagesReadBySnapshot(
-							messageIds,
-						)
-					: [];
-
-			this.chatGateway.server
-				.to(`user_${userId}`)
-				.emit('messagesMarkedAsRead', {
-					chatRoomId,
-					messageIds,
-					userId,
-					messages,
-				});
-			this.chatGateway.emitChatUnreadCountUpdated(userId, chatRoomId, 0);
-
-			if (messageIds.length > 0) {
-				this.chatGateway.server
-					.to(`chat_${chatRoomId}`)
-					.emit('messagesMarkedAsRead', {
-						chatRoomId,
-						messageIds,
-						userId,
-						messages,
-					});
-			}
-		}
-
-		return result;
 	}
 
 	@Put(':id/read')
