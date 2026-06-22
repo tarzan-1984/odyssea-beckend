@@ -8,6 +8,7 @@ import { ChatRoomsService, CreateLoadChatResult } from './chat-rooms.service';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { ChatGateway } from './chat.gateway';
+import { MessagesService } from './messages.service';
 
 @ApiTags('Load Chat')
 @Controller('create_load_chat')
@@ -17,6 +18,7 @@ export class LoadChatController {
 	constructor(
 		private readonly chatRoomsService: ChatRoomsService,
 		@Inject(ChatGateway) private readonly chatGateway: ChatGateway,
+		private readonly messagesService: MessagesService,
 	) {}
 
 	@Post()
@@ -72,6 +74,9 @@ export class LoadChatController {
 				title: createLoadChatDto.title,
 				company: createLoadChatDto.company,
 				participants: createLoadChatDto.participants,
+				dispatch_message: createLoadChatDto.dispatch_message?.trim()
+					? '[present]'
+					: undefined,
 			})}`,
 		);
 
@@ -161,7 +166,48 @@ export class LoadChatController {
 			}
 		}
 
+		await this.maybeCreateDispatchSystemMessage(
+			result,
+			createLoadChatDto.dispatch_message,
+		);
+
 		return result.chatRoom;
+	}
+
+	private async maybeCreateDispatchSystemMessage(
+		result: CreateLoadChatResult,
+		dispatchMessage?: string,
+	) {
+		const text = dispatchMessage?.trim();
+		if (!text || result.kind === 'noop' || !result.chatRoom?.id) {
+			return;
+		}
+
+		const participantUserIds =
+			result.chatRoom.participants?.map(
+				(participant: { userId: string }) => participant.userId,
+			) ?? [];
+		if (participantUserIds.length === 0) {
+			return;
+		}
+
+		const message = await this.messagesService.createLoadDispatchSystemMessage(
+			result.chatRoom.id,
+			text,
+		);
+		if (!message) {
+			return;
+		}
+
+		this.logger.log(
+			`[create_load_chat] Dispatch system message created: chatRoomId=${result.chatRoom.id}, messageId=${message.id}`,
+		);
+
+		void this.chatGateway.broadcastMessage(
+			result.chatRoom.id,
+			message,
+			participantUserIds,
+		);
 	}
 
 	@Post('update')

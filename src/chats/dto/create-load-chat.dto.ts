@@ -1,6 +1,6 @@
-import { IsString, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsEnum, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class ParticipantDto {
 	@ApiProperty({
@@ -53,5 +53,14 @@ export class CreateLoadChatDto {
 	@ValidateNested({ each: true })
 	@Type(() => ParticipantDto)
 	participants: ParticipantDto[];
+
+	@ApiPropertyOptional({
+		description:
+			'Optional dispatch text inserted as a system message right after the LOAD chat is created. Ignored when empty.',
+		example: 'Please confirm pickup by 3 PM.',
+	})
+	@IsOptional()
+	@IsString()
+	dispatch_message?: string;
 }
 

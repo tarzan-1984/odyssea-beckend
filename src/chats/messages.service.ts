@@ -27,6 +27,9 @@ function joinedAtCutoffForDriverMessages(joinedAt: Date): Date {
 	return joinedAt;
 }
 
+const LOAD_DISPATCH_SYSTEM_SENDER_EMAIL = 'odysseia-team@system.internal';
+export const LOAD_DISPATCH_SYSTEM_SENDER_NAME = 'Odysseia Team';
+
 @Injectable()
 export class MessagesService {
 	private readonly messageWithUsersInclude = {
@@ -321,6 +324,73 @@ export class MessagesService {
 		};
 	}
 
+	/**
+	 * Insert a system dispatch message into a newly created LOAD chat (TMS create_load_chat).
+	 */
+	async createLoadDispatchSystemMessage(chatRoomId: string, content: string) {
+		const trimmedContent = content.trim();
+		if (!trimmedContent) {
+			return null;
+		}
+
+		const senderId = await this.resolveLoadDispatchSystemSenderId();
+		const createdAt = nowInNewYorkAsNaiveDate();
+
+		const message = await this.prisma.$transaction(async (tx) => {
+			const created = await tx.message.create({
+				data: {
+					chatRoomId,
+					senderId,
+					content: trimmedContent,
+					isSystemMessage: true,
+					readBy: [],
+					isRead: false,
+					receiverId: null,
+					createdAt,
+				},
+				include: this.messageSenderOnlyInclude,
+			});
+
+			await tx.chatRoom.update({
+				where: { id: chatRoomId },
+				data: { updatedAt: createdAt },
+			});
+
+			await this.incrementUnreadCountForOtherParticipants(
+				chatRoomId,
+				senderId,
+				tx,
+			);
+
+			return created;
+		});
+
+		const transformedMessage = {
+			...this.transformMessageForClient(message),
+			reactions: [],
+		};
+
+		this.sendPushToParticipants(transformedMessage).catch(() => {});
+
+		return transformedMessage;
+	}
+
+	private async resolveLoadDispatchSystemSenderId(): Promise<string> {
+		const user = await this.prisma.user.upsert({
+			where: { email: LOAD_DISPATCH_SYSTEM_SENDER_EMAIL },
+			create: {
+				email: LOAD_DISPATCH_SYSTEM_SENDER_EMAIL,
+				firstName: LOAD_DISPATCH_SYSTEM_SENDER_NAME,
+				lastName: '',
+				role: UserRole.SUBSCRIBER,
+				status: 'INACTIVE',
+			},
+			update: {},
+			select: { id: true },
+		});
+		return user.id;
+	}
+
 	private transformMessageForClient(message: {
 		id: string;
 		chatRoomId: string;
@@ -336,6 +406,7 @@ export class MessagesService {
 		readBy?: unknown;
 		isRead: boolean;
 		replyData?: unknown;
+		isSystemMessage?: boolean;
 		sender: {
 			id: string;
 			firstName: string;
@@ -357,14 +428,28 @@ export class MessagesService {
 			phone?: string | null;
 		} | null;
 	}) {
+		const sender = message.isSystemMessage
+			? {
+					id: message.sender.id,
+					firstName: LOAD_DISPATCH_SYSTEM_SENDER_NAME,
+					lastName: '',
+					avatar: null,
+					userColor: null,
+					role: message.sender.role,
+					externalId: null,
+					phone: null,
+				}
+			: {
+					...message.sender,
+					avatar: message.sender.profilePhoto,
+					profilePhoto: undefined,
+				};
+
 		return {
 			...message,
 			clientMessageId: message.clientMessageId ?? undefined,
-			sender: {
-				...message.sender,
-				avatar: message.sender.profilePhoto,
-				profilePhoto: undefined,
-			},
+			isSystemMessage: message.isSystemMessage ?? false,
+			sender,
 			receiver: message.receiver
 				? {
 						...message.receiver,
@@ -488,6 +573,11 @@ export class MessagesService {
 						return false;
 					}
 
+					// TMS dispatch system messages must reach all LOAD chat participants
+					if (message.isSystemMessage) {
+						return true;
+					}
+
 					// Filter push notifications for drivers with 'expired_documents' status
 					if (
 						receiver.role === UserRole.DRIVER &&
@@ -533,7 +623,9 @@ export class MessagesService {
 
 			// Determine notification title based on chat type
 			let notificationTitle: string;
-			if (chatRoom?.type === 'DIRECT' || chatRoom?.type === 'OFFER') {
+			if (message.isSystemMessage) {
+				notificationTitle = LOAD_DISPATCH_SYSTEM_SENDER_NAME;
+			} else if (chatRoom?.type === 'DIRECT' || chatRoom?.type === 'OFFER') {
 				// For DIRECT and OFFER chats, show sender's name
 				const senderName =
 					[
@@ -588,6 +680,7 @@ export class MessagesService {
 				fileName: message.fileName || '',
 				fileSize: message.fileSize?.toString() || '0',
 				isRead: message.isRead ? 'true' : 'false',
+				isSystemMessage: message.isSystemMessage ? 'true' : 'false',
 				readBy: JSON.stringify(
 					Array.isArray(message.readBy) ? message.readBy : [],
 				),
@@ -779,21 +872,9 @@ export class MessagesService {
 		// await this.markMessagesAsRead(chatRoomId, userId);
 
 		// Transform profilePhoto to avatar for frontend compatibility
-		const transformedMessages = messages.map((message) => ({
-			...message,
-			sender: {
-				...message.sender,
-				avatar: message.sender.profilePhoto,
-				profilePhoto: undefined,
-			},
-			receiver: message.receiver
-				? {
-						...message.receiver,
-						avatar: message.receiver.profilePhoto,
-						profilePhoto: undefined,
-					}
-				: undefined,
-		}));
+		const transformedMessages = messages.map((message) =>
+			this.transformMessageForClient(message),
+		);
 
 		const messagesWithReactions =
 			await this.messageReactionsService.attachReactionsToMessages(
@@ -845,10 +926,33 @@ export class MessagesService {
 		id: string;
 		sender: { profilePhoto?: string | null; [key: string]: unknown };
 		receiver?: { profilePhoto?: string | null; [key: string]: unknown } | null;
+		isSystemMessage?: boolean;
 		[key: string]: unknown;
 	}) {
+		if (message.isSystemMessage) {
+			return this.transformMessageForClient({
+				...(message as {
+					id: string;
+					chatRoomId: string;
+					senderId: string;
+					content: string;
+					createdAt: Date;
+					isRead: boolean;
+					isSystemMessage: boolean;
+					sender: {
+						id: string;
+						firstName: string;
+						lastName: string;
+						profilePhoto: string | null;
+						role: string;
+					};
+				}),
+			});
+		}
+
 		return {
 			...message,
+			isSystemMessage: false,
 			sender: {
 				...message.sender,
 				avatar: message.sender.profilePhoto,
