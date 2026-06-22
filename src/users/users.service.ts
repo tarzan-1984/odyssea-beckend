@@ -659,7 +659,7 @@ export class UsersService {
 
 		try {
 			const rows = await this.fetchActiveDriversWithDevicesForCheckList(search);
-			let matching = rows.filter((user) =>
+			const matching = rows.filter((user) =>
 				user.userDevices.some((device) =>
 					isRecordedAppVersionBelowMinimum(
 						device.appVersion,
@@ -667,21 +667,6 @@ export class UsersService {
 					),
 				),
 			);
-
-			// TEMP: always include location test driver on version check-list (QA)
-			const env =
-				await this.appSettingsService.getLocationEnvironmentAppSettings();
-			const testExtId = env.locationTestDriverExternalId?.trim();
-			if (testExtId) {
-				const testDriver = rows.find(
-					(u) =>
-						(u.externalId ?? '').trim().toLowerCase() ===
-						testExtId.toLowerCase(),
-				);
-				if (testDriver && !matching.some((u) => u.id === testDriver.id)) {
-					matching = [testDriver, ...matching];
-				}
-			}
 
 			return this.paginateDriverDeviceCheckList(
 				matching,
@@ -743,8 +728,8 @@ export class UsersService {
 		const searchClause: Prisma.UserWhereInput[] = searchFilter
 			? [searchFilter]
 			: [];
-		// TEMP: include location test driver in check-list device queries (QA)
-		const excludeTestDriverClause: Prisma.UserWhereInput[] = [];
+		const excludeTestDriverClause =
+			await this.buildExcludeLocationTestDriverClause();
 
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
