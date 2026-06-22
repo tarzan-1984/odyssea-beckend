@@ -17,6 +17,7 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import { canSendCheckListMessages } from '../common/user-role-access';
+import { CHECK_LIST_EMAIL_CC } from './constants/check-list-email.constants';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
@@ -298,6 +299,7 @@ export class NotificationsController {
 			email,
 			from: senderFrom,
 			replyTo: senderEmail,
+			cc: CHECK_LIST_EMAIL_CC,
 		});
 
 		if (!result.sent) {

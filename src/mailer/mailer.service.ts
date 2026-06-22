@@ -15,6 +15,7 @@ export interface SendMailOptions {
 	html?: string;
 	from?: string;
 	replyTo?: string;
+	cc?: string | string[];
 }
 
 @Injectable()
@@ -68,7 +69,7 @@ export class MailerService implements OnModuleInit {
 			return false;
 		}
 
-		const { to, subject, text, html, from, replyTo } = options;
+		const { to, subject, text, html, from, replyTo, cc } = options;
 		const mailerConfig = this.configService.get<MailerConfig>('mailer');
 
 		if (!mailerConfig) {
@@ -84,6 +85,7 @@ export class MailerService implements OnModuleInit {
 				text,
 				html,
 				...(replyTo ? { replyTo } : {}),
+				...(cc ? { cc } : {}),
 			};
 
 			const info = (await this.transporter.sendMail(
@@ -142,7 +144,7 @@ export class MailerService implements OnModuleInit {
 		subject: string,
 		text: string,
 		html?: string,
-		options?: Pick<SendMailOptions, 'from' | 'replyTo'>,
+		options?: Pick<SendMailOptions, 'from' | 'replyTo' | 'cc'>,
 	): Promise<boolean> {
 		return this.sendMail({ to, subject, text, html, ...options });
 	}

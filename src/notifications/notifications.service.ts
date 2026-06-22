@@ -5,6 +5,7 @@ import { Notification, User } from '@prisma/client';
 import { FcmPushService } from './fcm-push.service';
 import { ExpoPushService } from './expo-push.service';
 import { MailerService } from '../mailer/mailer.service';
+import { plainTextToHtmlEmail } from '../mailer/plain-text-email-html.util';
 
 @Injectable()
 export class NotificationsService {
@@ -195,6 +196,7 @@ export class NotificationsService {
     email?: string;
     from?: string;
     replyTo?: string;
+    cc?: string | string[];
   }): Promise<{ sent: boolean; email?: string; reason?: string }> {
     const message = (params.message ?? '').trim();
     const subject = (params.subject ?? 'Odyssea').trim() || 'Odyssea';
@@ -228,10 +230,17 @@ export class NotificationsService {
       return { sent: false, reason: 'no_email' };
     }
 
-    const sent = await this.mailerService.sendEmail(email, subject, message, undefined, {
-      from: params.from,
-      replyTo: params.replyTo,
-    });
+    const sent = await this.mailerService.sendEmail(
+      email,
+      subject,
+      message,
+      plainTextToHtmlEmail(message),
+      {
+        from: params.from,
+        replyTo: params.replyTo,
+        cc: params.cc,
+      },
+    );
     if (!sent) {
       return { sent: false, email, reason: 'send_failed' };
     }
