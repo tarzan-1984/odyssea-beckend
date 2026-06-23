@@ -40,8 +40,6 @@ describe('GeoPostgisReverseGeocodeService', () => {
 	it('falls back to bounded nearest search when contains misses', async () => {
 		geoPrisma.$queryRaw
 			.mockResolvedValueOnce([])
-			.mockResolvedValueOnce([])
-			.mockResolvedValueOnce([])
 			.mockResolvedValueOnce([
 				{
 					city: 'Nearby',

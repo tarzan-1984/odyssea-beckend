@@ -15,7 +15,6 @@ type GeoReverseCacheRow = {
 @Injectable()
 export class GeoReverseCacheService {
 	private readonly logger = new Logger(GeoReverseCacheService.name);
-	private unavailableUntilMs = 0;
 
 	constructor(private readonly geoPrisma: GeoPrismaService) {}
 
@@ -23,10 +22,6 @@ export class GeoReverseCacheService {
 		latitude: number,
 		longitude: number,
 	): Promise<DriverReverseGeocodeResult | null> {
-		if (Date.now() < this.unavailableUntilMs) {
-			return null;
-		}
-
 		if (!this.geoPrisma.isConnected) {
 			return null;
 		}
@@ -43,10 +38,9 @@ export class GeoReverseCacheService {
 
 			return this.toResult(rows[0], 'geo_reverse_cache');
 		} catch (error) {
-			this.unavailableUntilMs = Date.now() + 30_000;
 			const message = error instanceof Error ? error.message : String(error);
 			this.logger.warn(
-				`Geo reverse cache lookup failed; skipping geo DB cache for 30s: ${message}`,
+				`Geo reverse cache lookup failed for this request: ${message}`,
 			);
 			return null;
 		}
@@ -58,10 +52,6 @@ export class GeoReverseCacheService {
 		result: DriverReverseGeocodeResult,
 		source: string,
 	): Promise<void> {
-		if (Date.now() < this.unavailableUntilMs) {
-			return;
-		}
-
 		if (!this.geoPrisma.isConnected) {
 			return;
 		}
@@ -106,10 +96,9 @@ export class GeoReverseCacheService {
 					created_at = NOW()
 			`;
 		} catch (error) {
-			this.unavailableUntilMs = Date.now() + 30_000;
 			const message = error instanceof Error ? error.message : String(error);
 			this.logger.warn(
-				`Geo reverse cache write failed; skipping geo DB cache for 30s: ${message}`,
+				`Geo reverse cache write failed for this request: ${message}`,
 			);
 			return;
 		}

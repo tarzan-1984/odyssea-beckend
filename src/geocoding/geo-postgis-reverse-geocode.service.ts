@@ -12,7 +12,6 @@ const NEAREST_EXPAND_DEGREES = [0.25, 1.0, 3.0] as const;
 @Injectable()
 export class GeoPostgisReverseGeocodeService {
 	private readonly logger = new Logger(GeoPostgisReverseGeocodeService.name);
-	private unavailableUntilMs = 0;
 
 	constructor(private readonly geoPrisma: GeoPrismaService) {}
 
@@ -20,10 +19,6 @@ export class GeoPostgisReverseGeocodeService {
 		latitude: number,
 		longitude: number,
 	): Promise<GeoPostgisReverseGeocodeResult | null> {
-		if (Date.now() < this.unavailableUntilMs) {
-			return null;
-		}
-
 		if (!this.geoPrisma.isConnected) {
 			this.logger.warn('Geo database is not connected — reverse geocode skipped');
 			return null;
@@ -34,22 +29,19 @@ export class GeoPostgisReverseGeocodeService {
 		}
 
 		try {
+			// One global contains query (original behaviour) — covers ~90% of hits.
+			const containsRows = await this.queryContainsGlobal(latitude, longitude);
+			const containsMatch = this.toResult(containsRows[0], 'contains');
+			if (containsMatch) {
+				return containsMatch;
+			}
+
 			const countries = inferNorthAmericaCountrySearchOrder({
 				latitude,
 				longitude,
 			});
 
-			for (const countryCode of countries) {
-				const containsRows = await this.queryContains(
-					latitude,
-					longitude,
-					countryCode,
-				);
-				const containsMatch = this.toResult(containsRows[0], 'contains');
-				if (containsMatch) {
-					return containsMatch;
-				}
-			}
+			let bestIncomplete: GeoPostgisReverseGeocodeResult | null = null;
 
 			for (const expandDegrees of NEAREST_EXPAND_DEGREES) {
 				for (const countryCode of countries) {
@@ -60,45 +52,51 @@ export class GeoPostgisReverseGeocodeService {
 						expandDegrees,
 					);
 					const nearestMatch = this.toResult(nearestRows[0], 'nearest');
-					if (nearestMatch) {
+					if (!nearestMatch) {
+						continue;
+					}
+					if (this.isCompleteResult(nearestMatch)) {
 						return nearestMatch;
 					}
+					bestIncomplete = nearestMatch;
 				}
 			}
 
-			const fallbackRows = await this.geoPrisma.$queryRaw<
-				GeoPostgisReverseGeocodeRow[]
-			>`
-				SELECT city, state, state_code, zip, country_code
-				FROM geo_zips
-				ORDER BY geom <-> ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
-				LIMIT 1
-			`;
-
-			return this.toResult(fallbackRows[0], 'nearest');
+			const fallbackRows = await this.queryNearestGlobal(latitude, longitude);
+			const fallbackMatch = this.toResult(fallbackRows[0], 'nearest');
+			return fallbackMatch ?? bestIncomplete;
 		} catch (error) {
-			this.unavailableUntilMs = Date.now() + 30_000;
 			const message = error instanceof Error ? error.message : String(error);
 			this.logger.warn(
-				`Geo database reverse geocode failed; skipping PostGIS for 30s: ${message}`,
+				`Geo database reverse geocode failed for this request: ${message}`,
 			);
 			return null;
 		}
 	}
 
-	private queryContains(
+	private queryContainsGlobal(
 		latitude: number,
 		longitude: number,
-		countryCode: string,
 	): Promise<GeoPostgisReverseGeocodeRow[]> {
 		return this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
 			SELECT city, state, state_code, zip, country_code
 			FROM geo_zips
-			WHERE country_code = ${countryCode}
-			  AND ST_Contains(
-			    geom,
-			    ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
-			  )
+			WHERE ST_Contains(
+			  geom,
+			  ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
+			)
+			LIMIT 1
+		`;
+	}
+
+	private queryNearestGlobal(
+		latitude: number,
+		longitude: number,
+	): Promise<GeoPostgisReverseGeocodeRow[]> {
+		return this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
+			SELECT city, state, state_code, zip, country_code
+			FROM geo_zips
+			ORDER BY geom <-> ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
 			LIMIT 1
 		`;
 	}
@@ -120,6 +118,12 @@ export class GeoPostgisReverseGeocodeService {
 			ORDER BY geom <-> ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
 			LIMIT 1
 		`;
+	}
+
+	private isCompleteResult(result: GeoPostgisReverseGeocodeResult): boolean {
+		return Boolean(
+			result.city?.trim() && result.state?.trim() && result.zip?.trim(),
+		);
 	}
 
 	private toResult(
