@@ -8,6 +8,7 @@ import {
 @Injectable()
 export class GeoPostgisReverseGeocodeService {
 	private readonly logger = new Logger(GeoPostgisReverseGeocodeService.name);
+	private unavailableUntilMs = 0;
 
 	constructor(private readonly geoPrisma: GeoPrismaService) {}
 
@@ -15,6 +16,10 @@ export class GeoPostgisReverseGeocodeService {
 		latitude: number,
 		longitude: number,
 	): Promise<GeoPostgisReverseGeocodeResult | null> {
+		if (Date.now() < this.unavailableUntilMs) {
+			return null;
+		}
+
 		if (!this.geoPrisma.isConnected) {
 			this.logger.warn('Geo database is not connected — reverse geocode skipped');
 			return null;
@@ -24,29 +29,42 @@ export class GeoPostgisReverseGeocodeService {
 			return null;
 		}
 
-		const containsRows = await this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
-			SELECT city, state, state_code, zip, country_code
-			FROM geo_zips
-			WHERE ST_Contains(
-				geom,
-				ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
-			)
-			LIMIT 1
-		`;
+		try {
+			const containsRows = await this.geoPrisma.$queryRaw<
+				GeoPostgisReverseGeocodeRow[]
+			>`
+				SELECT city, state, state_code, zip, country_code
+				FROM geo_zips
+				WHERE ST_Contains(
+					geom,
+					ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
+				)
+				LIMIT 1
+			`;
 
-		const containsMatch = this.toResult(containsRows[0], 'contains');
-		if (containsMatch) {
-			return containsMatch;
+			const containsMatch = this.toResult(containsRows[0], 'contains');
+			if (containsMatch) {
+				return containsMatch;
+			}
+
+			const nearestRows = await this.geoPrisma.$queryRaw<
+				GeoPostgisReverseGeocodeRow[]
+			>`
+				SELECT city, state, state_code, zip, country_code
+				FROM geo_zips
+				ORDER BY geom <-> ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
+				LIMIT 1
+			`;
+
+			return this.toResult(nearestRows[0], 'nearest');
+		} catch (error) {
+			this.unavailableUntilMs = Date.now() + 30_000;
+			const message = error instanceof Error ? error.message : String(error);
+			this.logger.warn(
+				`Geo database reverse geocode failed; skipping PostGIS for 30s: ${message}`,
+			);
+			return null;
 		}
-
-		const nearestRows = await this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
-			SELECT city, state, state_code, zip, country_code
-			FROM geo_zips
-			ORDER BY geom <-> ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
-			LIMIT 1
-		`;
-
-		return this.toResult(nearestRows[0], 'nearest');
 	}
 
 	private toResult(

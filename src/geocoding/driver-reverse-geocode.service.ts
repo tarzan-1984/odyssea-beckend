@@ -75,9 +75,9 @@ export class DriverReverseGeocodeService {
 		latitude: number,
 		longitude: number,
 	): Promise<DriverReverseGeocodeResult | null> {
-		const postgis = await this.geoPostgisReverseGeocode.reverseGeocode(
-			latitude,
-			longitude,
+		const postgis = await this.safeProvider(
+			'PostGIS geo_zips',
+			() => this.geoPostgisReverseGeocode.reverseGeocode(latitude, longitude),
 		);
 		if (postgis && this.isCompleteAddress(postgis)) {
 			this.logger.log(
@@ -99,9 +99,9 @@ export class DriverReverseGeocodeService {
 			};
 		}
 
-		const cached = await this.geoReverseCache.findByCoordinates(
-			latitude,
-			longitude,
+		const cached = await this.safeProvider(
+			'geo_reverse_cache',
+			() => this.geoReverseCache.findByCoordinates(latitude, longitude),
 		);
 		if (cached && this.isCompleteAddress(cached)) {
 			this.logger.log(
@@ -122,12 +122,15 @@ export class DriverReverseGeocodeService {
 		if (here?.address) {
 			const mapped = this.fromHere(here.address);
 			if (mapped) {
-				await this.geoReverseCache.upsertFromReverseGeocode(
-					latitude,
-					longitude,
-					mapped,
-					'here',
-				);
+				await this.safeProvider('geo_reverse_cache write', async () => {
+					await this.geoReverseCache.upsertFromReverseGeocode(
+						latitude,
+						longitude,
+						mapped,
+						'here',
+					);
+					return null;
+				});
 				this.logger.log(
 					formatServerGeocodeResolvedLog(
 						'HERE OK (cached to geo_reverse_cache)',
@@ -181,6 +184,21 @@ export class DriverReverseGeocodeService {
 		}
 
 		return cached;
+	}
+
+	private async safeProvider<T>(
+		label: string,
+		run: () => Promise<T>,
+	): Promise<T | null> {
+		try {
+			return await run();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.logger.warn(
+				`[ServerGeocode] ${label} failed — continuing without it: ${message}`,
+			);
+			return null;
+		}
 	}
 
 	private isCompleteAddress(result: {
