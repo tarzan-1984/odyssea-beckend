@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { ErrorWithResponse } from '../types/request.types';
+import { withPrismaPoolParams } from './prisma-database-url.util';
+
+/** Cap main DB pool — Render Postgres max_connections is shared across clients. */
+const MAIN_DB_CONNECTION_LIMIT = 8;
 
 @Injectable()
 export class PrismaService
@@ -15,7 +19,14 @@ export class PrismaService
 	private readonly logger = new Logger(PrismaService.name);
 
 	constructor() {
+		const databaseUrl = withPrismaPoolParams(process.env.DATABASE_URL, {
+			connectionLimit: MAIN_DB_CONNECTION_LIMIT,
+			poolTimeoutSeconds: 20,
+			connectTimeoutSeconds: 15,
+		});
+
 		super({
+			datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined,
 			log:
 				process.env.PRISMA_LOG_LEVEL === 'warn'
 					? ['error', 'warn']

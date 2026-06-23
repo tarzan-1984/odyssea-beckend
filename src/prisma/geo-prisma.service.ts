@@ -5,6 +5,10 @@ import {
 	OnModuleInit,
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/geo-client';
+import { withPrismaPoolParams } from './prisma-database-url.util';
+
+/** Geo DB is queried during location bursts; keep a small dedicated pool. */
+const GEO_DB_CONNECTION_LIMIT = 4;
 
 @Injectable()
 export class GeoPrismaService
@@ -15,7 +19,14 @@ export class GeoPrismaService
 	private connected = false;
 
 	constructor() {
+		const databaseUrl = withPrismaPoolParams(process.env.GEO_DATABASE_URL, {
+			connectionLimit: GEO_DB_CONNECTION_LIMIT,
+			poolTimeoutSeconds: 20,
+			connectTimeoutSeconds: 15,
+		});
+
 		super({
+			datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined,
 			log:
 				process.env.PRISMA_LOG_LEVEL === 'warn'
 					? ['error', 'warn']
