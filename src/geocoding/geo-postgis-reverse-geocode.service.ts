@@ -1,9 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GeoPrismaService } from '../prisma/geo-prisma.service';
+import { inferNorthAmericaCountrySearchOrder } from './north-america-country.util';
 import {
 	GeoPostgisReverseGeocodeResult,
 	GeoPostgisReverseGeocodeRow,
 } from './geo-postgis-reverse-geocode.types';
+
+/** KNN search radii in degrees (~0.25° ≈ 28 km at mid-latitudes). */
+const NEAREST_EXPAND_DEGREES = [0.25, 1.0, 3.0] as const;
 
 @Injectable()
 export class GeoPostgisReverseGeocodeService {
@@ -30,24 +34,39 @@ export class GeoPostgisReverseGeocodeService {
 		}
 
 		try {
-			const containsRows = await this.geoPrisma.$queryRaw<
-				GeoPostgisReverseGeocodeRow[]
-			>`
-				SELECT city, state, state_code, zip, country_code
-				FROM geo_zips
-				WHERE ST_Contains(
-					geom,
-					ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
-				)
-				LIMIT 1
-			`;
+			const countries = inferNorthAmericaCountrySearchOrder({
+				latitude,
+				longitude,
+			});
 
-			const containsMatch = this.toResult(containsRows[0], 'contains');
-			if (containsMatch) {
-				return containsMatch;
+			for (const countryCode of countries) {
+				const containsRows = await this.queryContains(
+					latitude,
+					longitude,
+					countryCode,
+				);
+				const containsMatch = this.toResult(containsRows[0], 'contains');
+				if (containsMatch) {
+					return containsMatch;
+				}
 			}
 
-			const nearestRows = await this.geoPrisma.$queryRaw<
+			for (const expandDegrees of NEAREST_EXPAND_DEGREES) {
+				for (const countryCode of countries) {
+					const nearestRows = await this.queryNearest(
+						latitude,
+						longitude,
+						countryCode,
+						expandDegrees,
+					);
+					const nearestMatch = this.toResult(nearestRows[0], 'nearest');
+					if (nearestMatch) {
+						return nearestMatch;
+					}
+				}
+			}
+
+			const fallbackRows = await this.geoPrisma.$queryRaw<
 				GeoPostgisReverseGeocodeRow[]
 			>`
 				SELECT city, state, state_code, zip, country_code
@@ -56,7 +75,7 @@ export class GeoPostgisReverseGeocodeService {
 				LIMIT 1
 			`;
 
-			return this.toResult(nearestRows[0], 'nearest');
+			return this.toResult(fallbackRows[0], 'nearest');
 		} catch (error) {
 			this.unavailableUntilMs = Date.now() + 30_000;
 			const message = error instanceof Error ? error.message : String(error);
@@ -65,6 +84,42 @@ export class GeoPostgisReverseGeocodeService {
 			);
 			return null;
 		}
+	}
+
+	private queryContains(
+		latitude: number,
+		longitude: number,
+		countryCode: string,
+	): Promise<GeoPostgisReverseGeocodeRow[]> {
+		return this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
+			SELECT city, state, state_code, zip, country_code
+			FROM geo_zips
+			WHERE country_code = ${countryCode}
+			  AND ST_Contains(
+			    geom,
+			    ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
+			  )
+			LIMIT 1
+		`;
+	}
+
+	private queryNearest(
+		latitude: number,
+		longitude: number,
+		countryCode: string,
+		expandDegrees: number,
+	): Promise<GeoPostgisReverseGeocodeRow[]> {
+		return this.geoPrisma.$queryRaw<GeoPostgisReverseGeocodeRow[]>`
+			SELECT city, state, state_code, zip, country_code
+			FROM geo_zips
+			WHERE country_code = ${countryCode}
+			  AND geom && ST_Expand(
+			    ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326),
+			    ${expandDegrees}
+			  )
+			ORDER BY geom <-> ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
+			LIMIT 1
+		`;
 	}
 
 	private toResult(

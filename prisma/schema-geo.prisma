@@ -22,6 +22,7 @@ model GeoZip {
 
   @@index([geom], type: Gist, map: "geo_zips_geom_idx")
   @@index([countryCode], map: "geo_zips_country_code_idx")
+  // Partial per-country GIST indexes: prisma/sql/indexes-geo-zips-optimize.sql
   @@map("geo_zips")
 }
 
