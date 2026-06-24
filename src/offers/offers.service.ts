@@ -18,6 +18,7 @@ import { AppSettingsService } from '../app-settings/app-settings.service';
 import {
 	getOfferTitleFromRoute,
 } from './offer-route.util';
+import { formatOfferRouteTimeForTms } from './offer-route-time.util';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
@@ -136,7 +137,7 @@ function normalizeRouteForTms(
 		const point = p as Record<string, unknown>;
 		const type = String(point.type ?? '').trim();
 		const location = String(point.location ?? '').trim();
-		const time = String(point.time ?? '').trim();
+		const time = formatOfferRouteTimeForTms(String(point.time ?? ''));
 		if (!type || !location) continue;
 		out.push({ type, location, time });
 	}
