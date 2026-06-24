@@ -204,6 +204,10 @@ export class OffersService {
 			dto.loadedMiles != null && !Number.isNaN(dto.loadedMiles)
 				? Number(dto.loadedMiles)
 				: null;
+		const offeredRateNum =
+			dto.offeredRate != null && !Number.isNaN(dto.offeredRate)
+				? Number(dto.offeredRate)
+				: null;
 		const driverEmptyMiles = dto.driverEmptyMiles ?? {};
 
 		const offer = await this.prisma.$transaction(async (tx) => {
@@ -213,6 +217,7 @@ export class OffersService {
 					createTime: nowNy,
 					updateTime: nowNy,
 					loadedMiles: loadedMilesNum,
+					offeredRate: offeredRateNum,
 					weight: dto.weight ?? null,
 					commodity: dto.commodity?.trim() || null,
 					specialRequirements:
@@ -414,6 +419,7 @@ export class OffersService {
 				createTime: true,
 				updateTime: true,
 				loadedMiles: true,
+				offeredRate: true,
 				weight: true,
 				commodity: true,
 				specialRequirements: true,
@@ -819,6 +825,7 @@ export class OffersService {
 			createTime: true,
 			updateTime: true,
 			loadedMiles: true,
+			offeredRate: true,
 			weight: true,
 			commodity: true,
 			notes: true,
@@ -898,6 +905,7 @@ export class OffersService {
 			createTime: string;
 			updateTime: string;
 			loadedMiles: number | null;
+			offeredRate: number | null;
 			weight: number | null;
 			commodity: string | null;
 			notes: string | null;
@@ -1006,6 +1014,7 @@ export class OffersService {
 				create_time: o.createTime,
 				update_time: o.updateTime,
 				loaded_miles: o.loadedMiles,
+				offered_rate: o.offeredRate,
 				weight: o.weight,
 				commodity: o.commodity,
 				special_requirements: o.specialRequirements,

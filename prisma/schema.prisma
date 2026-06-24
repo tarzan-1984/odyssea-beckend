@@ -241,6 +241,7 @@ model Offer {
   createTime          String      @map("create_time")
   updateTime          String      @map("update_time")
   loadedMiles         Float?      @map("loaded_miles")
+  offeredRate         Float?      @map("offered_rate")
   weight              Float?
   commodity           String?
   notes               String?
