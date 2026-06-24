@@ -65,6 +65,8 @@ This matches `render.yaml`. Playwright installs Chromium for the HERE reverse ge
 yarn start:prod
 ```
 
+Schema sync runs **once per deploy** (`yarn release:prod` in `buildCommand`), not on every crash restart. Running `prisma db push` on each restart caused exit 1 when the DB was briefly unavailable during recovery.
+
 ## Important Notes
 
 1. **Prisma Client Generation**: The `postinstall` script automatically generates the Prisma client after dependencies are installed.
@@ -87,6 +89,19 @@ If you encounter Prisma client errors:
 1. Check the build logs for specific error messages
 2. Ensure all environment variables are set
 3. Verify that the database connection is working
+
+### Instance failed: Exited with status 1 (after geolocation deploy)
+1. **Render → Logs** — filter around crash time (e.g. 8:25 PM). Look for:
+   - `FATAL ERROR: Reached heap limit` or `Killed` → OOM (Starter 512 MB + Chromium)
+   - `prisma db push` / `Can't reach database` → DB unavailable during restart
+   - `Failed to connect to geo database` → geo DB blip (app now starts without PostGIS)
+2. **Render → Metrics** — memory spikes before crashes confirm OOM
+3. Driver location updates no longer call Playwright/HERE (only PostGIS → cache → Nominatim). HERE API endpoint is unchanged.
+4. Apply geo indexes on production geo DB if not done yet:
+   ```bash
+   GEO_DATABASE_URL="..." yarn db:migrate:geo-zips-indexes
+   ```
+5. If HERE geocode endpoint is used heavily, upgrade Render plan to Standard (1 GB+ RAM)
 
 ### Playwright / HERE geocode (503 on `/v1/geocoding/here/reverse`)
 1. Build command must use `&&` (see above), not `;`

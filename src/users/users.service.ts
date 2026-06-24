@@ -1443,7 +1443,7 @@ export class UsersService {
 						latitude: locationDto.latitude as number,
 						longitude: locationDto.longitude as number,
 					})
-						? 'PostGIS → cache → HERE'
+						? 'PostGIS → cache → Nominatim'
 						: 'Nominatim (outside North America)'
 				}`,
 			);

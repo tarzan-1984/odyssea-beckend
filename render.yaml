@@ -5,7 +5,7 @@ services:
     plan: starter
     # Playwright + Chromium for GET /v1/geocoding/here/reverse (HERE revgeocode intercept).
     # Use && so deploy fails if browser install fails. install-deps needs root — not used on Render.
-    buildCommand: yarn install --frozen-lockfile && yarn playwright:install:render && yarn build
+    buildCommand: yarn install --frozen-lockfile && yarn playwright:install:render && yarn build && yarn release:prod
     startCommand: yarn start:prod
     envVars:
       - key: NODE_ENV

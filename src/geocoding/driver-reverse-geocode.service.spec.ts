@@ -1,7 +1,6 @@
 import { DriverReverseGeocodeService } from './driver-reverse-geocode.service';
 import { GeoPostgisReverseGeocodeService } from './geo-postgis-reverse-geocode.service';
 import { GeoReverseCacheService } from './geo-reverse-cache.service';
-import { HerePlaywrightReverseGeocodeService } from './here-playwright-reverse-geocode.service';
 import { NominatimReverseGeocodeService } from './nominatim-reverse-geocode.service';
 
 describe('DriverReverseGeocodeService', () => {
@@ -10,7 +9,6 @@ describe('DriverReverseGeocodeService', () => {
 		findByCoordinates: jest.fn(),
 		upsertFromReverseGeocode: jest.fn(),
 	};
-	const here = { reverseGeocode: jest.fn() };
 	const nominatim = { reverseGeocode: jest.fn() };
 
 	let service: DriverReverseGeocodeService;
@@ -20,7 +18,6 @@ describe('DriverReverseGeocodeService', () => {
 		service = new DriverReverseGeocodeService(
 			geoPostgis as unknown as GeoPostgisReverseGeocodeService,
 			geoReverseCache as unknown as GeoReverseCacheService,
-			here as unknown as HerePlaywrightReverseGeocodeService,
 			nominatim as unknown as NominatimReverseGeocodeService,
 		);
 	});
@@ -39,7 +36,6 @@ describe('DriverReverseGeocodeService', () => {
 		expect(result?.source).toBe('nominatim');
 		expect(result?.city).toBe('Kyiv');
 		expect(geoPostgis.reverseGeocode).not.toHaveBeenCalled();
-		expect(here.reverseGeocode).not.toHaveBeenCalled();
 		expect(geoReverseCache.findByCoordinates).not.toHaveBeenCalled();
 		expect(geoReverseCache.upsertFromReverseGeocode).not.toHaveBeenCalled();
 	});
@@ -58,5 +54,21 @@ describe('DriverReverseGeocodeService', () => {
 
 		expect(result?.source).toBe('geo_zips');
 		expect(nominatim.reverseGeocode).not.toHaveBeenCalled();
+	});
+
+	it('falls back to Nominatim when PostGIS and cache miss', async () => {
+		geoPostgis.reverseGeocode.mockResolvedValue(null);
+		geoReverseCache.findByCoordinates.mockResolvedValue(null);
+		nominatim.reverseGeocode.mockResolvedValue({
+			city: 'Chicago',
+			state: 'Illinois',
+			zip: '60601',
+			country: 'US',
+		});
+
+		const result = await service.reverseGeocode(41.8781, -87.6298);
+
+		expect(result?.source).toBe('nominatim');
+		expect(nominatim.reverseGeocode).toHaveBeenCalled();
 	});
 });

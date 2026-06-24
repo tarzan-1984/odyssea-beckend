@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DriverReverseGeocodeResult } from './driver-reverse-geocode.types';
 import { GeoPostgisReverseGeocodeService } from './geo-postgis-reverse-geocode.service';
 import { GeoReverseCacheService } from './geo-reverse-cache.service';
-import { HerePlaywrightReverseGeocodeService } from './here-playwright-reverse-geocode.service';
 import { NominatimReverseGeocodeService } from './nominatim-reverse-geocode.service';
 import { isAllowedNorthAmericaLatLng } from './north-america-bbox.util';
 import { formatServerGeocodeResolvedLog } from './driver-location-save-log.util';
@@ -14,7 +13,6 @@ export class DriverReverseGeocodeService {
 	constructor(
 		private readonly geoPostgisReverseGeocode: GeoPostgisReverseGeocodeService,
 		private readonly geoReverseCache: GeoReverseCacheService,
-		private readonly hereReverseGeocode: HerePlaywrightReverseGeocodeService,
 		private readonly nominatimReverseGeocode: NominatimReverseGeocodeService,
 	) {}
 
@@ -115,34 +113,8 @@ export class DriverReverseGeocodeService {
 			return cached;
 		}
 
-		const here = await this.hereReverseGeocode.reverseGeocode(
-			latitude,
-			longitude,
-		);
-		if (here?.address) {
-			const mapped = this.fromHere(here.address);
-			if (mapped) {
-				await this.safeProvider('geo_reverse_cache write', async () => {
-					await this.geoReverseCache.upsertFromReverseGeocode(
-						latitude,
-						longitude,
-						mapped,
-						'here',
-					);
-					return null;
-				});
-				this.logger.log(
-					formatServerGeocodeResolvedLog(
-						'HERE OK (cached to geo_reverse_cache)',
-						latitude,
-						longitude,
-						mapped,
-					),
-				);
-				return mapped;
-			}
-		}
-
+		// Driver location bursts must not launch Playwright/Chromium (OOM on Render Starter).
+		// HERE remains available via GET /v1/geocoding/here/reverse for manual/UI use.
 		const nominatim = await this.nominatimReverseGeocode.reverseGeocode(
 			latitude,
 			longitude,
@@ -209,40 +181,5 @@ export class DriverReverseGeocodeService {
 		return Boolean(
 			result.city?.trim() && result.state?.trim() && result.zip?.trim(),
 		);
-	}
-
-	private fromHere(address: {
-		city?: string;
-		state?: string;
-		stateCode?: string;
-		postalCode?: string;
-		countryCode?: string;
-	}): DriverReverseGeocodeResult | null {
-		const city = address.city?.trim() ?? '';
-		const state = address.state?.trim() ?? '';
-		const stateCode = address.stateCode?.trim() ?? '';
-		const zip = address.postalCode?.trim() ?? '';
-		const countryCode = this.normalizeCountryCode(address.countryCode);
-
-		if (!city && !state && !zip) {
-			return null;
-		}
-
-		return {
-			city,
-			state,
-			stateCode,
-			zip,
-			countryCode,
-			source: 'here',
-		};
-	}
-
-	private normalizeCountryCode(raw: string | undefined): string {
-		const code = raw?.trim().toUpperCase() ?? '';
-		if (code === 'USA' || code === 'UNITED STATES') return 'US';
-		if (code === 'MEX' || code === 'MEXICO') return 'MX';
-		if (code === 'CAN' || code === 'CANADA') return 'CA';
-		return code.length === 2 ? code : '';
 	}
 }

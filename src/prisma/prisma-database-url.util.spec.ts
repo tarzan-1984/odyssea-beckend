@@ -20,5 +20,16 @@ describe('withPrismaPoolParams', () => {
 		);
 
 		expect(url).toContain('connection_limit=3');
+		expect(url).not.toContain('connection_limit=8');
+	});
+
+	it('preserves passwords with reserved characters', () => {
+		const url = withPrismaPoolParams(
+			'postgresql://user:p%40ss%2Fword@host:5432/db?sslmode=require',
+			{ connectionLimit: 4, poolTimeoutSeconds: 20 },
+		);
+
+		expect(url).toContain('p%40ss%2Fword');
+		expect(url).toContain('connection_limit=4');
 	});
 });

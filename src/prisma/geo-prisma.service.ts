@@ -9,6 +9,8 @@ import { withPrismaPoolParams } from './prisma-database-url.util';
 
 /** Geo DB is queried during location bursts; keep a small dedicated pool. */
 const GEO_DB_CONNECTION_LIMIT = 4;
+const GEO_DB_CONNECT_MAX_ATTEMPTS = 3;
+const GEO_DB_CONNECT_RETRY_DELAY_MS = 2_000;
 
 @Injectable()
 export class GeoPrismaService
@@ -56,15 +58,33 @@ export class GeoPrismaService
 			);
 		}
 
-		try {
-			this.logger.log('Connecting to geo database...');
-			await this.$connect();
-			this.connected = true;
-			this.logger.log('Successfully connected to geo database');
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			this.logger.error(`Failed to connect to geo database: ${message}`);
-			throw error;
+		for (let attempt = 1; attempt <= GEO_DB_CONNECT_MAX_ATTEMPTS; attempt++) {
+			try {
+				this.logger.log(
+					`Connecting to geo database (attempt ${attempt}/${GEO_DB_CONNECT_MAX_ATTEMPTS})...`,
+				);
+				await this.$connect();
+				this.connected = true;
+				this.logger.log('Successfully connected to geo database');
+				return;
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : String(error);
+				const isLastAttempt = attempt === GEO_DB_CONNECT_MAX_ATTEMPTS;
+				if (isLastAttempt) {
+					this.logger.error(
+						`Failed to connect to geo database after ${GEO_DB_CONNECT_MAX_ATTEMPTS} attempts: ${message}. ` +
+							'App will start without PostGIS geo lookups (Nominatim fallback still works).',
+					);
+					return;
+				}
+				this.logger.warn(
+					`Geo database connect attempt ${attempt} failed: ${message}. Retrying...`,
+				);
+				await new Promise((resolve) =>
+					setTimeout(resolve, GEO_DB_CONNECT_RETRY_DELAY_MS),
+				);
+			}
 		}
 	}
 
