@@ -157,6 +157,8 @@ export class NotificationsController {
 			userId?: string | null;
 			externalId?: string | null;
 			platform?: 'all' | 'ios' | 'android' | null;
+			offerId?: number | string | null;
+			offerTitle?: string | null;
 		},
 	) {
 		if (!canSendCheckListMessages(req.user.role)) {
@@ -216,6 +218,14 @@ export class NotificationsController {
 		const result = await this.notificationsService.sendCustomPush({
 			message,
 			userId,
+			offerId:
+				body?.offerId != null && String(body.offerId).trim()
+					? Number(body.offerId)
+					: undefined,
+			offerTitle:
+				typeof body?.offerTitle === 'string' && body.offerTitle.trim()
+					? body.offerTitle.trim()
+					: undefined,
 		});
 
 		return { success: true, data: result };

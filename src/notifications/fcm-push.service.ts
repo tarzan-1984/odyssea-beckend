@@ -8,8 +8,11 @@ import {
 export interface FCMPushOptions {
 	title: string;
 	body: string;
+	subtitle?: string;
 	imageUrl?: string; // Avatar URL for notification icon
 	data?: Record<string, string>; // Additional data for the app
+	/** Android: omit title so the full message body gets more visible lines. */
+	androidBodyOnly?: boolean;
 }
 
 @Injectable()
@@ -30,13 +33,19 @@ export class FcmPushService {
 	 */
 	async sendToToken(token: string, options: FCMPushOptions): Promise<string> {
 		try {
+			const notification: admin.messaging.Notification = {
+				body: options.body,
+			};
+			if (!options.androidBodyOnly && options.title) {
+				notification.title = options.title;
+			}
+			if (options.imageUrl) {
+				notification.imageUrl = options.imageUrl;
+			}
+
 			const message: admin.messaging.Message = {
 				token,
-				notification: {
-					title: options.title,
-					body: options.body,
-					imageUrl: options.imageUrl, // Large icon for Android, image for iOS
-				},
+				notification,
 				data:
 					options.data && Object.keys(options.data).length > 0
 						? Object.fromEntries(
@@ -65,6 +74,7 @@ export class FcmPushService {
 						aps: {
 							alert: {
 								title: options.title,
+								...(options.subtitle ? { subtitle: options.subtitle } : {}),
 								body: options.body,
 							},
 							sound: 'livechat.wav', // Custom sound for iOS
@@ -112,13 +122,19 @@ export class FcmPushService {
 			const batch = tokens.slice(i, i + batchSize);
 
 			try {
+				const notification: admin.messaging.Notification = {
+					body: options.body,
+				};
+				if (!options.androidBodyOnly && options.title) {
+					notification.title = options.title;
+				}
+				if (options.imageUrl) {
+					notification.imageUrl = options.imageUrl;
+				}
+
 				const message: admin.messaging.MulticastMessage = {
 					tokens: batch,
-					notification: {
-						title: options.title,
-						body: options.body,
-						imageUrl: options.imageUrl, // Large icon for Android, image for iOS
-					},
+					notification,
 					data:
 						options.data && Object.keys(options.data).length > 0
 							? Object.fromEntries(
@@ -147,6 +163,7 @@ export class FcmPushService {
 							aps: {
 								alert: {
 									title: options.title,
+									...(options.subtitle ? { subtitle: options.subtitle } : {}),
 									body: options.body,
 								},
 								sound: 'livechat.wav',

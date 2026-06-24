@@ -111,8 +111,11 @@ export class NotificationsService {
     userId: string;
     title: string;
     body: string;
+    subtitle?: string;
     imageUrl?: string;
     payload?: Record<string, string>;
+    /** Android FCM: show only body text (no title) for longer visible message. */
+    androidBodyOnly?: boolean;
   }): Promise<void> {
     try {
       const userPrefs = await this.prisma.user.findUnique({
@@ -145,21 +148,32 @@ export class NotificationsService {
       }
 
       if (fcmTokens.length > 0) {
+        const payload = {
+          ...(data.payload ?? {}),
+          fullMessage: data.body,
+        };
         await this.fcmPushService.sendToTokens(fcmTokens, {
           title: data.title,
           body: data.body,
+          subtitle: data.subtitle,
           imageUrl: data.imageUrl,
-          data: data.payload,
+          data: payload,
+          androidBodyOnly: data.androidBodyOnly,
         });
       }
 
       if (expoPushTokens.length > 0) {
+        const payload = {
+          ...(data.payload ?? {}),
+          fullMessage: data.body,
+        };
         await this.expoPushService.send(
           expoPushTokens.map((token) => ({
             to: token,
             title: data.title,
+            subtitle: data.subtitle,
             body: data.body,
-            data: data.payload,
+            data: payload,
             sound: 'livechat.wav',
             priority: 'high' as const,
             ...(data.imageUrl ? { largeIcon: data.imageUrl } : {}),
@@ -180,11 +194,39 @@ export class NotificationsService {
   async sendCustomPush(params: {
     message: string;
     userId: string;
+    offerId?: number;
+    offerTitle?: string;
   }): Promise<{ targeted: true; users: number }> {
     const message = (params.message ?? '').trim();
     if (!message) return { targeted: true, users: 0 };
 
-    await this.sendAdminBroadcastPushToUser(params.userId, message);
+    const offerId =
+      params.offerId != null && Number.isFinite(params.offerId)
+        ? Math.trunc(params.offerId)
+        : undefined;
+    const offerTitle = (params.offerTitle ?? '').trim();
+
+    if (offerTitle) {
+      await this.sendPushToUser({
+        userId: params.userId,
+        title: `Offer - ${offerTitle}`,
+        body: message,
+        payload: {
+          type: 'offer_unavailable',
+          offerTitle,
+          ...(offerId != null ? { offerId: String(offerId) } : {}),
+        },
+      });
+    } else {
+      await this.sendPushToUser({
+        userId: params.userId,
+        title: 'Odyssea',
+        body: message,
+        androidBodyOnly: true,
+        payload: { type: 'admin_broadcast' },
+      });
+    }
+
     return { targeted: true, users: 1 };
   }
 
@@ -253,6 +295,7 @@ export class NotificationsService {
       userId,
       title: 'Odyssea',
       body: message,
+      androidBodyOnly: true,
       payload: { type: 'admin_broadcast' },
     });
   }

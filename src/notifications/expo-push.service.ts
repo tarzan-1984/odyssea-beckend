@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 type ExpoMessage = {
 	to: string;
 	title?: string;
+	subtitle?: string;
 	body?: string;
 	data?: any;
 	channelId?: string;
