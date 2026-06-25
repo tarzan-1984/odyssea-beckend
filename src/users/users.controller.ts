@@ -408,7 +408,7 @@ export class UsersController {
 	@ApiOperation({
 		summary: 'Drivers check list (stale location)',
 		description:
-			'ACTIVE drivers with loaded_enroute and/or available (filterable), excluding deactivateAccount true, banned, and blocked. Last location update (NY wall time string) older than 3 hours. Sortable by last location via lastLocationSort (asc | desc), secondary sort by id.',
+			'ACTIVE drivers with loaded_enroute and/or available (filterable), excluding deactivateAccount true, banned, blocked, expired_documents, and on_vocation. Last location update (NY wall time string) older than 3 hours. Sortable by last location via lastLocationSort (asc | desc), secondary sort by id.',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -462,7 +462,7 @@ export class UsersController {
 	@ApiOperation({
 		summary: 'Drivers check list (outdated app version)',
 		description:
-			'ACTIVE drivers (deactivateAccount not true, not banned, not blocked) with at least one outdated app version. Returns all devices per matching driver. Search matches name, email, externalId (no load id). Default sort: lowest app version first (appVersionSort asc | desc).',
+			'ACTIVE drivers (deactivateAccount not true, not banned, blocked, expired_documents, or on_vocation) with at least one outdated app version. Returns all devices per matching driver. Search matches name, email, externalId (no load id). Default sort: lowest app version first (appVersionSort asc | desc).',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -501,7 +501,7 @@ export class UsersController {
 	@ApiOperation({
 		summary: 'Drivers check list (multiple devices)',
 		description:
-			'ACTIVE drivers (deactivateAccount not true, not banned, not blocked) with two or more devices on one account. Returns all devices per matching driver. Search matches name, email, externalId (no load id). Default sort: lowest app version first (appVersionSort asc | desc).',
+			'ACTIVE drivers (deactivateAccount not true, not banned, blocked, expired_documents, or on_vocation) with two or more devices on one account. Returns all devices per matching driver. Search matches name, email, externalId (no load id). Default sort: lowest app version first (appVersionSort asc | desc).',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })

@@ -147,24 +147,23 @@ export class UsersService {
 	}
 
 	private buildCheckListDriverExclusionClauses(): Prisma.UserWhereInput[] {
+		const excludedDriverStatuses = [
+			'blocked',
+			'banned',
+			'expired_documents',
+			'on_vocation',
+		] as const;
+
 		return [
 			{ deactivateAccount: { not: true } },
 			{
 				NOT: {
-					OR: [
-						{
-							driverStatus: {
-								equals: 'blocked',
-								mode: 'insensitive',
-							},
+					OR: excludedDriverStatuses.map((status) => ({
+						driverStatus: {
+							equals: status,
+							mode: 'insensitive' as const,
 						},
-						{
-							driverStatus: {
-								equals: 'banned',
-								mode: 'insensitive',
-							},
-						},
-					],
+					})),
 				},
 			},
 		];
