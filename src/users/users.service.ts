@@ -146,8 +146,9 @@ export class UsersService {
 		];
 	}
 
-	private buildExcludeBannedBlockedDriverClause(): Prisma.UserWhereInput[] {
+	private buildCheckListDriverExclusionClauses(): Prisma.UserWhereInput[] {
 		return [
+			{ deactivateAccount: { not: true } },
 			{
 				NOT: {
 					OR: [
@@ -590,9 +591,7 @@ export class UsersService {
 			role: UserRole.DRIVER,
 			status: UserStatus.ACTIVE,
 			AND: [
-				// Exclude TMS soft-removed drivers (deactivateAccount === true)
-				{ deactivateAccount: { not: true } },
-				...this.buildExcludeBannedBlockedDriverClause(),
+				...this.buildCheckListDriverExclusionClauses(),
 				{ OR: statusOr },
 				{ lastLocationUpdateAt: { not: null } },
 				{ NOT: { lastLocationUpdateAt: '' } },
@@ -759,8 +758,7 @@ export class UsersService {
 			role: UserRole.DRIVER,
 			status: UserStatus.ACTIVE,
 			AND: [
-				{ deactivateAccount: { not: true } },
-				...this.buildExcludeBannedBlockedDriverClause(),
+				...this.buildCheckListDriverExclusionClauses(),
 				{ userDevices: { some: {} } },
 				...excludeTestDriverClause,
 				...searchClause,
