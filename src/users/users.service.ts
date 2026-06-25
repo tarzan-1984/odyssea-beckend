@@ -146,6 +146,29 @@ export class UsersService {
 		];
 	}
 
+	private buildExcludeBannedBlockedDriverClause(): Prisma.UserWhereInput[] {
+		return [
+			{
+				NOT: {
+					OR: [
+						{
+							driverStatus: {
+								equals: 'blocked',
+								mode: 'insensitive',
+							},
+						},
+						{
+							driverStatus: {
+								equals: 'banned',
+								mode: 'insensitive',
+							},
+						},
+					],
+				},
+			},
+		];
+	}
+
 	private parseNaiveDateTime(value: string | null | undefined): Date | null {
 		const trimmed = value?.trim();
 		if (!trimmed) return null;
@@ -569,6 +592,7 @@ export class UsersService {
 			AND: [
 				// Exclude TMS soft-removed drivers (deactivateAccount === true)
 				{ deactivateAccount: { not: true } },
+				...this.buildExcludeBannedBlockedDriverClause(),
 				{ OR: statusOr },
 				{ lastLocationUpdateAt: { not: null } },
 				{ NOT: { lastLocationUpdateAt: '' } },
@@ -736,11 +760,7 @@ export class UsersService {
 			status: UserStatus.ACTIVE,
 			AND: [
 				{ deactivateAccount: { not: true } },
-				{
-					NOT: {
-						driverStatus: { equals: 'blocked', mode: 'insensitive' },
-					},
-				},
+				...this.buildExcludeBannedBlockedDriverClause(),
 				{ userDevices: { some: {} } },
 				...excludeTestDriverClause,
 				...searchClause,
