@@ -7,6 +7,7 @@ import {
 describe('chat-thumbnail.util', () => {
 	it('detects image file names', () => {
 		expect(isThumbnailCandidateFileName('photo.heic')).toBe(true);
+		expect(isThumbnailCandidateFileName('photo.dng')).toBe(true);
 		expect(isThumbnailCandidateFileName('doc.pdf')).toBe(false);
 	});
 

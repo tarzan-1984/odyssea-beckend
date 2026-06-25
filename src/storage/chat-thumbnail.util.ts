@@ -11,6 +11,7 @@ const THUMBNAIL_EXTENSIONS = new Set([
 	'heic',
 	'heif',
 	'gif',
+	'dng',
 ]);
 
 export function isThumbnailCandidateFileName(fileName: string): boolean {

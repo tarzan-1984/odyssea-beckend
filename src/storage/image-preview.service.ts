@@ -17,6 +17,7 @@ const PREVIEW_IMAGE_EXTENSIONS = new Set([
 	'heic',
 	'heif',
 	'gif',
+	'dng',
 ]);
 
 @Injectable()
