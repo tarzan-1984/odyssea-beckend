@@ -21,6 +21,7 @@ import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
 import { registerUserDeviceActivity } from '../common/upsert-user-device';
 import { parseMobileDeviceSyncPayload } from '../common/mobile-device-sync.util';
 import { nowInTimeZoneAsNaiveDate } from '../common/utils/ny-wall-clock';
+import { SUPPORT_EMAIL_CC } from '../notifications/constants/check-list-email.constants';
 
 /** QA / App Review: fixed TMS driver id and bypass credentials (see validateUser, verifyOtp). */
 const DRIVER_QA_EXTERNAL_ID = '3343';
@@ -365,6 +366,7 @@ export class AuthService {
         <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
       </div>
       `,
+			{ cc: SUPPORT_EMAIL_CC },
 		);
 
 		if (!emailSent) {
@@ -922,6 +924,7 @@ export class AuthService {
 					<p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
 				</div>
 				`,
+				{ cc: SUPPORT_EMAIL_CC },
 			);
 
 			if (!emailSent) {
@@ -1016,6 +1019,7 @@ export class AuthService {
 			user.email,
 			'Your New Password',
 			`<div style="font-family: Arial, sans-serif; font-size: 16px"><p>Your new password is: <strong style="font-size: 18px; color: #007bff;">${newPassword}</strong></p></div>`,
+			{ cc: SUPPORT_EMAIL_CC },
 		);
 
 		if (!emailSent) {

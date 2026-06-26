@@ -112,8 +112,9 @@ export class MailerService implements OnModuleInit {
 		to: string,
 		subject: string,
 		text: string,
+		options?: Pick<SendMailOptions, 'from' | 'replyTo' | 'cc'>,
 	): Promise<boolean> {
-		return this.sendMail({ to, subject, text });
+		return this.sendMail({ to, subject, text, ...options });
 	}
 
 	/**
@@ -127,8 +128,9 @@ export class MailerService implements OnModuleInit {
 		to: string,
 		subject: string,
 		html: string,
+		options?: Pick<SendMailOptions, 'from' | 'replyTo' | 'cc'>,
 	): Promise<boolean> {
-		return this.sendMail({ to, subject, html });
+		return this.sendMail({ to, subject, html, ...options });
 	}
 
 	/**
