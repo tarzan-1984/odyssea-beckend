@@ -698,7 +698,7 @@ export class NotificationsService {
     const normalizedOfferTitle =
       String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
     const title = 'Offer Assignment';
-    const message = `You have been added to the offer "${normalizedOfferTitle}".`;
+    const message = `You have a new load offer "${normalizedOfferTitle}".`;
     const avatar = this.generateChatInitials(normalizedOfferTitle);
 
     const notification = await this.createNotification({
