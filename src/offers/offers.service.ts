@@ -17,6 +17,7 @@ import { TmsAppDraftLoadsService } from '../tms/tms-app-draft-loads.service';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import {
 	getOfferTitleFromRoute,
+	getRouteEndpoints,
 } from './offer-route.util';
 import { formatOfferRouteTimeForTms } from './offer-route-time.util';
 import { AxiosError } from '../types/request.types';
@@ -265,6 +266,215 @@ export class OffersService {
 		});
 
 		return offer;
+	}
+
+	async update(offerId: number, dto: CreateOfferDto) {
+		const errors: string[] = [];
+		if (!dto.externalId?.trim()) {
+			errors.push('Creator external ID (externalId / external_user_id) is required');
+		}
+		const driverIds = Array.isArray(dto.driverIds) ? dto.driverIds : [];
+		if (driverIds.length === 0) {
+			errors.push('At least one driver (driverIds) is required');
+		}
+		if (!Array.isArray(dto.route) || dto.route.length === 0) {
+			errors.push('Route with at least one point is required');
+		}
+		const loadedMiles = dto.loadedMiles;
+		if (
+			loadedMiles == null ||
+			(typeof loadedMiles === 'number' && Number.isNaN(loadedMiles))
+		) {
+			errors.push('Loaded miles is required');
+		}
+		const weight = dto.weight;
+		if (
+			weight == null ||
+			(typeof weight === 'number' && Number.isNaN(weight))
+		) {
+			errors.push('Weight is required');
+		}
+		if (errors.length > 0) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors,
+			});
+		}
+
+		const existingOffer = await this.prisma.offer.findUnique({
+			where: { id: offerId },
+			select: { id: true },
+		});
+		if (!existingOffer) {
+			throw new NotFoundException(`Offer with id ${offerId} not found`);
+		}
+
+		const users = await this.prisma.user.findMany({
+			where: {
+				OR: [
+					{ id: { in: driverIds } },
+					{ externalId: { in: driverIds } },
+				],
+			},
+			select: { id: true, externalId: true },
+		});
+		const idToExternalId = new Map<string, string>();
+		for (const user of users) {
+			if (user.externalId) {
+				idToExternalId.set(user.id, user.externalId);
+				idToExternalId.set(user.externalId, user.externalId);
+			}
+		}
+
+		const resolvedExternalIds: string[] = [];
+		const resolvedExternalIdSet = new Set<string>();
+		const externalIdToSourceId = new Map<string, string>();
+		for (const id of driverIds) {
+			const externalId = idToExternalId.get(id);
+			if (externalId && !resolvedExternalIdSet.has(externalId)) {
+				resolvedExternalIdSet.add(externalId);
+				resolvedExternalIds.push(externalId);
+				externalIdToSourceId.set(externalId, id);
+			}
+		}
+
+		const nowNy = nowInNewYorkAsLocaleString();
+		const driversJson: Prisma.InputJsonValue | undefined =
+			resolvedExternalIds.length > 0 ? resolvedExternalIds : undefined;
+		const specialRequirementsJson: Prisma.InputJsonValue | undefined =
+			dto.specialRequirements && dto.specialRequirements.length > 0
+				? dto.specialRequirements
+				: undefined;
+		const routeJson: Prisma.InputJsonValue | undefined =
+			dto.route && dto.route.length > 0
+				? (dto.route as unknown as Prisma.InputJsonValue)
+				: undefined;
+
+		const loadedMilesNum =
+			dto.loadedMiles != null && !Number.isNaN(dto.loadedMiles)
+				? Number(dto.loadedMiles)
+				: null;
+		const offeredRateNum =
+			dto.offeredRate != null && !Number.isNaN(dto.offeredRate)
+				? Number(dto.offeredRate)
+				: null;
+		const driverEmptyMiles = dto.driverEmptyMiles ?? {};
+		const { pickUp, delivery } = getRouteEndpoints(dto.route);
+		const offerTitle = getOfferTitleFromRoute(dto.route, offerId);
+
+		const offer = await this.prisma.$transaction(async (tx) => {
+			const updatedOffer = await tx.offer.update({
+				where: { id: offerId },
+				data: {
+					externalUserId: dto.externalId.trim(),
+					updateTime: nowNy,
+					loadedMiles: loadedMilesNum,
+					offeredRate: offeredRateNum,
+					weight: dto.weight ?? null,
+					commodity: dto.commodity?.trim() || null,
+					specialRequirements:
+						specialRequirementsJson ?? Prisma.JsonNull,
+					notes: dto.notes?.trim() || null,
+					drivers: driversJson ?? Prisma.JsonNull,
+					route: routeJson ?? Prisma.JsonNull,
+					isDriverSelected: false,
+					loadId: null,
+				},
+			});
+
+			const existingRateOffers = await tx.rateOffer.findMany({
+				where: { offerId },
+				select: { id: true, driverId: true, emptyMiles: true },
+			});
+			const existingByDriverId = new Map(
+				existingRateOffers
+					.filter((row) => row.driverId)
+					.map((row) => [row.driverId as string, row]),
+			);
+
+			for (const driverExternalId of resolvedExternalIds) {
+				const sourceId =
+					externalIdToSourceId.get(driverExternalId) ?? driverExternalId;
+				const existing = existingByDriverId.get(driverExternalId);
+				const emptyMilesRaw =
+					driverEmptyMiles[sourceId] ??
+					driverEmptyMiles[driverExternalId] ??
+					(existing?.emptyMiles != null
+						? Number(existing.emptyMiles)
+						: null);
+				const emptyMiles =
+					emptyMilesRaw != null && !Number.isNaN(Number(emptyMilesRaw))
+						? Number(emptyMilesRaw)
+						: null;
+				const totalMiles =
+					loadedMilesNum != null && emptyMiles != null
+						? loadedMilesNum + emptyMiles
+						: null;
+
+				const resetData = {
+					active: true,
+					rate: null,
+					actionTime: null,
+					driverEta: null,
+					isSelected: false,
+					...(emptyMiles != null ? { emptyMiles } : { emptyMiles: null }),
+					...(totalMiles != null ? { totalMiles } : { totalMiles: null }),
+				};
+
+				if (existing) {
+					await tx.rateOffer.update({
+						where: { id: existing.id },
+						data: resetData,
+					});
+				} else {
+					await tx.rateOffer.create({
+						data: {
+							offerId,
+							driverId: driverExternalId,
+							...resetData,
+						},
+					});
+				}
+			}
+
+			const removedRateOfferIds = existingRateOffers
+				.filter(
+					(row) =>
+						row.driverId && !resolvedExternalIdSet.has(row.driverId),
+				)
+				.map((row) => row.id);
+			if (removedRateOfferIds.length > 0) {
+				await tx.rateOffer.updateMany({
+					where: { id: { in: removedRateOfferIds } },
+					data: {
+						active: false,
+						rate: null,
+						actionTime: null,
+						driverEta: null,
+						isSelected: false,
+					},
+				});
+			}
+
+			return updatedOffer;
+		});
+
+		return {
+			offer,
+			notifiedDriverExternalIds: resolvedExternalIds,
+			pickUp,
+			delivery,
+			offerTitle,
+		};
+	}
+
+	async findDriverUsersByExternalIds(externalIds: string[]) {
+		const ids = externalIds.map((id) => String(id ?? '').trim()).filter(Boolean);
+		if (ids.length === 0) return [];
+		return this.prisma.user.findMany({
+			where: { externalId: { in: ids } },
+			select: { id: true, externalId: true },
+		});
 	}
 
 	/**

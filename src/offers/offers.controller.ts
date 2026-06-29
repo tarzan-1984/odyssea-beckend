@@ -203,6 +203,56 @@ export class OffersController {
 		return offer;
 	}
 
+	@Patch(':id')
+	@ApiOperation({
+		summary: 'Update an offer',
+		description:
+			'Updates offer fields (route, loaded miles, weight, etc.) and recalculates total miles for linked drivers.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiBody({ type: CreateOfferDto })
+	@ApiResponse({ status: 200, description: 'Offer updated successfully' })
+	@ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+	@ApiResponse({ status: 404, description: 'Offer not found' })
+	async update(
+		@Param('id', ParseIntPipe) id: number,
+		@Body() dto: CreateOfferDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		this.ensureCanModifyOffers(req.user.role);
+		const result = await this.offersService.update(id, dto);
+		await this.offersRealtimeService.emitOfferUpdated(id, 'offer_updated', {
+			affectedExternalIds: result.notifiedDriverExternalIds,
+			requestingUserId: req.user.id,
+		});
+
+		if (result.notifiedDriverExternalIds.length > 0) {
+			const driverUsers = await this.offersService.findDriverUsersByExternalIds(
+				result.notifiedDriverExternalIds,
+			);
+			await Promise.all(
+				driverUsers.map((user) =>
+					this.notificationsService
+						.createOfferUpdatedNotification({
+							userId: user.id,
+							offerId: id,
+							offerTitle: result.offerTitle,
+							pickUp: result.pickUp,
+							delivery: result.delivery,
+						})
+						.catch((err) =>
+							console.error(
+								`Failed to send offer_updated notification to ${user.id}:`,
+								err,
+							),
+						),
+				),
+			);
+		}
+
+		return result.offer;
+	}
+
 	@Patch(':id/deactivate-offer')
 	@ApiOperation({
 		summary: 'Deactivate offer',

@@ -724,6 +724,48 @@ export class NotificationsService {
   }
 
   /**
+   * Notify driver that an existing offer was updated and bids were reset.
+   */
+  async createOfferUpdatedNotification(data: {
+    userId: string;
+    offerId: number;
+    offerTitle: string;
+    pickUp: string;
+    delivery: string;
+  }): Promise<Notification> {
+    const routeLabel =
+      data.pickUp.trim() && data.delivery.trim()
+        ? `${data.pickUp.trim()} – ${data.delivery.trim()}`
+        : String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
+    const title = 'Offer updated';
+    const message =
+      `The load offer for ${routeLabel} has been updated. ` +
+      'Please review the changes that have been made. If you are still interested, kindly resubmit your rate.';
+    const avatar = this.generateChatInitials(routeLabel);
+
+    const notification = await this.createNotification({
+      userId: data.userId,
+      title,
+      message,
+      type: 'offer_updated',
+      avatar,
+    });
+
+    await this.sendPushToUser({
+      userId: data.userId,
+      title,
+      body: message,
+      payload: {
+        type: 'offer_updated',
+        offerId: String(data.offerId),
+        offerTitle: String(data.offerTitle || '').trim() || routeLabel,
+      },
+    });
+
+    return notification;
+  }
+
+  /**
    * Get notifications for a user with pagination
    */
   async getUserNotifications(
