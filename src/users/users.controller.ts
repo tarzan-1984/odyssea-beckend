@@ -618,7 +618,8 @@ export class UsersController {
 	@ApiQuery({
 		name: 'search',
 		required: false,
-		description: 'Search users by first name, last name, email, or phone',
+		description:
+			'Search users by first name, last name, email, phone, or externalId (driver ID)',
 		type: String,
 		example: 'john',
 	})

@@ -20,6 +20,12 @@ function fieldMatchersForToken(
 		matchers.push({
 			phone: { not: null, contains: token, mode: 'insensitive' },
 		});
+		const digitsOnly = token.replace(/\D/g, '');
+		if (digitsOnly.length >= 3 && digitsOnly !== token) {
+			matchers.push({
+				phone: { not: null, contains: digitsOnly, mode: 'insensitive' },
+			});
+		}
 	}
 
 	if (options.includeExternalId) {

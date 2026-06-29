@@ -36,4 +36,35 @@ describe('buildUserTextSearchWhereInput', () => {
 			],
 		});
 	});
+
+	it('includes phone and externalId when options are set', () => {
+		expect(
+			buildUserTextSearchWhereInput('12345', {
+				includePhone: true,
+				includeExternalId: true,
+			}),
+		).toEqual({
+			OR: [
+				{ firstName: { contains: '12345', mode: 'insensitive' } },
+				{ lastName: { contains: '12345', mode: 'insensitive' } },
+				{ email: { contains: '12345', mode: 'insensitive' } },
+				{ phone: { not: null, contains: '12345', mode: 'insensitive' } },
+				{ externalId: { not: null, contains: '12345', mode: 'insensitive' } },
+			],
+		});
+	});
+
+	it('adds digit-only phone matcher for formatted phone tokens', () => {
+		expect(
+			buildUserTextSearchWhereInput('555-123-4567', { includePhone: true }),
+		).toEqual({
+			OR: [
+				{ firstName: { contains: '555-123-4567', mode: 'insensitive' } },
+				{ lastName: { contains: '555-123-4567', mode: 'insensitive' } },
+				{ email: { contains: '555-123-4567', mode: 'insensitive' } },
+				{ phone: { not: null, contains: '555-123-4567', mode: 'insensitive' } },
+				{ phone: { not: null, contains: '5551234567', mode: 'insensitive' } },
+			],
+		});
+	});
 });

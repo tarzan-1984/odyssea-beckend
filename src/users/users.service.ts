@@ -386,6 +386,7 @@ export class UsersService {
 
 		const searchFilter = buildUserTextSearchWhereInput(search, {
 			includePhone: true,
+			includeExternalId: true,
 		});
 		if (searchFilter) {
 			andFilters.push(searchFilter);
