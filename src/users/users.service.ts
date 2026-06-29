@@ -16,7 +16,10 @@ import {
 	getLowestAppVersion,
 	isRecordedAppVersionBelowMinimum,
 } from '../common/app-version.util';
-import { buildUserTextSearchWhereInput } from './user-text-search.util';
+import {
+	buildUserTextSearchWhereInput,
+	buildUserTextSearchWhereInputWithPhoneDigits,
+} from './user-text-search.util';
 import { MailerService } from '../mailer/mailer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserLocationDto } from './dto/update-user-location.dto';
@@ -384,10 +387,14 @@ export class UsersService {
 			andFilters.push({ company: { has: company } });
 		}
 
-		const searchFilter = buildUserTextSearchWhereInput(search, {
-			includePhone: true,
-			includeExternalId: true,
-		});
+		const searchFilter = await buildUserTextSearchWhereInputWithPhoneDigits(
+			this.prisma,
+			search,
+			{
+				includePhone: true,
+				includeExternalId: true,
+			},
+		);
 		if (searchFilter) {
 			andFilters.push(searchFilter);
 		}

@@ -1,4 +1,8 @@
-import { buildUserTextSearchWhereInput } from './user-text-search.util';
+import {
+	buildUserTextSearchWhereInput,
+	isPhoneLikeQuery,
+	normalizePhoneDigits,
+} from './user-text-search.util';
 
 describe('buildUserTextSearchWhereInput', () => {
 	it('returns null for empty search', () => {
@@ -66,5 +70,16 @@ describe('buildUserTextSearchWhereInput', () => {
 				{ phone: { not: null, contains: '5551234567', mode: 'insensitive' } },
 			],
 		});
+	});
+});
+
+describe('phone search helpers', () => {
+	it('normalizes formatted phone numbers', () => {
+		expect(normalizePhoneDigits('(667) 239-5553')).toBe('6672395553');
+	});
+
+	it('detects phone-like queries with parentheses', () => {
+		expect(isPhoneLikeQuery('(667) 239-5553')).toBe(true);
+		expect(isPhoneLikeQuery('John Smith')).toBe(false);
 	});
 });
