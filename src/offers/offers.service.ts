@@ -368,6 +368,7 @@ export class OffersService {
 				data: {
 					externalUserId: dto.externalId.trim(),
 					updateTime: nowNy,
+					updateDate: nowNy,
 					loadedMiles: loadedMilesNum,
 					offeredRate: offeredRateNum,
 					weight: dto.weight ?? null,
@@ -629,6 +630,7 @@ export class OffersService {
 				externalUserId: true,
 				createTime: true,
 				updateTime: true,
+				updateDate: true,
 				loadedMiles: true,
 				offeredRate: true,
 				weight: true,
@@ -1035,6 +1037,7 @@ export class OffersService {
 			externalUserId: true,
 			createTime: true,
 			updateTime: true,
+			updateDate: true,
 			loadedMiles: true,
 			offeredRate: true,
 			weight: true,
@@ -1115,6 +1118,7 @@ export class OffersService {
 			externalUserId: string | null;
 			createTime: string;
 			updateTime: string;
+			updateDate: string | null;
 			loadedMiles: number | null;
 			offeredRate: number | null;
 			weight: number | null;
@@ -1224,6 +1228,7 @@ export class OffersService {
 				external_user_id: o.externalUserId,
 				create_time: o.createTime,
 				update_time: o.updateTime,
+				update_date: o.updateDate,
 				loaded_miles: o.loadedMiles,
 				offered_rate: o.offeredRate,
 				weight: o.weight,

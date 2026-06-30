@@ -240,6 +240,8 @@ model Offer {
   loadId              String?     @map("load_id")
   createTime          String      @map("create_time")
   updateTime          String      @map("update_time")
+  /// NY wall-clock time when offer was last edited via PATCH /offers/:id (nullable for legacy rows).
+  updateDate          String?     @map("update_date")
   loadedMiles         Float?      @map("loaded_miles")
   offeredRate         Float?      @map("offered_rate")
   weight              Float?
