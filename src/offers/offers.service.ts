@@ -19,6 +19,7 @@ import {
 	getOfferTitleFromRoute,
 	getRouteEndpoints,
 } from './offer-route.util';
+import { calcTotalMiles, parseEmptyMiles } from './offer-miles.util';
 import { formatOfferRouteTimeForTms } from './offer-route-time.util';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -232,16 +233,13 @@ export class OffersService {
 
 			if (driverIds.length > 0) {
 				const rateOfferData = driverIds.map((driverId) => {
-					const emptyMilesRaw = driverEmptyMiles[driverId.trim()];
-					const emptyMiles =
-						emptyMilesRaw != null &&
-						!Number.isNaN(Number(emptyMilesRaw))
-							? Number(emptyMilesRaw)
-							: null;
-					const totalMiles =
-						loadedMilesNum != null && emptyMiles != null
-							? loadedMilesNum + emptyMiles
-							: null;
+					const emptyMiles = parseEmptyMiles(
+						driverEmptyMiles[driverId.trim()],
+					);
+					const totalMiles = calcTotalMiles(
+						loadedMilesNum,
+						emptyMiles,
+					);
 					const rec: {
 						offerId: number;
 						driverId: string | null;
@@ -397,20 +395,15 @@ export class OffersService {
 				const sourceId =
 					externalIdToSourceId.get(driverExternalId) ?? driverExternalId;
 				const existing = existingByDriverId.get(driverExternalId);
-				const emptyMilesRaw =
+				const emptyMiles = parseEmptyMiles(
 					driverEmptyMiles[sourceId] ??
-					driverEmptyMiles[driverExternalId] ??
-					(existing?.emptyMiles != null
-						? Number(existing.emptyMiles)
-						: null);
-				const emptyMiles =
-					emptyMilesRaw != null && !Number.isNaN(Number(emptyMilesRaw))
-						? Number(emptyMilesRaw)
-						: null;
-				const totalMiles =
-					loadedMilesNum != null && emptyMiles != null
-						? loadedMilesNum + emptyMiles
-						: null;
+						driverEmptyMiles[driverExternalId] ??
+						existing?.emptyMiles,
+				);
+				const totalMiles = calcTotalMiles(
+					loadedMilesNum,
+					emptyMiles,
+				);
 
 				const resetData = {
 					active: true,
@@ -1361,18 +1354,14 @@ export class OffersService {
 				data: newExternalIds.map((driverId) => {
 					const sourceId =
 						externalIdToSourceId.get(driverId) ?? driverId;
-					const emptyMilesRaw =
+					const emptyMiles = parseEmptyMiles(
 						driverEmptyMiles[sourceId] ??
-						driverEmptyMiles[driverId];
-					const emptyMiles =
-						emptyMilesRaw != null &&
-						!Number.isNaN(Number(emptyMilesRaw))
-							? Number(emptyMilesRaw)
-							: null;
-					const totalMiles =
-						loadedMilesNum != null && emptyMiles != null
-							? loadedMilesNum + emptyMiles
-							: null;
+							driverEmptyMiles[driverId],
+					);
+					const totalMiles = calcTotalMiles(
+						loadedMilesNum,
+						emptyMiles,
+					);
 					const rec: {
 						offerId: number;
 						driverId: string;

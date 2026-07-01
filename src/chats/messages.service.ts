@@ -28,6 +28,13 @@ function joinedAtCutoffForDriverMessages(joinedAt: Date): Date {
 }
 
 const LOAD_DISPATCH_SYSTEM_SENDER_EMAIL = 'odysseia-team@system.internal';
+
+const MESSAGE_DELETE_ROLES: UserRole[] = [
+	UserRole.ADMINISTRATOR,
+	UserRole.TRACKING_TL,
+	UserRole.HR_MANAGER,
+	UserRole.EXPEDITE_MANAGER,
+];
 export const LOAD_DISPATCH_SYSTEM_SENDER_NAME = 'Odysseia Team';
 
 @Injectable()
@@ -1741,10 +1748,12 @@ export class MessagesService {
 			throw new NotFoundException('Message not found');
 		}
 
-		// Only administrators may delete messages (any message in the chat).
-		if (userRole !== UserRole.ADMINISTRATOR) {
+		if (
+			!userRole ||
+			!MESSAGE_DELETE_ROLES.includes(userRole as UserRole)
+		) {
 			throw new BadRequestException(
-				'Only administrators can delete messages',
+				'You do not have permission to delete messages',
 			);
 		}
 

@@ -680,7 +680,7 @@ export class MessagesController {
 	@ApiOperation({
 		summary: 'Delete message',
 		description:
-			'Delete a message. Only administrators can delete messages (any message in the chat). Sends WebSocket notification to all chat participants.',
+			'Delete a message. Administrators, Tracking TL, HR Manager, and Expedite Manager can delete any message in the chat. Sends WebSocket notification to all chat participants.',
 	})
 	@ApiParam({
 		name: 'id',
