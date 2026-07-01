@@ -28,6 +28,7 @@ import { TmsLoadEnrichmentDto } from './dto/tms-load-enrichment.dto';
 import { UpdateLoadTrackingPointDto } from './dto/update-load-tracking-point.dto';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { ActivateDriverApplicationBackfillDto } from './dto/activate-driver-application-backfill.dto';
+import { TmsLoadUpdateWebhookDto } from './dto/tms-load-update-webhook.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverApplicationBackfillBackgroundService } from './tms-driver-application-backfill-background.service';
 import { TmsDriverLoadsService } from './tms-driver-loads.service';
@@ -42,6 +43,8 @@ import { sanitizeMobileLoadDetailsResponse } from './tms-load-meta-sanitize.util
 import { LoadChatTmsSyncService } from '../chats/load-chat-tms-sync.service';
 /** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
 const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
+/** Grep this in logs to find TMS load data update webhook calls only. */
+const TMS_LOAD_UPDATE_WEBHOOK_MARKER = 'TMS_LOAD_UPDATE_WEBHOOK';
 
 /** Load ended — same cleanup as delivered (stop tracking, deliveryAt, route geocode). */
 const TMS_LOAD_TERMINAL_STATUSES = new Set([
@@ -378,6 +381,44 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 	@ApiResponse({ status: 404, description: 'Unknown jobId' })
 	async getActivateBackfillStatus(@Param('jobId') jobId: string) {
 		return this.tmsDriverApplicationBackfillBackgroundService.getStatus(jobId);
+	}
+
+	@Post('load/update')
+	@SkipAuth()
+	@HttpCode(200)
+	@ApiOperation({
+		summary: 'Open TMS webhook: load data changed',
+		description:
+			'Receives load data updates from TMS. Broadcasts tmsLoadUpdated via WebSocket so mobile clients refetch the loads list and refresh the open load detail screen.',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Webhook accepted and broadcast to connected clients',
+	})
+	async receiveLoadDataUpdated(@Body() body: TmsLoadUpdateWebhookDto) {
+		const loadId = body.load_id.trim();
+		const project = body.project?.trim() || undefined;
+		const isFlt = body.is_flt;
+
+		this.logger.log(
+			`======== ${TMS_LOAD_UPDATE_WEBHOOK_MARKER} ======== EVENT=load_data_update load_id=${loadId} project=${project ?? 'n/a'} is_flt=${String(isFlt)}`,
+		);
+
+		await this.notificationsWebSocketService.broadcastTmsLoadUpdated({
+			loadId,
+			project,
+			isFlt,
+		});
+
+		return {
+			success: true,
+			data: {
+				loadId,
+				project,
+				is_flt: isFlt,
+				action: 'broadcast',
+			},
+		};
 	}
 
 	@Post('load/status')

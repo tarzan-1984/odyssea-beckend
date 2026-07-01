@@ -196,6 +196,35 @@ export class NotificationsWebSocketService {
 	 * Broadcast that global mobile app settings changed (location thresholds, environment gate,
 	 * max concurrent offer bids, etc.). Clients should re-fetch GET /v1/app-settings and apply locally.
 	 */
+	/**
+	 * Broadcast that TMS load data changed (POST /v1/tms/load/update webhook).
+	 * Mobile clients refetch the loads list and refresh the open load detail screen.
+	 */
+	async broadcastTmsLoadUpdated(payload: {
+		loadId: string;
+		project?: string;
+		isFlt?: boolean;
+	}) {
+		try {
+			if (!this.server) {
+				this.logger.warn('WebSocket server not initialized');
+				return;
+			}
+
+			this.server.emit('tmsLoadUpdated', {
+				loadId: payload.loadId,
+				project: payload.project,
+				is_flt: payload.isFlt,
+			});
+
+			this.logger.log(
+				`TMS load updated broadcast loadId=${payload.loadId} project=${payload.project ?? 'n/a'}`,
+			);
+		} catch (error) {
+			this.logger.error('Failed to broadcast TMS load update:', error);
+		}
+	}
+
 	async broadcastAppLocationSettingsUpdated(payload?: {
 		updatedAt?: string;
 	}) {
