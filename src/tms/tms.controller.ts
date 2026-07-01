@@ -39,6 +39,7 @@ import { TmsLoadTrackingService } from './tms-load-tracking.service';
 import { DriverLogService } from '../users/driver-log.service';
 import { buildTmsLoadStatusDriverChanges } from '../users/utils/driver-change-log.util';
 import { sanitizeMobileLoadDetailsResponse } from './tms-load-meta-sanitize.util';
+import { LoadChatTmsSyncService } from '../chats/load-chat-tms-sync.service';
 /** Grep this in logs (e.g. Render) to find TMS load status webhook calls only. */
 const TMS_LOAD_STATUS_WEBHOOK_MARKER = 'TMS_LOAD_STATUS_WEBHOOK';
 
@@ -50,8 +51,27 @@ const TMS_LOAD_TERMINAL_STATUSES = new Set([
 	'canceled',
 ]);
 
+/** Load active again — clear deliveryAt / isLoadArchived on LOAD chats. */
+const TMS_LOAD_REACTIVATION_STATUSES = new Set([
+	'waiting_on_pu_date',
+	'at_pu',
+	'loaded_enroute',
+	'at_del',
+]);
+
 function isTmsLoadTerminalStatus(normalizedLoadStatus: string): boolean {
 	return TMS_LOAD_TERMINAL_STATUSES.has(normalizedLoadStatus);
+}
+
+function isTmsLoadReactivationStatus(normalizedLoadStatus: string): boolean {
+	return TMS_LOAD_REACTIVATION_STATUSES.has(normalizedLoadStatus);
+}
+
+function isTmsLoadHandledStatus(normalizedLoadStatus: string): boolean {
+	return (
+		isTmsLoadTerminalStatus(normalizedLoadStatus) ||
+		isTmsLoadReactivationStatus(normalizedLoadStatus)
+	);
 }
 
 const LOAD_TRACKING_HISTORY_EDIT_ROLES = new Set([
@@ -78,6 +98,7 @@ export class TmsController {
 		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 		private readonly notificationsService: NotificationsService,
 		private readonly driverLogService: DriverLogService,
+		private readonly loadChatTmsSyncService: LoadChatTmsSyncService,
 	) {}
 
 	@Get('driver/loads')
@@ -364,7 +385,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 	@ApiOperation({
 		summary: 'Open TMS webhook: load status changed',
 		description:
-			'Receives load status updates from TMS. For loaded-enroute, marks the ACTIVE driver as loaded_enroute and starts tracking for the provided load_id. For delivered, tonu, cancelled (or canceled), stops tracking and clears trackingLoadId, sets chat_rooms.deliveryAt (UTC) on LOAD rooms for this load_id; keeps driver_tracking history rows for this load; does not change driverStatus or isAutoupdate (manual / other flows only).',
+			'Receives load status updates from TMS. For loaded-enroute, marks the ACTIVE driver as loaded_enroute and starts tracking for the provided load_id. For delivered, tonu, cancelled (or canceled), stops tracking and clears trackingLoadId, sets chat_rooms.deliveryAt (UTC) on LOAD rooms for this load_id; keeps driver_tracking history rows for this load; does not change driverStatus or isAutoupdate (manual / other flows only). For waiting-on-pu-date, at-pu, loaded-enroute, at-del, clears chat_rooms.deliveryAt and is_load_archived on LOAD rooms and emits chatRoomUpdated so clients move the chat back to the active list.',
 	})
 	@ApiResponse({
 		status: 201,
@@ -409,10 +430,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 			`======== ${TMS_LOAD_STATUS_WEBHOOK_MARKER} ======== EVENT=load_status_update load_id=${loadId} driver_id=${driverId} load_status_raw=${loadStatus} normalized=${normalizedLoadStatus}`,
 		);
 
-		if (
-			normalizedLoadStatus !== 'loaded_enroute' &&
-			!isTmsLoadTerminalStatus(normalizedLoadStatus)
-		) {
+		if (!isTmsLoadHandledStatus(normalizedLoadStatus)) {
 			this.logger.log(
 				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=logged_only reason=unsupported_load_status load_id=${loadId} driver_id=${driverId} normalized=${normalizedLoadStatus}`,
 			);
@@ -563,6 +581,29 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 			};
 		}
 
+		let loadChatsReactivated = 0;
+		if (isTmsLoadReactivationStatus(normalizedLoadStatus)) {
+			loadChatsReactivated =
+				await this.loadChatTmsSyncService.reactivateLoadChats(loadId);
+		}
+
+		if (normalizedLoadStatus !== 'loaded_enroute') {
+			this.logger.log(
+				`-------- ${TMS_LOAD_STATUS_WEBHOOK_MARKER} -------- OUTCOME=load_chat_reactivated load_status=${normalizedLoadStatus} load_id=${loadId} driver_id=${driverId} load_chat_rooms_reactivated=${loadChatsReactivated}`,
+			);
+			return {
+				success: true,
+				data: {
+					loadId,
+					driverId,
+					loadStatus,
+					normalizedLoadStatus,
+					action: 'load_chat_reactivated',
+					loadChatRoomsReactivated: loadChatsReactivated,
+				},
+			};
+		}
+
 		const updatedDriver = await this.prisma.user.update({
 			where: { id: driver.id },
 			data: {
@@ -670,6 +711,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 				trackingLoadId: updatedDriver.trackingLoadId,
 				deletedOffers: offerCleanup.offers,
 				deletedRateOffers: offerCleanup.rateOffers,
+				loadChatRoomsReactivated: loadChatsReactivated,
 			},
 		};
 	}

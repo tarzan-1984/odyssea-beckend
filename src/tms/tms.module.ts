@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
+import { ChatsModule } from '../chats/chats.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DriverLogModule } from '../users/driver-log.module';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
@@ -20,7 +21,13 @@ import { TmsLoadTrackingService } from './tms-load-tracking.service';
 import { TmsController } from './tms.controller';
 
 @Module({
-	imports: [ConfigModule, AppSettingsModule, NotificationsModule, DriverLogModule],
+	imports: [
+		ConfigModule,
+		AppSettingsModule,
+		NotificationsModule,
+		DriverLogModule,
+		ChatsModule,
+	],
 	providers: [
 		TmsDriverApplicationService,
 		TmsDriverApplicationBackfillBackgroundService,
