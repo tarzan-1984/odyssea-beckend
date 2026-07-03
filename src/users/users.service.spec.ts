@@ -28,6 +28,7 @@ import { TmsLoadDetailsService } from '../tms/tms-load-details.service';
 describe('UsersService', () => {
 	let service: UsersService;
 	let prismaService: PrismaService;
+	let notificationsWebSocketService: NotificationsWebSocketService;
 
 	const mockPrismaService = {
 		user: {
@@ -38,6 +39,10 @@ describe('UsersService', () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			count: jest.fn(),
+		},
+		userDevice: {
+			findMany: jest.fn(),
+			deleteMany: jest.fn(),
 		},
 	};
 
@@ -70,7 +75,10 @@ describe('UsersService', () => {
 				},
 				{
 					provide: NotificationsWebSocketService,
-					useValue: { sendUserLocationUpdate: jest.fn() },
+					useValue: {
+						sendUserLocationUpdate: jest.fn(),
+						sendDeviceDeactivatedLogout: jest.fn().mockResolvedValue(undefined),
+					},
 				},
 				{
 					provide: MailerService,
@@ -130,6 +138,7 @@ describe('UsersService', () => {
 
 		service = module.get<UsersService>(UsersService);
 		prismaService = module.get<PrismaService>(PrismaService);
+		notificationsWebSocketService = module.get(NotificationsWebSocketService);
 	});
 
 	afterEach(() => {
@@ -485,6 +494,86 @@ describe('UsersService', () => {
 			await expect(
 				service.processWebhookSync(webhookData),
 			).rejects.toThrow(BadRequestException);
+		});
+
+		it('should force-logout devices before deleting driver on TMS delete webhook', async () => {
+			const webhookData: WebhookSyncDto = {
+				type: WebhookType.DELETE,
+				role: WebhookRole.DRIVER,
+				timestamp: '2025-09-12 04:27:51',
+				source: 'tms-statistics',
+				driver_id: '122',
+			};
+
+			mockPrismaService.user.findFirst.mockResolvedValue({
+				id: 'user-1',
+				externalId: '122',
+			});
+			mockPrismaService.userDevice.findMany.mockResolvedValue([
+				{ deviceId: 'device-a' },
+				{ deviceId: 'device-b' },
+			]);
+			mockPrismaService.userDevice.deleteMany.mockResolvedValue({ count: 2 });
+			mockPrismaService.user.delete.mockResolvedValue({ id: 'user-1' });
+
+			const result = await service.processWebhookSync(webhookData);
+
+			expect(mockPrismaService.userDevice.findMany).toHaveBeenCalledWith({
+				where: { user: { id: 'user-1' } },
+				select: { deviceId: true },
+			});
+			expect(
+				notificationsWebSocketService.sendDeviceDeactivatedLogout,
+			).toHaveBeenNthCalledWith(1, 'user-1', 'device-a');
+			expect(
+				notificationsWebSocketService.sendDeviceDeactivatedLogout,
+			).toHaveBeenNthCalledWith(2, 'user-1', 'device-b');
+			expect(mockPrismaService.userDevice.deleteMany).toHaveBeenCalledWith({
+				where: { user: { id: 'user-1' } },
+			});
+			expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
+				where: { id: 'user-1' },
+			});
+			expect(result).toEqual({
+				action: 'deleted',
+				externalId: '122',
+				message: 'Driver deleted successfully',
+			});
+		});
+
+		it('should force-logout devices before deleting employee on TMS delete webhook', async () => {
+			const webhookData: WebhookSyncDto = {
+				type: WebhookType.DELETE,
+				role: WebhookRole.EMPLOYEE,
+				timestamp: '2025-09-12 04:27:51',
+				source: 'tms-statistics',
+				user_id: 33,
+			};
+
+			mockPrismaService.user.findFirst.mockResolvedValue({
+				id: 'user-33',
+				externalId: '33',
+			});
+			mockPrismaService.userDevice.findMany.mockResolvedValue([
+				{ deviceId: 'device-x' },
+			]);
+			mockPrismaService.userDevice.deleteMany.mockResolvedValue({ count: 1 });
+			mockPrismaService.user.delete.mockResolvedValue({ id: 'user-33' });
+
+			const result = await service.processWebhookSync(webhookData);
+
+			expect(
+				notificationsWebSocketService.sendDeviceDeactivatedLogout,
+			).toHaveBeenCalledWith('user-33', 'device-x');
+			expect(mockPrismaService.userDevice.deleteMany).toHaveBeenCalled();
+			expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
+				where: { id: 'user-33' },
+			});
+			expect(result).toEqual({
+				action: 'deleted',
+				externalId: '33',
+				message: 'Employee deleted successfully',
+			});
 		});
 	});
 });

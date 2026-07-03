@@ -1357,33 +1357,60 @@ export class UsersService {
 			throw new NotFoundException('Device not found');
 		}
 
+		await this.notifyDriverDeviceForceLogout(
+			device.user.id,
+			device.deviceId,
+		);
+
 		await this.prisma.userDevice.delete({
 			where: { id: device.id },
 		});
-
-		this.notifyDriverDeviceForceLogout(device.user.id, device.deviceId);
 	}
 
-	private notifyDriverDeviceForceLogout(
+	private async notifyDriverDeviceForceLogout(
 		userId: string,
 		deviceId: string | null,
 		reason: 'device_removed' | 'device_blocked' = 'device_removed',
-	): void {
+	): Promise<void> {
 		const normalizedDeviceId = deviceId?.trim();
 		if (!normalizedDeviceId) {
 			return;
 		}
 		if (reason === 'device_blocked') {
-			void this.notificationsWebSocketService.sendDeviceBlockedLogout(
+			await this.notificationsWebSocketService.sendDeviceBlockedLogout(
 				userId,
 				normalizedDeviceId,
 			);
 			return;
 		}
-		void this.notificationsWebSocketService.sendDeviceDeactivatedLogout(
+		await this.notificationsWebSocketService.sendDeviceDeactivatedLogout(
 			userId,
 			normalizedDeviceId,
 		);
+	}
+
+	/**
+	 * TMS hard-delete: force-logout all registered devices, remove device rows, then delete user.
+	 */
+	private async hardDeleteUserAfterDeviceLogouts(userId: string): Promise<void> {
+		const devices = await this.prisma.userDevice.findMany({
+			where: { user: { id: userId } },
+			select: { deviceId: true },
+		});
+
+		for (const device of devices) {
+			await this.notifyDriverDeviceForceLogout(userId, device.deviceId);
+		}
+
+		if (devices.length > 0) {
+			await this.prisma.userDevice.deleteMany({
+				where: { user: { id: userId } },
+			});
+		}
+
+		await this.prisma.user.delete({
+			where: { id: userId },
+		});
 	}
 
 	/**
@@ -2100,9 +2127,7 @@ export class UsersService {
 				throw new NotFoundException('Driver not found');
 			}
 
-			await this.prisma.user.delete({
-				where: { id: user.id },
-			});
+			await this.hardDeleteUserAfterDeviceLogouts(user.id);
 
 			return {
 				action: 'deleted',
@@ -2429,9 +2454,7 @@ export class UsersService {
 				throw new NotFoundException('Employee not found');
 			}
 
-			await this.prisma.user.delete({
-				where: { id: user.id },
-			});
+			await this.hardDeleteUserAfterDeviceLogouts(user.id);
 
 			return {
 				action: 'deleted',
