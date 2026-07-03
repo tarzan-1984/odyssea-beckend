@@ -187,7 +187,7 @@ export class AppSettingsService {
 					pushToken: devicePayload?.pushToken ?? syncInput?.pushToken,
 					lastActiveAt,
 				},
-				{ reactivate: false },
+				{ createIfMissing: false },
 			);
 			return false;
 		} catch {

@@ -223,8 +223,6 @@ model UserDevice {
   pushToken      String?
   /// Last time the app was foregrounded on this device (NY wall-clock, same encoding as users.lastActiveApp).
   lastActiveAt   DateTime? @map("last_active_at")
-  /// False when the user removed this device from Settings on another installation.
-  activeDevice   Boolean  @default(true) @map("active_device")
   /// Admin/system block flag for this installation (default not blocked).
   blocked        Boolean  @default(false)
   createdAt      DateTime @default(now())

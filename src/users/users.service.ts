@@ -766,7 +766,7 @@ export class UsersService {
 			status: UserStatus.ACTIVE,
 			AND: [
 				...this.buildCheckListDriverExclusionClauses(),
-				{ userDevices: { some: { activeDevice: true } } },
+				{ userDevices: { some: {} } },
 				...excludeTestDriverClause,
 				...searchClause,
 			],
@@ -787,7 +787,6 @@ export class UsersService {
 				externalId: true,
 				phone: true,
 				userDevices: {
-					where: { activeDevice: true },
 					select: {
 						id: true,
 						deviceId: true,
@@ -797,7 +796,6 @@ export class UsersService {
 						model: true,
 						lastActiveAt: true,
 						blocked: true,
-						activeDevice: true,
 					},
 					orderBy: [{ platform: 'asc' }, { updatedAt: 'desc' }],
 				},
@@ -864,7 +862,6 @@ export class UsersService {
 					deviceName: device.deviceName,
 					model: device.model,
 					blocked: device.blocked,
-					activeDevice: device.activeDevice,
 					lastActiveAt: this.formatNaiveTimestampForApi(
 						device.lastActiveAt,
 					),
@@ -1288,7 +1285,6 @@ export class UsersService {
 		const device = await this.prisma.userDevice.findFirst({
 			where: {
 				id: deviceRowId,
-				activeDevice: true,
 				user: { role: UserRole.DRIVER },
 			},
 			select: {
@@ -1321,7 +1317,6 @@ export class UsersService {
 		const device = await this.prisma.userDevice.findFirst({
 			where: {
 				id: deviceRowId,
-				activeDevice: true,
 				user: { role: UserRole.DRIVER },
 			},
 			select: {
@@ -1346,7 +1341,6 @@ export class UsersService {
 		const device = await this.prisma.userDevice.findFirst({
 			where: {
 				id: deviceRowId,
-				activeDevice: true,
 				user: { role: UserRole.DRIVER },
 			},
 			select: {
@@ -1359,9 +1353,8 @@ export class UsersService {
 			throw new NotFoundException('Device not found');
 		}
 
-		await this.prisma.userDevice.update({
+		await this.prisma.userDevice.delete({
 			where: { id: device.id },
-			data: { activeDevice: false },
 		});
 
 		this.notifyDriverDeviceForceLogout(device.user.id, device.deviceId);

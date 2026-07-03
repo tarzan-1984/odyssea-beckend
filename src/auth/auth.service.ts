@@ -1073,7 +1073,6 @@ export class AuthService {
 		const lastActiveAt = nowInTimeZoneAsNaiveDate('America/New_York');
 		const devicePayload = parseMobileDeviceSyncPayload(dto);
 		const externalId = user.externalId.trim();
-		const reactivate = dto.reactivate === true;
 
 		if (devicePayload?.deviceId) {
 			const access = await getUserDeviceAccessState(
@@ -1085,12 +1084,6 @@ export class AuthService {
 				throw new ForbiddenException({
 					message: 'DEVICE_BLOCKED',
 					deviceBlocked: true,
-				});
-			}
-			if (!reactivate && access && !access.activeDevice) {
-				throw new ForbiddenException({
-					message: 'DEVICE_DEACTIVATED',
-					forceDeviceLogout: true,
 				});
 			}
 		}
@@ -1108,7 +1101,6 @@ export class AuthService {
 				pushToken: devicePayload?.pushToken ?? dto.pushToken,
 				lastActiveAt,
 			},
-			{ reactivate },
 		);
 
 		await this.prisma.user.update({
@@ -1122,7 +1114,6 @@ export class AuthService {
 		return this.prisma.userDevice.findMany({
 			where: {
 				user: { id: userId },
-				activeDevice: true,
 			},
 			select: {
 				id: true,
@@ -1145,7 +1136,6 @@ export class AuthService {
 			where: {
 				id: deviceRowId,
 				user: { id: userId },
-				activeDevice: true,
 			},
 			select: { id: true, deviceId: true },
 		});
@@ -1153,9 +1143,8 @@ export class AuthService {
 			throw new NotFoundException('Device not found');
 		}
 
-		await this.prisma.userDevice.update({
+		await this.prisma.userDevice.delete({
 			where: { id: device.id },
-			data: { activeDevice: false },
 		});
 
 		const deviceId = device.deviceId?.trim();

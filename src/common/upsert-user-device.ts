@@ -126,12 +126,11 @@ async function deleteMatchingLegacyUserDeviceOrphans(
 }
 
 export type UserDeviceUpsertOptions = {
-	/** When true (login), deactivated devices become active again. Foreground sync must not set this. */
-	reactivate?: boolean;
+	/** When false (foreground sync), only update an existing row — never create. */
+	createIfMissing?: boolean;
 };
 
 export type UserDeviceAccessState = {
-	activeDevice: boolean;
 	blocked: boolean;
 };
 
@@ -151,46 +150,27 @@ export async function getUserDeviceAccessState(
 		where: {
 			userExternalId_deviceId: { userExternalId: ext, deviceId: did },
 		},
-		select: { activeDevice: true, blocked: true },
+		select: { blocked: true },
 	});
 	if (!row) {
 		return null;
 	}
 	return {
-		activeDevice: row.activeDevice,
 		blocked: row.blocked,
 	};
 }
 
-export async function isUserDeviceActive(
-	prisma:
-		| Prisma.TransactionClient
-		| { userDevice: Prisma.TransactionClient['userDevice'] },
-	userExternalId: string,
-	deviceId: string,
-): Promise<boolean | null> {
-	const state = await getUserDeviceAccessState(
-		prisma,
-		userExternalId,
-		deviceId,
-	);
-	if (!state) {
-		return null;
-	}
-	return state.activeDevice;
-}
-
-/** Session sync / foreground: logout when removed from list or blocked. */
+/** Session sync / foreground: logout when device row was removed or blocked. */
 export function shouldForceLogoutForDeviceAccess(
 	state: UserDeviceAccessState | null,
 ): boolean {
 	if (!state) {
-		return false;
+		return true;
 	}
-	return state.blocked || !state.activeDevice;
+	return state.blocked;
 }
 
-/** Login: blocked devices cannot sign in even with reactivate. */
+/** Login: blocked devices cannot sign in. */
 export function isDeviceBlockedForLogin(
 	state: UserDeviceAccessState | null,
 ): boolean {
@@ -204,7 +184,7 @@ export async function upsertUserDeviceLegacySnapshot(
 	input: UserDeviceLegacySnapshotInput,
 	options?: UserDeviceUpsertOptions,
 ): Promise<void> {
-	const reactivate = options?.reactivate === true;
+	const createIfMissing = options?.createIfMissing !== false;
 	const userExternalId = input.userExternalId.trim();
 	if (!userExternalId) {
 		return;
@@ -221,10 +201,12 @@ export async function upsertUserDeviceLegacySnapshot(
 	if (existing) {
 		await prisma.userDevice.update({
 			where: { id: existing.id },
-			data: reactivate
-				? { ...snapshot, activeDevice: true }
-				: snapshot,
+			data: snapshot,
 		});
+		return;
+	}
+
+	if (!createIfMissing) {
 		return;
 	}
 
@@ -233,7 +215,6 @@ export async function upsertUserDeviceLegacySnapshot(
 			userExternalId,
 			deviceId: null,
 			...snapshot,
-			activeDevice: true,
 		},
 	});
 }
@@ -308,7 +289,7 @@ export async function upsertUserDeviceSnapshot(
 	input: UserDeviceSnapshotInput,
 	options?: UserDeviceUpsertOptions,
 ): Promise<void> {
-	const reactivate = options?.reactivate === true;
+	const createIfMissing = options?.createIfMissing !== false;
 	const userExternalId = input.userExternalId.trim();
 	const deviceId = input.deviceId.trim();
 	if (!userExternalId || !deviceId) {
@@ -331,14 +312,16 @@ export async function upsertUserDeviceSnapshot(
 	if (existingByDeviceId) {
 		await prisma.userDevice.update({
 			where: { id: existingByDeviceId.id },
-			data: reactivate
-				? { ...snapshot, activeDevice: true }
-				: snapshot,
+			data: snapshot,
 		});
 		await deleteMatchingLegacyUserDeviceOrphans(prisma, userExternalId, {
 			...input,
 			platform,
 		});
+		return;
+	}
+
+	if (!createIfMissing) {
 		return;
 	}
 
@@ -353,7 +336,6 @@ export async function upsertUserDeviceSnapshot(
 			data: {
 				deviceId,
 				...snapshot,
-				...(reactivate ? { activeDevice: true } : {}),
 			},
 		});
 		return;
@@ -364,7 +346,6 @@ export async function upsertUserDeviceSnapshot(
 			userExternalId,
 			deviceId,
 			...snapshot,
-			activeDevice: true,
 		},
 	});
 }
