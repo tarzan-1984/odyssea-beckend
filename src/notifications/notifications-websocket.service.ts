@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Server } from 'socket.io';
+import { userDeviceSocketRoom } from '../common/user-device-socket.util';
 
 @Injectable()
 export class NotificationsWebSocketService {
@@ -239,6 +240,34 @@ export class NotificationsWebSocketService {
 		} catch (error) {
 			this.logger.error(
 				'Failed to broadcast app location settings update:',
+				error,
+			);
+		}
+	}
+
+	/**
+	 * Force logout on a single mobile installation after it was removed in Settings.
+	 */
+	async sendDeviceDeactivatedLogout(userId: string, deviceId: string) {
+		try {
+			if (!this.server) {
+				this.logger.warn('WebSocket server not initialized');
+				return;
+			}
+			const room = userDeviceSocketRoom(userId, deviceId);
+			if (!room) {
+				return;
+			}
+			this.server.to(room).emit('deviceDeactivated', {
+				deviceId: deviceId.trim(),
+				reason: 'device_removed',
+			});
+			this.logger.log(
+				`Device deactivated logout sent userId=${userId} deviceId=${deviceId.trim()}`,
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to send device deactivated logout userId=${userId}:`,
 				error,
 			);
 		}

@@ -125,12 +125,43 @@ async function deleteMatchingLegacyUserDeviceOrphans(
 	});
 }
 
+export type UserDeviceUpsertOptions = {
+	/** When true (login), deactivated devices become active again. Foreground sync must not set this. */
+	reactivate?: boolean;
+};
+
+export async function isUserDeviceActive(
+	prisma:
+		| Prisma.TransactionClient
+		| { userDevice: Prisma.TransactionClient['userDevice'] },
+	userExternalId: string,
+	deviceId: string,
+): Promise<boolean | null> {
+	const ext = userExternalId.trim();
+	const did = deviceId.trim();
+	if (!ext || !did) {
+		return null;
+	}
+	const row = await prisma.userDevice.findUnique({
+		where: {
+			userExternalId_deviceId: { userExternalId: ext, deviceId: did },
+		},
+		select: { activeDevice: true },
+	});
+	if (!row) {
+		return null;
+	}
+	return row.activeDevice;
+}
+
 export async function upsertUserDeviceLegacySnapshot(
 	prisma:
 		| Prisma.TransactionClient
 		| { userDevice: Prisma.TransactionClient['userDevice'] },
 	input: UserDeviceLegacySnapshotInput,
+	options?: UserDeviceUpsertOptions,
 ): Promise<void> {
+	const reactivate = options?.reactivate === true;
 	const userExternalId = input.userExternalId.trim();
 	if (!userExternalId) {
 		return;
@@ -147,7 +178,9 @@ export async function upsertUserDeviceLegacySnapshot(
 	if (existing) {
 		await prisma.userDevice.update({
 			where: { id: existing.id },
-			data: { ...snapshot, activeDevice: true },
+			data: reactivate
+				? { ...snapshot, activeDevice: true }
+				: snapshot,
 		});
 		return;
 	}
@@ -170,6 +203,7 @@ export async function registerUserDeviceActivity(
 		| Prisma.TransactionClient
 		| { userDevice: Prisma.TransactionClient['userDevice'] },
 	input: UserDeviceLegacySnapshotInput & { deviceId?: string | null },
+	options?: UserDeviceUpsertOptions,
 ): Promise<void> {
 	const userExternalId = input.userExternalId.trim();
 	if (!userExternalId) {
@@ -178,21 +212,25 @@ export async function registerUserDeviceActivity(
 
 	const deviceId = input.deviceId?.trim();
 	if (deviceId) {
-		await upsertUserDeviceSnapshot(prisma, {
-			userExternalId,
-			deviceId,
-			platform: input.platform,
-			appVersion: input.appVersion,
-			deviceName: input.deviceName,
-			model: input.model,
-			osVersion: input.osVersion,
-			pushToken: input.pushToken,
-			lastActiveAt: input.lastActiveAt,
-		});
+		await upsertUserDeviceSnapshot(
+			prisma,
+			{
+				userExternalId,
+				deviceId,
+				platform: input.platform,
+				appVersion: input.appVersion,
+				deviceName: input.deviceName,
+				model: input.model,
+				osVersion: input.osVersion,
+				pushToken: input.pushToken,
+				lastActiveAt: input.lastActiveAt,
+			},
+			options,
+		);
 		return;
 	}
 
-	await upsertUserDeviceLegacySnapshot(prisma, input);
+	await upsertUserDeviceLegacySnapshot(prisma, input, options);
 }
 
 export type LocationDeviceSnapshot = {
@@ -225,7 +263,9 @@ export async function upsertUserDeviceSnapshot(
 		| Prisma.TransactionClient
 		| { userDevice: Prisma.TransactionClient['userDevice'] },
 	input: UserDeviceSnapshotInput,
+	options?: UserDeviceUpsertOptions,
 ): Promise<void> {
+	const reactivate = options?.reactivate === true;
 	const userExternalId = input.userExternalId.trim();
 	const deviceId = input.deviceId.trim();
 	if (!userExternalId || !deviceId) {
@@ -248,7 +288,9 @@ export async function upsertUserDeviceSnapshot(
 	if (existingByDeviceId) {
 		await prisma.userDevice.update({
 			where: { id: existingByDeviceId.id },
-			data: { ...snapshot, activeDevice: true },
+			data: reactivate
+				? { ...snapshot, activeDevice: true }
+				: snapshot,
 		});
 		await deleteMatchingLegacyUserDeviceOrphans(prisma, userExternalId, {
 			...input,
@@ -268,7 +310,7 @@ export async function upsertUserDeviceSnapshot(
 			data: {
 				deviceId,
 				...snapshot,
-				activeDevice: true,
+				...(reactivate ? { activeDevice: true } : {}),
 			},
 		});
 		return;

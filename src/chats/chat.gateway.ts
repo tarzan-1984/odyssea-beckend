@@ -16,6 +16,7 @@ import { MessagesService } from './messages.service';
 import { ChatRoomsService } from './chat-rooms.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { userDeviceSocketRoom } from '../common/user-device-socket.util';
 
 interface AuthenticatedSocket extends Socket {
 	userId?: string;
@@ -122,6 +123,14 @@ export class ChatGateway
 
 			// Join user to notifications room for real-time notifications
 			void client.join(`user_${userId}`);
+
+			const deviceId = this.extractDeviceIdFromHandshake(client);
+			if (deviceId) {
+				const deviceRoom = userDeviceSocketRoom(userId, deviceId);
+				if (deviceRoom) {
+					void client.join(deviceRoom);
+				}
+			}
 
 			// Join user to all their chat rooms
 			const chatRooms =
@@ -1227,5 +1236,13 @@ export class ChatGateway
 		}
 
 		return auth;
+	}
+
+	private extractDeviceIdFromHandshake(client: Socket): string | undefined {
+		const raw =
+			(client.handshake.auth?.deviceId as string | undefined) ||
+			(client.handshake.query?.deviceId as string | undefined);
+		const trimmed = raw?.trim();
+		return trimmed || undefined;
 	}
 }

@@ -12,6 +12,7 @@ import { UserRole, UserStatus } from '@prisma/client';
 import { SocialProvider } from './dto/social-login.dto';
 import { ConfigService } from '@nestjs/config';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 describe('AuthService', () => {
 	let service: AuthService;
@@ -92,6 +93,12 @@ describe('AuthService', () => {
 				{
 					provide: TmsDriverApplicationService,
 					useValue: mockTmsDriverApplicationService,
+				},
+				{
+					provide: NotificationsWebSocketService,
+					useValue: {
+						sendDeviceDeactivatedLogout: jest.fn(),
+					},
 				},
 			],
 		}).compile();

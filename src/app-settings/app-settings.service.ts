@@ -8,7 +8,7 @@ import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-lo
 import { UpdateMinimumAppVersionDto } from './dto/update-minimum-app-version.dto';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { UserRole, UserStatus } from '@prisma/client';
-import { registerUserDeviceActivity } from '../common/upsert-user-device';
+import { registerUserDeviceActivity, isUserDeviceActive } from '../common/upsert-user-device';
 import {
 	parseMobileDeviceSyncPayload,
 	hasAnyMobileDeviceSyncInput,
@@ -137,38 +137,62 @@ export class AppSettingsService {
 	async recordUserLastActiveApp(
 		userId: string,
 		deviceSync?: MobileDeviceSyncQueryDto | MobileDeviceSyncPayload | null,
-	): Promise<void> {
-		if (!userId) return;
+	): Promise<boolean> {
+		if (!userId) return false;
 		const lastActiveAt = nowInTimeZoneAsNaiveDate('America/New_York');
 		try {
-			const user = await this.prisma.user.update({
+			const user = await this.prisma.user.findUnique({
+				where: { id: userId },
+				select: { id: true, externalId: true },
+			});
+			if (!user) {
+				return false;
+			}
+
+			const devicePayload = parseMobileDeviceSyncPayload(deviceSync ?? null);
+			const externalId = user.externalId?.trim();
+			if (devicePayload?.deviceId && externalId) {
+				const active = await isUserDeviceActive(
+					this.prisma,
+					externalId,
+					devicePayload.deviceId,
+				);
+				if (active === false) {
+					return true;
+				}
+			}
+
+			await this.prisma.user.update({
 				where: { id: userId },
 				data: {
 					lastActiveApp: lastActiveAt,
 				},
-				select: { id: true, externalId: true },
 			});
 
-			const devicePayload = parseMobileDeviceSyncPayload(deviceSync ?? null);
-			const externalId = user.externalId?.trim();
 			if (!externalId || !hasAnyMobileDeviceSyncInput(deviceSync ?? null)) {
-				return;
+				return false;
 			}
 
 			const syncInput = deviceSync ?? null;
-			await registerUserDeviceActivity(this.prisma, {
-				userExternalId: externalId,
-				deviceId: devicePayload?.deviceId,
-				platform: devicePayload?.platform ?? syncInput?.platform,
-				appVersion: devicePayload?.appVersion ?? syncInput?.appVersion,
-				deviceName: devicePayload?.deviceName ?? syncInput?.deviceName,
-				model: devicePayload?.model ?? syncInput?.model,
-				osVersion: devicePayload?.osVersion ?? syncInput?.osVersion,
-				pushToken: devicePayload?.pushToken ?? syncInput?.pushToken,
-				lastActiveAt,
-			});
+			await registerUserDeviceActivity(
+				this.prisma,
+				{
+					userExternalId: externalId,
+					deviceId: devicePayload?.deviceId,
+					platform: devicePayload?.platform ?? syncInput?.platform,
+					appVersion: devicePayload?.appVersion ?? syncInput?.appVersion,
+					deviceName: devicePayload?.deviceName ?? syncInput?.deviceName,
+					model: devicePayload?.model ?? syncInput?.model,
+					osVersion: devicePayload?.osVersion ?? syncInput?.osVersion,
+					pushToken: devicePayload?.pushToken ?? syncInput?.pushToken,
+					lastActiveAt,
+				},
+				{ reactivate: false },
+			);
+			return false;
 		} catch {
 			// Best-effort: never fail settings fetch due to tracking update.
+			return false;
 		}
 	}
 

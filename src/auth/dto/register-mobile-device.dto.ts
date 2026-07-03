@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class RegisterMobileDeviceDto {
 	@ApiPropertyOptional({
@@ -46,4 +46,12 @@ export class RegisterMobileDeviceDto {
 	@IsOptional()
 	@IsString()
 	pushToken?: string;
+
+	@ApiPropertyOptional({
+		description:
+			'When true (after login), re-activates a previously removed device. Background sync must omit this.',
+	})
+	@IsOptional()
+	@IsBoolean()
+	reactivate?: boolean;
 }

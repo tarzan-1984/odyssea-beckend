@@ -164,8 +164,7 @@ export class AuthController {
 	@ApiOperation({ summary: 'List active mobile devices for the current account' })
 	@ApiResponse({ status: 200, description: 'Active devices for this user' })
 	async listMobileDevices(@Request() req: AuthenticatedRequest) {
-		const devices = await this.authService.listMobileDevices(req.user.id);
-		return { success: true, data: devices };
+		return this.authService.listMobileDevices(req.user.id);
 	}
 
 	@Delete('mobile-devices/:id')

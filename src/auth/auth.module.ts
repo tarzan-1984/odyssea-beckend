@@ -10,11 +10,13 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TmsModule } from '../tms/tms.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
 	imports: [
 		PrismaModule,
 		TmsModule,
+		NotificationsModule,
 		PassportModule,
 		ThrottlerModule.forRoot([
 			{

@@ -54,11 +54,15 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Query() deviceSync: MobileDeviceSyncQueryDto,
 	) {
-		void this.appSettingsService.recordUserLastActiveApp(
-			req.user.id,
-			deviceSync,
-		);
-		return this.appSettingsService.getMobileAppSettings();
+		const forceDeviceLogout =
+			await this.appSettingsService.recordUserLastActiveApp(
+				req.user.id,
+				deviceSync,
+			);
+		const settings = await this.appSettingsService.getMobileAppSettings();
+		return forceDeviceLogout
+			? { ...settings, forceDeviceLogout: true }
+			: settings;
 	}
 
 	@Put()

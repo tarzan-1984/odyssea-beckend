@@ -3,6 +3,7 @@ import {
 	UnauthorizedException,
 	BadRequestException,
 	NotFoundException,
+	ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -18,10 +19,11 @@ import { AxiosError } from '../types/request.types';
 import { generateRandomPassword } from '../helpers/helper';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
-import { registerUserDeviceActivity } from '../common/upsert-user-device';
+import { registerUserDeviceActivity, isUserDeviceActive } from '../common/upsert-user-device';
 import { parseMobileDeviceSyncPayload } from '../common/mobile-device-sync.util';
 import { nowInTimeZoneAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { SUPPORT_EMAIL_CC } from '../notifications/constants/check-list-email.constants';
+import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
 /** QA / App Review: fixed TMS driver id and bypass credentials (see validateUser, verifyOtp). */
 const DRIVER_QA_EXTERNAL_ID = '3343';
@@ -93,6 +95,7 @@ export class AuthService {
 		private readonly mailerService: MailerService,
 		private readonly configService: ConfigService,
 		private readonly tmsDriverApplication: TmsDriverApplicationService,
+		private readonly notificationsWebSocketService: NotificationsWebSocketService,
 	) {}
 
 	async handleGoogleCallback(code: string) {
@@ -1052,18 +1055,38 @@ export class AuthService {
 
 		const lastActiveAt = nowInTimeZoneAsNaiveDate('America/New_York');
 		const devicePayload = parseMobileDeviceSyncPayload(dto);
+		const externalId = user.externalId.trim();
+		const reactivate = dto.reactivate === true;
 
-		await registerUserDeviceActivity(this.prisma, {
-			userExternalId: user.externalId.trim(),
-			deviceId: devicePayload?.deviceId,
-			platform: devicePayload?.platform ?? dto.platform,
-			appVersion: devicePayload?.appVersion ?? dto.appVersion,
-			deviceName: devicePayload?.deviceName ?? dto.deviceName,
-			model: devicePayload?.model ?? dto.model,
-			osVersion: devicePayload?.osVersion ?? dto.osVersion,
-			pushToken: devicePayload?.pushToken ?? dto.pushToken,
-			lastActiveAt,
-		});
+		if (devicePayload?.deviceId && !reactivate) {
+			const active = await isUserDeviceActive(
+				this.prisma,
+				externalId,
+				devicePayload.deviceId,
+			);
+			if (active === false) {
+				throw new ForbiddenException({
+					message: 'DEVICE_DEACTIVATED',
+					forceDeviceLogout: true,
+				});
+			}
+		}
+
+		await registerUserDeviceActivity(
+			this.prisma,
+			{
+				userExternalId: externalId,
+				deviceId: devicePayload?.deviceId,
+				platform: devicePayload?.platform ?? dto.platform,
+				appVersion: devicePayload?.appVersion ?? dto.appVersion,
+				deviceName: devicePayload?.deviceName ?? dto.deviceName,
+				model: devicePayload?.model ?? dto.model,
+				osVersion: devicePayload?.osVersion ?? dto.osVersion,
+				pushToken: devicePayload?.pushToken ?? dto.pushToken,
+				lastActiveAt,
+			},
+			{ reactivate },
+		);
 
 		await this.prisma.user.update({
 			where: { id: userId },
@@ -1073,17 +1096,9 @@ export class AuthService {
 	}
 
 	async listMobileDevices(userId: string) {
-		const user = await this.prisma.user.findUnique({
-			where: { id: userId },
-			select: { externalId: true },
-		});
-		if (!user?.externalId || user.externalId.trim() === '') {
-			return [];
-		}
-
 		return this.prisma.userDevice.findMany({
 			where: {
-				userExternalId: user.externalId.trim(),
+				user: { id: userId },
 				activeDevice: true,
 			},
 			select: {
@@ -1103,21 +1118,13 @@ export class AuthService {
 	}
 
 	async deactivateMobileDevice(userId: string, deviceRowId: string): Promise<void> {
-		const user = await this.prisma.user.findUnique({
-			where: { id: userId },
-			select: { externalId: true },
-		});
-		if (!user?.externalId || user.externalId.trim() === '') {
-			throw new BadRequestException('User has no externalId');
-		}
-
 		const device = await this.prisma.userDevice.findFirst({
 			where: {
 				id: deviceRowId,
-				userExternalId: user.externalId.trim(),
+				user: { id: userId },
 				activeDevice: true,
 			},
-			select: { id: true },
+			select: { id: true, deviceId: true },
 		});
 		if (!device) {
 			throw new NotFoundException('Device not found');
@@ -1127,5 +1134,13 @@ export class AuthService {
 			where: { id: device.id },
 			data: { activeDevice: false },
 		});
+
+		const deviceId = device.deviceId?.trim();
+		if (deviceId) {
+			void this.notificationsWebSocketService.sendDeviceDeactivatedLogout(
+				userId,
+				deviceId,
+			);
+		}
 	}
 }
