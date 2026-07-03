@@ -429,6 +429,9 @@ export class UsersService {
 					status: true,
 					createdAt: true,
 					updatedAt: true,
+					_count: {
+						select: { userDevices: true },
+					},
 				},
 			}),
 			this.prisma.user.count({ where }),
@@ -449,6 +452,7 @@ export class UsersService {
 			userColor: user.userColor ?? null,
 			role: user.role,
 			status: user.status,
+			hasUserDevice: user._count.userDevices > 0,
 			createdAt: user.createdAt,
 			updatedAt: user.updatedAt,
 		}));
