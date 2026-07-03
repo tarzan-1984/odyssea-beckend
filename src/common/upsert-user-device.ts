@@ -130,13 +130,18 @@ export type UserDeviceUpsertOptions = {
 	reactivate?: boolean;
 };
 
-export async function isUserDeviceActive(
+export type UserDeviceAccessState = {
+	activeDevice: boolean;
+	blocked: boolean;
+};
+
+export async function getUserDeviceAccessState(
 	prisma:
 		| Prisma.TransactionClient
 		| { userDevice: Prisma.TransactionClient['userDevice'] },
 	userExternalId: string,
 	deviceId: string,
-): Promise<boolean | null> {
+): Promise<UserDeviceAccessState | null> {
 	const ext = userExternalId.trim();
 	const did = deviceId.trim();
 	if (!ext || !did) {
@@ -146,12 +151,50 @@ export async function isUserDeviceActive(
 		where: {
 			userExternalId_deviceId: { userExternalId: ext, deviceId: did },
 		},
-		select: { activeDevice: true },
+		select: { activeDevice: true, blocked: true },
 	});
 	if (!row) {
 		return null;
 	}
-	return row.activeDevice;
+	return {
+		activeDevice: row.activeDevice,
+		blocked: row.blocked,
+	};
+}
+
+export async function isUserDeviceActive(
+	prisma:
+		| Prisma.TransactionClient
+		| { userDevice: Prisma.TransactionClient['userDevice'] },
+	userExternalId: string,
+	deviceId: string,
+): Promise<boolean | null> {
+	const state = await getUserDeviceAccessState(
+		prisma,
+		userExternalId,
+		deviceId,
+	);
+	if (!state) {
+		return null;
+	}
+	return state.activeDevice;
+}
+
+/** Session sync / foreground: logout when removed from list or blocked. */
+export function shouldForceLogoutForDeviceAccess(
+	state: UserDeviceAccessState | null,
+): boolean {
+	if (!state) {
+		return false;
+	}
+	return state.blocked || !state.activeDevice;
+}
+
+/** Login: blocked devices cannot sign in even with reactivate. */
+export function isDeviceBlockedForLogin(
+	state: UserDeviceAccessState | null,
+): boolean {
+	return state?.blocked === true;
 }
 
 export async function upsertUserDeviceLegacySnapshot(

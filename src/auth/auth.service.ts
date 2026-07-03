@@ -19,7 +19,7 @@ import { AxiosError } from '../types/request.types';
 import { generateRandomPassword } from '../helpers/helper';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
 import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
-import { registerUserDeviceActivity, isUserDeviceActive } from '../common/upsert-user-device';
+import { registerUserDeviceActivity, getUserDeviceAccessState, isDeviceBlockedForLogin } from '../common/upsert-user-device';
 import { parseMobileDeviceSyncPayload } from '../common/mobile-device-sync.util';
 import { nowInTimeZoneAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { SUPPORT_EMAIL_CC } from '../notifications/constants/check-list-email.constants';
@@ -1058,13 +1058,19 @@ export class AuthService {
 		const externalId = user.externalId.trim();
 		const reactivate = dto.reactivate === true;
 
-		if (devicePayload?.deviceId && !reactivate) {
-			const active = await isUserDeviceActive(
+		if (devicePayload?.deviceId) {
+			const access = await getUserDeviceAccessState(
 				this.prisma,
 				externalId,
 				devicePayload.deviceId,
 			);
-			if (active === false) {
+			if (isDeviceBlockedForLogin(access)) {
+				throw new ForbiddenException({
+					message: 'DEVICE_BLOCKED',
+					deviceBlocked: true,
+				});
+			}
+			if (!reactivate && access && !access.activeDevice) {
 				throw new ForbiddenException({
 					message: 'DEVICE_DEACTIVATED',
 					forceDeviceLogout: true,

@@ -8,7 +8,7 @@ import { UpdateDeliveredLoadChatAppSettingsDto } from './dto/update-delivered-lo
 import { UpdateMinimumAppVersionDto } from './dto/update-minimum-app-version.dto';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { UserRole, UserStatus } from '@prisma/client';
-import { registerUserDeviceActivity, isUserDeviceActive } from '../common/upsert-user-device';
+import { registerUserDeviceActivity, getUserDeviceAccessState, shouldForceLogoutForDeviceAccess } from '../common/upsert-user-device';
 import {
 	parseMobileDeviceSyncPayload,
 	hasAnyMobileDeviceSyncInput,
@@ -152,12 +152,12 @@ export class AppSettingsService {
 			const devicePayload = parseMobileDeviceSyncPayload(deviceSync ?? null);
 			const externalId = user.externalId?.trim();
 			if (devicePayload?.deviceId && externalId) {
-				const active = await isUserDeviceActive(
+				const access = await getUserDeviceAccessState(
 					this.prisma,
 					externalId,
 					devicePayload.deviceId,
 				);
-				if (active === false) {
+				if (shouldForceLogoutForDeviceAccess(access)) {
 					return true;
 				}
 			}
