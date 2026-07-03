@@ -766,7 +766,7 @@ export class UsersService {
 			status: UserStatus.ACTIVE,
 			AND: [
 				...this.buildCheckListDriverExclusionClauses(),
-				{ userDevices: { some: {} } },
+				{ userDevices: { some: { activeDevice: true } } },
 				...excludeTestDriverClause,
 				...searchClause,
 			],
@@ -787,6 +787,7 @@ export class UsersService {
 				externalId: true,
 				phone: true,
 				userDevices: {
+					where: { activeDevice: true },
 					select: {
 						id: true,
 						deviceId: true,
@@ -795,6 +796,8 @@ export class UsersService {
 						deviceName: true,
 						model: true,
 						lastActiveAt: true,
+						blocked: true,
+						activeDevice: true,
 					},
 					orderBy: [{ platform: 'asc' }, { updatedAt: 'desc' }],
 				},
@@ -860,6 +863,8 @@ export class UsersService {
 					appVersion: device.appVersion,
 					deviceName: device.deviceName,
 					model: device.model,
+					blocked: device.blocked,
+					activeDevice: device.activeDevice,
 					lastActiveAt: this.formatNaiveTimestampForApi(
 						device.lastActiveAt,
 					),
@@ -1277,6 +1282,111 @@ export class UsersService {
 		]);
 
 		return { message: 'Driver password and OTP set successfully' };
+	}
+
+	async adminBlockUserDevice(deviceRowId: string): Promise<void> {
+		const device = await this.prisma.userDevice.findFirst({
+			where: {
+				id: deviceRowId,
+				activeDevice: true,
+				user: { role: UserRole.DRIVER },
+			},
+			select: {
+				id: true,
+				deviceId: true,
+				blocked: true,
+				user: { select: { id: true } },
+			},
+		});
+		if (!device) {
+			throw new NotFoundException('Device not found');
+		}
+		if (device.blocked) {
+			return;
+		}
+
+		await this.prisma.userDevice.update({
+			where: { id: device.id },
+			data: { blocked: true },
+		});
+
+		this.notifyDriverDeviceForceLogout(
+			device.user.id,
+			device.deviceId,
+			'device_blocked',
+		);
+	}
+
+	async adminUnblockUserDevice(deviceRowId: string): Promise<void> {
+		const device = await this.prisma.userDevice.findFirst({
+			where: {
+				id: deviceRowId,
+				activeDevice: true,
+				user: { role: UserRole.DRIVER },
+			},
+			select: {
+				id: true,
+				blocked: true,
+			},
+		});
+		if (!device) {
+			throw new NotFoundException('Device not found');
+		}
+		if (!device.blocked) {
+			return;
+		}
+
+		await this.prisma.userDevice.update({
+			where: { id: device.id },
+			data: { blocked: false },
+		});
+	}
+
+	async adminDeleteUserDevice(deviceRowId: string): Promise<void> {
+		const device = await this.prisma.userDevice.findFirst({
+			where: {
+				id: deviceRowId,
+				activeDevice: true,
+				user: { role: UserRole.DRIVER },
+			},
+			select: {
+				id: true,
+				deviceId: true,
+				user: { select: { id: true } },
+			},
+		});
+		if (!device) {
+			throw new NotFoundException('Device not found');
+		}
+
+		await this.prisma.userDevice.update({
+			where: { id: device.id },
+			data: { activeDevice: false },
+		});
+
+		this.notifyDriverDeviceForceLogout(device.user.id, device.deviceId);
+	}
+
+	private notifyDriverDeviceForceLogout(
+		userId: string,
+		deviceId: string | null,
+		reason: 'device_removed' | 'device_blocked' = 'device_removed',
+	): void {
+		const normalizedDeviceId = deviceId?.trim();
+		if (!normalizedDeviceId) {
+			return;
+		}
+		if (reason === 'device_blocked') {
+			void this.notificationsWebSocketService.sendDeviceBlockedLogout(
+				userId,
+				normalizedDeviceId,
+			);
+			return;
+		}
+		void this.notificationsWebSocketService.sendDeviceDeactivatedLogout(
+			userId,
+			normalizedDeviceId,
+		);
 	}
 
 	/**

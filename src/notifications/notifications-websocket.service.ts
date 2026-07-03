@@ -246,9 +246,13 @@ export class NotificationsWebSocketService {
 	}
 
 	/**
-	 * Force logout on a single mobile installation after it was removed in Settings.
+	 * Force logout on a single mobile installation (removed, blocked, etc.).
 	 */
-	async sendDeviceDeactivatedLogout(userId: string, deviceId: string) {
+	async sendDeviceForceLogout(
+		userId: string,
+		deviceId: string,
+		reason: 'device_removed' | 'device_blocked',
+	) {
 		try {
 			if (!this.server) {
 				this.logger.warn('WebSocket server not initialized');
@@ -260,16 +264,26 @@ export class NotificationsWebSocketService {
 			}
 			this.server.to(room).emit('deviceDeactivated', {
 				deviceId: deviceId.trim(),
-				reason: 'device_removed',
+				reason,
 			});
 			this.logger.log(
-				`Device deactivated logout sent userId=${userId} deviceId=${deviceId.trim()}`,
+				`Device force logout sent userId=${userId} deviceId=${deviceId.trim()} reason=${reason}`,
 			);
 		} catch (error) {
 			this.logger.error(
-				`Failed to send device deactivated logout userId=${userId}:`,
+				`Failed to send device force logout userId=${userId} reason=${reason}:`,
 				error,
 			);
 		}
+	}
+
+	/** Force logout after the user removed the device from Settings or admin soft-delete. */
+	async sendDeviceDeactivatedLogout(userId: string, deviceId: string) {
+		return this.sendDeviceForceLogout(userId, deviceId, 'device_removed');
+	}
+
+	/** Force logout after admin blocked the device. */
+	async sendDeviceBlockedLogout(userId: string, deviceId: string) {
+		return this.sendDeviceForceLogout(userId, deviceId, 'device_blocked');
 	}
 }

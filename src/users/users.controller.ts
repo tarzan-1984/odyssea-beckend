@@ -2,6 +2,7 @@ import {
 	Controller,
 	Get,
 	Put,
+	Patch,
 	Delete,
 	Post,
 	Body,
@@ -534,6 +535,48 @@ export class UsersController {
 			search,
 			versionSort,
 		);
+	}
+
+	@Patch('user-devices/:id/block')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Block a driver mobile device (check list admin)',
+	})
+	@ApiResponse({ status: 200, description: 'Device blocked' })
+	@ApiResponse({ status: 404, description: 'Device not found' })
+	async blockUserDevice(
+		@Param('id') deviceRowId: string,
+	): Promise<{ message: string }> {
+		await this.usersService.adminBlockUserDevice(deviceRowId);
+		return { message: 'Device blocked' };
+	}
+
+	@Patch('user-devices/:id/unblock')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Unblock a driver mobile device (check list admin)',
+	})
+	@ApiResponse({ status: 200, description: 'Device unblocked' })
+	@ApiResponse({ status: 404, description: 'Device not found' })
+	async unblockUserDevice(
+		@Param('id') deviceRowId: string,
+	): Promise<{ message: string }> {
+		await this.usersService.adminUnblockUserDevice(deviceRowId);
+		return { message: 'Device unblocked' };
+	}
+
+	@Delete('user-devices/:id')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Remove a driver mobile device from account (check list admin)',
+	})
+	@ApiResponse({ status: 200, description: 'Device removed' })
+	@ApiResponse({ status: 404, description: 'Device not found' })
+	async deleteUserDevice(
+		@Param('id') deviceRowId: string,
+	): Promise<{ message: string }> {
+		await this.usersService.adminDeleteUserDevice(deviceRowId);
+		return { message: 'Device removed' };
 	}
 
 	@Post('drivers/set-password')
