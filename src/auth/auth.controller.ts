@@ -6,6 +6,8 @@ import {
 	HttpCode,
 	HttpStatus,
 	Get,
+	Delete,
+	Param,
 	Query,
 	Res,
 	UnauthorizedException,
@@ -154,6 +156,31 @@ export class AuthController {
 		@Body() body: RegisterMobileDeviceDto,
 	): Promise<{ success: true }> {
 		await this.authService.registerMobileDevice(req.user.id, body);
+		return { success: true };
+	}
+
+	@Get('mobile-devices')
+	@UseGuards(JwtAuthGuard)
+	@ApiOperation({ summary: 'List active mobile devices for the current account' })
+	@ApiResponse({ status: 200, description: 'Active devices for this user' })
+	async listMobileDevices(@Request() req: AuthenticatedRequest) {
+		const devices = await this.authService.listMobileDevices(req.user.id);
+		return { success: true, data: devices };
+	}
+
+	@Delete('mobile-devices/:id')
+	@UseGuards(JwtAuthGuard)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Remove a device from the account device list (soft delete)',
+	})
+	@ApiResponse({ status: 200, description: 'Device deactivated' })
+	@ApiResponse({ status: 404, description: 'Device not found' })
+	async deactivateMobileDevice(
+		@Request() req: AuthenticatedRequest,
+		@Param('id') id: string,
+	): Promise<{ success: true }> {
+		await this.authService.deactivateMobileDevice(req.user.id, id);
 		return { success: true };
 	}
 

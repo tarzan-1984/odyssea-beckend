@@ -147,7 +147,7 @@ export async function upsertUserDeviceLegacySnapshot(
 	if (existing) {
 		await prisma.userDevice.update({
 			where: { id: existing.id },
-			data: snapshot,
+			data: { ...snapshot, activeDevice: true },
 		});
 		return;
 	}
@@ -157,6 +157,7 @@ export async function upsertUserDeviceLegacySnapshot(
 			userExternalId,
 			deviceId: null,
 			...snapshot,
+			activeDevice: true,
 		},
 	});
 }
@@ -247,7 +248,7 @@ export async function upsertUserDeviceSnapshot(
 	if (existingByDeviceId) {
 		await prisma.userDevice.update({
 			where: { id: existingByDeviceId.id },
-			data: snapshot,
+			data: { ...snapshot, activeDevice: true },
 		});
 		await deleteMatchingLegacyUserDeviceOrphans(prisma, userExternalId, {
 			...input,
@@ -267,6 +268,7 @@ export async function upsertUserDeviceSnapshot(
 			data: {
 				deviceId,
 				...snapshot,
+				activeDevice: true,
 			},
 		});
 		return;
@@ -277,6 +279,7 @@ export async function upsertUserDeviceSnapshot(
 			userExternalId,
 			deviceId,
 			...snapshot,
+			activeDevice: true,
 		},
 	});
 }

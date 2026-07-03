@@ -1071,4 +1071,61 @@ export class AuthService {
 			select: { id: true },
 		});
 	}
+
+	async listMobileDevices(userId: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		if (!user?.externalId || user.externalId.trim() === '') {
+			return [];
+		}
+
+		return this.prisma.userDevice.findMany({
+			where: {
+				userExternalId: user.externalId.trim(),
+				activeDevice: true,
+			},
+			select: {
+				id: true,
+				deviceId: true,
+				platform: true,
+				appVersion: true,
+				deviceName: true,
+				model: true,
+				osVersion: true,
+				lastActiveAt: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+			orderBy: [{ lastActiveAt: 'desc' }, { updatedAt: 'desc' }],
+		});
+	}
+
+	async deactivateMobileDevice(userId: string, deviceRowId: string): Promise<void> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		if (!user?.externalId || user.externalId.trim() === '') {
+			throw new BadRequestException('User has no externalId');
+		}
+
+		const device = await this.prisma.userDevice.findFirst({
+			where: {
+				id: deviceRowId,
+				userExternalId: user.externalId.trim(),
+				activeDevice: true,
+			},
+			select: { id: true },
+		});
+		if (!device) {
+			throw new NotFoundException('Device not found');
+		}
+
+		await this.prisma.userDevice.update({
+			where: { id: device.id },
+			data: { activeDevice: false },
+		});
+	}
 }

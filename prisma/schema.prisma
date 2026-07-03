@@ -223,6 +223,8 @@ model UserDevice {
   pushToken      String?
   /// Last time the app was foregrounded on this device (NY wall-clock, same encoding as users.lastActiveApp).
   lastActiveAt   DateTime? @map("last_active_at")
+  /// False when the user removed this device from Settings on another installation.
+  activeDevice   Boolean  @default(true) @map("active_device")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userExternalId], references: [externalId], onDelete: Cascade)
