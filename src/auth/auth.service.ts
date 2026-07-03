@@ -861,6 +861,7 @@ export class AuthService {
 	 */
 	async loginWithEmail(
 		email: string,
+		deviceId?: string | null,
 	): Promise<{ message: string; redirectUrl?: string }> {
 		const normalizedEmail = email?.trim();
 		const user = await this.prisma.user.findFirst({
@@ -887,6 +888,22 @@ export class AuthService {
 
 		if (!user) {
 			throw new UnauthorizedException('User not found');
+		}
+
+		const externalId = user.externalId?.trim();
+		const normalizedDeviceId = deviceId?.trim();
+		if (externalId && normalizedDeviceId) {
+			const access = await getUserDeviceAccessState(
+				this.prisma,
+				externalId,
+				normalizedDeviceId,
+			);
+			if (isDeviceBlockedForLogin(access)) {
+				throw new ForbiddenException({
+					message: 'DEVICE_BLOCKED',
+					deviceBlocked: true,
+				});
+			}
 		}
 
 		// Block login for drivers with "no_interview" or "no_Interview" status

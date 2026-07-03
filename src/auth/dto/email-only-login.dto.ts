@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class EmailOnlyLoginDto {
 	@ApiProperty({
@@ -8,4 +8,12 @@ export class EmailOnlyLoginDto {
 	})
 	@IsEmail()
 	email: string;
+
+	@ApiPropertyOptional({
+		description:
+			'Stable per-installation device id — used to block sign-in from blocked devices',
+	})
+	@IsOptional()
+	@IsString()
+	deviceId?: string;
 }

@@ -67,7 +67,10 @@ export class AuthController {
 		@Body() loginDto: EmailOnlyLoginDto,
 	): Promise<{ message: string; redirectUrl?: string }> {
 		try {
-			return await this.authService.loginWithEmail(loginDto.email);
+			return await this.authService.loginWithEmail(
+				loginDto.email,
+				loginDto.deviceId,
+			);
 		} catch (error) {
 			if (error instanceof UnauthorizedException) {
 				throw error;
