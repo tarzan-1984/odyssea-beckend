@@ -54,12 +54,20 @@ export class AppSettingsController {
 		@Request() req: AuthenticatedRequest,
 		@Query() deviceSync: MobileDeviceSyncQueryDto,
 	) {
+		const settings = await this.appSettingsService.getMobileAppSettings();
+		const sessionValid =
+			await this.appSettingsService.isMobileUserSessionValid(
+				req.user.id,
+				req.user.email,
+			);
+		if (!sessionValid) {
+			return { ...settings, forceDeviceLogout: true };
+		}
 		const forceDeviceLogout =
 			await this.appSettingsService.recordUserLastActiveApp(
 				req.user.id,
 				deviceSync,
 			);
-		const settings = await this.appSettingsService.getMobileAppSettings();
 		return forceDeviceLogout
 			? { ...settings, forceDeviceLogout: true }
 			: settings;

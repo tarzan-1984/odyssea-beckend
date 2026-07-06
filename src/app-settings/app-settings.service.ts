@@ -134,6 +134,28 @@ export class AppSettingsService {
 		return row.driverTrackingPointMinIntervalMs;
 	}
 
+	/**
+	 * Mobile foreground session check: JWT may still be valid while the user row was removed.
+	 */
+	async isMobileUserSessionValid(
+		userId: string,
+		email: string,
+	): Promise<boolean> {
+		const id = userId?.trim();
+		const normalizedEmail = email?.trim().toLowerCase();
+		if (!id || !normalizedEmail) {
+			return false;
+		}
+		const user = await this.prisma.user.findFirst({
+			where: {
+				id,
+				email: { equals: normalizedEmail, mode: 'insensitive' },
+			},
+			select: { id: true },
+		});
+		return !!user;
+	}
+
 	async recordUserLastActiveApp(
 		userId: string,
 		deviceSync?: MobileDeviceSyncQueryDto | MobileDeviceSyncPayload | null,
@@ -146,7 +168,7 @@ export class AppSettingsService {
 				select: { id: true, externalId: true },
 			});
 			if (!user) {
-				return false;
+				return true;
 			}
 
 			const devicePayload = parseMobileDeviceSyncPayload(deviceSync ?? null);
