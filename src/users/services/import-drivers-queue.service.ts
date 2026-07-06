@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ExternalDriver, ExternalApiResponse } from '../interfaces/external-driver.interface';
+import { ExternalDriver, ExternalApiResponse, parseDriverAverageRating } from '../interfaces/external-driver.interface';
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
 
@@ -238,6 +238,7 @@ export class ImportDriversQueueService {
       type: driver.type || '',
       vin: driver.vin || '',
       driverStatus: driver.driver_status || null,
+      driverRating: parseDriverAverageRating(driver.average_rating),
       company: this.normalizeCompany(permissionView),
       role: UserRole.DRIVER,
       status: UserStatus.INACTIVE,
@@ -261,9 +262,10 @@ export class ImportDriversQueueService {
           type: userData.type,
           vin: userData.vin,
           driverStatus: userData.driverStatus,
+          driverRating: userData.driverRating,
           company: userData.company,
           role: userData.role,
-          // Do not overwrite status, password, profilePhoto, or mobile-only location fields.
+          // Do not overwrite: password, status, profilePhoto, location, city, state, zip, latitude, longitude.
         },
       });
       this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}`);

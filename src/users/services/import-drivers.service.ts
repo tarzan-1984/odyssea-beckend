@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
 	ExternalDriver,
 	ExternalApiResponse,
+	parseDriverAverageRating,
 } from '../interfaces/external-driver.interface';
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
@@ -252,6 +253,7 @@ export class ImportDriversService {
 			type: driver.type || '',
 			vin: driver.vin || '',
 			driverStatus: driver.driver_status || null,
+			driverRating: parseDriverAverageRating(driver.average_rating),
 			company: this.normalizeCompany(permissionView),
 			role: UserRole.DRIVER,
 			status: UserStatus.INACTIVE, // Default status for imported users
@@ -275,9 +277,10 @@ export class ImportDriversService {
 					type: userData.type,
 					vin: userData.vin,
 					driverStatus: userData.driverStatus,
+					driverRating: userData.driverRating,
 					company: userData.company,
 					role: userData.role,
-					// Do not overwrite status, password, profilePhoto, or mobile-only location fields.
+					// Do not overwrite: password, status, profilePhoto, location, city, state, zip, latitude, longitude.
 				},
 			});
 			this.logger.log(
