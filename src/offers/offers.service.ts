@@ -20,7 +20,7 @@ import {
 	getRouteEndpoints,
 } from './offer-route.util';
 import { calcTotalMiles, parseEmptyMiles } from './offer-miles.util';
-import { formatOfferRouteTimeForTms } from './offer-route-time.util';
+import { normalizeRouteForTms } from './offer-route-time.util';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
@@ -127,23 +127,6 @@ function normalizeSpecialRequirementsForTms(json: unknown): string[] {
 		return json.map((x) => String(x).trim()).filter(Boolean);
 	}
 	return [];
-}
-
-function normalizeRouteForTms(
-	route: unknown,
-): Array<{ time: string; type: string; location: string }> {
-	if (!Array.isArray(route)) return [];
-	const out: Array<{ time: string; type: string; location: string }> = [];
-	for (const p of route) {
-		if (!p || typeof p !== 'object') continue;
-		const point = p as Record<string, unknown>;
-		const type = String(point.type ?? '').trim();
-		const location = String(point.location ?? '').trim();
-		const time = formatOfferRouteTimeForTms(String(point.time ?? ''));
-		if (!type || !location) continue;
-		out.push({ type, location, time });
-	}
-	return out;
 }
 
 @Injectable()
@@ -1574,6 +1557,7 @@ export class OffersService {
 				rate: true,
 				emptyMiles: true,
 				totalMiles: true,
+				driverEta: true,
 			},
 		});
 		const selectedRateOffer = rateOffers.find(
@@ -1590,7 +1574,10 @@ export class OffersService {
 			? parseInt(normalizedDriverExternalId, 10)
 			: normalizedDriverExternalId;
 
-		const routeForTms = normalizeRouteForTms(offer.route);
+		const routeForTms = normalizeRouteForTms(
+			offer.route,
+			selectedRateOffer.driverEta,
+		);
 		if (routeForTms.length === 0) {
 			throw new BadRequestException({
 				message: 'Cannot accept driver: offer route is empty or invalid for TMS',

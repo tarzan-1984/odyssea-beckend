@@ -4,9 +4,13 @@ import axios from 'axios';
 import { AxiosError } from '../types/request.types';
 
 export type TmsLoadDraftRoutePoint = {
-	time: string;
 	type: 'pick_up_location' | 'delivery_location' | string;
 	location: string;
+	local_date: string;
+	time_start: string;
+	time_end: string;
+	eta_date?: string;
+	eta_time?: string;
 };
 
 export type TmsLoadDraftPayload = {
