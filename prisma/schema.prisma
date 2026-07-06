@@ -43,6 +43,8 @@ model User {
   type                 String?
   vin                  String?
   driverStatus         String?
+  /// Average driver rating (1–5 scale). Optional.
+  driverRating         Float?                @map("driver_rating")
   /// Theme / UI accent color for the user (e.g. hex #RRGGBB). Optional.
   userColor            String?               @map("user_color")
   // Date/time when driver set status (e.g. "02/11/26 2:30 PM")
