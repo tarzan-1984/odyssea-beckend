@@ -165,7 +165,7 @@ export class AppSettingsService {
 		try {
 			const user = await this.prisma.user.findUnique({
 				where: { id: userId },
-				select: { id: true, externalId: true },
+				select: { id: true, externalId: true, email: true },
 			});
 			if (!user) {
 				return true;
@@ -200,6 +200,7 @@ export class AppSettingsService {
 				this.prisma,
 				{
 					userExternalId: externalId,
+					email: user.email,
 					deviceId: devicePayload?.deviceId,
 					platform: devicePayload?.platform ?? syncInput?.platform,
 					appVersion: devicePayload?.appVersion ?? syncInput?.appVersion,

@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 export type UserDeviceSnapshotInput = {
 	userExternalId: string;
+	email?: string | null;
 	deviceId: string;
 	platform?: string | null;
 	appVersion?: string | null;
@@ -17,6 +18,11 @@ export type UserDeviceLegacySnapshotInput = Omit<
 	'deviceId'
 >;
 
+function resolveUserDeviceEmail(email?: string | null): string | null {
+	const trimmed = email?.trim();
+	return trimmed || null;
+}
+
 function buildUserDeviceSnapshotFields(input: UserDeviceLegacySnapshotInput): {
 	platform: string;
 	appVersion: string | null;
@@ -25,8 +31,9 @@ function buildUserDeviceSnapshotFields(input: UserDeviceLegacySnapshotInput): {
 	osVersion: string | null;
 	pushToken: string | null;
 	lastActiveAt: Date | null;
+	email?: string | null;
 } {
-	return {
+	const fields = {
 		platform: String(input.platform ?? 'unknown').trim() || 'unknown',
 		appVersion: input.appVersion?.trim() || null,
 		deviceName: input.deviceName?.trim() || null,
@@ -35,6 +42,13 @@ function buildUserDeviceSnapshotFields(input: UserDeviceLegacySnapshotInput): {
 		pushToken: input.pushToken?.trim() || null,
 		lastActiveAt: input.lastActiveAt ?? null,
 	};
+	if (input.email !== undefined) {
+		return {
+			...fields,
+			email: resolveUserDeviceEmail(input.email),
+		};
+	}
+	return fields;
 }
 
 function trimOrNull(value: string | null | undefined): string | null {
@@ -240,6 +254,7 @@ export async function registerUserDeviceActivity(
 			prisma,
 			{
 				userExternalId,
+				email: input.email,
 				deviceId,
 				platform: input.platform,
 				appVersion: input.appVersion,

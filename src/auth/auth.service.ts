@@ -1064,7 +1064,7 @@ export class AuthService {
 	): Promise<void> {
 		const user = await this.prisma.user.findUnique({
 			where: { id: userId },
-			select: { externalId: true },
+			select: { externalId: true, email: true },
 		});
 		if (!user?.externalId || user.externalId.trim() === '') {
 			throw new BadRequestException('User has no externalId');
@@ -1092,6 +1092,7 @@ export class AuthService {
 			this.prisma,
 			{
 				userExternalId: externalId,
+				email: user.email,
 				deviceId: devicePayload?.deviceId,
 				platform: devicePayload?.platform ?? dto.platform,
 				appVersion: devicePayload?.appVersion ?? dto.appVersion,

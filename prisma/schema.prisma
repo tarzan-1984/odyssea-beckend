@@ -53,6 +53,7 @@ model User {
   /// Mobile Settings: message push + sound (server skips push when false).
   notificationsEnabled Boolean               @default(true) @map("notifications_enabled")
   chatRooms            ChatRoomParticipant[]
+  userDevices          UserDevice[]
   adminOfChatRooms     ChatRoom[]            @relation("ChatRoomAdmin")
   receivedMessages     Message[]             @relation("MessageReceiver")
   sentMessages         Message[]             @relation("MessageSender")
@@ -212,6 +213,8 @@ model PushToken {
 model UserDevice {
   id             String   @id @default(cuid())
   userExternalId String
+  /// Account email at last foreground sync (FK to users.email; filled gradually).
+  email          String?
   deviceId       String?
   platform       String
   appVersion     String?
@@ -226,8 +229,11 @@ model UserDevice {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  user User? @relation(fields: [email], references: [email], onDelete: SetNull, onUpdate: Cascade)
+
   @@unique([userExternalId, deviceId])
   @@index([userExternalId])
+  @@index([email])
   @@map("user_devices")
 }
 
