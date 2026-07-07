@@ -23,6 +23,7 @@ import {
 import { MailerService } from '../mailer/mailer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserLocationDto } from './dto/update-user-location.dto';
+import { parseDriverAverageRating } from './interfaces/external-driver.interface';
 import {
 	WebhookSyncDto,
 	WebhookType,
@@ -1065,6 +1066,58 @@ export class UsersService {
 		return {
 			driverId: externalId,
 			event,
+			user,
+		};
+	}
+
+	/**
+	 * TMS webhook: update users.driver_rating by externalId when TMS average rating changes.
+	 */
+	async applyTmsDriverRatingWebhook(
+		driverId: string,
+		averageRating: number | string | null | undefined,
+	) {
+		const externalId = String(driverId ?? '').trim();
+		if (!externalId) {
+			throw new BadRequestException('driver_id is required');
+		}
+
+		const driverRating = parseDriverAverageRating(averageRating);
+		if (driverRating == null) {
+			throw new BadRequestException('average_rating must be a valid number');
+		}
+
+		const existing = await this.prisma.user.findFirst({
+			where: { externalId },
+			select: { id: true, role: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(
+				`User with externalId matching driver_id not found`,
+			);
+		}
+
+		if (existing.role !== UserRole.DRIVER) {
+			throw new BadRequestException(
+				`User with externalId ${externalId} is not a driver`,
+			);
+		}
+
+		const user = await this.prisma.user.update({
+			where: { id: existing.id },
+			data: { driverRating },
+			select: {
+				id: true,
+				externalId: true,
+				driverRating: true,
+				updatedAt: true,
+			},
+		});
+
+		return {
+			driver_id: externalId,
+			average_rating: user.driverRating,
 			user,
 		};
 	}
