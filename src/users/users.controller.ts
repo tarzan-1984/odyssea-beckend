@@ -886,6 +886,7 @@ export class UsersController {
 		);
 		const user = await this.usersService.findUserByExternalId(externalId, {
 			includeTmsLoadRouteLocations: true,
+			role: UserRole.DRIVER,
 		});
 		console.log('🔓 [Public Endpoint] User found:', {
 			firstName: user.firstName,
@@ -899,13 +900,44 @@ export class UsersController {
 
 	@Get('external/:externalId')
 	@ApiOperation({ summary: 'Get user by external ID' })
+	@ApiQuery({
+		name: 'role',
+		required: false,
+		description:
+			'Optional role filter (e.g. DRIVER). Omit for legacy first-match behavior.',
+	})
+	@ApiQuery({
+		name: 'excludeDriver',
+		required: false,
+		description:
+			'When true, excludes DRIVER role. Omit for legacy first-match behavior.',
+	})
 	@ApiResponse({
 		status: 200,
 		description: 'User retrieved successfully',
 	})
 	@ApiResponse({ status: 404, description: 'User not found' })
-	async findUserByExternalId(@Param('externalId') externalId: string) {
-		return this.usersService.findUserByExternalId(externalId);
+	async findUserByExternalId(
+		@Param('externalId') externalId: string,
+		@Query('role') role?: string,
+		@Query('excludeDriver') excludeDriver?: string,
+	) {
+		const options: {
+			role?: UserRole;
+			excludeDriver?: boolean;
+		} = {};
+
+		const normalizedRole = role?.trim().toUpperCase();
+		if (
+			normalizedRole &&
+			Object.values(UserRole).includes(normalizedRole as UserRole)
+		) {
+			options.role = normalizedRole as UserRole;
+		} else if (excludeDriver === 'true' || excludeDriver === '1') {
+			options.excludeDriver = true;
+		}
+
+		return this.usersService.findUserByExternalId(externalId, options);
 	}
 
 	@Get(':id/notification-preferences')

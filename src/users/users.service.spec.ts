@@ -239,33 +239,51 @@ describe('UsersService', () => {
 	});
 
 	describe('findUserByExternalId', () => {
-		it('should return user by external id', async () => {
+		it('should return user by external id (legacy, no role filter)', async () => {
 			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 
 			const result = await service.findUserByExternalId('ext_123');
 
-			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
-				where: { externalId: 'ext_123' },
-				select: {
-					id: true,
-					externalId: true,
-					email: true,
-					firstName: true,
-					lastName: true,
-					phone: true,
-					profilePhoto: true,
-					location: true,
-					state: true,
-					zip: true,
-					city: true,
-					role: true,
-					status: true,
-					createdAt: true,
-					updatedAt: true,
-					lastLoginAt: true,
-				},
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { externalId: 'ext_123' },
+				}),
+			);
+			expect(result).toEqual({
+				...mockUser,
+				lastActiveApp: null,
 			});
-			expect(result).toEqual(mockUser);
+		});
+
+		it('should filter by DRIVER role when requested', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+
+			await service.findUserByExternalId('ext_123', {
+				role: UserRole.DRIVER,
+			});
+
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { externalId: 'ext_123', role: UserRole.DRIVER },
+				}),
+			);
+		});
+
+		it('should exclude DRIVER role when requested', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+
+			await service.findUserByExternalId('ext_123', {
+				excludeDriver: true,
+			});
+
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: {
+						externalId: 'ext_123',
+						role: { not: UserRole.DRIVER },
+					},
+				}),
+			);
 		});
 
 		it('should throw NotFoundException if user not found', async () => {

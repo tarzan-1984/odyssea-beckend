@@ -1200,14 +1200,26 @@ export class UsersService {
 	}
 
 	/**
-	 * Finds user by external ID
+	 * Finds user by external ID.
+	 * Without role filters returns the first match (legacy behavior for older clients).
 	 */
 	async findUserByExternalId(
 		externalId: string,
-		options?: { includeTmsLoadRouteLocations?: boolean },
+		options?: {
+			includeTmsLoadRouteLocations?: boolean;
+			role?: UserRole;
+			excludeDriver?: boolean;
+		},
 	) {
+		const where: Prisma.UserWhereInput = { externalId };
+		if (options?.role) {
+			where.role = options.role;
+		} else if (options?.excludeDriver) {
+			where.role = { not: UserRole.DRIVER };
+		}
+
 		const user = await this.prisma.user.findFirst({
-			where: { externalId },
+			where,
 			select: {
 				id: true,
 				externalId: true,

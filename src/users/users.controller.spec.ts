@@ -142,15 +142,42 @@ describe('UsersController', () => {
 	});
 
 	describe('findUserByExternalId', () => {
-		it('should return user by external id', async () => {
+		it('should return user by external id (legacy, no filters)', async () => {
 			mockUsersService.findUserByExternalId.mockResolvedValue(mockUser);
 
 			const result = await controller.findUserByExternalId('ext_123');
 
 			expect(usersService.findUserByExternalId).toHaveBeenCalledWith(
 				'ext_123',
+				{},
 			);
 			expect(result).toEqual(mockUser);
+		});
+
+		it('should pass DRIVER role filter from query', async () => {
+			mockUsersService.findUserByExternalId.mockResolvedValue(mockUser);
+
+			await controller.findUserByExternalId('ext_123', 'DRIVER');
+
+			expect(usersService.findUserByExternalId).toHaveBeenCalledWith(
+				'ext_123',
+				{ role: UserRole.DRIVER },
+			);
+		});
+
+		it('should pass excludeDriver filter from query', async () => {
+			mockUsersService.findUserByExternalId.mockResolvedValue(mockUser);
+
+			await controller.findUserByExternalId(
+				'ext_123',
+				undefined,
+				'true',
+			);
+
+			expect(usersService.findUserByExternalId).toHaveBeenCalledWith(
+				'ext_123',
+				{ excludeDriver: true },
+			);
 		});
 	});
 
