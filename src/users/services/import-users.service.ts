@@ -7,7 +7,8 @@ import {
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
 import {
-	buildImportMergeUpdate,
+	buildExistingUserImportUpdate,
+	isExistingUserImportUnchanged,
 	isBlankString,
 } from './import-users-merge.helper';
 
@@ -249,8 +250,6 @@ export class ImportUsersService {
 			company: this.normalizeCompany(permissionView),
 			userColor: userColorFromTms,
 			role: mappedRole,
-			status: UserStatus.INACTIVE, // Default status for imported users
-			password: null, // No password for imported users
 		};
 
 		// Match existing users by email (externalId is not unique).
@@ -259,44 +258,50 @@ export class ImportUsersService {
 		});
 
 		if (existingUser) {
-			// Fill only empty string/array columns from TMS; always sync role and externalId from TMS.
-			const mergeData = buildImportMergeUpdate(
-				{
-					firstName: existingUser.firstName,
-					lastName: existingUser.lastName,
-					phone: existingUser.phone,
-					location: existingUser.location,
-					company: existingUser.company,
-					userColor: existingUser.userColor ?? null,
-				},
-				{
-					firstName: userData.firstName,
-					lastName: userData.lastName,
-					phone: userData.phone,
-					location: userData.location,
-					company: userData.company,
-					userColor: userData.userColor,
-				},
-			);
+			const incomingSync = {
+				firstName: userData.firstName,
+				lastName: userData.lastName,
+				phone: userData.phone,
+				location: userData.location,
+				company: userData.company,
+				userColor: userData.userColor,
+				role: userData.role,
+				externalId: userData.externalId,
+			};
 
-			const roleUnchanged = existingUser.role === userData.role;
-			const externalIdUnchanged =
-				existingUser.externalId === userData.externalId;
 			if (
-				Object.keys(mergeData).length === 0 &&
-				roleUnchanged &&
-				externalIdUnchanged
+				isExistingUserImportUnchanged(
+					{
+						firstName: existingUser.firstName,
+						lastName: existingUser.lastName,
+						phone: existingUser.phone,
+						location: existingUser.location,
+						company: existingUser.company,
+						userColor: existingUser.userColor ?? null,
+						role: existingUser.role,
+						externalId: existingUser.externalId,
+					},
+					incomingSync,
+				)
 			) {
 				return 'skipped';
 			}
 
 			await this.prisma.user.update({
 				where: { id: existingUser.id },
-				data: {
-					...mergeData,
-					role: userData.role,
-					externalId: userData.externalId,
-				},
+				data: buildExistingUserImportUpdate(
+					{
+						firstName: existingUser.firstName,
+						lastName: existingUser.lastName,
+						phone: existingUser.phone,
+						location: existingUser.location,
+						company: existingUser.company,
+						userColor: existingUser.userColor ?? null,
+						role: existingUser.role,
+						externalId: existingUser.externalId,
+					},
+					incomingSync,
+				),
 			});
 			return 'updated';
 		}
@@ -313,8 +318,8 @@ export class ImportUsersService {
 				company: userData.company,
 				userColor: userData.userColor,
 				role: userData.role,
-				status: userData.status,
-				password: userData.password,
+				status: UserStatus.INACTIVE,
+				password: null,
 			},
 		});
 		return 'imported';

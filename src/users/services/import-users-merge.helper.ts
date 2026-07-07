@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 
 /**
  * True if null, undefined, or whitespace-only.
@@ -26,6 +26,52 @@ export type IncomingImportFields = {
 	company: string[];
 	userColor: string | null;
 };
+
+/**
+ * Fields that must never be changed when re-importing an existing user (matched by email).
+ */
+export const IMPORT_USER_PROTECTED_ON_UPDATE = [
+	'password',
+	'profilePhoto',
+	'status',
+] as const;
+
+export type ExistingUserForImport = UserRowForImportMerge & {
+	role: UserRole;
+	externalId: string | null;
+};
+
+export type IncomingUserImportSync = IncomingImportFields & {
+	role: UserRole;
+	externalId: string;
+};
+
+/**
+ * Update payload for an existing imported user.
+ * Never includes password, profilePhoto, or status.
+ */
+export function buildExistingUserImportUpdate(
+	existing: ExistingUserForImport,
+	incoming: IncomingUserImportSync,
+): Prisma.UserUpdateInput {
+	return {
+		...buildImportMergeUpdate(existing, incoming),
+		role: incoming.role,
+		externalId: incoming.externalId,
+	};
+}
+
+export function isExistingUserImportUnchanged(
+	existing: ExistingUserForImport,
+	incoming: IncomingUserImportSync,
+): boolean {
+	const mergeData = buildImportMergeUpdate(existing, incoming);
+	return (
+		Object.keys(mergeData).length === 0 &&
+		existing.role === incoming.role &&
+		existing.externalId === incoming.externalId
+	);
+}
 
 /**
  * For existing users: only set fields that are still empty in DB.
