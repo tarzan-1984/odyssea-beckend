@@ -2260,6 +2260,84 @@ export class UsersService {
 	/**
 	 * Processes driver webhook data
 	 */
+	private normalizeWebhookEmail(email?: string | null): string {
+		return String(email ?? '').trim();
+	}
+
+	private async findDriverByEmailForWebhook(email?: string | null) {
+		const normalizedEmail = this.normalizeWebhookEmail(email);
+		if (!normalizedEmail) {
+			return null;
+		}
+
+		const user = await this.prisma.user.findUnique({
+			where: { email: normalizedEmail },
+		});
+		if (!user || user.role !== UserRole.DRIVER) {
+			return null;
+		}
+		return user;
+	}
+
+	/**
+	 * Driver webhook lookup: prefer email; DELETE payloads may only include driver_id.
+	 */
+	private async findDriverForWebhook(params: {
+		email?: string | null;
+		externalId?: string | null;
+	}) {
+		const byEmail = await this.findDriverByEmailForWebhook(params.email);
+		if (byEmail) {
+			return byEmail;
+		}
+
+		const externalId = String(params.externalId ?? '').trim();
+		if (!externalId) {
+			return null;
+		}
+
+		return this.prisma.user.findFirst({
+			where: { externalId, role: UserRole.DRIVER },
+		});
+	}
+
+	private async findEmployeeByEmailForWebhook(email?: string | null) {
+		const normalizedEmail = this.normalizeWebhookEmail(email);
+		if (!normalizedEmail) {
+			return null;
+		}
+
+		const user = await this.prisma.user.findUnique({
+			where: { email: normalizedEmail },
+		});
+		if (!user || user.role === UserRole.DRIVER) {
+			return null;
+		}
+		return user;
+	}
+
+	/**
+	 * Employee webhook lookup: prefer email; DELETE payloads may only include user_id.
+	 */
+	private async findEmployeeForWebhook(params: {
+		email?: string | null;
+		externalId?: string | null;
+	}) {
+		const byEmail = await this.findEmployeeByEmailForWebhook(params.email);
+		if (byEmail) {
+			return byEmail;
+		}
+
+		const externalId = String(params.externalId ?? '').trim();
+		if (!externalId) {
+			return null;
+		}
+
+		return this.prisma.user.findFirst({
+			where: { externalId, role: { not: UserRole.DRIVER } },
+		});
+	}
+
 	private async processDriverWebhook(webhookData: WebhookSyncDto) {
 		const { type, driver_data, driver_id } = webhookData;
 
@@ -2285,8 +2363,9 @@ export class UsersService {
 				);
 			}
 
-			const user = await this.prisma.user.findFirst({
-				where: { externalId: driver_id, role: UserRole.DRIVER },
+			const user = await this.findDriverForWebhook({
+				email: driver_data?.driver_email,
+				externalId: driver_id,
 			});
 
 			if (!user) {
@@ -2341,6 +2420,11 @@ export class UsersService {
 			return normalized;
 		};
 
+		const normalizedDriverEmail = this.normalizeWebhookEmail(driver_email);
+		if (!normalizedDriverEmail) {
+			throw new BadRequestException('driver_email is required');
+		}
+
 		// Parse driver name
 		const nameParts = driver_name?.split(' ') || [];
 		const firstName = nameParts[0] || '';
@@ -2351,7 +2435,7 @@ export class UsersService {
 
 		const userData: Prisma.UserUncheckedCreateInput = {
 			externalId: driverId,
-			email: driver_email,
+			email: normalizedDriverEmail,
 			firstName,
 			lastName,
 			phone: driver_phone,
@@ -2367,12 +2451,8 @@ export class UsersService {
 		};
 
 		if (type === WebhookType.ADD) {
-			// Check if user already exists
-			const existingUser = await this.prisma.user.findFirst({
-				where: {
-					role: UserRole.DRIVER,
-					OR: [{ externalId: driverId }, { email: driver_email }],
-				},
+			const existingUser = await this.prisma.user.findUnique({
+				where: { email: normalizedDriverEmail },
 			});
 
 			if (existingUser) {
@@ -2405,21 +2485,16 @@ export class UsersService {
 				user: newUser,
 			};
 		} else if (type === WebhookType.UPDATE) {
-			// Find user by externalId
-			const existingUser = await this.prisma.user.findFirst({
-				where: { externalId: driverId, role: UserRole.DRIVER },
-			});
+			const existingUser =
+				await this.findDriverByEmailForWebhook(normalizedDriverEmail);
 
 			if (!existingUser) {
 				// TMS may send "update" before our DB has the driver (desync) — create instead of 404
 				this.logger.warn(
-					`[Webhook Driver] UPDATE for unknown externalId=${driverId} — creating user (sync recovery)`,
+					`[Webhook Driver] UPDATE for unknown email=${normalizedDriverEmail} — creating user (sync recovery)`,
 				);
-				const conflict = await this.prisma.user.findFirst({
-					where: {
-						role: UserRole.DRIVER,
-						OR: [{ externalId: driverId }, { email: driver_email }],
-					},
+				const conflict = await this.prisma.user.findUnique({
+					where: { email: normalizedDriverEmail },
 				});
 				if (conflict) {
 					throw new ConflictException('Driver already exists');
@@ -2458,7 +2533,8 @@ export class UsersService {
 			// wipe driverStatus/etc. when TMS omits them.
 			// Location fields (lat/lng, city, zip, state, location) are mobile-only — not TMS.
 			const updateData: Prisma.UserUpdateInput = {
-				email: driver_email,
+				externalId: driverId,
+				email: normalizedDriverEmail,
 				firstName,
 				lastName,
 			};
@@ -2490,7 +2566,7 @@ export class UsersService {
 			const changePatch: Parameters<
 				typeof buildTmsDriverWebhookUpdateChanges
 			>[1] = {
-				email: driver_email,
+				email: normalizedDriverEmail,
 				firstName,
 				lastName,
 			};
@@ -2614,8 +2690,9 @@ export class UsersService {
 				);
 			}
 
-			const user = await this.prisma.user.findFirst({
-				where: { externalId: user_id.toString() },
+			const user = await this.findEmployeeForWebhook({
+				email: user_data?.user_email,
+				externalId: user_id.toString(),
 			});
 
 			if (!user) {
@@ -2640,6 +2717,11 @@ export class UsersService {
 		const { id, user_email, first_name, last_name, roles, acf_fields } =
 			user_data;
 
+		const normalizedEmployeeEmail = this.normalizeWebhookEmail(user_email);
+		if (!normalizedEmployeeEmail) {
+			throw new BadRequestException('user_email is required');
+		}
+
 		// Determine user status based on deactivate_account flag
 		const userStatus =
 			acf_fields?.deactivate_account === true
@@ -2648,7 +2730,7 @@ export class UsersService {
 
 		const employeeData = {
 			externalId: String(id),
-			email: user_email,
+			email: normalizedEmployeeEmail,
 			firstName: first_name,
 			lastName: last_name,
 			phone: acf_fields?.phone_number || undefined,
@@ -2660,11 +2742,8 @@ export class UsersService {
 		};
 
 		if (type === WebhookType.ADD) {
-			// Check if user already exists
-			const existingUser = await this.prisma.user.findFirst({
-				where: {
-					OR: [{ externalId: String(id) }, { email: user_email }],
-				},
+			const existingUser = await this.prisma.user.findUnique({
+				where: { email: normalizedEmployeeEmail },
 			});
 
 			if (existingUser) {
@@ -2699,10 +2778,8 @@ export class UsersService {
 				user: newUser,
 			};
 		} else if (type === WebhookType.UPDATE) {
-			// Find user by externalId
-			const existingUser = await this.prisma.user.findFirst({
-				where: { externalId: String(id) },
-			});
+			const existingUser =
+				await this.findEmployeeByEmailForWebhook(normalizedEmployeeEmail);
 
 			if (!existingUser) {
 				throw new NotFoundException('Employee not found');

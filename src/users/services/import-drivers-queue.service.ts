@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ExternalDriver, ExternalApiResponse, parseDriverAverageRating } from '../interfaces/external-driver.interface';
-import { UserRole, UserStatus } from '@prisma/client';
+import { ExternalDriver, ExternalApiResponse } from '../interfaces/external-driver.interface';
 import axios from 'axios';
+import { processImportedDriverByEmail } from './import-driver-by-email.helper';
 
 export interface ImportJobData {
   page: number;
@@ -221,63 +221,18 @@ export class ImportDriversQueueService {
    * Process a single driver
    */
   private async processDriver(driver: ExternalDriver): Promise<'imported' | 'updated' | 'skipped'> {
-    // Split driver_name into firstName and lastName
-    const driverName = driver.driver_name || '';
-    const nameParts = driverName.trim().split(' ');
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
-
-    const permissionView = driver.permission_view ?? [];
-
-    const userData = {
-      externalId: driver.id.toString(),
-      email: driver.driver_email || '',
-      firstName: firstName,
-      lastName: lastName,
-      phone: driver.driver_phone || '',
-      type: driver.type || '',
-      vin: driver.vin || '',
-      driverStatus: driver.driver_status || null,
-      driverRating: parseDriverAverageRating(driver.average_rating),
-      company: this.normalizeCompany(permissionView),
-      role: UserRole.DRIVER,
-      status: UserStatus.INACTIVE,
-      password: null,
-    };
-
-    // Check if user exists by externalId only
-    const existingUser = await this.prisma.user.findFirst({
-      where: { externalId: driver.id.toString() },
-    });
-
-    if (existingUser) {
-      // User exists - update all fields including email
-      await this.prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          phone: userData.phone,
-          type: userData.type,
-          vin: userData.vin,
-          driverStatus: userData.driverStatus,
-          driverRating: userData.driverRating,
-          company: userData.company,
-          role: userData.role,
-          // Do not overwrite: password, status, profilePhoto, location, city, state, zip, latitude, longitude.
-        },
-      });
-      this.logger.log(`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}`);
-      return 'updated';
-    } else {
-      // User doesn't exist - create new one
-      await this.prisma.user.create({
-        data: userData,
-      });
-      this.logger.log(`Created new driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}`);
-      return 'imported';
+    const result = await processImportedDriverByEmail(
+      this.prisma,
+      driver,
+      (value) => this.normalizeCompany(value),
+    );
+    if (result === 'updated') {
+      this.logger.log(`Updated driver ${driver.id} (email: ${driver.driver_email}) with driverStatus: ${driver.driver_status ?? 'null'}`);
     }
+    if (result === 'imported') {
+      this.logger.log(`Created new driver ${driver.id} (email: ${driver.driver_email}) with driverStatus: ${driver.driver_status ?? 'null'}`);
+    }
+    return result;
   }
 
   /**

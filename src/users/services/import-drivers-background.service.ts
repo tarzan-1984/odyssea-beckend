@@ -3,11 +3,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
 	ExternalDriver,
 	ExternalApiResponse,
-	parseDriverAverageRating,
 } from '../interfaces/external-driver.interface';
-import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
-import { logImportDuplicate } from './import-duplicate-logger';
+import { processImportedDriverByEmail } from './import-driver-by-email.helper';
 
 export interface ImportJobData {
 	page: number;
@@ -134,7 +132,6 @@ export class ImportDriversBackgroundService {
 		let totalImported = 0;
 		let totalUpdated = 0;
 		let totalSkipped = 0;
-		const duplicateEmails: number[] = [];
 		let processedPages = 0;
 
 		try {
@@ -150,7 +147,7 @@ export class ImportDriversBackgroundService {
 					job.totalImported = totalImported;
 					job.totalUpdated = totalUpdated;
 					job.totalSkipped = totalSkipped;
-					job.duplicateEmails = [...duplicateEmails];
+					job.duplicateEmails = [];
 				}
 
 				// Fetch data from external API
@@ -167,10 +164,7 @@ export class ImportDriversBackgroundService {
 				}
 
 				// Process drivers
-				const result = await this.processDriversBatch(
-					response.data,
-					duplicateEmails,
-				);
+				const result = await this.processDriversBatch(response.data);
 				totalImported += result.imported;
 				totalUpdated += result.updated;
 				totalSkipped += result.skipped;
@@ -186,7 +180,7 @@ export class ImportDriversBackgroundService {
 					job.totalImported = totalImported;
 					job.totalUpdated = totalUpdated;
 					job.totalSkipped = totalSkipped;
-					job.duplicateEmails = [...duplicateEmails];
+					job.duplicateEmails = [];
 					job.progress = Math.min(
 						100,
 						(processedPages /
@@ -311,7 +305,6 @@ export class ImportDriversBackgroundService {
 	 */
 	private async processDriversBatch(
 		drivers: ExternalDriver[],
-		duplicateEmails: number[],
 	): Promise<{ imported: number; updated: number; skipped: number }> {
 		let imported = 0;
 		let updated = 0;
@@ -319,10 +312,7 @@ export class ImportDriversBackgroundService {
 
 		for (const driver of drivers) {
 			try {
-				const result = await this.processDriver(
-					driver,
-					duplicateEmails,
-				);
+				const result = await this.processDriver(driver);
 				if (result === 'imported') {
 					imported++;
 				} else if (result === 'updated') {
@@ -349,93 +339,30 @@ export class ImportDriversBackgroundService {
 	 */
 	private async processDriver(
 		driver: ExternalDriver,
-		duplicateEmails: number[],
 	): Promise<'imported' | 'updated' | 'skipped'> {
-		// Skip if no email provided
-		if (!driver.driver_email || driver.driver_email.trim() === '') {
-			this.logger.warn(
-				`Skipping driver ${driver.id} - no email provided`,
-			);
-			return 'skipped';
-		}
-
-		// Split driver_name into firstName and lastName
-		const driverName = driver.driver_name || '';
-		const nameParts = driverName.trim().split(' ');
-		const firstName = nameParts[0] || '';
-		const lastName = nameParts.slice(1).join(' ') || '';
-
-		const permissionView = driver.permission_view ?? [];
-
-		const userData = {
-			externalId: driver.id.toString(),
-			email: driver.driver_email.trim(),
-			firstName: firstName,
-			lastName: lastName,
-			phone: driver.driver_phone || '',
-			type: driver.type || '',
-			vin: driver.vin || '',
-			driverStatus: driver.driver_status || null,
-			driverRating: parseDriverAverageRating(driver.average_rating),
-			company: this.normalizeCompany(permissionView),
-			role: UserRole.DRIVER,
-			status: UserStatus.INACTIVE,
-			password: null,
-		};
-
-		// Check if user exists by externalId only
-		const existingUser = await this.prisma.user.findFirst({
-			where: { externalId: driver.id.toString() },
-		});
-
-		if (existingUser) {
-			// User exists - update all fields including email
-			await this.prisma.user.update({
-				where: { id: existingUser.id },
-				data: {
-					email: userData.email,
-					firstName: userData.firstName,
-					lastName: userData.lastName,
-					phone: userData.phone,
-					type: userData.type,
-					vin: userData.vin,
-					driverStatus: userData.driverStatus,
-					driverRating: userData.driverRating,
-					company: userData.company,
-					role: userData.role,
-					// Do not overwrite: password, status, profilePhoto, location, city, state, zip, latitude, longitude.
-				},
-			});
+		const result = await processImportedDriverByEmail(
+			this.prisma,
+			driver,
+			(value) => this.normalizeCompany(value),
+		);
+		if (result === 'updated') {
 			this.logger.log(
-				`Updated driver ${driver.id} (externalId: ${driver.id.toString()}) with driverStatus: ${userData.driverStatus}`,
+				`Updated driver ${driver.id} (email: ${driver.driver_email}) with driverStatus: ${driver.driver_status ?? 'null'}`,
 			);
-			return 'updated';
-		} else {
-			// User doesn't exist - check if email is already taken
-			const userWithSameEmail = await this.prisma.user.findUnique({
-				where: { email: driver.driver_email.trim() },
-			});
-
-			if (userWithSameEmail) {
-				// Email already exists - add to duplicates list and skip
-				duplicateEmails.push(driver.id);
-				logImportDuplicate(
-					driver.id.toString(),
-					userWithSameEmail.id,
-					driver.driver_email.trim(),
-				);
-				this.logger.warn(
-					`Skipping driver ${driver.id} - email ${driver.driver_email} already exists for user ${userWithSameEmail.id}`,
-				);
-				return 'skipped';
-			}
-
-			// Create new user
-			await this.prisma.user.create({
-				data: userData,
-			});
-			return 'imported';
 		}
+		if (result === 'skipped' && !driver.driver_email?.trim()) {
+			this.logger.warn(`Skipping driver ${driver.id} - no email provided`);
+		}
+		if (
+			result === 'skipped' &&
+			driver.driver_email?.trim() &&
+			driver.driver_email.trim().length > 0
+		) {
+			this.logger.warn(
+				`Skipping driver ${driver.id} - email ${driver.driver_email} belongs to a non-driver user`,
+			);
+		}
+		return result;
 	}
 
 	/**
