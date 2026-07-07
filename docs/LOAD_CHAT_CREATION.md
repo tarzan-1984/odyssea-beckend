@@ -76,9 +76,25 @@ POST /v1/create_load_chat
 ### Step 2: Participant Validation
 
 For each participant (except driver):
-1. Query database by `externalId`
-2. If user exists → add to chat
-3. If user doesn't exist → skip (no error)
+1. Resolve user by `externalId` **and** `role` from the payload
+2. `role: "driver"` → user must have `role = DRIVER`
+3. Any other role → user must have `role != DRIVER` (employee)
+4. If exactly one user matches → add to chat
+5. If no user matches → skip (no error)
+6. If **multiple** users match the same `externalId` + role category → `400 Bad Request`
+
+**Important:** `externalId` is not unique in the database. The `role` field in the request is required to distinguish driver vs employee rows that share the same TMS id.
+
+### Step 2b: Manual participant changes (Web / Mobile)
+
+When participants are added or removed from GROUP or LOAD chats via the app:
+- The client sends `{ id, role }` for each participant
+- The backend resolves by internal user id (with role validation) or by `externalId + role`
+- Resolving by `externalId` without `role` is rejected
+
+### Step 2c: `update_load_chat`
+
+Same role-aware resolution as creation. The endpoint also removes stale visible participants when the same `externalId` + role category resolves to a different user id than the one currently in the chat.
 
 ### Step 3: Auto-add Admin Users
 

@@ -1,8 +1,13 @@
 import {
+	AmbiguousExternalIdError,
+	ExternalIdRoleRequiredError,
+	findSingleUserByExternalIdAndParticipantRole,
 	isDriverParticipantRole,
 	isDriverUserRole,
 	participantExternalRoleKey,
+	participantRoleCategoryKey,
 	participantRoleMatchesUser,
+	userRoleCategoryKey,
 	userWhereByExternalIdAndParticipantRole,
 	userWhereDriverByExternalId,
 	userWhereEmployeeByExternalId,
@@ -53,5 +58,57 @@ describe('user-external-id-lookup.util', () => {
 
 	it('builds externalId + role composite key', () => {
 		expect(participantExternalRoleKey(' 3343 ', 'driver')).toBe('3343|DRIVER');
+	});
+
+	it('builds externalId + role category key', () => {
+		expect(participantRoleCategoryKey('3343', 'dispatcher')).toBe(
+			'3343|EMPLOYEE',
+		);
+		expect(userRoleCategoryKey('3343', 'TRACKING')).toBe('3343|EMPLOYEE');
+		expect(userRoleCategoryKey('3343', 'DRIVER')).toBe('3343|DRIVER');
+	});
+
+	it('findSingleUserByExternalIdAndParticipantRole requires role', async () => {
+		const prisma = { user: { findMany: jest.fn() } };
+		await expect(
+			findSingleUserByExternalIdAndParticipantRole(
+				prisma as any,
+				'3343',
+				'',
+				{ id: true },
+			),
+		).rejects.toBeInstanceOf(ExternalIdRoleRequiredError);
+	});
+
+	it('findSingleUserByExternalIdAndParticipantRole throws on ambiguous matches', async () => {
+		const prisma = {
+			user: {
+				findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }]),
+			},
+		};
+		await expect(
+			findSingleUserByExternalIdAndParticipantRole(
+				prisma as any,
+				'3343',
+				'DRIVER',
+				{ id: true },
+			),
+		).rejects.toBeInstanceOf(AmbiguousExternalIdError);
+	});
+
+	it('findSingleUserByExternalIdAndParticipantRole returns single match', async () => {
+		const prisma = {
+			user: {
+				findMany: jest.fn().mockResolvedValue([{ id: 'driver-1' }]),
+			},
+		};
+		await expect(
+			findSingleUserByExternalIdAndParticipantRole(
+				prisma as any,
+				'3343',
+				'driver',
+				{ id: true },
+			),
+		).resolves.toEqual({ id: 'driver-1' });
 	});
 });

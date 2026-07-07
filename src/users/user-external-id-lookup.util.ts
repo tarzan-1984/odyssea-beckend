@@ -1,6 +1,11 @@
 import { Prisma, UserRole } from '@prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
 
+export type ChatParticipantRef = {
+	id: string;
+	role?: string;
+};
+
 export function trimExternalId(externalId: string | null | undefined): string {
 	return String(externalId ?? '').trim();
 }
@@ -53,11 +58,85 @@ export function participantRoleMatchesUser(
 	);
 }
 
+/** Payload key: externalId + raw participant role (case-insensitive). */
 export function participantExternalRoleKey(
 	externalId: string,
 	participantRole: string | null | undefined,
 ): string {
 	return `${trimExternalId(externalId)}|${trimExternalId(participantRole).toUpperCase()}`;
+}
+
+/** Lookup/dedup key: externalId + DRIVER vs EMPLOYEE category. */
+export function participantRoleCategoryKey(
+	externalId: string,
+	participantRole: string | null | undefined,
+): string {
+	const category = isDriverParticipantRole(participantRole) ? 'DRIVER' : 'EMPLOYEE';
+	return `${trimExternalId(externalId)}|${category}`;
+}
+
+export function userRoleCategoryKey(
+	externalId: string,
+	userRole: string | null | undefined,
+): string {
+	const participantRole = isDriverUserRole(userRole) ? 'DRIVER' : 'EMPLOYEE';
+	return participantRoleCategoryKey(externalId, participantRole);
+}
+
+export class ExternalIdRoleRequiredError extends Error {
+	constructor(readonly externalId: string) {
+		super(`Participant role is required to resolve externalId "${externalId}"`);
+		this.name = 'ExternalIdRoleRequiredError';
+	}
+}
+
+export class AmbiguousExternalIdError extends Error {
+	constructor(
+		readonly externalId: string,
+		readonly participantRole: string,
+		readonly matchCount: number,
+	) {
+		super(
+			`Multiple users (${matchCount}) share externalId "${externalId}" for role category "${participantRole}"`,
+		);
+		this.name = 'AmbiguousExternalIdError';
+	}
+}
+
+/**
+ * Resolve TMS externalId + participant role to exactly one user.
+ * Throws when role is missing or multiple users match the same category.
+ */
+export async function findSingleUserByExternalIdAndParticipantRole<
+	T extends Prisma.UserSelect,
+>(
+	prisma: Pick<PrismaService, 'user'>,
+	externalId: string,
+	participantRole: string | null | undefined,
+	select: T,
+): Promise<Prisma.UserGetPayload<{ select: T }> | null> {
+	const id = trimExternalId(externalId);
+	const role = trimExternalId(participantRole);
+	if (!id) {
+		return null;
+	}
+	if (!role) {
+		throw new ExternalIdRoleRequiredError(id);
+	}
+
+	const matches = await prisma.user.findMany({
+		where: userWhereByExternalIdAndParticipantRole(id, participantRole),
+		select,
+		take: 2,
+	});
+
+	if (matches.length === 0) {
+		return null;
+	}
+	if (matches.length > 1) {
+		throw new AmbiguousExternalIdError(id, role, matches.length);
+	}
+	return matches[0];
 }
 
 export async function resolveParticipantUser<
@@ -91,14 +170,12 @@ export async function resolveParticipantUser<
 		return byInternalId as unknown as Prisma.UserGetPayload<{ select: T }>;
 	}
 
-	if (!participant.role) {
-		return findUserByExternalIdPreferDriver(prisma, id, select);
-	}
-
-	return prisma.user.findFirst({
-		where: userWhereByExternalIdAndParticipantRole(id, participant.role),
+	return findSingleUserByExternalIdAndParticipantRole(
+		prisma,
+		id,
+		participant.role,
 		select,
-	});
+	);
 }
 
 export function userWhereDriversByExternalIds(

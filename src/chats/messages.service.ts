@@ -1745,7 +1745,11 @@ export class MessagesService {
 		});
 
 		if (!message) {
-			throw new NotFoundException('Message not found');
+			return {
+				success: true,
+				messageId,
+				alreadyDeleted: true,
+			};
 		}
 
 		if (
