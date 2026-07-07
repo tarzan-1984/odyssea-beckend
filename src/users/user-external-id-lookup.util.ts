@@ -39,6 +39,68 @@ export function userWhereByExternalIdAndParticipantRole(
 	return userWhereEmployeeByExternalId(externalId);
 }
 
+export function isDriverUserRole(role: string | null | undefined): boolean {
+	return trimExternalId(role).toUpperCase() === 'DRIVER';
+}
+
+/** TMS participant role (driver vs employee) must match the users.role category. */
+export function participantRoleMatchesUser(
+	participantRole: string | null | undefined,
+	userRole: string | null | undefined,
+): boolean {
+	return (
+		isDriverParticipantRole(participantRole) === isDriverUserRole(userRole)
+	);
+}
+
+export function participantExternalRoleKey(
+	externalId: string,
+	participantRole: string | null | undefined,
+): string {
+	return `${trimExternalId(externalId)}|${trimExternalId(participantRole).toUpperCase()}`;
+}
+
+export async function resolveParticipantUser<
+	T extends Prisma.UserSelect,
+>(
+	prisma: Pick<PrismaService, 'user'>,
+	participant: { id: string; role?: string | null },
+	select: T,
+): Promise<Prisma.UserGetPayload<{ select: T }> | null> {
+	const id = trimExternalId(participant.id);
+	if (!id) {
+		return null;
+	}
+
+	const selectWithRole = { ...select, role: true } as T & { role: true };
+
+	const byInternalId = await prisma.user.findUnique({
+		where: { id },
+		select: selectWithRole,
+	});
+	if (byInternalId) {
+		if (
+			participant.role &&
+			!participantRoleMatchesUser(
+				participant.role,
+				(byInternalId as { role: string }).role,
+			)
+		) {
+			return null;
+		}
+		return byInternalId as unknown as Prisma.UserGetPayload<{ select: T }>;
+	}
+
+	if (!participant.role) {
+		return findUserByExternalIdPreferDriver(prisma, id, select);
+	}
+
+	return prisma.user.findFirst({
+		where: userWhereByExternalIdAndParticipantRole(id, participant.role),
+		select,
+	});
+}
+
 export function userWhereDriversByExternalIds(
 	externalIds: Array<string | null | undefined>,
 ): Prisma.UserWhereInput {

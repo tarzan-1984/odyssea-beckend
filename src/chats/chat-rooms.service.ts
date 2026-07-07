@@ -17,10 +17,17 @@ import {
 } from '../common/utils/ny-wall-clock';
 import { buildArchivedLoadChatSearchWhereInput } from './chat-room-search.util';
 import {
+	participantExternalRoleKey,
+	resolveParticipantUser,
 	userWhereByExternalIdAndParticipantRole,
 	userWhereDriverByExternalId,
 	userWhereDriversByExternalIds,
 } from '../users/user-external-id-lookup.util';
+
+export type ChatParticipantRef = {
+	id: string;
+	role?: string;
+};
 
 /**
  * ADMINISTRATOR users are auto-added as hidden LOAD chat participants unless their
@@ -861,13 +868,20 @@ export class ChatRoomsService {
 	}
 
 	/**
-	 * Add new participants to an existing chat room
+	 * Add new participants to an existing chat room.
+	 * Each participant is resolved by internal user id, or by externalId + role (driver vs employee).
 	 */
 	async addParticipants(
 		chatRoomId: string,
 		participantIds: string[],
 		userId: string,
+		participantRefs?: ChatParticipantRef[],
 	) {
+		const refs: ChatParticipantRef[] =
+			participantRefs?.length
+				? participantRefs
+				: participantIds.map((id) => ({ id }));
+
 		// Get chat room info first
 		const chatRoom = await this.prisma.chatRoom.findUnique({
 			where: { id: chatRoomId },
@@ -894,21 +908,39 @@ export class ChatRoomsService {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
-		// Get info about users being added
-		const addedUsers = await this.prisma.user.findMany({
-			where: { id: { in: participantIds } },
-			select: {
+		const resolvedUsers: Array<{
+			id: string;
+			firstName: string;
+			lastName: string;
+		}> = [];
+		const resolvedUserIds: string[] = [];
+
+		for (const ref of refs) {
+			const resolved = await resolveParticipantUser(this.prisma, ref, {
 				id: true,
 				firstName: true,
 				lastName: true,
-			},
-		});
+				role: true,
+			});
+
+			if (!resolved) {
+				const roleHint = ref.role ? ` and role ${ref.role}` : '';
+				throw new BadRequestException(
+					`Participant with id ${ref.id}${roleHint} not found`,
+				);
+			}
+
+			if (!resolvedUserIds.includes(resolved.id)) {
+				resolvedUserIds.push(resolved.id);
+				resolvedUsers.push(resolved);
+			}
+		}
 
 		const joinedAt = newParticipantJoinedAt();
 
 		// Add new participants
 		const newParticipants = await Promise.all(
-			participantIds.map((participantId) =>
+			resolvedUserIds.map((participantId) =>
 				this.prisma.chatRoomParticipant.create({
 					data: {
 						chatRoomId,
@@ -932,16 +964,16 @@ export class ChatRoomsService {
 		);
 
 		// Create notifications for all participants (including newly added ones) except admin
-		if (chatRoom.type === 'GROUP' && addedUsers.length > 0) {
+		if (chatRoom.type === 'GROUP' && resolvedUsers.length > 0) {
 			try {
 				// Get all participants (existing + newly added)
 				const allParticipants = [
 					...chatRoom.participants.map((p) => ({ userId: p.userId })),
-					...participantIds.map((id) => ({ userId: id })),
+					...resolvedUserIds.map((id) => ({ userId: id })),
 				];
 
 				await this.notificationsService.createParticipantsAddedNotifications(
-					addedUsers,
+					resolvedUsers,
 					{
 						id: chatRoom.id,
 						name: chatRoom.name,
@@ -1011,14 +1043,35 @@ export class ChatRoomsService {
 	}
 
 	/**
-	 * Remove participant from chat room
+	 * Remove participant from chat room.
+	 * Participant is resolved by internal user id, or by externalId + role (driver vs employee).
 	 */
 	async removeParticipant(
 		chatRoomId: string,
 		participantId: string,
 		userId: string,
+		participantRole?: string,
 	) {
-		// removeParticipant invoked via WebSocket
+		const resolved = await resolveParticipantUser(
+			this.prisma,
+			{ id: participantId, role: participantRole },
+			{
+				id: true,
+				firstName: true,
+				lastName: true,
+				profilePhoto: true,
+				userColor: true,
+			},
+		);
+
+		if (!resolved) {
+			const roleHint = participantRole ? ` and role ${participantRole}` : '';
+			throw new BadRequestException(
+				`Participant with id ${participantId}${roleHint} not found`,
+			);
+		}
+
+		const resolvedParticipantId = resolved.id;
 
 		// Get chat room info first
 		const chatRoom = await this.prisma.chatRoom.findUnique({
@@ -1047,38 +1100,22 @@ export class ChatRoomsService {
 		}
 
 		// Check if user is removing themselves (leaving group chat)
-		const isLeavingSelf = participantId === userId;
+		const isLeavingSelf = resolvedParticipantId === userId;
 		const isGroupChat = chatRoom.type === 'GROUP';
 
-		// Determine if this is a self-leave in a group chat
-
-		// Get user info before deleting (for notifications)
-		const leavingUser = await this.prisma.user.findUnique({
-			where: { id: participantId },
-			select: {
-				id: true,
-				firstName: true,
-				lastName: true,
-				profilePhoto: true,
-				userColor: true,
-			},
-		});
-
-		// Leaving user is needed to build notification avatar/initials
+		const leavingUser = resolved;
 
 		// Get remaining participants (excluding the leaving user)
 		const remainingParticipants = chatRoom.participants
-			.filter((p) => p.userId !== participantId)
+			.filter((p) => p.userId !== resolvedParticipantId)
 			.map((p) => ({ userId: p.userId }));
-
-		// Remaining participants to notify
 
 		// Remove participant
 		await this.prisma.chatRoomParticipant.delete({
 			where: {
 				chatRoomId_userId: {
 					chatRoomId,
-					userId: participantId,
+					userId: resolvedParticipantId,
 				},
 			},
 		});
@@ -1130,7 +1167,7 @@ export class ChatRoomsService {
 			}
 		}
 
-		return { success: true, removedUserId: participantId };
+		return { success: true, removedUserId: resolvedParticipantId };
 	}
 
 	/**
@@ -1857,14 +1894,13 @@ export class ChatRoomsService {
 	 */
 	async updateLoadChatParticipants(updateDto: UpdateLoadChatDto) {
 		const loadId = updateDto.load_id;
-		const incomingExternalIds = updateDto.participants.map((p) => p.id);
 
 		// Find chat room by loadId and type LOAD
 		const chatRoom = await this.prisma.chatRoom.findFirst({
 			where: { loadId: loadId, type: 'LOAD' },
 			include: {
 				participants: {
-					include: { user: { select: { id: true, externalId: true } } },
+					include: { user: { select: { id: true, externalId: true, role: true } } },
 				},
 			},
 		});
@@ -1873,18 +1909,14 @@ export class ChatRoomsService {
 			throw new NotFoundException('LOAD chat with specified load_id not found');
 		}
 
-		// Map current participants by externalId (skip hidden ones)
+		// Map current participants by externalId + role category (skip hidden ones)
 		const visibleParticipants = chatRoom.participants.filter(
 			(p: any) => p.hideParticipant !== true,
 		);
-		const currentByExternalId = new Map<string, string>(); // externalId -> userId
-		for (const p of visibleParticipants) {
-			if (p.user?.externalId) currentByExternalId.set(p.user.externalId, p.user.id);
-		}
 
 		// Resolve incoming external IDs to user IDs using payload role (DRIVER vs employee).
-		const incomingUsers: Array<{ id: string; externalId: string }> = [];
-		const foundExternalSet = new Set<string>();
+		const incomingUsers: Array<{ id: string; externalId: string; role: string }> = [];
+		const foundParticipantKeys = new Set<string>();
 		for (const participant of updateDto.participants) {
 			const extId = participant.id?.trim();
 			if (!extId) continue;
@@ -1894,21 +1926,29 @@ export class ChatRoomsService {
 					extId,
 					participant.role,
 				),
-				select: { id: true, externalId: true },
+				select: { id: true, externalId: true, role: true },
 			});
 			if (!user?.externalId) continue;
 
-			foundExternalSet.add(extId);
+			foundParticipantKeys.add(
+				participantExternalRoleKey(extId, participant.role),
+			);
 			if (!incomingUsers.some((row) => row.id === user.id)) {
-				incomingUsers.push({ id: user.id, externalId: user.externalId });
+				incomingUsers.push({
+					id: user.id,
+					externalId: user.externalId,
+					role: user.role,
+				});
 			}
 		}
-		const incomingByExternal = new Map(
-			incomingUsers.map((u) => [u.externalId, u.id]),
-		);
-		const notFoundExternalIds = incomingExternalIds.filter(
-			(extId) => !foundExternalSet.has(extId?.trim()),
-		);
+		const notFoundExternalIds = updateDto.participants
+			.filter(
+				(participant) =>
+					!foundParticipantKeys.has(
+						participantExternalRoleKey(participant.id, participant.role),
+					),
+			)
+			.map((participant) => participant.id);
 
 		// Determine users to add and to remove
 		const incomingUserIds = new Set<string>(incomingUsers.map((u) => u.id));

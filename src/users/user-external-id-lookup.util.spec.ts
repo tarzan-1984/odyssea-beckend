@@ -1,5 +1,8 @@
 import {
 	isDriverParticipantRole,
+	isDriverUserRole,
+	participantExternalRoleKey,
+	participantRoleMatchesUser,
 	userWhereByExternalIdAndParticipantRole,
 	userWhereDriverByExternalId,
 	userWhereEmployeeByExternalId,
@@ -34,5 +37,21 @@ describe('user-external-id-lookup.util', () => {
 		expect(
 			userWhereByExternalIdAndParticipantRole('1', 'DISPATCHER'),
 		).toEqual(userWhereEmployeeByExternalId('1'));
+	});
+
+	it('matches participant role category to user role', () => {
+		expect(participantRoleMatchesUser('driver', 'DRIVER')).toBe(true);
+		expect(participantRoleMatchesUser('DISPATCHER', 'DISPATCHER')).toBe(true);
+		expect(participantRoleMatchesUser('driver', 'DISPATCHER')).toBe(false);
+		expect(participantRoleMatchesUser('DISPATCHER', 'DRIVER')).toBe(false);
+	});
+
+	it('detects driver user role', () => {
+		expect(isDriverUserRole('DRIVER')).toBe(true);
+		expect(isDriverUserRole('dispatcher')).toBe(false);
+	});
+
+	it('builds externalId + role composite key', () => {
+		expect(participantExternalRoleKey(' 3343 ', 'driver')).toBe('3343|DRIVER');
 	});
 });

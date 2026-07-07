@@ -1027,16 +1027,22 @@ export class ChatGateway
 		@MessageBody()
 		data: {
 			chatRoomId: string;
-			participantIds: string[];
+			participantIds?: string[];
+			participants?: Array<{ id: string; role: string }>;
 		},
 		@ConnectedSocket() client: AuthenticatedSocket,
 	) {
-		const { chatRoomId, participantIds } = data;
+		const { chatRoomId, participantIds = [], participants } = data;
 		const userId = client.userId;
 
 		if (!userId) {
 			return { error: 'Unauthorized' };
 		}
+
+		const participantRefs =
+			participants?.length
+				? participants
+				: participantIds.map((id) => ({ id }));
 
 		try {
 			// Add participants using the service
@@ -1044,6 +1050,11 @@ export class ChatGateway
 				chatRoomId,
 				participantIds,
 				userId,
+				participantRefs,
+			);
+
+			const addedUserIds = newParticipants.map(
+				(participant) => participant.userId,
 			);
 
 			// Notify all current participants about new members
@@ -1056,7 +1067,7 @@ export class ChatGateway
 				});
 
 			// Notify new participants about the chat room
-			participantIds.forEach((participantId) => {
+			addedUserIds.forEach((participantId) => {
 				void this.server
 					.to(`user_${participantId}`)
 					.emit('addedToChatRoom', {
@@ -1100,10 +1111,11 @@ export class ChatGateway
 		data: {
 			chatRoomId: string;
 			participantId: string;
+			participantRole?: string;
 		},
 		@ConnectedSocket() client: AuthenticatedSocket,
 	) {
-		const { chatRoomId, participantId } = data;
+		const { chatRoomId, participantId, participantRole } = data;
 		const userId = client.userId;
 
 		if (!userId) {
@@ -1116,19 +1128,22 @@ export class ChatGateway
 				chatRoomId,
 				participantId,
 				userId,
+				participantRole,
 			);
+
+			const removedUserId = result.removedUserId;
 
 			// Notify all current participants about the removal
 			void this.server
 				.to(`chat_${chatRoomId}`)
 				.emit('participantRemoved', {
 					chatRoomId,
-					removedUserId: participantId,
+					removedUserId,
 					removedBy: userId,
 				});
 
 			// Notify the removed participant
-			const removedUserSocketId = this.userSockets.get(participantId);
+			const removedUserSocketId = this.userSockets.get(removedUserId);
 			if (removedUserSocketId) {
 				void this.server
 					.to(removedUserSocketId)
@@ -1141,7 +1156,7 @@ export class ChatGateway
 			// Send confirmation back to remover
 			client.emit('participantRemoved', {
 				chatRoomId,
-				removedUserId: participantId,
+				removedUserId,
 				removedBy: userId,
 				result,
 			});

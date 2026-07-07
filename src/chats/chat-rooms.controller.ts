@@ -538,14 +538,24 @@ export class ChatRoomsController {
 	})
 	async addParticipants(
 		@Param('id') id: string,
-		@Body() body: { participantIds: string[] },
+		@Body()
+		body: {
+			participantIds?: string[];
+			participants?: Array<{ id: string; role: string }>;
+		},
 		@Request() req: AuthenticatedRequest,
 	) {
 		const userId = req.user.id;
+		const participantIds = body.participantIds ?? [];
+		const participantRefs =
+			body.participants?.length
+				? body.participants
+				: participantIds.map((participantId) => ({ id: participantId }));
 		return await this.chatRoomsService.addParticipants(
 			id,
-			body.participantIds,
+			participantIds,
 			userId,
+			participantRefs,
 		);
 	}
 
