@@ -20,13 +20,9 @@ export interface ImportJobResult {
   hasMorePages: boolean;
 }
 
-import { processDriverRatingOnlyImport } from './import-driver-rating-only.helper';
-
 @Injectable()
 export class ImportDriversQueueService {
   private readonly logger = new Logger(ImportDriversQueueService.name);
-  /** TEMPORARY: rating-only import; set to false to restore full driver sync. */
-  private static readonly RATING_ONLY_IMPORT = true;
   private readonly EXTERNAL_API_URL = 'https://www.endurance-tms.com/wp-json/tms/v1/drivers';
   private readonly API_KEY = 'tms_api_key_2024_driver_access';
   private readonly REQUEST_TIMEOUT = 60000;
@@ -225,20 +221,6 @@ export class ImportDriversQueueService {
    * Process a single driver
    */
   private async processDriver(driver: ExternalDriver): Promise<'imported' | 'updated' | 'skipped'> {
-    if (ImportDriversQueueService.RATING_ONLY_IMPORT) {
-      return processDriverRatingOnlyImport(
-        this.prisma,
-        driver,
-        [],
-        this.logger,
-      );
-    }
-
-    return this.processDriverFullImport(driver);
-  }
-
-  /** Full driver import (disabled while RATING_ONLY_IMPORT is true). */
-  private async processDriverFullImport(driver: ExternalDriver): Promise<'imported' | 'updated' | 'skipped'> {
     // Split driver_name into firstName and lastName
     const driverName = driver.driver_name || '';
     const nameParts = driverName.trim().split(' ');

@@ -8,13 +8,10 @@ import {
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
 import { logImportDuplicate } from './import-duplicate-logger';
-import { processDriverRatingOnlyImport } from './import-driver-rating-only.helper';
 
 @Injectable()
 export class ImportDriversService {
 	private readonly logger = new Logger(ImportDriversService.name);
-	/** TEMPORARY: rating-only import; set to false to restore full driver sync. */
-	private static readonly RATING_ONLY_IMPORT = true;
 	private readonly EXTERNAL_API_URL =
 		'https://www.endurance-tms.com/wp-json/tms/v1/drivers';
 	private readonly API_KEY = 'tms_api_key_2024_driver_access';
@@ -236,23 +233,6 @@ export class ImportDriversService {
 	 * Process a single driver
 	 */
 	private async processDriver(
-		driver: ExternalDriver,
-		duplicateEmails: number[],
-	): Promise<'imported' | 'updated' | 'skipped'> {
-		if (ImportDriversService.RATING_ONLY_IMPORT) {
-			return processDriverRatingOnlyImport(
-				this.prisma,
-				driver,
-				duplicateEmails,
-				this.logger,
-			);
-		}
-
-		return this.processDriverFullImport(driver, duplicateEmails);
-	}
-
-	/** Full driver import (disabled while RATING_ONLY_IMPORT is true). */
-	private async processDriverFullImport(
 		driver: ExternalDriver,
 		duplicateEmails: number[],
 	): Promise<'imported' | 'updated' | 'skipped'> {

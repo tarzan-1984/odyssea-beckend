@@ -1141,6 +1141,7 @@ export class OffersService {
 						email: true,
 						phone: true,
 						status: true,
+						driverRating: true,
 					},
 				},
 			},
@@ -1162,6 +1163,7 @@ export class OffersService {
 				action_time_display: string | null;
 				empty_miles: number | null;
 				total_miles: number | null;
+				driver_rating: number | null;
 			}>
 		>();
 		for (const ro of rateOffersWithDriver) {
@@ -1187,6 +1189,7 @@ export class OffersService {
 				action_time_display: formatActionTimeUnixToNyString(ro.actionTime),
 				empty_miles: ro.emptyMiles ?? null,
 				total_miles: ro.totalMiles ?? null,
+				driver_rating: ro.driver?.driverRating ?? null,
 			});
 			driversByOfferId.set(ro.offerId, list);
 		}
