@@ -10,6 +10,7 @@ import {
 	TmsDriverLocationBatchService,
 	parseTmsDriverIdFromExternalId,
 } from './tms-driver-location-batch.service';
+import { dedupeTmsBatchByDriverId } from './tms-batch-dedupe.util';
 import type { ExternalApiConfig } from '../config/env.config';
 import { normalizeTmsCurrentLocation } from './tms-current-location.util';
 
@@ -202,6 +203,7 @@ export class TmsLocationBatchScheduler {
 
 		try {
 			const cutoffMs = Date.now() - this.maxLastLocationAgeMs;
+			// Only DRIVER rows — employees may share the same TMS externalId but never send location.
 			const driversFromDb = await this.prisma.user.findMany({
 				where: {
 					role: UserRole.DRIVER,
@@ -255,7 +257,9 @@ export class TmsLocationBatchScheduler {
 				`[${runId}] TMS batch: ${drivers.length} driver row(s) from DB (ACTIVE, isAutoupdate, not deactivated, has coords, has externalId, has lastLocationUpdateAt)`,
 			);
 
-			const items: TmsBatchLocationItem[] = [];
+			const dedupeEntries: Parameters<
+				typeof dedupeTmsBatchByDriverId<TmsBatchLocationItem>
+			>[0] = [];
 			let emptyDriverStatusInBatch = 0;
 			for (const u of drivers) {
 				const lastUpdateRaw = u.lastLocationUpdateAt?.trim() ?? '';
@@ -301,7 +305,23 @@ export class TmsLocationBatchScheduler {
 					current_country: '',
 					notes: '',
 				};
-				items.push(item);
+				dedupeEntries.push({
+					driverId,
+					item,
+					freshnessMs: parsedMs,
+					externalId: ext,
+				});
+			}
+
+			const {
+				items,
+				duplicateCount,
+				duplicateExternalIds,
+			} = dedupeTmsBatchByDriverId(dedupeEntries);
+			if (duplicateCount > 0) {
+				this.logger.warn(
+					`[${runId}] TMS batch: ${duplicateCount} duplicate DRIVER row(s) with the same TMS externalId (${duplicateExternalIds.join(', ')}) — kept freshest lastLocationUpdateAt per driver_id`,
+				);
 			}
 
 			this.logTmsBatchDebug2465Summary(

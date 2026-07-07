@@ -2064,6 +2064,7 @@ export class UsersService {
 		const shouldSyncTms =
 			updatedUser.role === UserRole.DRIVER &&
 			!!updatedUser.externalId?.trim();
+		// Location updates come from the mobile driver app only; non-DRIVER users are DB-only.
 
 		if (!shouldSyncTms) {
 			if (!isBackgroundPing) {

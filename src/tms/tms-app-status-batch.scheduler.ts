@@ -10,6 +10,7 @@ import {
 	TmsDriverAppStatusBatchService,
 } from './tms-driver-app-status-batch.service';
 import { parseTmsDriverIdFromExternalId } from './tms-driver-location-batch.service';
+import { dedupeTmsBatchByDriverId } from './tms-batch-dedupe.util';
 
 /** Separate advisory lock from TMS location batch job. */
 const ADV_LOCK_KEY1 = 872_003;
@@ -78,6 +79,7 @@ export class TmsAppStatusBatchScheduler {
 		this.logger.log(`[${runId}] TMS app status batch: lock acquired`);
 
 		try {
+			// Only DRIVER rows — TMS app status is driver-specific.
 			const driversFromDb = await this.prisma.user.findMany({
 				where: {
 					role: UserRole.DRIVER,
@@ -113,7 +115,9 @@ export class TmsAppStatusBatchScheduler {
 				);
 			}
 
-			const items: TmsBatchAppStatusItem[] = [];
+			const dedupeEntries: Parameters<
+				typeof dedupeTmsBatchByDriverId<TmsBatchAppStatusItem>
+			>[0] = [];
 			for (const u of drivers) {
 				const ext = u.externalId?.trim();
 				if (!ext) continue;
@@ -124,13 +128,38 @@ export class TmsAppStatusBatchScheduler {
 					);
 					continue;
 				}
-				items.push({
-					driver_id: driverId,
-					app_online: formatSqlTimestampFromLastActiveAppDate(
-						u.lastActiveApp ?? undefined,
-					),
-					app_update: appUpdateStringFromDb(u.lastLocationUpdateAt),
+				const lastActiveMs = u.lastActiveApp?.getTime() ?? Number.NaN;
+				const lastLocationMs = Date.parse(
+					u.lastLocationUpdateAt?.trim() ?? '',
+				);
+				const freshnessMs = Number.isFinite(lastActiveMs)
+					? lastActiveMs
+					: Number.isFinite(lastLocationMs)
+						? lastLocationMs
+						: 0;
+				dedupeEntries.push({
+					driverId,
+					item: {
+						driver_id: driverId,
+						app_online: formatSqlTimestampFromLastActiveAppDate(
+							u.lastActiveApp ?? undefined,
+						),
+						app_update: appUpdateStringFromDb(u.lastLocationUpdateAt),
+					},
+					freshnessMs,
+					externalId: ext,
 				});
+			}
+
+			const {
+				items,
+				duplicateCount,
+				duplicateExternalIds,
+			} = dedupeTmsBatchByDriverId(dedupeEntries);
+			if (duplicateCount > 0) {
+				this.logger.warn(
+					`[${runId}] TMS app status batch: ${duplicateCount} duplicate DRIVER row(s) with the same TMS externalId (${duplicateExternalIds.join(', ')}) — kept freshest row per driver_id`,
+				);
 			}
 
 			this.logger.log(
