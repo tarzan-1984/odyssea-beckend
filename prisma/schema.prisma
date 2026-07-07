@@ -39,7 +39,7 @@ model User {
   isTracking           Boolean               @default(false) @map("is_tracking")
   trackingLoadId       String?               @map("tracking_load_id")
   deactivateAccount    Boolean?              @default(false)
-  externalId           String?               @unique
+  externalId           String?
   type                 String?
   vin                  String?
   driverStatus         String?
@@ -61,14 +61,10 @@ model User {
   pushTokens           PushToken[]
   passwordResetTokens  PasswordResetToken[]
   refreshTokens        RefreshToken[]
-  offersCreated        Offer[]               @relation("OfferCreator")
-  rateOffersAsDriver   RateOffer[]
-  userDevices          UserDevice[]
-  messageTemplates     MessageTemplate[]
   messageReactions     MessageReaction[]
   notificationSounds   UserNotificationSound[]
-  driverLogs           DriverLog[]
 
+  @@index([externalId])
   @@index([role, isAutoupdate])
   @@map("users")
 }
@@ -229,7 +225,6 @@ model UserDevice {
   blocked        Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  user           User     @relation(fields: [userExternalId], references: [externalId], onDelete: Cascade)
 
   @@unique([userExternalId, deviceId])
   @@index([userExternalId])
@@ -256,7 +251,6 @@ model Offer {
   route               Json? // array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
-  creator             User?       @relation("OfferCreator", fields: [externalUserId], references: [externalId])
   rateOffers          RateOffer[]
   chatRooms           ChatRoom[]
 
@@ -275,7 +269,6 @@ model RateOffer {
   totalMiles Float?  @map("total_miles")
   driverEta  String? @map("driver_eta") // Time set by driver in mobile app (Estimated Time of Arrival)
   offer      Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  driver     User?   @relation(fields: [driverId], references: [externalId])
 
   @@map("rate_offers")
 }
@@ -382,7 +375,6 @@ model MessageTemplate {
   content    String?
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
-  user       User                @relation(fields: [externalId], references: [externalId], onDelete: Cascade)
 
   @@index([externalId])
   @@map("message_templates")
@@ -396,7 +388,6 @@ model DriverLog {
   source    DriverLogSource
   /// NY wall-clock naive timestamp (set via nowInNewYorkAsNaiveDate() on insert).
   createdAt DateTime        @map("created_at")
-  driver    User            @relation(fields: [driverId], references: [externalId], onDelete: Cascade)
 
   @@index([driverId])
   @@index([driverId, createdAt(sort: Desc)])

@@ -407,15 +407,41 @@ export class AppSettingsService {
 			select: {
 				platform: true,
 				userExternalId: true,
-				user: { select: { role: true, status: true, driverStatus: true } },
-			},
-			where: {
-				user: {
-					status: UserStatus.ACTIVE,
-					deactivateAccount: { not: true },
-				},
 			},
 		});
+
+		const externalIds = [
+			...new Set(
+				rows
+					.map((row) => row.userExternalId.trim())
+					.filter((externalId) => externalId.length > 0),
+			),
+		];
+		const users = externalIds.length
+			? await this.prisma.user.findMany({
+					where: {
+						externalId: { in: externalIds },
+						status: UserStatus.ACTIVE,
+						deactivateAccount: { not: true },
+					},
+					select: { externalId: true, role: true, driverStatus: true },
+				})
+			: [];
+		const usersByExternalId = new Map<
+			string,
+			Array<{
+				externalId: string | null;
+				role: UserRole;
+				driverStatus: string | null;
+			}>
+		>();
+		for (const user of users) {
+			const externalId = user.externalId?.trim();
+			if (!externalId) continue;
+			const list = usersByExternalId.get(externalId) ?? [];
+			list.push(user);
+			usersByExternalId.set(externalId, list);
+		}
 
 		const norm = (p: string | null | undefined) =>
 			String(p ?? '')
@@ -430,9 +456,15 @@ export class AppSettingsService {
 		for (const r of rows) {
 			const platform = norm(r.platform);
 			if (platform !== 'ios' && platform !== 'android') continue;
-			const isDriver = r.user.role === UserRole.DRIVER;
+			const key = r.userExternalId.trim();
+			if (!key) continue;
+			const matchedUsers = usersByExternalId.get(key) ?? [];
+			const user = matchedUsers[0];
+			if (!user) continue;
+
+			const isDriver = user.role === UserRole.DRIVER;
 			if (isDriver) {
-				const driverStatus = r.user.driverStatus?.trim().toLowerCase();
+				const driverStatus = user.driverStatus?.trim().toLowerCase();
 				if (
 					driverStatus === 'blocked' ||
 					driverStatus === 'expired_documents'
@@ -440,9 +472,6 @@ export class AppSettingsService {
 					continue;
 				}
 			}
-
-			const key = r.userExternalId.trim();
-			if (!key) continue;
 
 			if (isDriver) {
 				if (platform === 'ios') driversIos.add(key);

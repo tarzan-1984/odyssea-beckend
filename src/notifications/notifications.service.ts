@@ -250,7 +250,7 @@ export class NotificationsService {
     let userId = (params.userId ?? '').trim();
 
     if (!email && (params.externalId ?? '').trim()) {
-      const user = await this.prisma.user.findUnique({
+      const user = await this.prisma.user.findFirst({
         where: { externalId: params.externalId!.trim() },
         select: { id: true, email: true },
       });
@@ -318,7 +318,7 @@ export class NotificationsService {
     const externalId = params.externalId.trim();
     const message = params.message.trim();
 
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       where: { externalId },
       select: {
         id: true,

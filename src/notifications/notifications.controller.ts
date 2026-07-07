@@ -175,7 +175,7 @@ export class NotificationsController {
 				: undefined;
 
 		if (!userId && externalId) {
-			const user = await this.prisma.user.findUnique({
+			const user = await this.prisma.user.findFirst({
 				where: { externalId },
 				select: { id: true },
 			});
@@ -278,7 +278,7 @@ export class NotificationsController {
 		}
 
 		if (!userId && externalId) {
-			const user = await this.prisma.user.findUnique({
+			const user = await this.prisma.user.findFirst({
 				where: { externalId },
 				select: { id: true },
 			});

@@ -23,8 +23,8 @@ export class TrackingTransferService {
 		const newExternalId = String(dto.new_tracking).trim();
 
 		const [oldUser, newUser] = await Promise.all([
-			this.prisma.user.findUnique({ where: { externalId: oldExternalId } }),
-			this.prisma.user.findUnique({ where: { externalId: newExternalId } }),
+			this.prisma.user.findFirst({ where: { externalId: oldExternalId } }),
+			this.prisma.user.findFirst({ where: { externalId: newExternalId } }),
 		]);
 
 		if (!oldUser) {

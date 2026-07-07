@@ -487,7 +487,7 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 			};
 		}
 
-		const driver = await this.prisma.user.findUnique({
+		const driver = await this.prisma.user.findFirst({
 			where: { externalId: driverId },
 			select: {
 				id: true,

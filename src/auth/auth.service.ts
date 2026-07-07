@@ -1111,9 +1111,18 @@ export class AuthService {
 	}
 
 	async listMobileDevices(userId: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		const externalId = user?.externalId?.trim();
+		if (!externalId) {
+			return [];
+		}
+
 		return this.prisma.userDevice.findMany({
 			where: {
-				user: { id: userId },
+				userExternalId: externalId,
 			},
 			select: {
 				id: true,
@@ -1132,10 +1141,19 @@ export class AuthService {
 	}
 
 	async deactivateMobileDevice(userId: string, deviceRowId: string): Promise<void> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true },
+		});
+		const externalId = user?.externalId?.trim();
+		if (!externalId) {
+			throw new NotFoundException('Device not found');
+		}
+
 		const device = await this.prisma.userDevice.findFirst({
 			where: {
 				id: deviceRowId,
-				user: { id: userId },
+				userExternalId: externalId,
 			},
 			select: { id: true, deviceId: true },
 		});

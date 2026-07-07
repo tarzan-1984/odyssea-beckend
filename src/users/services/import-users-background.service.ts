@@ -378,7 +378,7 @@ export class ImportUsersBackgroundService {
 		};
 
 		// Check if user exists by externalId only
-		const existingUser = await this.prisma.user.findUnique({
+		const existingUser = await this.prisma.user.findFirst({
 			where: { externalId: user.id.toString() },
 		});
 

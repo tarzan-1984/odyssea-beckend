@@ -240,11 +240,11 @@ describe('UsersService', () => {
 
 	describe('findUserByExternalId', () => {
 		it('should return user by external id', async () => {
-			mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 
 			const result = await service.findUserByExternalId('ext_123');
 
-			expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
 				where: { externalId: 'ext_123' },
 				select: {
 					id: true,
@@ -269,7 +269,7 @@ describe('UsersService', () => {
 		});
 
 		it('should throw NotFoundException if user not found', async () => {
-			mockPrismaService.user.findUnique.mockResolvedValue(null);
+			mockPrismaService.user.findFirst.mockResolvedValue(null);
 
 			await expect(
 				service.findUserByExternalId('ext_123'),

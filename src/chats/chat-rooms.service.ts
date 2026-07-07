@@ -1535,7 +1535,7 @@ export class ChatRoomsService {
 			throw new BadRequestException('Driver participant is required');
 		}
 
-		const driver = await this.prisma.user.findUnique({
+		const driver = await this.prisma.user.findFirst({
 			where: { externalId: driverParticipant.id },
 		});
 
@@ -1557,7 +1557,7 @@ export class ChatRoomsService {
 				continue;
 			}
 
-			const user = await this.prisma.user.findUnique({
+			const user = await this.prisma.user.findFirst({
 				where: { externalId: participant.id },
 			});
 

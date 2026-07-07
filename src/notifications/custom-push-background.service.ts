@@ -55,23 +55,32 @@ export class CustomPushBackgroundService {
 
 	private async countTargetUsers(platform?: 'ios' | 'android'): Promise<number> {
 		return this.prisma.user.count({
-			where: this.buildUserWhere(platform),
+			where: await this.buildUserWhere(platform),
 		});
 	}
 
-	private buildUserWhere(platform?: 'ios' | 'android') {
-		return {
+	private async buildUserWhere(platform?: 'ios' | 'android') {
+		const baseWhere = {
 			status: UserStatus.ACTIVE,
 			pushTokens: { some: {} },
-			...(platform
-				? {
-						userDevices: {
-							some: {
-								platform: { equals: platform, mode: 'insensitive' as const },
-							},
-						},
-					}
-				: {}),
+		};
+		if (!platform) {
+			return baseWhere;
+		}
+
+		const deviceExternalIds = (
+			await this.prisma.userDevice.findMany({
+				where: {
+					platform: { equals: platform, mode: 'insensitive' as const },
+				},
+				select: { userExternalId: true },
+				distinct: ['userExternalId'],
+			})
+		).map((device) => device.userExternalId);
+
+		return {
+			...baseWhere,
+			externalId: { in: deviceExternalIds },
 		};
 	}
 
@@ -146,7 +155,7 @@ export class CustomPushBackgroundService {
 
 	private async fetchTargetUserIds(platform?: 'ios' | 'android'): Promise<string[]> {
 		const users = await this.prisma.user.findMany({
-			where: this.buildUserWhere(platform),
+			where: await this.buildUserWhere(platform),
 			select: { id: true },
 		});
 

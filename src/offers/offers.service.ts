@@ -140,6 +140,38 @@ export class OffersService {
 		private readonly appSettingsService: AppSettingsService,
 	) {}
 
+	private async mapFirstUsersByExternalId(
+		externalIds: Array<string | null | undefined>,
+		select: Prisma.UserSelect,
+	): Promise<Map<string, Prisma.UserGetPayload<{ select: typeof select }>>> {
+		const ids = [
+			...new Set(
+				externalIds
+					.map((id) => String(id ?? '').trim())
+					.filter((id) => id.length > 0),
+			),
+		];
+		const map = new Map<
+			string,
+			Prisma.UserGetPayload<{ select: typeof select }>
+		>();
+		if (ids.length === 0) {
+			return map;
+		}
+
+		const users = await this.prisma.user.findMany({
+			where: { externalId: { in: ids } },
+			select,
+		});
+		for (const user of users) {
+			const externalId = user.externalId?.trim();
+			if (externalId && !map.has(externalId)) {
+				map.set(externalId, user);
+			}
+		}
+		return map;
+	}
+
 	async create(dto: CreateOfferDto) {
 		// Validate required and hidden fields before creating offer
 		const errors: string[] = [];
@@ -614,14 +646,6 @@ export class OffersService {
 				specialRequirements: true,
 				notes: true,
 				route: true,
-				creator: {
-					select: {
-						externalId: true,
-						firstName: true,
-						lastName: true,
-						role: true,
-					},
-				},
 			},
 		});
 
@@ -1021,14 +1045,6 @@ export class OffersService {
 			notes: true,
 			specialRequirements: true,
 			route: true,
-			creator: {
-				select: {
-					externalId: true,
-					firstName: true,
-					lastName: true,
-					role: true,
-				},
-			},
 		} as const;
 
 		const isExpiredFilter = dto.is_expired;
@@ -1102,12 +1118,6 @@ export class OffersService {
 			notes: string | null;
 			specialRequirements: unknown;
 			route: unknown;
-			creator?: {
-				externalId: string | null;
-				firstName: string;
-				lastName: string;
-				role: string;
-			} | null;
 		}>,
 		page: number,
 		limit: number,
@@ -1132,20 +1142,25 @@ export class OffersService {
 				actionTime: true,
 				emptyMiles: true,
 				totalMiles: true,
-				driver: {
-					select: {
-						id: true,
-						externalId: true,
-						firstName: true,
-						lastName: true,
-						email: true,
-						phone: true,
-						status: true,
-						driverRating: true,
-					},
-				},
 			},
 		});
+		const usersByExternalId = await this.mapFirstUsersByExternalId(
+			[
+				...offers.map((offer) => offer.externalUserId),
+				...rateOffersWithDriver.map((rateOffer) => rateOffer.driverId),
+			],
+			{
+				id: true,
+				externalId: true,
+				firstName: true,
+				lastName: true,
+				email: true,
+				phone: true,
+				status: true,
+				role: true,
+				driverRating: true,
+			},
+		);
 		const driversByOfferId = new Map<
 			number,
 			Array<{
@@ -1168,20 +1183,23 @@ export class OffersService {
 		>();
 		for (const ro of rateOffersWithDriver) {
 			const list = driversByOfferId.get(ro.offerId) ?? [];
-			const fallbackExternalId =
-				ro.driver?.externalId ?? ro.driverId ?? null;
+			const driver =
+				ro.driverId != null
+					? usersByExternalId.get(ro.driverId.trim())
+					: undefined;
+			const fallbackExternalId = driver?.externalId ?? ro.driverId ?? null;
 			const fallbackName =
-				!ro.driver && fallbackExternalId != null
+				!driver && fallbackExternalId != null
 					? fallbackExternalId
 					: '';
 			list.push({
-				driver_id: ro.driver?.id ?? fallbackExternalId ?? '',
+				driver_id: driver?.id ?? fallbackExternalId ?? '',
 				externalId: fallbackExternalId,
-				firstName: ro.driver?.firstName ?? fallbackName,
-				lastName: ro.driver?.lastName ?? '',
-				email: ro.driver?.email ?? '',
-				phone: ro.driver?.phone ?? null,
-				status: ro.driver?.status ?? 'INACTIVE',
+				firstName: driver?.firstName ?? fallbackName,
+				lastName: driver?.lastName ?? '',
+				email: driver?.email ?? '',
+				phone: driver?.phone ?? null,
+				status: driver?.status ?? 'INACTIVE',
 				active: ro.active,
 				is_selected: ro.isSelected,
 				rate: ro.rate ?? null,
@@ -1189,7 +1207,7 @@ export class OffersService {
 				action_time_display: formatActionTimeUnixToNyString(ro.actionTime),
 				empty_miles: ro.emptyMiles ?? null,
 				total_miles: ro.totalMiles ?? null,
-				driver_rating: ro.driver?.driverRating ?? null,
+				driver_rating: driver?.driverRating ?? null,
 			});
 			driversByOfferId.set(ro.offerId, list);
 		}
@@ -1199,6 +1217,10 @@ export class OffersService {
 			const isActiveForRequestedDriver = driverIdFilter
 				? Boolean(drivers[0]?.active) && o.active
 				: o.active;
+			const creator =
+				o.externalUserId != null
+					? usersByExternalId.get(o.externalUserId.trim())
+					: undefined;
 
 			return {
 				id: o.id,
@@ -1215,12 +1237,12 @@ export class OffersService {
 				special_requirements: o.specialRequirements,
 				notes: o.notes,
 				route: o.route ?? null,
-				creator: o.creator
+				creator: creator
 					? {
-							firstName: o.creator.firstName,
-							lastName: o.creator.lastName,
-							externalId: o.creator.externalId,
-							role: o.creator.role,
+							firstName: creator.firstName,
+							lastName: creator.lastName,
+							externalId: creator.externalId,
+							role: creator.role,
 						}
 					: null,
 				drivers,
@@ -1455,7 +1477,7 @@ export class OffersService {
 		});
 		if (!offer) return null;
 
-		const driver = await this.prisma.user.findUnique({
+		const driver = await this.prisma.user.findFirst({
 			where: { externalId: driverExternalId },
 			select: { firstName: true, lastName: true, profilePhoto: true },
 		});
@@ -1471,7 +1493,7 @@ export class OffersService {
 			offer.externalUserId &&
 			!EXCLUDED_OFFER_NOTIFICATION_EXTERNAL_IDS.includes(offer.externalUserId)
 		) {
-			const creator = await this.prisma.user.findUnique({
+			const creator = await this.prisma.user.findFirst({
 				where: { externalId: offer.externalUserId },
 				select: { id: true },
 			});
@@ -1664,7 +1686,7 @@ export class OffersService {
 			});
 		});
 
-		const selectedUser = await this.prisma.user.findUnique({
+		const selectedUser = await this.prisma.user.findFirst({
 			where: { externalId: normalizedDriverExternalId },
 			select: { id: true },
 		});
