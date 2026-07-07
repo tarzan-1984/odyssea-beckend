@@ -1094,13 +1094,13 @@ export class UsersService {
 		const deactivateAccount = event === 'remove-soft';
 
 		const existing = await this.prisma.user.findFirst({
-			where: { externalId },
+			where: { externalId, role: UserRole.DRIVER },
 			select: { id: true },
 		});
 
 		if (!existing) {
 			throw new NotFoundException(
-				`User with externalId matching driverId not found`,
+				`Driver with externalId matching driverId not found`,
 			);
 		}
 
@@ -1171,19 +1171,13 @@ export class UsersService {
 		}
 
 		const existing = await this.prisma.user.findFirst({
-			where: { externalId },
-			select: { id: true, role: true },
+			where: { externalId, role: UserRole.DRIVER },
+			select: { id: true },
 		});
 
 		if (!existing) {
 			throw new NotFoundException(
-				`User with externalId matching driver_id not found`,
-			);
-		}
-
-		if (existing.role !== UserRole.DRIVER) {
-			throw new BadRequestException(
-				`User with externalId ${externalId} is not a driver`,
+				`Driver with externalId matching driver_id not found`,
 			);
 		}
 
@@ -2292,7 +2286,7 @@ export class UsersService {
 			}
 
 			const user = await this.prisma.user.findFirst({
-				where: { externalId: driver_id },
+				where: { externalId: driver_id, role: UserRole.DRIVER },
 			});
 
 			if (!user) {
@@ -2376,6 +2370,7 @@ export class UsersService {
 			// Check if user already exists
 			const existingUser = await this.prisma.user.findFirst({
 				where: {
+					role: UserRole.DRIVER,
 					OR: [{ externalId: driverId }, { email: driver_email }],
 				},
 			});
@@ -2412,7 +2407,7 @@ export class UsersService {
 		} else if (type === WebhookType.UPDATE) {
 			// Find user by externalId
 			const existingUser = await this.prisma.user.findFirst({
-				where: { externalId: driverId },
+				where: { externalId: driverId, role: UserRole.DRIVER },
 			});
 
 			if (!existingUser) {
@@ -2422,6 +2417,7 @@ export class UsersService {
 				);
 				const conflict = await this.prisma.user.findFirst({
 					where: {
+						role: UserRole.DRIVER,
 						OR: [{ externalId: driverId }, { email: driver_email }],
 					},
 				});
