@@ -6,7 +6,6 @@ import {
 } from '../interfaces/external-user.interface';
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
-import { logImportDuplicate } from './import-duplicate-logger';
 import {
 	buildImportMergeUpdate,
 	isBlankString,
@@ -96,10 +95,7 @@ export class ImportUsersService {
 				hasMorePages = currentPage < totalPages;
 
 				// Process users in batches to avoid memory issues
-				const batchResults = await this.processUsersBatch(
-					response.data,
-					duplicateEmails,
-				);
+				const batchResults = await this.processUsersBatch(response.data);
 				totalImported += batchResults.imported;
 				totalUpdated += batchResults.updated;
 				totalSkipped += batchResults.skipped;
@@ -189,7 +185,6 @@ export class ImportUsersService {
 	 */
 	private async processUsersBatch(
 		users: ExternalUser[],
-		duplicateEmails: number[],
 	): Promise<{ imported: number; updated: number; skipped: number }> {
 		let imported = 0;
 		let updated = 0;
@@ -198,7 +193,7 @@ export class ImportUsersService {
 		// Process users individually to avoid transaction conflicts
 		for (const user of users) {
 			try {
-				const result = await this.processUser(user, duplicateEmails);
+				const result = await this.processUser(user);
 				if (result === 'imported') {
 					imported++;
 				} else if (result === 'updated') {
@@ -226,7 +221,6 @@ export class ImportUsersService {
 	 */
 	private async processUser(
 		user: ExternalUser,
-		duplicateEmails: number[],
 	): Promise<'imported' | 'updated' | 'skipped'> {
 		// Skip if no email provided
 		if (!user.user_email || user.user_email.trim() === '') {
@@ -259,13 +253,13 @@ export class ImportUsersService {
 			password: null, // No password for imported users
 		};
 
-		// Check if user exists by externalId only
-		const existingUser = await this.prisma.user.findFirst({
-			where: { externalId: user.id.toString() },
+		// Match existing users by email (externalId is not unique).
+		const existingUser = await this.prisma.user.findUnique({
+			where: { email: user.user_email.trim() },
 		});
 
 		if (existingUser) {
-			// Fill only empty string/array columns from TMS; always sync role from TMS (WP is source of truth).
+			// Fill only empty string/array columns from TMS; always sync role and externalId from TMS.
 			const mergeData = buildImportMergeUpdate(
 				{
 					firstName: existingUser.firstName,
@@ -286,7 +280,13 @@ export class ImportUsersService {
 			);
 
 			const roleUnchanged = existingUser.role === userData.role;
-			if (Object.keys(mergeData).length === 0 && roleUnchanged) {
+			const externalIdUnchanged =
+				existingUser.externalId === userData.externalId;
+			if (
+				Object.keys(mergeData).length === 0 &&
+				roleUnchanged &&
+				externalIdUnchanged
+			) {
 				return 'skipped';
 			}
 
@@ -295,45 +295,29 @@ export class ImportUsersService {
 				data: {
 					...mergeData,
 					role: userData.role,
+					externalId: userData.externalId,
 				},
 			});
 			return 'updated';
-		} else {
-			// User doesn't exist - check if email is already taken
-			const userWithSameEmail = await this.prisma.user.findUnique({
-				where: { email: user.user_email.trim() },
-			});
-
-			if (userWithSameEmail) {
-				// Email already exists - add to duplicates list and skip
-				duplicateEmails.push(user.id);
-				logImportDuplicate(
-					user.id.toString(),
-					userWithSameEmail.id,
-					user.user_email.trim(),
-				);
-				this.logger.warn(`Skipping user ${user.id} - email ${user.user_email} already exists for user ${userWithSameEmail.id}`);
-				return 'skipped';
-			}
-
-			// Create new user
-			await this.prisma.user.create({
-				data: {
-					externalId: userData.externalId,
-					email: userData.email,
-					firstName: userData.firstName,
-					lastName: userData.lastName,
-					phone: userData.phone || null,
-					location: userData.location || null,
-					company: userData.company,
-					userColor: userData.userColor,
-					role: userData.role,
-					status: userData.status,
-					password: userData.password,
-				},
-			});
-			return 'imported';
 		}
+
+		// Create new user
+		await this.prisma.user.create({
+			data: {
+				externalId: userData.externalId,
+				email: userData.email,
+				firstName: userData.firstName,
+				lastName: userData.lastName,
+				phone: userData.phone || null,
+				location: userData.location || null,
+				company: userData.company,
+				userColor: userData.userColor,
+				role: userData.role,
+				status: userData.status,
+				password: userData.password,
+			},
+		});
+		return 'imported';
 	}
 
 	/**

@@ -6,7 +6,6 @@ import {
 } from '../interfaces/external-user.interface';
 import { UserRole, UserStatus } from '@prisma/client';
 import axios from 'axios';
-import { logImportDuplicate } from './import-duplicate-logger';
 import {
 	buildImportMergeUpdate,
 	isBlankString,
@@ -172,7 +171,6 @@ export class ImportUsersBackgroundService {
 		let totalImported = 0;
 		let totalUpdated = 0;
 		let totalSkipped = 0;
-		const duplicateEmails: number[] = [];
 		let processedPages = 0;
 
 		try {
@@ -188,7 +186,7 @@ export class ImportUsersBackgroundService {
 					job.totalImported = totalImported;
 					job.totalUpdated = totalUpdated;
 					job.totalSkipped = totalSkipped;
-					job.duplicateEmails = [...duplicateEmails];
+					job.duplicateEmails = [];
 				}
 
 				// Fetch data from external API
@@ -205,10 +203,7 @@ export class ImportUsersBackgroundService {
 				}
 
 				// Process users
-				const result = await this.processUsersBatch(
-					response.data,
-					duplicateEmails,
-				);
+				const result = await this.processUsersBatch(response.data);
 				totalImported += result.imported;
 				totalUpdated += result.updated;
 				totalSkipped += result.skipped;
@@ -224,7 +219,7 @@ export class ImportUsersBackgroundService {
 					job.totalImported = totalImported;
 					job.totalUpdated = totalUpdated;
 					job.totalSkipped = totalSkipped;
-					job.duplicateEmails = [...duplicateEmails];
+					job.duplicateEmails = [];
 					job.progress = Math.min(
 						100,
 						(processedPages /
@@ -312,7 +307,6 @@ export class ImportUsersBackgroundService {
 	 */
 	private async processUsersBatch(
 		users: ExternalUser[],
-		duplicateEmails: number[],
 	): Promise<{ imported: number; updated: number; skipped: number }> {
 		let imported = 0;
 		let updated = 0;
@@ -320,7 +314,7 @@ export class ImportUsersBackgroundService {
 
 		for (const user of users) {
 			try {
-				const result = await this.processUser(user, duplicateEmails);
+				const result = await this.processUser(user);
 				if (result === 'imported') {
 					imported++;
 				} else if (result === 'updated') {
@@ -344,7 +338,6 @@ export class ImportUsersBackgroundService {
 	 */
 	private async processUser(
 		user: ExternalUser,
-		duplicateEmails: number[],
 	): Promise<'imported' | 'updated' | 'skipped'> {
 		// Skip if no email provided
 		if (!user.user_email || user.user_email.trim() === '') {
@@ -377,9 +370,9 @@ export class ImportUsersBackgroundService {
 			password: null,
 		};
 
-		// Check if user exists by externalId only
-		const existingUser = await this.prisma.user.findFirst({
-			where: { externalId: user.id.toString() },
+		// Match existing users by email (externalId is not unique).
+		const existingUser = await this.prisma.user.findUnique({
+			where: { email: user.user_email.trim() },
 		});
 
 		if (existingUser) {
@@ -403,7 +396,13 @@ export class ImportUsersBackgroundService {
 			);
 
 			const roleUnchanged = existingUser.role === userData.role;
-			if (Object.keys(mergeData).length === 0 && roleUnchanged) {
+			const externalIdUnchanged =
+				existingUser.externalId === userData.externalId;
+			if (
+				Object.keys(mergeData).length === 0 &&
+				roleUnchanged &&
+				externalIdUnchanged
+			) {
 				return 'skipped';
 			}
 
@@ -412,47 +411,29 @@ export class ImportUsersBackgroundService {
 				data: {
 					...mergeData,
 					role: userData.role,
+					externalId: userData.externalId,
 				},
 			});
 			return 'updated';
-		} else {
-			// User doesn't exist - check if email is already taken
-			const userWithSameEmail = await this.prisma.user.findUnique({
-				where: { email: user.user_email.trim() },
-			});
-
-			if (userWithSameEmail) {
-				// Email already exists - add to duplicates list and skip
-				duplicateEmails.push(user.id);
-				logImportDuplicate(
-					user.id.toString(),
-					userWithSameEmail.id,
-					user.user_email.trim(),
-				);
-				this.logger.warn(
-					`Skipping user ${user.id} - email ${user.user_email} already exists for user ${userWithSameEmail.id}`,
-				);
-				return 'skipped';
-			}
-
-			// Create new user
-			await this.prisma.user.create({
-				data: {
-					externalId: userData.externalId,
-					email: userData.email,
-					firstName: userData.firstName,
-					lastName: userData.lastName,
-					phone: userData.phone || null,
-					location: userData.location || null,
-					company: userData.company,
-					userColor: userData.userColor,
-					role: userData.role,
-					status: userData.status,
-					password: userData.password,
-				},
-			});
-			return 'imported';
 		}
+
+		// Create new user
+		await this.prisma.user.create({
+			data: {
+				externalId: userData.externalId,
+				email: userData.email,
+				firstName: userData.firstName,
+				lastName: userData.lastName,
+				phone: userData.phone || null,
+				location: userData.location || null,
+				company: userData.company,
+				userColor: userData.userColor,
+				role: userData.role,
+				status: userData.status,
+				password: userData.password,
+			},
+		});
+		return 'imported';
 	}
 
 	/**
