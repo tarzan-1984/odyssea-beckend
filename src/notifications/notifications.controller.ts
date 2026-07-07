@@ -19,6 +19,10 @@ import { UserRole } from '@prisma/client';
 import { canSendCheckListMessages } from '../common/user-role-access';
 import { CHECK_LIST_EMAIL_CC } from './constants/check-list-email.constants';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
+import {
+	findUserByExternalIdPreferDriver,
+	userWhereDriverByExternalId,
+} from '../users/user-external-id-lookup.util';
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
@@ -175,10 +179,11 @@ export class NotificationsController {
 				: undefined;
 
 		if (!userId && externalId) {
-			const user = await this.prisma.user.findFirst({
-				where: { externalId },
-				select: { id: true },
-			});
+			const user = await findUserByExternalIdPreferDriver(
+				this.prisma,
+				externalId,
+				{ id: true },
+			);
 			if (!user) {
 				throw new BadRequestException('No user found for this externalId');
 			}
@@ -279,7 +284,7 @@ export class NotificationsController {
 
 		if (!userId && externalId) {
 			const user = await this.prisma.user.findFirst({
-				where: { externalId },
+				where: userWhereDriverByExternalId(externalId),
 				select: { id: true },
 			});
 			if (!user) {

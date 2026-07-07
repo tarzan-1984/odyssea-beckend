@@ -6,6 +6,10 @@ import { FcmPushService } from './fcm-push.service';
 import { ExpoPushService } from './expo-push.service';
 import { MailerService } from '../mailer/mailer.service';
 import { plainTextToHtmlEmail } from '../mailer/plain-text-email-html.util';
+import {
+	findUserByExternalIdPreferDriver,
+	userWhereDriverByExternalId,
+} from '../users/user-external-id-lookup.util';
 
 @Injectable()
 export class NotificationsService {
@@ -251,7 +255,7 @@ export class NotificationsService {
 
     if (!email && (params.externalId ?? '').trim()) {
       const user = await this.prisma.user.findFirst({
-        where: { externalId: params.externalId!.trim() },
+        where: userWhereDriverByExternalId(params.externalId!.trim()),
         select: { id: true, email: true },
       });
       if (user) {
@@ -318,12 +322,9 @@ export class NotificationsService {
     const externalId = params.externalId.trim();
     const message = params.message.trim();
 
-    const user = await this.prisma.user.findFirst({
-      where: { externalId },
-      select: {
-        id: true,
-        pushTokens: { select: { id: true } },
-      },
+    const user = await findUserByExternalIdPreferDriver(this.prisma, externalId, {
+      id: true,
+      pushTokens: { select: { id: true } },
     });
 
     if (!user) {

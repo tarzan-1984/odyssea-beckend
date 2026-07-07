@@ -16,6 +16,12 @@ import {
 import { TmsAppDraftLoadsService } from '../tms/tms-app-draft-loads.service';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import {
+	mergeUserWhereWithExternalIdRoleFilter,
+	userWhereDriverByExternalId,
+	userWhereDriversByExternalIds,
+	userWhereEmployeeByExternalId,
+} from '../users/user-external-id-lookup.util';
+import {
 	getOfferTitleFromRoute,
 	getRouteEndpoints,
 } from './offer-route.util';
@@ -143,6 +149,7 @@ export class OffersService {
 	private async mapFirstUsersByExternalId(
 		externalIds: Array<string | null | undefined>,
 		select: Prisma.UserSelect,
+		options?: { role?: UserRole; excludeDriver?: boolean },
 	): Promise<Map<string, Prisma.UserGetPayload<{ select: typeof select }>>> {
 		const ids = [
 			...new Set(
@@ -160,7 +167,10 @@ export class OffersService {
 		}
 
 		const users = await this.prisma.user.findMany({
-			where: { externalId: { in: ids } },
+			where: mergeUserWhereWithExternalIdRoleFilter(
+				{ externalId: { in: ids } },
+				options,
+			),
 			select,
 		});
 		for (const user of users) {
@@ -324,6 +334,7 @@ export class OffersService {
 
 		const users = await this.prisma.user.findMany({
 			where: {
+				role: UserRole.DRIVER,
 				OR: [
 					{ id: { in: driverIds } },
 					{ externalId: { in: driverIds } },
@@ -481,7 +492,7 @@ export class OffersService {
 		const ids = externalIds.map((id) => String(id ?? '').trim()).filter(Boolean);
 		if (ids.length === 0) return [];
 		return this.prisma.user.findMany({
-			where: { externalId: { in: ids } },
+			where: userWhereDriversByExternalIds(ids),
 			select: { id: true, externalId: true },
 		});
 	}
@@ -1144,23 +1155,33 @@ export class OffersService {
 				totalMiles: true,
 			},
 		});
-		const usersByExternalId = await this.mapFirstUsersByExternalId(
-			[
-				...offers.map((offer) => offer.externalUserId),
-				...rateOffersWithDriver.map((rateOffer) => rateOffer.driverId),
-			],
-			{
-				id: true,
-				externalId: true,
-				firstName: true,
-				lastName: true,
-				email: true,
-				phone: true,
-				status: true,
-				role: true,
-				driverRating: true,
-			},
-		);
+		const userSelect = {
+			id: true,
+			externalId: true,
+			firstName: true,
+			lastName: true,
+			email: true,
+			phone: true,
+			status: true,
+			role: true,
+			driverRating: true,
+		} as const;
+		const [creatorsByExternalId, driversByExternalId] = await Promise.all([
+			this.mapFirstUsersByExternalId(
+				offers.map((offer) => offer.externalUserId),
+				userSelect,
+				{ excludeDriver: true },
+			),
+			this.mapFirstUsersByExternalId(
+				rateOffersWithDriver.map((rateOffer) => rateOffer.driverId),
+				userSelect,
+				{ role: UserRole.DRIVER },
+			),
+		]);
+		const usersByExternalId = new Map([
+			...creatorsByExternalId,
+			...driversByExternalId,
+		]);
 		const driversByOfferId = new Map<
 			number,
 			Array<{
@@ -1301,6 +1322,7 @@ export class OffersService {
 		// Resolve each requested id to User.externalId (rate_offers.driver_id references User.externalId)
 		const users = await this.prisma.user.findMany({
 			where: {
+				role: UserRole.DRIVER,
 				OR: [
 					{ id: { in: driverIds } },
 					{ externalId: { in: driverIds } },
@@ -1478,7 +1500,7 @@ export class OffersService {
 		if (!offer) return null;
 
 		const driver = await this.prisma.user.findFirst({
-			where: { externalId: driverExternalId },
+			where: userWhereDriverByExternalId(driverExternalId),
 			select: { firstName: true, lastName: true, profilePhoto: true },
 		});
 		const driverName = driver
@@ -1494,7 +1516,7 @@ export class OffersService {
 			!EXCLUDED_OFFER_NOTIFICATION_EXTERNAL_IDS.includes(offer.externalUserId)
 		) {
 			const creator = await this.prisma.user.findFirst({
-				where: { externalId: offer.externalUserId },
+				where: userWhereEmployeeByExternalId(offer.externalUserId),
 				select: { id: true },
 			});
 			if (creator) recipientIds.add(creator.id);
@@ -1687,7 +1709,7 @@ export class OffersService {
 		});
 
 		const selectedUser = await this.prisma.user.findFirst({
-			where: { externalId: normalizedDriverExternalId },
+			where: userWhereDriverByExternalId(normalizedDriverExternalId),
 			select: { id: true },
 		});
 

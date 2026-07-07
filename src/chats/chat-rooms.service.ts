@@ -16,6 +16,11 @@ import {
 	nowInNewYorkAsNaiveDate,
 } from '../common/utils/ny-wall-clock';
 import { buildArchivedLoadChatSearchWhereInput } from './chat-room-search.util';
+import {
+	userWhereByExternalIdAndParticipantRole,
+	userWhereDriverByExternalId,
+	userWhereDriversByExternalIds,
+} from '../users/user-external-id-lookup.util';
 
 /**
  * ADMINISTRATOR users are auto-added as hidden LOAD chat participants unless their
@@ -299,9 +304,7 @@ export class ChatRoomsService {
 
 		// TODO: re-enable status: 'ACTIVE' filter for production
 		const drivers = await this.prisma.user.findMany({
-			where: {
-				externalId: { in: driverExternalIds },
-			},
+			where: userWhereDriversByExternalIds(driverExternalIds),
 			select: { id: true, firstName: true, lastName: true, externalId: true },
 		});
 
@@ -1536,7 +1539,7 @@ export class ChatRoomsService {
 		}
 
 		const driver = await this.prisma.user.findFirst({
-			where: { externalId: driverParticipant.id },
+			where: userWhereDriverByExternalId(driverParticipant.id),
 		});
 
 		if (!driver) {
@@ -1558,7 +1561,10 @@ export class ChatRoomsService {
 			}
 
 			const user = await this.prisma.user.findFirst({
-				where: { externalId: participant.id },
+				where: userWhereByExternalIdAndParticipantRole(
+					participant.id,
+					participant.role,
+				),
 			});
 
 			if (user) {
@@ -1619,7 +1625,11 @@ export class ChatRoomsService {
 						type: 'OFFER',
 						offerId: offer.id,
 						participants: {
-							some: { user: { externalId: selectedDriverExternalId } },
+							some: {
+								user: {
+									...userWhereDriverByExternalId(selectedDriverExternalId),
+								},
+							},
 						},
 					},
 					include: {
@@ -1872,15 +1882,33 @@ export class ChatRoomsService {
 			if (p.user?.externalId) currentByExternalId.set(p.user.externalId, p.user.id);
 		}
 
-		// Resolve incoming external IDs to user IDs (only existing users)
-		const incomingUsers = await this.prisma.user.findMany({
-			where: { externalId: { in: incomingExternalIds } },
-			select: { id: true, externalId: true },
-		});
-		const incomingByExternal = new Map(incomingUsers.map((u) => [u.externalId!, u.id]));
-		// Determine external IDs that were requested but not found in users table
-		const foundExternalSet = new Set<string>(incomingUsers.map((u) => u.externalId!).filter(Boolean));
-		const notFoundExternalIds = incomingExternalIds.filter((extId) => !foundExternalSet.has(extId));
+		// Resolve incoming external IDs to user IDs using payload role (DRIVER vs employee).
+		const incomingUsers: Array<{ id: string; externalId: string }> = [];
+		const foundExternalSet = new Set<string>();
+		for (const participant of updateDto.participants) {
+			const extId = participant.id?.trim();
+			if (!extId) continue;
+
+			const user = await this.prisma.user.findFirst({
+				where: userWhereByExternalIdAndParticipantRole(
+					extId,
+					participant.role,
+				),
+				select: { id: true, externalId: true },
+			});
+			if (!user?.externalId) continue;
+
+			foundExternalSet.add(extId);
+			if (!incomingUsers.some((row) => row.id === user.id)) {
+				incomingUsers.push({ id: user.id, externalId: user.externalId });
+			}
+		}
+		const incomingByExternal = new Map(
+			incomingUsers.map((u) => [u.externalId, u.id]),
+		);
+		const notFoundExternalIds = incomingExternalIds.filter(
+			(extId) => !foundExternalSet.has(extId?.trim()),
+		);
 
 		// Determine users to add and to remove
 		const incomingUserIds = new Set<string>(incomingUsers.map((u) => u.id));

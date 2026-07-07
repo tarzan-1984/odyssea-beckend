@@ -28,6 +28,7 @@ import { TmsLoadEnrichmentDto } from './dto/tms-load-enrichment.dto';
 import { UpdateLoadTrackingPointDto } from './dto/update-load-tracking-point.dto';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { ActivateDriverApplicationBackfillDto } from './dto/activate-driver-application-backfill.dto';
+import { userWhereDriverByExternalId } from '../users/user-external-id-lookup.util';
 import { TmsLoadUpdateWebhookDto } from './dto/tms-load-update-webhook.dto';
 import { TmsDriverApplicationService } from './tms-driver-application.service';
 import { TmsDriverApplicationBackfillBackgroundService } from './tms-driver-application-backfill-background.service';
@@ -488,7 +489,10 @@ Poll GET /v1/tms/driver/application/activate-backfill-status/{jobId} until isCom
 		}
 
 		const driver = await this.prisma.user.findFirst({
-			where: { externalId: driverId },
+			where: {
+				...userWhereDriverByExternalId(driverId),
+				status: UserStatus.ACTIVE,
+			},
 			select: {
 				id: true,
 				externalId: true,

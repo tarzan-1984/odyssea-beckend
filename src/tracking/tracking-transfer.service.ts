@@ -6,6 +6,7 @@ import {
 	newParticipantJoinedAt,
 	parseInstantToNyNaiveDate,
 } from '../common/utils/ny-wall-clock';
+import { userWhereEmployeeByExternalId } from '../users/user-external-id-lookup.util';
 
 @Injectable()
 export class TrackingTransferService {
@@ -23,8 +24,12 @@ export class TrackingTransferService {
 		const newExternalId = String(dto.new_tracking).trim();
 
 		const [oldUser, newUser] = await Promise.all([
-			this.prisma.user.findFirst({ where: { externalId: oldExternalId } }),
-			this.prisma.user.findFirst({ where: { externalId: newExternalId } }),
+			this.prisma.user.findFirst({
+				where: userWhereEmployeeByExternalId(oldExternalId),
+			}),
+			this.prisma.user.findFirst({
+				where: userWhereEmployeeByExternalId(newExternalId),
+			}),
 		]);
 
 		if (!oldUser) {
