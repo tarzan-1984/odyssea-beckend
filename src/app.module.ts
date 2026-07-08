@@ -29,6 +29,7 @@ import { MessageTemplatesModule } from './message-templates/message-templates.mo
 import { NotificationSoundsModule } from './notification-sounds/notification-sounds.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { GeocodingModule } from './geocoding/geocoding.module';
+import { BidRatesModule } from './bid-rates/bid-rates.module';
 
 @Module({
 	imports: [
@@ -62,6 +63,7 @@ import { GeocodingModule } from './geocoding/geocoding.module';
 		NotificationSoundsModule,
 		TrackingModule,
 		GeocodingModule,
+		BidRatesModule,
 	],
 	controllers: [AppController],
 	providers: [],

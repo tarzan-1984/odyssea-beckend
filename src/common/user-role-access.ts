@@ -18,3 +18,14 @@ export function canCreateOffers(role: UserRole): boolean {
 
 /** Alias: all offer write actions (create, deactivate, drivers, accept, push, etc.). */
 export const canModifyOffers = canCreateOffers;
+
+const BID_RATES_ALLOWED_ROLES: UserRole[] = [
+	UserRole.DISPATCHER,
+	UserRole.DISPATCHER_TL,
+	UserRole.EXPEDITE_MANAGER,
+	UserRole.ADMINISTRATOR,
+];
+
+export function canAccessBidRates(role: UserRole): boolean {
+	return BID_RATES_ALLOWED_ROLES.includes(role);
+}
