@@ -16,6 +16,7 @@ import {
 	nowInNewYorkAsNaiveDate,
 } from '../common/utils/ny-wall-clock';
 import { buildArchivedLoadChatSearchWhereInput } from './chat-room-search.util';
+import { isMultiUserChatType } from './chat-room-types';
 import {
 	AmbiguousExternalIdError,
 	ChatParticipantRef,
@@ -175,10 +176,10 @@ export class ChatRoomsService {
 			participantIds.push(...uniqueParticipantIds);
 		}
 
-		// For group chats, ensure at least 2 participants
-		if (type === 'GROUP' && participantIds.length < 2) {
+		// For group / bid chats, ensure at least 2 participants
+		if (isMultiUserChatType(type) && participantIds.length < 2) {
 			throw new BadRequestException(
-				'Group chats must have at least 2 participants',
+				'Group and bid chats must have at least 2 participants',
 			);
 		}
 
@@ -254,8 +255,8 @@ export class ChatRoomsService {
 					loadId: loadId && loadId.trim() !== '' ? loadId : null,
 					offerId: type === 'OFFER' && offerId != null ? offerId : null,
 					avatar,
-					// for GROUP chats, set creator as admin; DIRECT and OFFER have no admin
-					adminId: type === 'GROUP' ? creatorId : null,
+					// for GROUP/BID chats, set creator as admin; DIRECT and OFFER have no admin
+					adminId: isMultiUserChatType(type) ? creatorId : null,
 					createdAt: roomTimestamps.createdAt,
 					updatedAt: roomTimestamps.updatedAt,
 				},
@@ -321,9 +322,9 @@ export class ChatRoomsService {
 						error,
 					);
 				}
-			} else if (type === 'GROUP') {
+			} else if (isMultiUserChatType(type)) {
 				try {
-					// Create notifications for group chat participants (except admin)
+					// Create notifications for group/bid chat participants (except admin)
 					const participantsData = participants.map((p) => ({
 						userId: p.userId,
 						role: p.user.role,
@@ -1016,7 +1017,7 @@ export class ChatRoomsService {
 		);
 
 		// Create notifications for all participants (including newly added ones) except admin
-		if (chatRoom.type === 'GROUP' && resolvedUsers.length > 0) {
+		if (isMultiUserChatType(chatRoom.type) && resolvedUsers.length > 0) {
 			try {
 				// Get all participants (existing + newly added)
 				const allParticipants = [
@@ -1167,7 +1168,7 @@ export class ChatRoomsService {
 
 		// Check if user is removing themselves (leaving group chat)
 		const isLeavingSelf = resolvedParticipantId === userId;
-		const isGroupChat = chatRoom.type === 'GROUP';
+		const isGroupChat = isMultiUserChatType(chatRoom.type);
 
 		const leavingUser = resolved;
 
@@ -1275,7 +1276,7 @@ export class ChatRoomsService {
 	/**
 	 * Delete or hide a chat room
 	 * For DIRECT chats: hide for current user, delete completely if both users deleted
-	 * For GROUP chats: remove participant if regular user, delete completely if admin
+	 * For GROUP/BID chats: remove participant if regular user, delete completely if admin
 	 */
 	async deleteChatRoom(chatRoomId: string, userId: string) {
 		// Get chat room info
@@ -1348,8 +1349,8 @@ export class ChatRoomsService {
 			}
 
 			return { deleted: false, hidden: true };
-		} else if (chatRoom.type === 'GROUP') {
-			// For GROUP chats: check if user is admin
+		} else if (isMultiUserChatType(chatRoom.type)) {
+			// For GROUP/BID chats: check if user is admin
 			const isAdmin = chatRoom.adminId === userId;
 
 			if (isAdmin) {

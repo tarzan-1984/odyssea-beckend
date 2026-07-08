@@ -287,10 +287,13 @@ model BidRate {
   broker       String
   rate         Float
   status       BidRateStatus        @default(in_process)
+  chatId       String?              @map("chat_id")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
+  chatRoom     ChatRoom?            @relation(fields: [chatId], references: [id], onDelete: SetNull)
   participants BidRateParticipant[]
 
+  @@index([chatId])
   @@map("bid_rates")
 }
 
@@ -328,6 +331,7 @@ model ChatRoom {
   admin          User?                 @relation("ChatRoomAdmin", fields: [adminId], references: [id])
   offer          Offer?                @relation(fields: [offerId], references: [id], onDelete: SetNull)
   messages       Message[]
+  bidRates       BidRate[]
 
   /// One LOAD chat per loadId (TMS race-safe; pairs with null loadId are not constrained).
   @@unique([loadId, type], map: "chat_rooms_load_id_type_key")

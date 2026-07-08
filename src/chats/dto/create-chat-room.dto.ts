@@ -14,11 +14,11 @@ export class CreateChatRoomDto {
 
 	@ApiProperty({
 		description: 'Type of chat room',
-		enum: ['DIRECT', 'GROUP', 'LOAD', 'OFFER'],
+		enum: ['DIRECT', 'GROUP', 'LOAD', 'OFFER', 'BID'],
 		example: 'DIRECT',
 	})
 	@IsString()
-	@IsEnum(['DIRECT', 'GROUP', 'LOAD', 'OFFER'])
+	@IsEnum(['DIRECT', 'GROUP', 'LOAD', 'OFFER', 'BID'])
 	type: string;
 
 	@ApiProperty({
