@@ -65,6 +65,7 @@ model User {
   messageReactions     MessageReaction[]
   notificationSounds   UserNotificationSound[]
   bidRateParticipants  BidRateParticipant[]
+  ownedBidRates        BidRate[]             @relation("BidRateOwner")
 
   @@index([externalId])
   @@index([role, isAutoupdate])
@@ -287,13 +288,16 @@ model BidRate {
   broker       String
   rate         Float
   status       BidRateStatus        @default(in_process)
+  ownerId      String               @map("owner")
   chatId       String?              @map("chat_id")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
+  owner        User                 @relation("BidRateOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   chatRoom     ChatRoom?            @relation(fields: [chatId], references: [id], onDelete: SetNull)
   participants BidRateParticipant[]
 
   @@index([chatId])
+  @@index([ownerId])
   @@map("bid_rates")
 }
 

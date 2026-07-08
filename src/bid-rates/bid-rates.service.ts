@@ -160,6 +160,7 @@ export class BidRatesService {
 					destination,
 					broker,
 					rate,
+					ownerId: creatorId,
 					chatId: chatRoom.id,
 				},
 			});
