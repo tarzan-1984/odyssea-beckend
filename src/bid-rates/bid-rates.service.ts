@@ -1,11 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
 	newChatRoomTimestamps,
 	newParticipantJoinedAt,
 } from '../common/utils/ny-wall-clock';
+import { getRouteEndpoints } from '../offers/offer-route.util';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
 
 const BID_CHAT_DISPATCHER_ROLES: UserRole[] = [
@@ -94,10 +95,18 @@ export class BidRatesService {
 	}
 
 	async create(dto: CreateBidRateDto, creatorId: string) {
-		const origin = dto.origin.trim();
-		const destination = dto.destination.trim();
+		if (!Array.isArray(dto.route) || dto.route.length < 2) {
+			throw new BadRequestException('route must contain at least two points');
+		}
+
 		const broker = dto.broker.trim();
 		const rate = dto.rate;
+		const routeJson = dto.route as unknown as Prisma.InputJsonValue;
+		const { pickUp, delivery } = getRouteEndpoints(dto.route);
+		const chatName =
+			pickUp && delivery
+				? `${pickUp} - ${delivery}`
+				: pickUp || delivery || 'Bid rate';
 
 		const participantUsers = await this.resolveBidChatParticipants();
 		const byId = new Map(participantUsers.map((user) => [user.id, user]));
@@ -129,7 +138,6 @@ export class BidRatesService {
 			.map((user) => user.id);
 		const hiddenIdSet = new Set(hiddenParticipantIds);
 
-		const chatName = `${origin} - ${destination}`;
 		const roomTimestamps = newChatRoomTimestamps();
 		const joinedAt = newParticipantJoinedAt(roomTimestamps.createdAt);
 
@@ -156,8 +164,7 @@ export class BidRatesService {
 
 			const bidRate = await tx.bidRate.create({
 				data: {
-					origin,
-					destination,
+					route: routeJson,
 					broker,
 					rate,
 					ownerId: creatorId,

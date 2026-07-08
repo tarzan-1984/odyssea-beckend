@@ -1,16 +1,27 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+	ArrayMinSize,
+	IsArray,
+	IsNotEmpty,
+	IsNumber,
+	IsString,
+	Min,
+	ValidateNested,
+} from 'class-validator';
+import { RoutePointDto } from '../../offers/dto/create-offer.dto';
 
 export class CreateBidRateDto {
-	@ApiProperty({ example: 'Chicago, IL' })
-	@IsString()
-	@IsNotEmpty()
-	origin: string;
-
-	@ApiProperty({ example: 'Dallas, TX' })
-	@IsString()
-	@IsNotEmpty()
-	destination: string;
+	@ApiProperty({
+		description:
+			'Route: array of points (pick_up_location / delivery_location) in order, same format as offers.route',
+		type: [RoutePointDto],
+	})
+	@IsArray()
+	@ArrayMinSize(2)
+	@ValidateNested({ each: true })
+	@Type(() => RoutePointDto)
+	route: RoutePointDto[];
 
 	@ApiProperty({ example: 'ABC Logistics' })
 	@IsString()

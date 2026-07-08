@@ -283,13 +283,12 @@ model RateOffer {
 
 model BidRate {
   id           Int                  @id @default(autoincrement())
-  origin       String
-  destination  String
   broker       String
   rate         Float
   status       BidRateStatus        @default(in_process)
   ownerId      String               @map("owner")
   chatId       String?              @map("chat_id")
+  route        Json? // array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
   owner        User                 @relation("BidRateOwner", fields: [ownerId], references: [id], onDelete: Restrict)
