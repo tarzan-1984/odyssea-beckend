@@ -460,7 +460,7 @@ export class OffersController {
 		);
 		await this.offersRealtimeService.emitOfferUpdated(
 			id,
-			'driver_rate_updated',
+			result.is_rate_edit ? 'driver_rate_edited' : 'driver_rate_updated',
 			{
 				affectedExternalIds: [driverExternalId],
 				requestingUserId: req.user?.id,

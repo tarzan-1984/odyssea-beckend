@@ -512,6 +512,7 @@ export class OffersService {
 		driver_eta: string | null;
 		action_time: number | null;
 		action_time_display: string | null;
+		is_rate_edit: boolean;
 	}> {
 		const driverId = driverExternalId.trim();
 		if (!driverId) {
@@ -535,34 +536,67 @@ export class OffersService {
 			);
 		}
 
-		const isFirstBid =
-			dto.rate != null && (rateOffer.rate == null || rateOffer.rate === undefined);
-		if (isFirstBid) {
-			const global = await this.appSettingsService.getGlobal();
-			const maxParticipations = Math.max(
-				1,
-				global.maxDriverOpenOfferParticipations,
-			);
-			const currentOpen = await this.prisma.rateOffer.count({
-				where: {
-					driverId,
-					rate: { not: null },
-					isSelected: false,
-					active: true,
-					offer: {
-						active: true,
-						isDriverSelected: false,
-					},
-				},
-			});
-			if (currentOpen >= maxParticipations) {
+		const isFirstBid = rateOffer.rate == null || rateOffer.rate === undefined;
+
+		if (!isFirstBid) {
+			const currentRate = rateOffer.rate;
+			if (currentRate != null && dto.rate >= currentRate) {
 				throw new BadRequestException({
 					message: 'Validation failed',
-					errors: [
-						`Open offer participation limit reached (max ${maxParticipations} active unassigned offers with a bid).`,
-					],
+					errors: ['New rate must be lower than your current rate'],
 				});
 			}
+
+			const updated = await this.prisma.rateOffer.update({
+				where: { id: rateOffer.id },
+				data: {
+					rate: dto.rate,
+				},
+			});
+
+			return {
+				offer_id: offerId,
+				driver_id: driverId,
+				rate: updated.rate ?? null,
+				driver_eta: updated.driverEta ?? null,
+				action_time:
+					updated.actionTime != null ? Number(updated.actionTime) : null,
+				action_time_display: formatActionTimeUnixToNyString(updated.actionTime),
+				is_rate_edit: true,
+			};
+		}
+
+		if (dto.rateTimeMinutes == null || dto.driverEta == null) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['rateTimeMinutes and driverEta are required for the first bid'],
+			});
+		}
+
+		const global = await this.appSettingsService.getGlobal();
+		const maxParticipations = Math.max(
+			1,
+			global.maxDriverOpenOfferParticipations,
+		);
+		const currentOpen = await this.prisma.rateOffer.count({
+			where: {
+				driverId,
+				rate: { not: null },
+				isSelected: false,
+				active: true,
+				offer: {
+					active: true,
+					isDriverSelected: false,
+				},
+			},
+		});
+		if (currentOpen >= maxParticipations) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: [
+					`Open offer participation limit reached (max ${maxParticipations} active unassigned offers with a bid).`,
+				],
+			});
 		}
 
 		const actionTimeUnix = getUnixSecondsPlusMinutes(dto.rateTimeMinutes);
@@ -583,6 +617,7 @@ export class OffersService {
 			driver_eta: updated.driverEta ?? null,
 			action_time: updated.actionTime != null ? Number(updated.actionTime) : null,
 			action_time_display: formatActionTimeUnixToNyString(updated.actionTime),
+			is_rate_edit: false,
 		};
 	}
 

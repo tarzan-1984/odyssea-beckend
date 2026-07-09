@@ -8,6 +8,48 @@ import {
 } from '../common/utils/ny-wall-clock';
 import { getRouteEndpoints } from '../offers/offer-route.util';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
+import { RoutePointDto } from '../offers/dto/create-offer.dto';
+
+function normalizeBidRateRoute(route: RoutePointDto[]): RoutePointDto[] {
+	return route.map((point) => ({
+		type: point.type,
+		location: point.location.trim(),
+		time: point.time?.trim() ?? '',
+	}));
+}
+
+function validateBidRateRoute(route: RoutePointDto[]): void {
+	if (route.length < 2) {
+		throw new BadRequestException('route must contain at least two points');
+	}
+
+	const pickupCount = route.filter(
+		(point) => point.type === 'pick_up_location',
+	).length;
+	const deliveryCount = route.filter(
+		(point) => point.type === 'delivery_location',
+	).length;
+
+	if (pickupCount < 1 || deliveryCount < 1) {
+		throw new BadRequestException(
+			'route must contain at least one pick_up_location and one delivery_location',
+		);
+	}
+
+	if (route[0].type !== 'pick_up_location') {
+		throw new BadRequestException('first route point must be pick_up_location');
+	}
+
+	if (route[route.length - 1].type !== 'delivery_location') {
+		throw new BadRequestException(
+			'last route point must be delivery_location',
+		);
+	}
+
+	if (route.some((point) => !point.location)) {
+		throw new BadRequestException('each route point must have a location');
+	}
+}
 
 const BID_CHAT_DISPATCHER_ROLES: UserRole[] = [
 	UserRole.DISPATCHER,
@@ -95,14 +137,13 @@ export class BidRatesService {
 	}
 
 	async create(dto: CreateBidRateDto, creatorId: string) {
-		if (!Array.isArray(dto.route) || dto.route.length < 2) {
-			throw new BadRequestException('route must contain at least two points');
-		}
+		const normalizedRoute = normalizeBidRateRoute(dto.route);
+		validateBidRateRoute(normalizedRoute);
 
 		const broker = dto.broker.trim();
 		const rate = dto.rate;
-		const routeJson = dto.route as unknown as Prisma.InputJsonValue;
-		const { pickUp, delivery } = getRouteEndpoints(dto.route);
+		const routeJson = normalizedRoute as unknown as Prisma.InputJsonValue;
+		const { pickUp, delivery } = getRouteEndpoints(normalizedRoute);
 		const chatName =
 			pickUp && delivery
 				? `${pickUp} - ${delivery}`

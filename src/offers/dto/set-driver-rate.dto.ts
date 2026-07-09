@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsString, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class SetDriverRateDto {
 	@ApiProperty({
@@ -10,20 +10,22 @@ export class SetDriverRateDto {
 	@Min(0)
 	rate: number;
 
-	@ApiProperty({
+	@ApiPropertyOptional({
 		description:
-			'Rate time window in minutes (used to calculate action_time in Unix seconds)',
+			'Rate time window in minutes (used to calculate action_time in Unix seconds). Required for the first bid only.',
 		example: 30,
 	})
+	@IsOptional()
 	@IsNumber()
 	@Min(0)
-	rateTimeMinutes: number;
+	rateTimeMinutes?: number;
 
-	@ApiProperty({
+	@ApiPropertyOptional({
 		description:
-			'Driver ETA string as selected in the mobile app (local time display)',
+			'Driver ETA string as selected in the mobile app (local time display). Required for the first bid only.',
 		example: '9:00 PM',
 	})
+	@IsOptional()
 	@IsString()
-	driverEta: string;
+	driverEta?: string;
 }
