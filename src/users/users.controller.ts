@@ -15,6 +15,7 @@ import {
 	HttpStatus,
 	Request,
 	Req,
+	DefaultValuePipe,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
@@ -41,6 +42,9 @@ import { ImportDriversService } from './services/import-drivers.service';
 import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
 import { ImportUsersService } from './services/import-users.service';
 import { ImportUsersBackgroundService } from './services/import-users-background.service';
+import { UserDevicesUserIdBackfillService } from './services/user-devices-user-id-backfill.service';
+import { UserDevicesUserIdBackfillBackgroundService } from './services/user-devices-user-id-backfill-background.service';
+import { UserDevicesUserIdBackfillDto } from './dto/user-devices-user-id-backfill.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 import { AuthenticatedRequest } from '../types/request.types';
 
@@ -79,6 +83,8 @@ export class UsersController {
 		private readonly importDriversBackgroundService: ImportDriversBackgroundService,
 		private readonly importUsersService: ImportUsersService,
 		private readonly importUsersBackgroundService: ImportUsersBackgroundService,
+		private readonly userDevicesUserIdBackfillService: UserDevicesUserIdBackfillService,
+		private readonly userDevicesUserIdBackfillBackgroundService: UserDevicesUserIdBackfillBackgroundService,
 	) {}
 
 	@Post('import-drivers')
@@ -535,6 +541,87 @@ export class UsersController {
 			search,
 			versionSort,
 		);
+	}
+
+	@Post('user-devices/backfill-user-id-batch')
+	@SkipAuth()
+	@HttpCode(200)
+	@ApiOperation({
+		summary:
+			'Backfill user_devices.user_id for one batch (match userExternalId → users.externalId)',
+		description:
+			'Processes rows where user_id IS NULL, ordered by id asc. ' +
+			'Default batchSize=50. Use nextSkip from the response for the next call. ' +
+			'Prefer POST /user-devices/backfill-user-id for a full background run.',
+	})
+	@ApiQuery({
+		name: 'batchSize',
+		required: false,
+		description: 'Rows per request (1–200). Default 50.',
+		example: 50,
+	})
+	@ApiQuery({
+		name: 'skip',
+		required: false,
+		description: 'Offset; use nextSkip from the previous response.',
+		example: 0,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Batch counters and nextSkip when more rows remain',
+	})
+	async backfillUserDevicesUserIdBatch(
+		@Query('batchSize') batchSizeRaw?: string,
+		@Query('skip') skipRaw?: string,
+	) {
+		const batchSizeParsed = parseInt(batchSizeRaw ?? '', 10);
+		const skipParsed = parseInt(skipRaw ?? '', 10);
+		return this.userDevicesUserIdBackfillService.backfillUserIdBatch({
+			batchSize: Number.isFinite(batchSizeParsed) ? batchSizeParsed : undefined,
+			skip: Number.isFinite(skipParsed) ? skipParsed : undefined,
+		});
+	}
+
+	@Post('user-devices/backfill-user-id')
+	@SkipAuth()
+	@HttpCode(200)
+	@ApiOperation({
+		summary:
+			'Start background backfill: set user_devices.user_id from users.externalId',
+		description: `Matches user_devices.userExternalId to users.externalId (prefers DRIVER on duplicates).
+Body is optional: \`{ "batchSize": 50 }\` (1–200, default 50).
+Poll GET /v1/users/user-devices/backfill-user-id-status/{jobId} until isComplete is true.`,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'jobId and message with status URL',
+		schema: {
+			type: 'object',
+			properties: {
+				jobId: { type: 'string' },
+				message: { type: 'string' },
+			},
+		},
+	})
+	async startBackfillUserDevicesUserId(
+		@Body(new DefaultValuePipe({})) body: UserDevicesUserIdBackfillDto,
+	) {
+		return this.userDevicesUserIdBackfillBackgroundService.startBackfill(
+			body.batchSize,
+		);
+	}
+
+	@Get('user-devices/backfill-user-id-status/:jobId')
+	@SkipAuth()
+	@ApiOperation({
+		summary: 'Get user_devices.user_id backfill job status',
+		description:
+			'Progress, totals, and unmatched sample (capped). Same idea as GET /v1/users/import-status/{jobId}.',
+	})
+	@ApiResponse({ status: 200, description: 'Job status' })
+	@ApiResponse({ status: 404, description: 'Unknown jobId' })
+	async getBackfillUserDevicesUserIdStatus(@Param('jobId') jobId: string) {
+		return this.userDevicesUserIdBackfillBackgroundService.getStatus(jobId);
 	}
 
 	@Patch('user-devices/:id/block')

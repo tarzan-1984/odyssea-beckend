@@ -8,6 +8,8 @@ import { ImportDriversService } from './services/import-drivers.service';
 import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
 import { ImportUsersService } from './services/import-users.service';
 import { ImportUsersBackgroundService } from './services/import-users-background.service';
+import { UserDevicesUserIdBackfillService } from './services/user-devices-user-id-backfill.service';
+import { UserDevicesUserIdBackfillBackgroundService } from './services/user-devices-user-id-backfill-background.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TmsModule } from '../tms/tms.module';
@@ -32,6 +34,8 @@ import { DriverLogModule } from './driver-log.module';
 		ImportDriversBackgroundService,
 		ImportUsersService,
 		ImportUsersBackgroundService,
+		UserDevicesUserIdBackfillService,
+		UserDevicesUserIdBackfillBackgroundService,
 	],
 	exports: [
 		UsersService,
@@ -39,6 +43,8 @@ import { DriverLogModule } from './driver-log.module';
 		ImportDriversBackgroundService,
 		ImportUsersService,
 		ImportUsersBackgroundService,
+		UserDevicesUserIdBackfillService,
+		UserDevicesUserIdBackfillBackgroundService,
 	],
 })
 export class UsersModule {}
