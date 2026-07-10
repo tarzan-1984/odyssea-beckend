@@ -543,7 +543,9 @@ export class OffersService {
 			if (currentRate != null && dto.rate >= currentRate) {
 				throw new BadRequestException({
 					message: 'Validation failed',
-					errors: ['New rate must be lower than your current rate'],
+					errors: [
+						"If you'd like to lower your rate, you may enter a new rate here. If you'd like to increase your bid, please wait until your bid timer expires before submitting a new bid.",
+					],
 				});
 			}
 
@@ -1516,8 +1518,8 @@ export class OffersService {
 	}
 
 	/**
-	 * Get offer notification context for creator and admins.
-	 * Returns recipient user IDs (creator + admins, deduplicated), offer title, and driver info.
+	 * Get offer notification context for the offer creator.
+	 * Returns recipient user IDs (creator only), offer title, and driver info.
 	 */
 	async getOfferNotificationContext(
 		offerId: number,
@@ -1555,19 +1557,6 @@ export class OffersService {
 				select: { id: true },
 			});
 			if (creator) recipientIds.add(creator.id);
-		}
-
-		const admins = await this.prisma.user.findMany({
-			where: {
-				role: 'ADMINISTRATOR',
-				AND: ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_OFFER_NOTIFICATIONS.map(
-					(externalId) => ({ NOT: { externalId } }),
-				),
-			},
-			select: { id: true },
-		});
-		if (admins.length > 0) {
-			admins.forEach((a) => recipientIds.add(a.id));
 		}
 
 		return {
