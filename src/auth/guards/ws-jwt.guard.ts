@@ -3,6 +3,7 @@ import { WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { JWT_VERIFY_ALLOW_EXPIRED_OPTIONS } from '../constants/jwt-verify-options';
 import { WebSocketContext } from '../../types/request.types';
 
 interface AuthenticatedSocket extends Socket {
@@ -31,7 +32,10 @@ export class WsJwtGuard implements CanActivate {
 			}
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-			const payload = await this.jwtService.verifyAsync(token);
+			const payload = await this.jwtService.verifyAsync(
+				token,
+				JWT_VERIFY_ALLOW_EXPIRED_OPTIONS,
+			);
 
 			// Attach user info to socket for later use
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access

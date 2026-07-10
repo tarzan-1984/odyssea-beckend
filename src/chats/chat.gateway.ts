@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { JWT_VERIFY_ALLOW_EXPIRED_OPTIONS } from '../auth/constants/jwt-verify-options';
 import { MessagesService } from './messages.service';
 import { ChatRoomsService } from './chat-rooms.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
@@ -96,7 +97,10 @@ export class ChatGateway
 			}
 
 			// Verify JWT token
-			const payload = await this.jwtService.verifyAsync(token);
+			const payload = await this.jwtService.verifyAsync(
+				token,
+				JWT_VERIFY_ALLOW_EXPIRED_OPTIONS,
+			);
 			client.userId = payload.sub;
 			client.userRole = payload.role;
 

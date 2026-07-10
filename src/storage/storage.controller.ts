@@ -30,12 +30,12 @@ import {
 	DEFAULT_THUMBNAIL_MAX_WIDTH,
 	DEFAULT_THUMBNAIL_QUALITY,
 } from './chat-thumbnail.util';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthIgnoreExpirationGuard } from '../auth/guards/jwt-auth-ignore-expiration.guard';
 import { toJpegFilename } from './heic-attachment.util';
 
 @ApiTags('Storage')
 @Controller('storage')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthIgnoreExpirationGuard)
 @ApiBearerAuth()
 export class StorageController {
 	constructor(

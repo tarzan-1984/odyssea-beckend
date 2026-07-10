@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { CustomPushBackgroundService } from './custom-push-background.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthIgnoreExpirationGuard } from '../auth/guards/jwt-auth-ignore-expiration.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
@@ -24,7 +24,7 @@ import {
 	userWhereDriverByExternalId,
 } from '../users/user-external-id-lookup.util';
 @Controller('notifications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthIgnoreExpirationGuard)
 export class NotificationsController {
 	constructor(
 		private readonly notificationsService: NotificationsService,

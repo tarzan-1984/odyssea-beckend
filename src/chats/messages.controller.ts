@@ -24,7 +24,7 @@ import {
 	ApiConsumes,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthIgnoreExpirationGuard } from '../auth/guards/jwt-auth-ignore-expiration.guard';
 import { MessagesService } from './messages.service';
 import { FileUploadService } from './file-upload.service';
 import { ChatRoomsService } from './chat-rooms.service';
@@ -39,7 +39,7 @@ import { SyncMessagesBatchDto } from './dto/sync-messages-batch.dto';
 
 @ApiTags('Messages')
 @Controller('messages')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthIgnoreExpirationGuard)
 @ApiBearerAuth()
 export class MessagesController {
 	constructor(

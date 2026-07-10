@@ -775,25 +775,28 @@ export class UsersService {
 		};
 	}
 
-	private async getDistinctUserExternalIdsWithDevices(): Promise<string[]> {
+	private async getDistinctUserIdsWithDevices(): Promise<string[]> {
 		const rows = await this.prisma.userDevice.findMany({
-			select: { userExternalId: true },
-			distinct: ['userExternalId'],
+			where: { userId: { not: null } },
+			select: { userId: true },
+			distinct: ['userId'],
 		});
-		return rows.map((row) => row.userExternalId);
+		return rows
+			.map((row) => row.userId?.trim())
+			.filter((userId): userId is string => Boolean(userId));
 	}
 
 	private async attachUserDevicesForCheckList<
-		T extends { externalId: string | null },
+		T extends { id: string; externalId: string | null },
 	>(users: T[]) {
-		const externalIds = [
+		const userIds = [
 			...new Set(
 				users
-					.map((user) => user.externalId?.trim())
-					.filter((externalId): externalId is string => Boolean(externalId)),
+					.map((user) => user.id.trim())
+					.filter((userId): userId is string => Boolean(userId)),
 			),
 		];
-		const devicesByExternalId = new Map<
+		const devicesByUserId = new Map<
 			string,
 			Array<{
 				id: string;
@@ -807,11 +810,11 @@ export class UsersService {
 			}>
 		>();
 
-		if (externalIds.length > 0) {
+		if (userIds.length > 0) {
 			const devices = await this.prisma.userDevice.findMany({
-				where: { userExternalId: { in: externalIds } },
+				where: { userId: { in: userIds } },
 				select: {
-					userExternalId: true,
+					userId: true,
 					id: true,
 					deviceId: true,
 					platform: true,
@@ -824,7 +827,9 @@ export class UsersService {
 				orderBy: [{ platform: 'asc' }, { updatedAt: 'desc' }],
 			});
 			for (const device of devices) {
-				const list = devicesByExternalId.get(device.userExternalId) ?? [];
+				const userId = device.userId?.trim();
+				if (!userId) continue;
+				const list = devicesByUserId.get(userId) ?? [];
 				list.push({
 					id: device.id,
 					deviceId: device.deviceId,
@@ -835,16 +840,13 @@ export class UsersService {
 					lastActiveAt: device.lastActiveAt,
 					blocked: device.blocked,
 				});
-				devicesByExternalId.set(device.userExternalId, list);
+				devicesByUserId.set(userId, list);
 			}
 		}
 
 		return users.map((user) => ({
 			...user,
-			userDevices:
-				user.externalId != null
-					? devicesByExternalId.get(user.externalId) ?? []
-					: [],
+			userDevices: devicesByUserId.get(user.id) ?? [],
 		}));
 	}
 
@@ -858,14 +860,14 @@ export class UsersService {
 			: [];
 		const excludeTestDriverClause =
 			await this.buildExcludeLocationTestDriverClause();
-		const deviceExternalIds = await this.getDistinctUserExternalIdsWithDevices();
+		const deviceUserIds = await this.getDistinctUserIdsWithDevices();
 
 		const where: Prisma.UserWhereInput = {
 			role: UserRole.DRIVER,
 			status: UserStatus.ACTIVE,
 			AND: [
 				...this.buildCheckListDriverExclusionClauses(),
-				{ externalId: { in: deviceExternalIds } },
+				{ id: { in: deviceUserIds } },
 				...excludeTestDriverClause,
 				...searchClause,
 			],
@@ -1427,19 +1429,6 @@ export class UsersService {
 		return { message: 'Driver password and OTP set successfully' };
 	}
 
-	private async findDriverUserIdByDeviceExternalId(
-		userExternalId: string,
-	): Promise<string | null> {
-		const driver = await this.prisma.user.findFirst({
-			where: {
-				externalId: userExternalId,
-				role: UserRole.DRIVER,
-			},
-			select: { id: true },
-		});
-		return driver?.id ?? null;
-	}
-
 	async adminBlockUserDevice(deviceRowId: string): Promise<void> {
 		const device = await this.prisma.userDevice.findFirst({
 			where: {
@@ -1449,17 +1438,15 @@ export class UsersService {
 				id: true,
 				deviceId: true,
 				blocked: true,
-				userExternalId: true,
+				userId: true,
 			},
 		});
 		if (!device) {
 			throw new NotFoundException('Device not found');
 		}
-		const driverUserId = await this.findDriverUserIdByDeviceExternalId(
-			device.userExternalId,
-		);
-		if (!driverUserId) {
-			throw new NotFoundException('Device not found');
+		const linkedUserId = device.userId?.trim();
+		if (!linkedUserId) {
+			throw new NotFoundException('Device is not linked to a user');
 		}
 		if (device.blocked) {
 			return;
@@ -1471,7 +1458,7 @@ export class UsersService {
 		});
 
 		this.notifyDriverDeviceForceLogout(
-			driverUserId,
+			linkedUserId,
 			device.deviceId,
 			'device_blocked',
 		);
@@ -1485,17 +1472,14 @@ export class UsersService {
 			select: {
 				id: true,
 				blocked: true,
-				userExternalId: true,
+				userId: true,
 			},
 		});
 		if (!device) {
 			throw new NotFoundException('Device not found');
 		}
-		const driverUserId = await this.findDriverUserIdByDeviceExternalId(
-			device.userExternalId,
-		);
-		if (!driverUserId) {
-			throw new NotFoundException('Device not found');
+		if (!device.userId?.trim()) {
+			throw new NotFoundException('Device is not linked to a user');
 		}
 		if (!device.blocked) {
 			return;
@@ -1515,21 +1499,19 @@ export class UsersService {
 			select: {
 				id: true,
 				deviceId: true,
-				userExternalId: true,
+				userId: true,
 			},
 		});
 		if (!device) {
 			throw new NotFoundException('Device not found');
 		}
-		const driverUserId = await this.findDriverUserIdByDeviceExternalId(
-			device.userExternalId,
-		);
-		if (!driverUserId) {
-			throw new NotFoundException('Device not found');
+		const linkedUserId = device.userId?.trim();
+		if (!linkedUserId) {
+			throw new NotFoundException('Device is not linked to a user');
 		}
 
 		await this.notifyDriverDeviceForceLogout(
-			driverUserId,
+			linkedUserId,
 			device.deviceId,
 		);
 

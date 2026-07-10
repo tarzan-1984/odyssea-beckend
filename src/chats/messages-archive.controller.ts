@@ -1,12 +1,12 @@
 import { Controller, Get, Param, Query, UseGuards, Logger, Request, Post, Body } from '@nestjs/common';
 import { MessagesArchiveService } from './messages-archive.service';
 import { ArchiveBackgroundService } from './services/archive-background.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthIgnoreExpirationGuard } from '../auth/guards/jwt-auth-ignore-expiration.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { SkipAuth } from '../auth/decorators/skip-auth.decorator';
 
 @Controller('messages/archive')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthIgnoreExpirationGuard)
 export class MessagesArchiveController {
   private readonly logger = new Logger(MessagesArchiveController.name);
 

@@ -12,12 +12,12 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { PrismaService } from '../prisma/prisma.service';
 import { ArchiveBackgroundService } from './services/archive-background.service';
 import { ChatGateway } from './chat.gateway';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthIgnoreExpirationGuard } from '../auth/guards/jwt-auth-ignore-expiration.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 
 @ApiTags('Load Chat')
 @Controller('delete_load_chat')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthIgnoreExpirationGuard)
 @ApiBearerAuth()
 export class DeleteLoadChatController {
 	constructor(

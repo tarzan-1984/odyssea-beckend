@@ -22,7 +22,7 @@ import {
 	ApiParam,
 	ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthIgnoreExpirationGuard } from '../auth/guards/jwt-auth-ignore-expiration.guard';
 import { ChatRoomsService, BulkDirectChatItemResult } from './chat-rooms.service';
 import { MessagesService } from './messages.service';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
@@ -34,7 +34,7 @@ import { ChatGateway } from './chat.gateway';
 
 @ApiTags('Chat Rooms')
 @Controller('chat-rooms')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthIgnoreExpirationGuard)
 @ApiBearerAuth()
 export class ChatRoomsController {
 	constructor(

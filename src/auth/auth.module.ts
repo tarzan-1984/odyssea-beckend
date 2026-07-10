@@ -7,6 +7,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtIgnoreExpirationStrategy } from './strategies/jwt-ignore-expiration.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TmsModule } from '../tms/tms.module';
@@ -35,7 +36,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 		}),
 	],
 	controllers: [AuthController],
-	providers: [AuthService, JwtStrategy, LocalStrategy],
+	providers: [AuthService, JwtStrategy, JwtIgnoreExpirationStrategy, LocalStrategy],
 	exports: [AuthService],
 })
 export class AuthModule {}

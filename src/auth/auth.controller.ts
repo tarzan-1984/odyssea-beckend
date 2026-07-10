@@ -30,6 +30,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordMobileDto } from './dto/reset-password-mobile.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtAuthIgnoreExpirationGuard } from './guards/jwt-auth-ignore-expiration.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
 
@@ -146,7 +147,7 @@ export class AuthController {
 	}
 
 	@Post('mobile-device')
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(JwtAuthIgnoreExpirationGuard)
 	@HttpCode(HttpStatus.CREATED)
 	@ApiOperation({
 		summary:
@@ -163,7 +164,7 @@ export class AuthController {
 	}
 
 	@Get('mobile-devices')
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(JwtAuthIgnoreExpirationGuard)
 	@ApiOperation({ summary: 'List active mobile devices for the current account' })
 	@ApiResponse({ status: 200, description: 'Active devices for this user' })
 	async listMobileDevices(@Request() req: AuthenticatedRequest) {
@@ -171,7 +172,7 @@ export class AuthController {
 	}
 
 	@Delete('mobile-devices/:id')
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(JwtAuthIgnoreExpirationGuard)
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
 		summary: 'Remove a device from the account device list (soft delete)',

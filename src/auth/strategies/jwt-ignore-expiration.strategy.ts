@@ -7,7 +7,10 @@ import { JwtPayload } from '../auth.service';
 import { validateJwtUserFromPayload } from '../utils/validate-jwt-user.util';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtIgnoreExpirationStrategy extends PassportStrategy(
+	Strategy,
+	'jwt-ignore-expiration',
+) {
 	constructor(
 		private readonly configService: ConfigService,
 		private readonly prisma: PrismaService,
@@ -21,7 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
 		super({
 			jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-			ignoreExpiration: false,
+			ignoreExpiration: true,
 			secretOrKey: jwtSecret,
 		});
 	}
