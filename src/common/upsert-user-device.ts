@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 export type UserDeviceSnapshotInput = {
 	userExternalId: string;
+	userId?: string | null;
 	email?: string | null;
 	deviceId: string;
 	platform?: string | null;
@@ -32,6 +33,7 @@ function buildUserDeviceSnapshotFields(input: UserDeviceLegacySnapshotInput): {
 	pushToken: string | null;
 	lastActiveAt: Date | null;
 	email?: string | null;
+	userId?: string | null;
 } {
 	const fields = {
 		platform: String(input.platform ?? 'unknown').trim() || 'unknown',
@@ -42,10 +44,18 @@ function buildUserDeviceSnapshotFields(input: UserDeviceLegacySnapshotInput): {
 		pushToken: input.pushToken?.trim() || null,
 		lastActiveAt: input.lastActiveAt ?? null,
 	};
+	const extras: { email?: string | null; userId?: string | null } = {};
 	if (input.email !== undefined) {
+		extras.email = resolveUserDeviceEmail(input.email);
+	}
+	if (input.userId !== undefined) {
+		const trimmed = input.userId?.trim();
+		extras.userId = trimmed || null;
+	}
+	if (Object.keys(extras).length > 0) {
 		return {
 			...fields,
-			email: resolveUserDeviceEmail(input.email),
+			...extras,
 		};
 	}
 	return fields;
@@ -254,6 +264,7 @@ export async function registerUserDeviceActivity(
 			prisma,
 			{
 				userExternalId,
+				userId: input.userId,
 				email: input.email,
 				deviceId,
 				platform: input.platform,

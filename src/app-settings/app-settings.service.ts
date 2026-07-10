@@ -200,6 +200,7 @@ export class AppSettingsService {
 				this.prisma,
 				{
 					userExternalId: externalId,
+					userId: user.id,
 					email: user.email,
 					deviceId: devicePayload?.deviceId,
 					platform: devicePayload?.platform ?? syncInput?.platform,

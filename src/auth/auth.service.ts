@@ -1092,6 +1092,7 @@ export class AuthService {
 			this.prisma,
 			{
 				userExternalId: externalId,
+				userId,
 				email: user.email,
 				deviceId: devicePayload?.deviceId,
 				platform: devicePayload?.platform ?? dto.platform,
