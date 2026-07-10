@@ -33,6 +33,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtAuthIgnoreExpirationGuard } from './guards/jwt-auth-ignore-expiration.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 import { RegisterMobileDeviceDto } from './dto/register-mobile-device.dto';
+import { DeactivateOtherMobileDevicesDto } from './dto/deactivate-other-mobile-devices.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -169,6 +170,25 @@ export class AuthController {
 	@ApiResponse({ status: 200, description: 'Active devices for this user' })
 	async listMobileDevices(@Request() req: AuthenticatedRequest) {
 		return this.authService.listMobileDevices(req.user.id);
+	}
+
+	@Delete('mobile-devices/others')
+	@UseGuards(JwtAuthIgnoreExpirationGuard)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Remove all other devices for the current account (keep this device)',
+	})
+	@ApiResponse({ status: 200, description: 'Other devices removed' })
+	@ApiResponse({ status: 404, description: 'Current device not found' })
+	async deactivateOtherMobileDevices(
+		@Request() req: AuthenticatedRequest,
+		@Body() body: DeactivateOtherMobileDevicesDto,
+	): Promise<{ success: true; removed: number }> {
+		const result = await this.authService.deactivateOtherMobileDevices(
+			req.user.id,
+			body.keepDeviceRowId,
+		);
+		return { success: true, removed: result.removed };
 	}
 
 	@Delete('mobile-devices/:id')

@@ -1167,4 +1167,55 @@ export class AuthService {
 			);
 		}
 	}
+
+	async deactivateOtherMobileDevices(
+		userId: string,
+		keepDeviceRowId: string,
+	): Promise<{ removed: number }> {
+		const linkedUserId = userId?.trim();
+		const keepRowId = keepDeviceRowId?.trim();
+		if (!linkedUserId || !keepRowId) {
+			throw new BadRequestException('keepDeviceRowId is required');
+		}
+
+		const keepDevice = await this.prisma.userDevice.findFirst({
+			where: {
+				id: keepRowId,
+				userId: linkedUserId,
+			},
+			select: { id: true },
+		});
+		if (!keepDevice) {
+			throw new NotFoundException('Current device not found');
+		}
+
+		const toDelete = await this.prisma.userDevice.findMany({
+			where: {
+				userId: linkedUserId,
+				id: { not: keepRowId },
+			},
+			select: { id: true, deviceId: true },
+		});
+
+		for (const device of toDelete) {
+			const deviceId = device.deviceId?.trim();
+			if (deviceId) {
+				void this.notificationsWebSocketService.sendDeviceDeactivatedLogout(
+					linkedUserId,
+					deviceId,
+				);
+			}
+		}
+
+		if (toDelete.length > 0) {
+			await this.prisma.userDevice.deleteMany({
+				where: {
+					userId: linkedUserId,
+					id: { not: keepRowId },
+				},
+			});
+		}
+
+		return { removed: toDelete.length };
+	}
 }
