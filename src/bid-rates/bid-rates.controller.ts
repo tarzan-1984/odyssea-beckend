@@ -82,6 +82,27 @@ export class BidRatesController {
 		return bidRate;
 	}
 
+	@Post(':id/extend-time')
+	@ApiOperation({
+		summary: 'Extend bid timer by 15 minutes',
+		description:
+			'Adds 15 minutes to updated_at (NY wall-clock). Allowed up to 3 times for the creator only.',
+	})
+	@ApiResponse({ status: 200, description: 'Bid timer extended' })
+	@ApiResponse({ status: 400, description: 'Cannot extend' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async extendTime(
+		@Param('id', ParseIntPipe) id: number,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.extendTime(id, req.user.id);
+	}
+
 	@Delete(':id')
 	@ApiOperation({
 		summary: 'Delete bid rate and linked BID chat',

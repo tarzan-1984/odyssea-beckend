@@ -1,6 +1,7 @@
 import {
 	Injectable,
 	BadRequestException,
+	ForbiddenException,
 	NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
@@ -9,10 +10,14 @@ import { NotificationsService } from '../notifications/notifications.service';
 import {
 	newChatRoomTimestamps,
 	newParticipantJoinedAt,
+	nowInNewYorkAsNaiveDate,
 } from '../common/utils/ny-wall-clock';
 import { getRouteEndpoints } from '../offers/offer-route.util';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
 import { RoutePointDto } from '../offers/dto/create-offer.dto';
+
+const BID_TIMER_MS = 15 * 60 * 1000;
+const BID_MAX_EXTEND_MS = 3 * BID_TIMER_MS; // 45 min between created_at and updated_at
 
 function normalizeBidRateRoute(route: RoutePointDto[]): RoutePointDto[] {
 	return route.map((point) => ({
@@ -375,5 +380,72 @@ export class BidRatesService {
 			participantIds,
 			deletedByUserId,
 		};
+	}
+
+	/**
+	 * Extend bid timer by +15 minutes on updated_at (NY wall-clock).
+	 * Allowed up to 3 times: (updated_at - created_at) must stay under 45 minutes.
+	 */
+	async extendTime(id: number, requesterId: string) {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				ownerId: true,
+				route: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
+		}
+
+		if (bidRate.ownerId !== requesterId) {
+			throw new ForbiddenException('Only the bid creator can extend the timer');
+		}
+
+		const createdAtMs = bidRate.createdAt.getTime();
+		const updatedAtMs = bidRate.updatedAt.getTime();
+		const alreadyExtendedMs = Math.max(0, updatedAtMs - createdAtMs);
+
+		if (alreadyExtendedMs >= BID_MAX_EXTEND_MS) {
+			throw new BadRequestException(
+				'Bid time can be extended at most 3 times (1 hour total)',
+			);
+		}
+
+		const nowNyMs = nowInNewYorkAsNaiveDate().getTime();
+		const expiryMs = updatedAtMs + BID_TIMER_MS;
+		if (expiryMs <= nowNyMs) {
+			throw new BadRequestException('Bid time has already expired');
+		}
+
+		const nextUpdatedAt = new Date(updatedAtMs + BID_TIMER_MS);
+		const nextExtendedMs = nextUpdatedAt.getTime() - createdAtMs;
+		if (nextExtendedMs > BID_MAX_EXTEND_MS) {
+			throw new BadRequestException(
+				'Bid time can be extended at most 3 times (1 hour total)',
+			);
+		}
+
+		const updated = await this.prisma.bidRate.update({
+			where: { id },
+			data: {
+				updatedAt: nextUpdatedAt,
+			},
+			include: {
+				owner: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+					},
+				},
+			},
+		});
+
+		return this.mapBidRate(updated);
 	}
 }
