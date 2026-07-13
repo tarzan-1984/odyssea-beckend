@@ -548,6 +548,11 @@ export class MessagesService {
 				select: { type: true, name: true },
 			});
 
+			// BID chats: no mobile push support yet
+			if (chatRoom?.type === 'BID') {
+				return;
+			}
+
 			// Get receiver users info (role and driverStatus) for filtering
 			const receiverUsers = await this.prisma.user.findMany({
 				where: { id: { in: receiverIds } },
