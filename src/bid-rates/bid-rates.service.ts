@@ -136,6 +136,80 @@ export class BidRatesService {
 		return [...byId.values()];
 	}
 
+	private mapBidRate(row: {
+		id: number;
+		broker: string;
+		rate: number;
+		status: string;
+		ownerId: string;
+		chatId: string | null;
+		route: Prisma.JsonValue;
+		createdAt: Date;
+		updatedAt: Date;
+		owner?: {
+			id: string;
+			firstName: string | null;
+			lastName: string | null;
+		} | null;
+	}) {
+		return {
+			id: row.id,
+			broker: row.broker,
+			rate: row.rate,
+			status: row.status,
+			ownerId: row.ownerId,
+			chatId: row.chatId,
+			route: row.route,
+			createdAt: row.createdAt,
+			updatedAt: row.updatedAt,
+			owner: row.owner
+				? {
+						id: row.owner.id,
+						firstName: row.owner.firstName,
+						lastName: row.owner.lastName,
+					}
+				: null,
+		};
+	}
+
+	async findAll(page = 1, limit = 10) {
+		const safePage = Math.max(1, Number(page) || 1);
+		const safeLimit = Math.max(1, Math.min(100, Number(limit) || 10));
+		const skip = (safePage - 1) * safeLimit;
+
+		const [rows, totalCount] = await Promise.all([
+			this.prisma.bidRate.findMany({
+				orderBy: { createdAt: 'desc' },
+				skip,
+				take: safeLimit,
+				include: {
+					owner: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+						},
+					},
+				},
+			}),
+			this.prisma.bidRate.count(),
+		]);
+
+		const totalPages = Math.max(1, Math.ceil(totalCount / safeLimit));
+
+		return {
+			results: rows.map((row) => this.mapBidRate(row)),
+			pagination: {
+				current_page: safePage,
+				per_page: safeLimit,
+				total_count: totalCount,
+				total_pages: totalPages,
+				has_next_page: safePage < totalPages,
+				has_prev_page: safePage > 1,
+			},
+		};
+	}
+
 	async create(dto: CreateBidRateDto, creatorId: string) {
 		const normalizedRoute = normalizeBidRateRoute(dto.route);
 		validateBidRateRoute(normalizedRoute);

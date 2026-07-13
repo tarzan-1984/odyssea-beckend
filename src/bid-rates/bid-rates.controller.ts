@@ -2,13 +2,16 @@ import {
 	Body,
 	Controller,
 	ForbiddenException,
+	Get,
 	Post,
+	Query,
 	Request,
 	UseGuards,
 } from '@nestjs/common';
 import {
 	ApiBearerAuth,
 	ApiOperation,
+	ApiQuery,
 	ApiResponse,
 	ApiTags,
 } from '@nestjs/swagger';
@@ -28,6 +31,27 @@ export class BidRatesController {
 		private readonly bidRatesService: BidRatesService,
 		private readonly chatGateway: ChatGateway,
 	) {}
+
+	@Get()
+	@ApiOperation({ summary: 'List bid rates with owner and route' })
+	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	@ApiResponse({ status: 200, description: 'Bid rates list' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	async findAll(
+		@Request() req: AuthenticatedRequest,
+		@Query('page') page?: string,
+		@Query('limit') limit?: string,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.findAll(
+			page ? Number(page) : 1,
+			limit ? Number(limit) : 10,
+		);
+	}
 
 	@Post()
 	@ApiOperation({
