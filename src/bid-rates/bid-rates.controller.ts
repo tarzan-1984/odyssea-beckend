@@ -1,8 +1,11 @@
 import {
 	Body,
 	Controller,
+	Delete,
 	ForbiddenException,
 	Get,
+	Param,
+	ParseIntPipe,
 	Post,
 	Query,
 	Request,
@@ -77,5 +80,58 @@ export class BidRatesController {
 		}
 
 		return bidRate;
+	}
+
+	@Delete(':id')
+	@ApiOperation({
+		summary: 'Delete bid rate and linked BID chat',
+		description:
+			'Hard-deletes the bid_rates row and related BID chat room without archiving messages.',
+	})
+	@ApiResponse({ status: 200, description: 'Bid rate deleted' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async remove(
+		@Param('id', ParseIntPipe) id: number,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		const result = await this.bidRatesService.remove(id, req.user.id);
+
+		if (result.deletedChatId) {
+			const payload = {
+				chatRoomId: result.deletedChatId,
+				deletedBy: req.user.id,
+			};
+			const notified = new Set<string>();
+
+			for (const participantId of result.participantIds) {
+				notified.add(participantId);
+				this.chatGateway.server
+					.to(`user_${participantId}`)
+					.emit('chatRoomDeleted', payload);
+			}
+
+			if (!notified.has(req.user.id)) {
+				this.chatGateway.server
+					.to(`user_${req.user.id}`)
+					.emit('chatRoomDeleted', payload);
+			}
+
+			this.chatGateway.notifyChatRoomDeleted(
+				result.deletedChatId,
+				req.user.id,
+				{ deleted: true },
+			);
+		}
+
+		return {
+			success: true,
+			deletedBidRateId: result.deletedBidRateId,
+			deletedChatId: result.deletedChatId,
+		};
 	}
 }

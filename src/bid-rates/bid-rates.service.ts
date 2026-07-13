@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+	Injectable,
+	BadRequestException,
+	NotFoundException,
+} from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -316,6 +320,58 @@ export class BidRatesService {
 			bidRate,
 			chatRoom,
 			participantIds,
+		};
+	}
+
+	/**
+	 * Hard-delete bid rate and linked BID chat (no message archiving).
+	 */
+	async remove(id: number, deletedByUserId: string) {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				chatId: true,
+				chatRoom: {
+					select: {
+						id: true,
+						participants: {
+							select: { userId: true },
+						},
+					},
+				},
+			},
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
+		}
+
+		const chatId = bidRate.chatId;
+		const participantIds = [
+			...new Set(
+				(bidRate.chatRoom?.participants ?? []).map((p) => p.userId),
+			),
+		];
+
+		await this.prisma.$transaction(async (tx) => {
+			await tx.bidRate.delete({
+				where: { id },
+			});
+
+			if (chatId) {
+				await tx.chatRoom.delete({
+					where: { id: chatId },
+				});
+			}
+		});
+
+		return {
+			success: true,
+			deletedBidRateId: id,
+			deletedChatId: chatId,
+			participantIds,
+			deletedByUserId,
 		};
 	}
 }
