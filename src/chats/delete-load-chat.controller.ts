@@ -30,16 +30,31 @@ export class DeleteLoadChatController {
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Delete LOAD chat immediately via WebSocket, archive by days in background, then remove from DB' })
 	@ApiResponse({ status: 200, description: 'Background deletion/archiving started' })
-	async deleteLoadChat(@Request() req: AuthenticatedRequest, @Body() body: { load_id: string }) {
-		const { load_id } = body;
-		const chat = await this.prisma.chatRoom.findFirst({
-			where: { type: 'LOAD', loadId: load_id },
-			include: {
-				participants: {
-					select: { userId: true },
-				},
-			},
-		});
+	async deleteLoadChat(@Request() req: AuthenticatedRequest, @Body() body: { load_id?: string; chat_room_id?: string }) {
+		const load_id = body.load_id?.trim();
+		const chat_room_id = body.chat_room_id?.trim();
+
+		const chat = chat_room_id
+			? await this.prisma.chatRoom.findFirst({
+					where: { id: chat_room_id, type: 'LOAD' },
+					include: {
+						participants: {
+							select: { userId: true },
+						},
+					},
+				})
+			: load_id
+				? await this.prisma.chatRoom.findFirst({
+						where: { type: 'LOAD', loadId: load_id },
+						orderBy: { createdAt: 'desc' },
+						include: {
+							participants: {
+								select: { userId: true },
+							},
+						},
+					})
+				: null;
+
 		if (!chat) {
 			return { started: false, message: 'LOAD chat not found' };
 		}
