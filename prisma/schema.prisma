@@ -341,8 +341,8 @@ model ChatRoom {
   messages       Message[]
   bidRates       BidRate[]
 
-  /// One LOAD chat per loadId (TMS race-safe; pairs with null loadId are not constrained).
-  @@unique([loadId, type], map: "chat_rooms_load_id_type_key")
+  /// Multiple LOAD chats per loadId are allowed (one per driver when forked from chat settings).
+  @@index([loadId, type], map: "chat_rooms_load_id_type_idx")
   @@index([type, isLoadArchived, updatedAt(sort: Desc)], map: "chat_rooms_load_archived_updated_idx")
   @@index([type, isLoadArchived, deliveryAt], map: "chat_rooms_load_delivery_archive_idx")
   @@map("chat_rooms")

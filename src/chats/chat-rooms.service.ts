@@ -22,6 +22,7 @@ import {
 	ChatParticipantRef,
 	ExternalIdRoleRequiredError,
 	findSingleUserByExternalIdAndParticipantRole,
+	isDriverUserRole,
 	participantRoleCategoryKey,
 	resolveParticipantUser,
 	userRoleCategoryKey,
@@ -783,6 +784,7 @@ export class ChatRoomsService {
 					},
 				},
 			},
+			orderBy: { createdAt: 'desc' },
 			include: this.participantListInclude as any,
 		});
 
@@ -931,7 +933,173 @@ export class ChatRoomsService {
 	}
 
 	/**
+	 * Replace trailing "(externalId First Last)" in a LOAD chat title, or append it.
+	 */
+	private buildLoadChatNameForDriver(
+		sourceName: string | null | undefined,
+		driver: {
+			externalId: string | null;
+			firstName: string;
+			lastName: string;
+		},
+	): string {
+		const base = String(sourceName ?? '').trim();
+		const idPart = String(driver.externalId ?? '').trim();
+		const namePart = `${driver.firstName ?? ''} ${driver.lastName ?? ''}`.trim();
+		const inside = [idPart, namePart].filter(Boolean).join(' ');
+		const paren = `(${inside})`;
+		if (!base) return paren;
+		if (/\([^)]*\)\s*$/.test(base)) {
+			return base.replace(/\([^)]*\)\s*$/, paren);
+		}
+		return `${base} ${paren}`;
+	}
+
+	/**
+	 * Create a new LOAD chat for an additional driver: same staff participants as the source
+	 * room (excluding existing drivers), same loadId, updated name parentheses.
+	 * Does not modify the source room.
+	 */
+	async forkLoadChatWithDriver(
+		sourceChatRoomId: string,
+		driverUserId: string,
+		actorUserId: string,
+	) {
+		const source = await this.prisma.chatRoom.findUnique({
+			where: { id: sourceChatRoomId },
+			include: {
+				participants: {
+					include: {
+						user: {
+							select: {
+								id: true,
+								role: true,
+								firstName: true,
+								lastName: true,
+								externalId: true,
+							},
+						},
+					},
+				},
+			},
+		});
+
+		if (!source || source.type !== 'LOAD') {
+			throw new BadRequestException('Source chat must be a LOAD chat');
+		}
+
+		if (!source.loadId?.trim()) {
+			throw new BadRequestException('Source LOAD chat has no loadId');
+		}
+
+		const actor = source.participants.find((p) => p.userId === actorUserId);
+		if (!actor) {
+			throw new NotFoundException('Chat room not found or access denied');
+		}
+
+		const driver = await this.prisma.user.findUnique({
+			where: { id: driverUserId },
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				externalId: true,
+				role: true,
+				status: true,
+			},
+		});
+
+		if (!driver || !isDriverUserRole(driver.role)) {
+			throw new BadRequestException('User is not a driver');
+		}
+
+		if (driver.status !== 'ACTIVE') {
+			throw new BadRequestException('Driver must have ACTIVE status');
+		}
+
+		// Reuse existing LOAD chat for this loadId that already includes this driver
+		const existingWithDriver = await this.prisma.chatRoom.findFirst({
+			where: {
+				type: 'LOAD',
+				loadId: source.loadId,
+				participants: { some: { userId: driver.id } },
+			},
+			include: this.participantListInclude as any,
+			orderBy: { createdAt: 'desc' },
+		});
+		if (existingWithDriver) {
+			return this.formatChatRoomsListForUser([existingWithDriver], actorUserId)[0];
+		}
+
+		const staffParticipantRows = source.participants.filter(
+			(p) => !isDriverUserRole(p.user?.role),
+		);
+
+		if (staffParticipantRows.some((p) => p.userId === driver.id)) {
+			throw new BadRequestException('Driver is already a non-driver participant');
+		}
+
+		const roomName = this.buildLoadChatNameForDriver(source.name, driver);
+		const roomTimestamps = newChatRoomTimestamps();
+		const joinedAt = newParticipantJoinedAt(roomTimestamps.createdAt);
+
+		const created = await this.prisma.$transaction(async (tx) => {
+			const chatRoom = await tx.chatRoom.create({
+				data: {
+					name: roomName,
+					type: 'LOAD',
+					loadId: source.loadId,
+					company: source.company,
+					avatar: source.avatar,
+					adminId: null,
+					offerId: source.offerId,
+					deliveryAt: source.deliveryAt,
+					isLoadArchived: false,
+					createdAt: roomTimestamps.createdAt,
+					updatedAt: roomTimestamps.updatedAt,
+				},
+			});
+
+			const participantRows = [
+				...staffParticipantRows.map((p) => ({
+					chatRoomId: chatRoom.id,
+					userId: p.userId,
+					isHidden: p.isHidden,
+					hideParticipant: p.hideParticipant,
+					mute: false,
+					pin: false,
+					joinedAt,
+				})),
+				{
+					chatRoomId: chatRoom.id,
+					userId: driver.id,
+					isHidden: false,
+					hideParticipant: false,
+					mute: false,
+					pin: false,
+					joinedAt,
+				},
+			];
+
+			await tx.chatRoomParticipant.createMany({ data: participantRows });
+
+			return tx.chatRoom.findUnique({
+				where: { id: chatRoom.id },
+				include: this.participantListInclude as any,
+			});
+		});
+
+		if (!created) {
+			throw new InternalServerErrorException('Forked LOAD chat not found after creation');
+		}
+
+		return this.formatChatRoomsListForUser([created], actorUserId)[0];
+	}
+
+	/**
 	 * Add new participants to an existing chat room.
+	 * For LOAD chats, adding a DRIVER forks a new LOAD chat (same loadId / staff) instead of
+	 * adding the driver to the source room.
 	 * Each participant is resolved by internal user id, or by externalId + role (driver vs employee).
 	 */
 	async addParticipants(
@@ -939,7 +1107,10 @@ export class ChatRoomsService {
 		participantIds: string[],
 		userId: string,
 		participantRefs?: ChatParticipantRef[],
-	) {
+	): Promise<{
+		newParticipants: any[];
+		forkedChatRooms: any[];
+	}> {
 		const refs = await this.buildParticipantRefs(participantIds, participantRefs);
 
 		// Get chat room info first
@@ -972,6 +1143,7 @@ export class ChatRoomsService {
 			id: string;
 			firstName: string;
 			lastName: string;
+			role: string;
 		}> = [];
 		const resolvedUserIds: string[] = [];
 
@@ -989,14 +1161,57 @@ export class ChatRoomsService {
 			}
 		}
 
+		const driverUsers = resolvedUsers.filter((u) => isDriverUserRole(u.role));
+		const nonDriverUsers = resolvedUsers.filter((u) => !isDriverUserRole(u.role));
+
+		const forkedChatRooms: any[] = [];
+		if (chatRoom.type === 'LOAD' && driverUsers.length > 0) {
+			for (const driver of driverUsers) {
+				const forked = await this.forkLoadChatWithDriver(
+					chatRoomId,
+					driver.id,
+					userId,
+				);
+				forkedChatRooms.push(forked);
+			}
+		}
+
+		const usersToAddToSource =
+			chatRoom.type === 'LOAD' && driverUsers.length > 0
+				? nonDriverUsers
+				: resolvedUsers;
+
+		const newParticipants =
+			usersToAddToSource.length > 0
+				? await this.addParticipantsToRoom(
+						chatRoom,
+						usersToAddToSource,
+						userId,
+					)
+				: [];
+
+		return { newParticipants, forkedChatRooms };
+	}
+
+	private async addParticipantsToRoom(
+		chatRoom: {
+			id: string;
+			name: string | null;
+			avatar: string | null;
+			type: string;
+			participants: Array<{ userId: string }>;
+		},
+		resolvedUsers: Array<{ id: string; firstName: string; lastName: string }>,
+		actorUserId: string,
+	) {
+		const resolvedUserIds = resolvedUsers.map((u) => u.id);
 		const joinedAt = newParticipantJoinedAt();
 
-		// Add new participants
 		const newParticipants = await Promise.all(
 			resolvedUserIds.map((participantId) =>
 				this.prisma.chatRoomParticipant.create({
 					data: {
-						chatRoomId,
+						chatRoomId: chatRoom.id,
 						userId: participantId,
 						joinedAt,
 					},
@@ -1016,10 +1231,8 @@ export class ChatRoomsService {
 			),
 		);
 
-		// Create notifications for all participants (including newly added ones) except admin
 		if (isMultiUserChatType(chatRoom.type) && resolvedUsers.length > 0) {
 			try {
-				// Get all participants (existing + newly added)
 				const allParticipants = [
 					...chatRoom.participants.map((p) => ({ userId: p.userId })),
 					...resolvedUserIds.map((id) => ({ userId: id })),
@@ -1033,7 +1246,7 @@ export class ChatRoomsService {
 						avatar: chatRoom.avatar,
 					},
 					allParticipants,
-					userId,
+					actorUserId,
 				);
 			} catch (error) {
 				console.error(
@@ -1977,6 +2190,7 @@ export class ChatRoomsService {
 		// Find chat room by loadId and type LOAD
 		const chatRoom = await this.prisma.chatRoom.findFirst({
 			where: { loadId: loadId, type: 'LOAD' },
+			orderBy: { createdAt: 'desc' },
 			include: {
 				participants: {
 					include: { user: { select: { id: true, externalId: true, role: true } } },

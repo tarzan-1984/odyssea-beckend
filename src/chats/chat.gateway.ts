@@ -1049,52 +1049,73 @@ export class ChatGateway
 				: participantIds.map((id) => ({ id }));
 
 		try {
-			// Add participants using the service
-			const newParticipants = await this.chatRoomsService.addParticipants(
-				chatRoomId,
-				participantIds,
-				userId,
-				participantRefs,
-			);
-
-			const addedUserIds = newParticipants.map(
-				(participant) => participant.userId,
-			);
-
-			// Notify all current participants about new members
-			void this.server
-				.to(`chat_${chatRoomId}`)
-				.emit('participantsAdded', {
+			// Add participants using the service (LOAD + DRIVER forks a new chat)
+			const { newParticipants, forkedChatRooms } =
+				await this.chatRoomsService.addParticipants(
 					chatRoomId,
-					newParticipants,
-					addedBy: userId,
-				});
+					participantIds,
+					userId,
+					participantRefs,
+				);
 
-			// Notify new participants about the chat room
-			addedUserIds.forEach((participantId) => {
+			if (forkedChatRooms.length > 0) {
+				for (const forked of forkedChatRooms) {
+					const forkedParticipantIds = (forked.participants || []).map(
+						(p: { userId: string }) => p.userId,
+					);
+					this.notifyChatRoomCreated(forked, forkedParticipantIds);
+					void client.join(`chat_${forked.id}`);
+				}
+
+				client.emit('loadChatForked', {
+					sourceChatRoomId: chatRoomId,
+					chatRooms: forkedChatRooms,
+				});
+			}
+
+			if (newParticipants.length > 0) {
+				const addedUserIds = newParticipants.map(
+					(participant) => participant.userId,
+				);
+
+				// Notify all current participants about new members
 				void this.server
-					.to(`user_${participantId}`)
-					.emit('addedToChatRoom', {
+					.to(`chat_${chatRoomId}`)
+					.emit('participantsAdded', {
 						chatRoomId,
+						newParticipants,
 						addedBy: userId,
 					});
 
-				const participantSocketId = this.userSockets.get(participantId);
-				if (participantSocketId) {
+				// Notify new participants about the chat room
+				addedUserIds.forEach((participantId) => {
 					void this.server
-						.to(participantSocketId)
+						.to(`user_${participantId}`)
 						.emit('addedToChatRoom', {
 							chatRoomId,
 							addedBy: userId,
 						});
-				}
-			});
 
-			// Send confirmation back to adder
-			client.emit('participantsAdded', { chatRoomId, newParticipants });
+					const participantSocketId = this.userSockets.get(participantId);
+					if (participantSocketId) {
+						void this.server
+							.to(participantSocketId)
+							.emit('addedToChatRoom', {
+								chatRoomId,
+								addedBy: userId,
+							});
+					}
+				});
+
+				// Send confirmation back to adder
+				client.emit('participantsAdded', { chatRoomId, newParticipants });
+			}
 
 			console.log(
-				`Participants added via WebSocket to room ${chatRoomId} by user ${userId}`,
+				`Participants added via WebSocket to room ${chatRoomId} by user ${userId}` +
+					(forkedChatRooms.length
+						? ` (forked ${forkedChatRooms.length} LOAD chat(s))`
+						: ''),
 			);
 		} catch (error) {
 			console.error('Error adding participants via WebSocket:', error);
