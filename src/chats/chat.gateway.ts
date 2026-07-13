@@ -1059,17 +1059,22 @@ export class ChatGateway
 				);
 
 			if (forkedChatRooms.length > 0) {
+				const roomsForClient: any[] = [];
 				for (const forked of forkedChatRooms) {
-					const forkedParticipantIds = (forked.participants || []).map(
+					const room = forked.chatRoom;
+					roomsForClient.push(room);
+					const forkedParticipantIds = (room.participants || []).map(
 						(p: { userId: string }) => p.userId,
 					);
-					this.notifyChatRoomCreated(forked, forkedParticipantIds);
-					void client.join(`chat_${forked.id}`);
+					if (forked.created) {
+						this.notifyChatRoomCreated(room, forkedParticipantIds);
+					}
+					void client.join(`chat_${room.id}`);
 				}
 
 				client.emit('loadChatForked', {
 					sourceChatRoomId: chatRoomId,
-					chatRooms: forkedChatRooms,
+					chatRooms: roomsForClient,
 				});
 			}
 

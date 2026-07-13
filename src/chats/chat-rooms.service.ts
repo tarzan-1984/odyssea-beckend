@@ -1022,13 +1022,25 @@ export class ChatRoomsService {
 			where: {
 				type: 'LOAD',
 				loadId: source.loadId,
-				participants: { some: { userId: driver.id } },
+				isArchived: false,
+				participants: {
+					some: {
+						userId: driver.id,
+						user: { role: 'DRIVER' },
+					},
+				},
 			},
 			include: this.participantListInclude as any,
-			orderBy: { createdAt: 'desc' },
+			orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
 		});
 		if (existingWithDriver) {
-			return this.formatChatRoomsListForUser([existingWithDriver], actorUserId)[0];
+			return {
+				chatRoom: this.formatChatRoomsListForUser(
+					[existingWithDriver],
+					actorUserId,
+				)[0],
+				created: false,
+			};
 		}
 
 		const staffParticipantRows = source.participants.filter(
@@ -1093,7 +1105,10 @@ export class ChatRoomsService {
 			throw new InternalServerErrorException('Forked LOAD chat not found after creation');
 		}
 
-		return this.formatChatRoomsListForUser([created], actorUserId)[0];
+		return {
+			chatRoom: this.formatChatRoomsListForUser([created], actorUserId)[0],
+			created: true,
+		};
 	}
 
 	/**
@@ -1164,7 +1179,7 @@ export class ChatRoomsService {
 		const driverUsers = resolvedUsers.filter((u) => isDriverUserRole(u.role));
 		const nonDriverUsers = resolvedUsers.filter((u) => !isDriverUserRole(u.role));
 
-		const forkedChatRooms: any[] = [];
+		const forkedChatRooms: Array<{ chatRoom: any; created: boolean }> = [];
 		if (chatRoom.type === 'LOAD' && driverUsers.length > 0) {
 			for (const driver of driverUsers) {
 				const forked = await this.forkLoadChatWithDriver(
