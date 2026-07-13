@@ -288,6 +288,8 @@ export class BidRatesService {
 					rate,
 					ownerId: creatorId,
 					chatId: chatRoom.id,
+					createdAt: roomTimestamps.createdAt,
+					updatedAt: roomTimestamps.updatedAt,
 				},
 			});
 
