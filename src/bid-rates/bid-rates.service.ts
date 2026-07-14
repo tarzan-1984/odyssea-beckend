@@ -452,4 +452,255 @@ export class BidRatesService {
 
 		return this.mapBidRate(updated);
 	}
+
+	/**
+	 * Returns whether the current user already pressed +1 for the bid linked to this chat.
+	 */
+	async getParticipationByChatId(chatRoomId: string, userId: string) {
+		const bidRate = await this.prisma.bidRate.findFirst({
+			where: { chatId: chatRoomId },
+			select: { id: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found for this chat');
+		}
+
+		const participant = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId,
+					bidRateId: bidRate.id,
+				},
+			},
+			select: { id: true, createdAt: true, updatedAt: true },
+		});
+
+		return {
+			bidRateId: bidRate.id,
+			hasJoined: Boolean(participant),
+			createdAt: participant?.createdAt ?? null,
+			updatedAt: participant?.updatedAt ?? null,
+		};
+	}
+
+	/**
+	 * Registers the user in bid_rate_participants (one +1 per user per bid).
+	 * Idempotent: if already joined, returns alreadyJoined=true without creating a duplicate.
+	 */
+	async joinByChatId(chatRoomId: string, userId: string) {
+		const bidRate = await this.prisma.bidRate.findFirst({
+			where: { chatId: chatRoomId },
+			select: { id: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found for this chat');
+		}
+
+		const chatMembership = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId,
+					userId,
+				},
+			},
+			select: { id: true },
+		});
+
+		if (!chatMembership) {
+			throw new ForbiddenException('You are not a participant of this chat');
+		}
+
+		const existing = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId,
+					bidRateId: bidRate.id,
+				},
+			},
+			select: { id: true, createdAt: true, updatedAt: true },
+		});
+
+		if (existing) {
+			return {
+				bidRateId: bidRate.id,
+				hasJoined: true,
+				alreadyJoined: true,
+				createdAt: existing.createdAt,
+				updatedAt: existing.updatedAt,
+			};
+		}
+
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { id: true, externalId: true },
+		});
+
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+
+		const now = nowInNewYorkAsNaiveDate();
+
+		try {
+			const created = await this.prisma.bidRateParticipant.create({
+				data: {
+					userId: user.id,
+					externalId: this.normalizeExternalId(user.externalId),
+					bidRateId: bidRate.id,
+					createdAt: now,
+					updatedAt: now,
+				},
+			});
+
+			return {
+				bidRateId: bidRate.id,
+				hasJoined: true,
+				alreadyJoined: false,
+				createdAt: created.createdAt,
+				updatedAt: created.updatedAt,
+			};
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === 'P2002'
+			) {
+				const again = await this.prisma.bidRateParticipant.findUnique({
+					where: {
+						userId_bidRateId: {
+							userId,
+							bidRateId: bidRate.id,
+						},
+					},
+					select: { createdAt: true, updatedAt: true },
+				});
+				return {
+					bidRateId: bidRate.id,
+					hasJoined: true,
+					alreadyJoined: true,
+					createdAt: again?.createdAt ?? now,
+					updatedAt: again?.updatedAt ?? now,
+				};
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * All auction joiners for a BID chat (for +1 message timers).
+	 */
+	async listParticipantsByChatId(chatRoomId: string) {
+		const bidRate = await this.prisma.bidRate.findFirst({
+			where: { chatId: chatRoomId },
+			select: { id: true, ownerId: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found for this chat');
+		}
+
+		const participants = await this.prisma.bidRateParticipant.findMany({
+			where: { bidRateId: bidRate.id },
+			select: {
+				userId: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+
+		return {
+			bidRateId: bidRate.id,
+			ownerId: bidRate.ownerId,
+			participants,
+		};
+	}
+
+	/**
+	 * Extend a participant's +1 timer by +15 minutes on updated_at (NY wall-clock).
+	 * Same rules as bid card: max 3 extends (45 min between created_at and updated_at).
+	 * Allowed for the participant or the bid owner.
+	 */
+	async extendParticipantTimeByChatId(
+		chatRoomId: string,
+		requesterId: string,
+		targetUserId?: string,
+	) {
+		const bidRate = await this.prisma.bidRate.findFirst({
+			where: { chatId: chatRoomId },
+			select: { id: true, ownerId: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found for this chat');
+		}
+
+		const participantUserId = targetUserId?.trim() || requesterId;
+		const isOwner = bidRate.ownerId === requesterId;
+		const isSelf = participantUserId === requesterId;
+
+		if (!isOwner && !isSelf) {
+			throw new ForbiddenException(
+				'Only the participant or the bid creator can extend this timer',
+			);
+		}
+
+		const participant = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId: participantUserId,
+					bidRateId: bidRate.id,
+				},
+			},
+			select: {
+				id: true,
+				userId: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+
+		if (!participant) {
+			throw new NotFoundException('Bid participant not found');
+		}
+
+		const createdAtMs = participant.createdAt.getTime();
+		const updatedAtMs = participant.updatedAt.getTime();
+		const alreadyExtendedMs = Math.max(0, updatedAtMs - createdAtMs);
+
+		if (alreadyExtendedMs >= BID_MAX_EXTEND_MS) {
+			throw new BadRequestException(
+				'Bid time can be extended at most 3 times (1 hour total)',
+			);
+		}
+
+		const nowNyMs = nowInNewYorkAsNaiveDate().getTime();
+		const expiryMs = updatedAtMs + BID_TIMER_MS;
+		if (expiryMs <= nowNyMs) {
+			throw new BadRequestException('Bid time has already expired');
+		}
+
+		const nextUpdatedAt = new Date(updatedAtMs + BID_TIMER_MS);
+		const nextExtendedMs = nextUpdatedAt.getTime() - createdAtMs;
+		if (nextExtendedMs > BID_MAX_EXTEND_MS) {
+			throw new BadRequestException(
+				'Bid time can be extended at most 3 times (1 hour total)',
+			);
+		}
+
+		const updated = await this.prisma.bidRateParticipant.update({
+			where: { id: participant.id },
+			data: { updatedAt: nextUpdatedAt },
+			select: {
+				userId: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+
+		return {
+			bidRateId: bidRate.id,
+			participant: updated,
+		};
+	}
 }

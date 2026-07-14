@@ -82,6 +82,95 @@ export class BidRatesController {
 		return bidRate;
 	}
 
+	@Get('by-chat/:chatRoomId/participation')
+	@ApiOperation({
+		summary: 'Check if current user already joined bid (+1 locked)',
+		description:
+			'Looks up bid_rates by chatId and returns whether bid_rate_participants has a row for this user.',
+	})
+	@ApiResponse({ status: 200, description: 'Participation status' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Bid not found' })
+	async getParticipationByChat(
+		@Param('chatRoomId') chatRoomId: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.getParticipationByChatId(
+			chatRoomId,
+			req.user.id,
+		);
+	}
+
+	@Post('by-chat/:chatRoomId/join')
+	@ApiOperation({
+		summary: 'Join bid via +1 (once per user)',
+		description:
+			'Creates bid_rate_participants row for the current user. Idempotent if already joined.',
+	})
+	@ApiResponse({ status: 200, description: 'Joined (or already joined)' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Bid not found' })
+	async joinByChat(
+		@Param('chatRoomId') chatRoomId: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.joinByChatId(chatRoomId, req.user.id);
+	}
+
+	@Get('by-chat/:chatRoomId/participants')
+	@ApiOperation({
+		summary: 'List bid auction participants for +1 timers',
+		description:
+			'Returns bid_rate_participants rows (userId, createdAt, updatedAt) for the bid linked to this chat.',
+	})
+	@ApiResponse({ status: 200, description: 'Participants list' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Bid not found' })
+	async listParticipantsByChat(
+		@Param('chatRoomId') chatRoomId: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.listParticipantsByChatId(chatRoomId);
+	}
+
+	@Post('by-chat/:chatRoomId/extend-participant-time')
+	@ApiOperation({
+		summary: 'Extend participant +1 timer by 15 minutes',
+		description:
+			'Adds 15 minutes to bid_rate_participants.updated_at (NY wall-clock). Max 3 extends. Allowed for the participant or bid owner.',
+	})
+	@ApiResponse({ status: 200, description: 'Participant timer extended' })
+	@ApiResponse({ status: 400, description: 'Cannot extend' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async extendParticipantTimeByChat(
+		@Param('chatRoomId') chatRoomId: string,
+		@Body() body: { userId?: string },
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.extendParticipantTimeByChatId(
+			chatRoomId,
+			req.user.id,
+			body?.userId,
+		);
+	}
+
 	@Post(':id/extend-time')
 	@ApiOperation({
 		summary: 'Extend bid timer by 15 minutes',
