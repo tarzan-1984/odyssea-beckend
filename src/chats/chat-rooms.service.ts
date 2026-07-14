@@ -96,6 +96,39 @@ export class ChatRoomsService {
 		throw error;
 	}
 
+	/** One LOAD chat per (loadId, driver) — reuse / uniqueness match for TMS create and forks. */
+	private loadChatWithDriverWhere(
+		loadId: string,
+		driverUserId: string,
+	): Prisma.ChatRoomWhereInput {
+		return {
+			type: 'LOAD',
+			loadId,
+			participants: {
+				some: {
+					userId: driverUserId,
+					user: { role: 'DRIVER' },
+				},
+			},
+		};
+	}
+
+	/**
+	 * Serialize concurrent create/convert/fork for the same load + driver.
+	 * Needed after unique (loadId, type) was dropped for multi-driver forks.
+	 */
+	private async acquireLoadChatDriverLock(
+		tx: Prisma.TransactionClient,
+		loadId: string,
+		driverUserId: string,
+	): Promise<void> {
+		await tx.$executeRawUnsafe(
+			`SELECT pg_advisory_xact_lock(hashtext($1::text), hashtext($2::text))`,
+			'create_load_chat',
+			`${loadId}:${driverUserId}`,
+		);
+	}
+
 	private async buildParticipantRefs(
 		participantIds: string[],
 		participantRefs?: ChatParticipantRef[],
@@ -1020,15 +1053,8 @@ export class ChatRoomsService {
 		// Reuse existing LOAD chat for this loadId that already includes this driver
 		const existingWithDriver = await this.prisma.chatRoom.findFirst({
 			where: {
-				type: 'LOAD',
-				loadId: source.loadId,
+				...this.loadChatWithDriverWhere(source.loadId, driver.id),
 				isArchived: false,
-				participants: {
-					some: {
-						userId: driver.id,
-						user: { role: 'DRIVER' },
-					},
-				},
 			},
 			include: this.participantListInclude as any,
 			orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
@@ -1054,13 +1080,28 @@ export class ChatRoomsService {
 		const roomName = this.buildLoadChatNameForDriver(source.name, driver);
 		const roomTimestamps = newChatRoomTimestamps();
 		const joinedAt = newParticipantJoinedAt(roomTimestamps.createdAt);
+		const loadId = source.loadId;
 
-		const created = await this.prisma.$transaction(async (tx) => {
+		const forked = await this.prisma.$transaction(async (tx) => {
+			await this.acquireLoadChatDriverLock(tx, loadId, driver.id);
+
+			const dup = await tx.chatRoom.findFirst({
+				where: {
+					...this.loadChatWithDriverWhere(loadId, driver.id),
+					isArchived: false,
+				},
+				include: this.participantListInclude as any,
+				orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
+			});
+			if (dup) {
+				return { tag: 'reused' as const, chatRoom: dup };
+			}
+
 			const chatRoom = await tx.chatRoom.create({
 				data: {
 					name: roomName,
 					type: 'LOAD',
-					loadId: source.loadId,
+					loadId,
 					company: source.company,
 					avatar: source.avatar,
 					adminId: null,
@@ -1095,19 +1136,19 @@ export class ChatRoomsService {
 
 			await tx.chatRoomParticipant.createMany({ data: participantRows });
 
-			return tx.chatRoom.findUnique({
+			const full = await tx.chatRoom.findUnique({
 				where: { id: chatRoom.id },
 				include: this.participantListInclude as any,
 			});
+			if (!full) {
+				throw new InternalServerErrorException('Forked LOAD chat not found after creation');
+			}
+			return { tag: 'created' as const, chatRoom: full };
 		});
 
-		if (!created) {
-			throw new InternalServerErrorException('Forked LOAD chat not found after creation');
-		}
-
 		return {
-			chatRoom: this.formatChatRoomsListForUser([created], actorUserId)[0],
-			created: true,
+			chatRoom: this.formatChatRoomsListForUser([forked.chatRoom], actorUserId)[0],
+			created: forked.tag === 'created',
 		};
 	}
 
@@ -1832,8 +1873,9 @@ export class ChatRoomsService {
 	}
 
 	/**
-	 * Create a LOAD chat with external participants, or no-op if one already exists,
-	 * or convert the selected driver's OFFER chat when an offer matches load_id.
+	 * Create a LOAD chat with external participants, or no-op if one already exists
+	 * for this loadId + driver, or convert the selected driver's OFFER chat when an
+	 * offer matches load_id.
 	 */
 	async createLoadChat(createLoadChatDto: CreateLoadChatDto): Promise<CreateLoadChatResult> {
 		const { load_id, title, company, participants } = createLoadChatDto;
@@ -1856,14 +1898,6 @@ export class ChatRoomsService {
 				},
 			},
 		} as const;
-
-		const existingLoad = await this.prisma.chatRoom.findFirst({
-			where: { type: 'LOAD', loadId: load_id },
-			include: fullChatInclude,
-		});
-		if (existingLoad) {
-			return { chatRoom: existingLoad, kind: 'noop', hardDeletedChats: [] };
-		}
 
 		const driverParticipant = participants.find((p) => p.role.toUpperCase() === 'DRIVER');
 		if (!driverParticipant) {
@@ -1895,8 +1929,16 @@ export class ChatRoomsService {
 			);
 		}
 
-		const validParticipantIds: string[] = [driver.id];
-		for (const participant of participants) {
+		const existingLoad = await this.prisma.chatRoom.findFirst({
+			where: this.loadChatWithDriverWhere(load_id, driver.id),
+			include: fullChatInclude,
+			orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
+		});
+		if (existingLoad) {
+			return { chatRoom: existingLoad, kind: 'noop', hardDeletedChats: [] };
+		}
+
+		const validParticipantIds: string[] = [driver.id];		for (const participant of participants) {
 			if (participant.role.toUpperCase() === 'DRIVER') {
 				continue;
 			}
@@ -2005,7 +2047,18 @@ export class ChatRoomsService {
 					const toRemove = [...beforeUserIds].filter((id) => !desiredUnique.includes(id));
 					const toAdd = desiredUnique.filter((id) => !beforeUserIds.has(id));
 
-					await this.prisma.$transaction(async (tx) => {
+					const convertOutcome = await this.prisma.$transaction(async (tx) => {
+						await this.acquireLoadChatDriverLock(tx, load_id, driver.id);
+
+						const already = await tx.chatRoom.findFirst({
+							where: this.loadChatWithDriverWhere(load_id, driver.id),
+							include: fullChatInclude,
+							orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
+						});
+						if (already) {
+							return { tag: 'noop' as const, chatRoom: already };
+						}
+
 						if (otherOfferChats.length > 0) {
 							await tx.chatRoom.deleteMany({
 								where: { id: { in: otherOfferChats.map((c) => c.id) } },
@@ -2062,14 +2115,38 @@ export class ChatRoomsService {
 								},
 							});
 						}
+
+						const completeChatRoom = await tx.chatRoom.findUnique({
+							where: { id: selectedOfferChat.id },
+							include: fullChatInclude,
+						});
+						if (!completeChatRoom) {
+							throw new InternalServerErrorException(
+								'Converted LOAD chat not found after transaction',
+							);
+						}
+						return {
+							tag: 'converted' as const,
+							chatRoom: completeChatRoom,
+							hardDeletedChats,
+							toAdd,
+						};
 					});
 
+					if (convertOutcome.tag === 'noop') {
+						return {
+							chatRoom: convertOutcome.chatRoom,
+							kind: 'noop',
+							hardDeletedChats: [],
+						};
+					}
+
 					const newParticipants =
-						toAdd.length > 0
+						convertOutcome.toAdd.length > 0
 							? await this.prisma.chatRoomParticipant.findMany({
 								where: {
 									chatRoomId: selectedOfferChat.id,
-									userId: { in: toAdd },
+									userId: { in: convertOutcome.toAdd },
 								},
 								include: {
 									user: {
@@ -2087,25 +2164,14 @@ export class ChatRoomsService {
 							})
 							: [];
 
-					const completeChatRoom = await this.prisma.chatRoom.findUnique({
-						where: { id: selectedOfferChat.id },
-						include: fullChatInclude,
-					});
-
-					if (!completeChatRoom) {
-						throw new InternalServerErrorException(
-							'Converted LOAD chat not found after transaction',
-						);
-					}
-
 					return {
-						chatRoom: completeChatRoom,
+						chatRoom: convertOutcome.chatRoom,
 						kind: 'converted',
-						hardDeletedChats,
+						hardDeletedChats: convertOutcome.hardDeletedChats,
 						conversionParticipantEvents: {
 							chatRoomId: selectedOfferChat.id,
 							newParticipants,
-							addedUserIds: toAdd,
+							addedUserIds: convertOutcome.toAdd,
 							removedUserIds: toRemove,
 						},
 					};
@@ -2115,8 +2181,9 @@ export class ChatRoomsService {
 
 		// Another request may have created or converted LOAD while we resolved participants / offer path
 		const existingAfterOffer = await this.prisma.chatRoom.findFirst({
-			where: { type: 'LOAD', loadId: load_id },
+			where: this.loadChatWithDriverWhere(load_id, driver.id),
 			include: fullChatInclude,
+			orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
 		});
 		if (existingAfterOffer) {
 			return { chatRoom: existingAfterOffer, kind: 'noop', hardDeletedChats: [] };
@@ -2124,9 +2191,12 @@ export class ChatRoomsService {
 
 		try {
 			const outcome = await this.prisma.$transaction(async (prisma) => {
+				await this.acquireLoadChatDriverLock(prisma, load_id, driver.id);
+
 				const dup = await prisma.chatRoom.findFirst({
-					where: { type: 'LOAD', loadId: load_id },
+					where: this.loadChatWithDriverWhere(load_id, driver.id),
 					include: fullChatInclude,
+					orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
 				});
 				if (dup) {
 					return { tag: 'noop' as const, chatRoom: dup };
@@ -2182,8 +2252,9 @@ export class ChatRoomsService {
 		} catch (e) {
 			if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
 				const existing = await this.prisma.chatRoom.findFirst({
-					where: { type: 'LOAD', loadId: load_id },
+					where: this.loadChatWithDriverWhere(load_id, driver.id),
 					include: fullChatInclude,
+					orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
 				});
 				if (existing) {
 					return { chatRoom: existing, kind: 'noop', hardDeletedChats: [] };
