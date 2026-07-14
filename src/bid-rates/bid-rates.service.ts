@@ -4,7 +4,7 @@ import {
 	ForbiddenException,
 	NotFoundException,
 } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -112,6 +112,7 @@ export class BidRatesService {
 		const roleUsers = await this.prisma.user.findMany({
 			where: {
 				role: { in: BID_CHAT_DISPATCHER_ROLES },
+				status: UserStatus.ACTIVE,
 			},
 			select: {
 				id: true,
@@ -123,7 +124,10 @@ export class BidRatesService {
 		});
 
 		const administrators = await this.prisma.user.findMany({
-			where: { role: UserRole.ADMINISTRATOR },
+			where: {
+				role: UserRole.ADMINISTRATOR,
+				status: UserStatus.ACTIVE,
+			},
 			select: {
 				id: true,
 				externalId: true,
