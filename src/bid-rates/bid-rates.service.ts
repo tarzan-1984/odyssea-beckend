@@ -600,19 +600,53 @@ export class BidRatesService {
 			throw new NotFoundException('Bid rate not found for this chat');
 		}
 
+		return this.listParticipantsByBidRateId(bidRate.id, bidRate.ownerId);
+	}
+
+	/**
+	 * All auction joiners for a bid rate (for +1 popup on the bid card).
+	 */
+	async listParticipantsByBidId(bidRateId: number) {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id: bidRateId },
+			select: { id: true, ownerId: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
+		}
+
+		return this.listParticipantsByBidRateId(bidRate.id, bidRate.ownerId);
+	}
+
+	private async listParticipantsByBidRateId(bidRateId: number, ownerId: string) {
 		const participants = await this.prisma.bidRateParticipant.findMany({
-			where: { bidRateId: bidRate.id },
+			where: { bidRateId },
+			orderBy: { createdAt: 'asc' },
 			select: {
 				userId: true,
 				createdAt: true,
 				updatedAt: true,
+				user: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+					},
+				},
 			},
 		});
 
 		return {
-			bidRateId: bidRate.id,
-			ownerId: bidRate.ownerId,
-			participants,
+			bidRateId,
+			ownerId,
+			participants: participants.map((row) => ({
+				userId: row.userId,
+				firstName: row.user.firstName,
+				lastName: row.user.lastName,
+				createdAt: row.createdAt,
+				updatedAt: row.updatedAt,
+			})),
 		};
 	}
 

@@ -192,6 +192,26 @@ export class BidRatesController {
 		return this.bidRatesService.extendTime(id, req.user.id);
 	}
 
+	@Get(':id/participants')
+	@ApiOperation({
+		summary: 'List bid auction participants (+1) for a bid',
+		description:
+			'Returns bid_rate_participants with names and timestamps for the popup on the bid card.',
+	})
+	@ApiResponse({ status: 200, description: 'Participants list' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async listParticipantsByBid(
+		@Param('id', ParseIntPipe) id: number,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.listParticipantsByBidId(id);
+	}
+
 	@Delete(':id')
 	@ApiOperation({
 		summary: 'Delete bid rate and linked BID chat',
