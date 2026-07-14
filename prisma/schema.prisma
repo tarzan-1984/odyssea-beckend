@@ -306,13 +306,17 @@ model BidRate {
 }
 
 model BidRateParticipant {
-  id         String  @id @default(cuid())
-  userId     String  @map("user_id")
-  externalId String  @map("external_id")
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  externalId String   @map("external_id")
   rate       Float
-  bidRateId  Int     @map("bid_rate_id")
-  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bidRate    BidRate @relation(fields: [bidRateId], references: [id], onDelete: Cascade)
+  bidRateId  Int      @map("bid_rate_id")
+  /// NY wall-clock naive timestamp (set via nowInNewYorkAsNaiveDate() on insert/update).
+  createdAt  DateTime @map("created_at")
+  /// NY wall-clock naive timestamp (set via nowInNewYorkAsNaiveDate() on insert/update).
+  updatedAt  DateTime @map("updated_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bidRate    BidRate  @relation(fields: [bidRateId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([bidRateId])
