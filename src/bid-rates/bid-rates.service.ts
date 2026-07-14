@@ -11,6 +11,7 @@ import {
 	newChatRoomTimestamps,
 	newParticipantJoinedAt,
 	nowInNewYorkAsNaiveDate,
+	getNyWallClockHoursAgo,
 } from '../common/utils/ny-wall-clock';
 import { getRouteEndpoints } from '../offers/offer-route.util';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
@@ -18,7 +19,11 @@ import { RoutePointDto } from '../offers/dto/create-offer.dto';
 
 const BID_TIMER_MS = 15 * 60 * 1000;
 const BID_MAX_EXTEND_MS = 3 * BID_TIMER_MS; // 45 min between created_at and updated_at
-
+/** Soft-archive idle bids after this (NY wall clock vs updated_at). */
+const BID_ARCHIVE_IDLE_HOURS = 12;
+/** Hard-delete archived bids after this (NY wall clock vs updated_at). */
+const BID_PURGE_ARCHIVED_DAYS = 15;
+const BID_PURGE_ARCHIVED_HOURS = BID_PURGE_ARCHIVED_DAYS * 24;
 function normalizeBidRateRoute(route: RoutePointDto[]): RoutePointDto[] {
 	return route.map((point) => ({
 		type: point.type,
@@ -191,9 +196,11 @@ export class BidRatesService {
 		const safePage = Math.max(1, Number(page) || 1);
 		const safeLimit = Math.max(1, Math.min(100, Number(limit) || 10));
 		const skip = (safePage - 1) * safeLimit;
+		const listWhere = { isArchive: false };
 
 		const [rows, totalCount] = await Promise.all([
 			this.prisma.bidRate.findMany({
+				where: listWhere,
 				orderBy: { createdAt: 'desc' },
 				skip,
 				take: safeLimit,
@@ -207,7 +214,7 @@ export class BidRatesService {
 					},
 				},
 			}),
-			this.prisma.bidRate.count(),
+			this.prisma.bidRate.count({ where: listWhere }),
 		]);
 
 		const totalPages = Math.max(1, Math.ceil(totalCount / safeLimit));
@@ -385,6 +392,95 @@ export class BidRatesService {
 			deletedChatId: chatId,
 			participantIds,
 			deletedByUserId,
+		};
+	}
+
+	/**
+	 * Soft-archive idle bids: is_archive=false and updated_at older than 12h (NY wall clock).
+	 * Bumping updated_at on archive starts the 15-day purge clock.
+	 */
+	async archiveStaleBidRates(): Promise<{ archivedCount: number }> {
+		const cutoff = getNyWallClockHoursAgo(BID_ARCHIVE_IDLE_HOURS);
+		const result = await this.prisma.bidRate.updateMany({
+			where: {
+				isArchive: false,
+				updatedAt: { lt: cutoff },
+			},
+			data: {
+				isArchive: true,
+				updatedAt: nowInNewYorkAsNaiveDate(),
+			},
+		});
+		return { archivedCount: result.count };
+	}
+
+	/**
+	 * Hard-delete archived bids whose updated_at is older than 15 days (NY),
+	 * including linked BID chats (no cloud message archive).
+	 */
+	async purgeExpiredArchivedBidRates(): Promise<{
+		deletedBidRates: number;
+		deletedChats: Array<{ chatId: string; participantIds: string[] }>;
+	}> {
+		const cutoff = getNyWallClockHoursAgo(BID_PURGE_ARCHIVED_HOURS);
+		const rows = await this.prisma.bidRate.findMany({
+			where: {
+				isArchive: true,
+				updatedAt: { lt: cutoff },
+			},
+			select: {
+				id: true,
+				chatId: true,
+				chatRoom: {
+					select: {
+						id: true,
+						participants: { select: { userId: true } },
+					},
+				},
+			},
+		});
+
+		if (rows.length === 0) {
+			return { deletedBidRates: 0, deletedChats: [] };
+		}
+
+		const deletedChats: Array<{ chatId: string; participantIds: string[] }> =
+			[];
+		const bidIds = rows.map((r) => r.id);
+		const chatIds = [
+			...new Set(
+				rows
+					.map((r) => r.chatId)
+					.filter((id): id is string => typeof id === 'string' && id.length > 0),
+			),
+		];
+
+		for (const row of rows) {
+			if (!row.chatId) continue;
+			deletedChats.push({
+				chatId: row.chatId,
+				participantIds: [
+					...new Set(
+						(row.chatRoom?.participants ?? []).map((p) => p.userId),
+					),
+				],
+			});
+		}
+
+		await this.prisma.$transaction(async (tx) => {
+			await tx.bidRate.deleteMany({
+				where: { id: { in: bidIds } },
+			});
+			if (chatIds.length > 0) {
+				await tx.chatRoom.deleteMany({
+					where: { id: { in: chatIds } },
+				});
+			}
+		});
+
+		return {
+			deletedBidRates: bidIds.length,
+			deletedChats,
 		};
 	}
 
