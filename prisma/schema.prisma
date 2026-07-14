@@ -321,6 +321,7 @@ model BidRateParticipant {
   @@unique([userId, bidRateId])
   @@index([userId])
   @@index([bidRateId])
+  @@index([bidRateId, createdAt])
   @@map("bid_rate_participants")
 }
 
