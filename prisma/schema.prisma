@@ -294,6 +294,7 @@ model BidRate {
   ownerId      String               @map("owner")
   chatId       String?              @map("chat_id")
   route        Json? // array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
+  isArchive    Boolean              @default(false) @map("is_archive")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
   owner        User                 @relation("BidRateOwner", fields: [ownerId], references: [id], onDelete: Restrict)

@@ -157,6 +157,7 @@ export class BidRatesService {
 		ownerId: string;
 		chatId: string | null;
 		route: Prisma.JsonValue;
+		isArchive: boolean;
 		createdAt: Date;
 		updatedAt: Date;
 		owner?: {
@@ -173,6 +174,7 @@ export class BidRatesService {
 			ownerId: row.ownerId,
 			chatId: row.chatId,
 			route: row.route,
+			isArchive: row.isArchive,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 			owner: row.owner
