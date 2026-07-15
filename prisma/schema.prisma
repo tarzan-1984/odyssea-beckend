@@ -290,6 +290,7 @@ model BidRate {
   id           Int                  @id @default(autoincrement())
   broker       String
   rate         Float
+  newPrice     Float?               @map("new_price")
   status       BidRateStatus        @default(in_process)
   ownerId      String               @map("owner")
   chatId       String?              @map("chat_id")

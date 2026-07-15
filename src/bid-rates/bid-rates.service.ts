@@ -158,6 +158,7 @@ export class BidRatesService {
 		id: number;
 		broker: string;
 		rate: number;
+		newPrice: number | null;
 		status: string;
 		ownerId: string;
 		chatId: string | null;
@@ -176,6 +177,7 @@ export class BidRatesService {
 			id: row.id,
 			broker: row.broker,
 			rate: row.rate,
+			newPrice: row.newPrice,
 			status: row.status,
 			ownerId: row.ownerId,
 			chatId: row.chatId,
@@ -593,11 +595,26 @@ export class BidRatesService {
 	async joinByChatId(chatRoomId: string, userId: string) {
 		const bidRate = await this.prisma.bidRate.findFirst({
 			where: { chatId: chatRoomId },
-			select: { id: true },
+			select: { id: true, ownerId: true },
 		});
 
 		if (!bidRate) {
 			throw new NotFoundException('Bid rate not found for this chat');
+		}
+
+		if (bidRate.ownerId === userId) {
+			const user = await this.prisma.user.findUnique({
+				where: { id: userId },
+				select: { externalId: true },
+			});
+			const isAdmin83Exception =
+				this.normalizeExternalId(user?.externalId) ===
+				BID_CHAT_HIDDEN_ADMIN_EXTERNAL_ID;
+			if (!isAdmin83Exception) {
+				throw new ForbiddenException(
+					'Bid creator cannot join their own bid with +1',
+				);
+			}
 		}
 
 		const chatMembership = await this.prisma.chatRoomParticipant.findUnique({
