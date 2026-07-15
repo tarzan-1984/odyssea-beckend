@@ -217,43 +217,91 @@ export class LoadChatController {
 	@Post('update')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
-		summary: 'Update LOAD chat participants by load_id',
+		summary: 'Ensure LOAD chats exist for each driver (TMS)',
 		description:
-			'Finds LOAD chat by load_id and syncs participants with the provided list. Hidden participants (hideParticipant=true) remain unchanged.',
+			'Same as POST /update_load_chat: creates missing per-driver LOAD chats; existing load+driver chats are left untouched.',
 	})
-	@ApiResponse({ status: 200, description: 'Participants updated successfully' })
+	@ApiResponse({ status: 200, description: 'LOAD chats ensured for requested drivers' })
 	async updateLoadChat(@Body() dto: UpdateLoadChatDto) {
-		const result = await this.chatRoomsService.updateLoadChatParticipants(dto);
+		const outcome = await this.chatRoomsService.updateLoadChatParticipants(dto);
 
-		// Emit WebSocket events for added and removed participants
-		const { chatRoomId, newParticipants, addedUserIds, removedUserIds, notFoundExternalIds } = result;
+		for (const result of outcome.results) {
+			for (const deleted of result.hardDeletedChats) {
+				for (const userId of deleted.notifyUserIds) {
+					this.chatGateway.server.to(`user_${userId}`).emit('chatRoomDeleted', {
+						chatRoomId: deleted.chatRoomId,
+						deletedBy: 'system',
+					});
+				}
+			}
 
-		if (addedUserIds.length > 0 && newParticipants.length > 0) {
-			this.chatGateway.server
-				.to(`chat_${chatRoomId}`)
-				.emit('participantsAdded', { chatRoomId, newParticipants, addedBy: 'system' });
-			for (const userId of addedUserIds) {
-				const socketId = this.chatGateway['userSockets']?.get?.(userId);
-				if (socketId) {
+			if (result.kind === 'noop' || !result.chatRoom) {
+				continue;
+			}
+
+			if (result.kind === 'converted' && result.conversionParticipantEvents) {
+				const { chatRoomId, newParticipants, addedUserIds, removedUserIds } =
+					result.conversionParticipantEvents;
+
+				if (addedUserIds.length > 0 && newParticipants.length > 0) {
+					this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
+						chatRoomId,
+						newParticipants,
+						addedBy: 'system',
+					});
+					for (const userId of addedUserIds) {
+						const socketId = this.chatGateway['userSockets']?.get?.(userId);
+						if (socketId) {
+							this.chatGateway.server
+								.to(socketId)
+								.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+						}
+					}
+				}
+
+				for (const removedId of removedUserIds) {
+					this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantRemoved', {
+						chatRoomId,
+						removedUserId: removedId,
+						removedBy: 'system',
+					});
+					const socketId = this.chatGateway['userSockets']?.get?.(removedId);
+					if (socketId) {
+						this.chatGateway.server
+							.to(socketId)
+							.emit('removedFromChatRoom', { chatRoomId, removedBy: 'system' });
+					}
+				}
+
+				if (result.chatRoom.participants?.length) {
+					const updatedAt = new Date().toISOString();
+					for (const participant of result.chatRoom.participants) {
+						this.chatGateway.server
+							.to(`user_${participant.userId}`)
+							.emit('chatRoomUpdated', {
+								chatRoomId: result.chatRoom.id,
+								updatedChatRoom: result.chatRoom,
+								updatedBy: 'system',
+								updatedAt,
+							});
+					}
+				}
+			} else if (result.kind === 'created' && result.chatRoom.participants?.length) {
+				for (const participant of result.chatRoom.participants) {
 					this.chatGateway.server
-						.to(socketId)
-						.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+						.to(`user_${participant.userId}`)
+						.emit('chatRoomCreated', result.chatRoom);
 				}
 			}
 		}
 
-		for (const removedId of removedUserIds) {
-			this.chatGateway.server
-				.to(`chat_${chatRoomId}`)
-				.emit('participantRemoved', { chatRoomId, removedUserId: removedId, removedBy: 'system' });
-			const socketId = this.chatGateway['userSockets']?.get?.(removedId);
-			if (socketId) {
-				this.chatGateway.server
-					.to(socketId)
-					.emit('removedFromChatRoom', { chatRoomId, removedBy: 'system' });
-			}
-		}
-
-		return { updated: true, chatRoomId, addedUserIds, removedUserIds, notFoundExternalIds };
+		return {
+			updated: true,
+			createdCount: outcome.created.length,
+			existingCount: outcome.existing.length,
+			createdChatRoomIds: outcome.created.map((r) => r.chatRoom?.id),
+			existingChatRoomIds: outcome.existing.map((r) => r.chatRoom?.id),
+			chats: outcome.chats,
+		};
 	}
 }

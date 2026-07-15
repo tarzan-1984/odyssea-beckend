@@ -24,9 +24,7 @@ import {
 	ExternalIdRoleRequiredError,
 	findSingleUserByExternalIdAndParticipantRole,
 	isDriverUserRole,
-	participantRoleCategoryKey,
 	resolveParticipantUser,
-	userRoleCategoryKey,
 	userWhereDriverByExternalId,
 	userWhereDriversByExternalIds,
 } from '../users/user-external-id-lookup.util';
@@ -56,6 +54,13 @@ export type CreateLoadChatResult = {
 		addedUserIds: string[];
 		removedUserIds: string[];
 	};
+};
+
+export type UpdateLoadChatResult = {
+	results: CreateLoadChatResult[];
+	created: CreateLoadChatResult[];
+	existing: CreateLoadChatResult[];
+	chats: any[];
 };
 
 export type CreateChatRoomResult = {
@@ -2457,207 +2462,93 @@ export class ChatRoomsService {
 	}
 
 	/**
-	 * Update LOAD chat participants by load_id
-	 * - Roles from payload are case-insensitive
-	 * - Hidden participants (hideParticipant=true) remain untouched
-	 * - Adds missing participants and removes those not in the new list
+	 * Ensure one LOAD chat per driver in the request (same rules as create_load_chat).
+	 * Drivers that already have a LOAD chat for this load_id are left untouched.
+	 * Missing per-driver chats are created with shared non-driver participants.
 	 */
-	async updateLoadChatParticipants(updateDto: UpdateLoadChatDto) {
-		const loadId = updateDto.load_id;
+	async updateLoadChatParticipants(
+		updateDto: UpdateLoadChatDto,
+	): Promise<UpdateLoadChatResult> {
+		const loadId = updateDto.load_id?.trim();
+		if (!loadId) {
+			throw new BadRequestException('load_id is required');
+		}
 
-		// Find chat room by loadId and type LOAD
-		const chatRoom = await this.prisma.chatRoom.findFirst({
-			where: { loadId: loadId, type: 'LOAD' },
-			orderBy: { createdAt: 'desc' },
-			include: {
-				participants: {
-					include: { user: { select: { id: true, externalId: true, role: true } } },
-				},
+		const existingLoadChats = await this.prisma.chatRoom.findMany({
+			where: { loadId, type: 'LOAD' },
+			orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
+			select: {
+				id: true,
+				name: true,
+				company: true,
 			},
 		});
 
-		if (!chatRoom) {
-			throw new NotFoundException('LOAD chat with specified load_id not found');
+		const template = existingLoadChats[0];
+		const title =
+			updateDto.title?.trim() ||
+			this.stripLoadChatDriverSuffix(template?.name) ||
+			'';
+		const companyRaw = updateDto.company ?? template?.company ?? null;
+		const allowedCompanies = ['Odysseia', 'Martlet', 'Endurance'] as const;
+		const company = allowedCompanies.includes(
+			companyRaw as (typeof allowedCompanies)[number],
+		)
+			? (companyRaw as (typeof allowedCompanies)[number])
+			: null;
+
+		if (!title) {
+			throw new BadRequestException(
+				'title is required when no existing LOAD chat is available for this load_id',
+			);
+		}
+		if (!company) {
+			throw new BadRequestException(
+				'company is required when no existing LOAD chat is available for this load_id',
+			);
 		}
 
-		// Map current participants by externalId + role category (skip hidden ones)
-		const visibleParticipants = chatRoom.participants.filter(
-			(p: any) => p.hideParticipant !== true,
+		this.logger.log(
+			`[update_load_chat] Ensuring LOAD chats per driver: ${JSON.stringify({
+				load_id: loadId,
+				title,
+				company,
+				existingLoadChatCount: existingLoadChats.length,
+				participants: updateDto.participants,
+			})}`,
 		);
 
-		// Resolve incoming external IDs to user IDs using payload role (DRIVER vs employee).
-		const incomingUsers: Array<{ id: string; externalId: string; role: string }> = [];
-		const foundParticipantKeys = new Set<string>();
-		const incomingByCategoryKey = new Map<string, string>();
-
-		for (const participant of updateDto.participants) {
-			const extId = participant.id?.trim();
-			if (!extId) continue;
-
-			let user: { id: string; externalId: string | null; role: string } | null;
-			try {
-				user = await findSingleUserByExternalIdAndParticipantRole(
-					this.prisma,
-					extId,
-					participant.role,
-					{ id: true, externalId: true, role: true },
-				);
-			} catch (error) {
-				this.mapExternalIdLookupError(error);
-			}
-
-			if (!user?.externalId) continue;
-
-			const categoryKey = participantRoleCategoryKey(extId, participant.role);
-			foundParticipantKeys.add(categoryKey);
-			incomingByCategoryKey.set(categoryKey, user.id);
-
-			if (!incomingUsers.some((row) => row.id === user!.id)) {
-				incomingUsers.push({
-					id: user.id,
-					externalId: user.externalId,
-					role: user.role,
-				});
-			}
-		}
-		const notFoundExternalIds = updateDto.participants
-			.filter(
-				(participant) =>
-					!foundParticipantKeys.has(
-						participantRoleCategoryKey(participant.id, participant.role),
-					),
-			)
-			.map((participant) => participant.id);
-
-		// Determine users to add and to remove
-		const incomingUserIds = new Set<string>(incomingUsers.map((u) => u.id));
-		const currentUserIds = new Set<string>(visibleParticipants.map((p: any) => p.userId));
-
-		const toAdd: string[] = [];
-		for (const uid of incomingUserIds) {
-			if (!currentUserIds.has(uid)) toAdd.push(uid);
-		}
-
-		const toRemove: string[] = [];
-		const toRemoveSet = new Set<string>();
-		for (const uid of currentUserIds) {
-			if (!incomingUserIds.has(uid)) {
-				toRemove.push(uid);
-				toRemoveSet.add(uid);
-			}
-		}
-
-		// Drop stale visible participants that share externalId+category with incoming list
-		for (const participant of visibleParticipants) {
-			const externalId = participant.user?.externalId?.trim();
-			const userRole = participant.user?.role;
-			if (!externalId || !userRole) continue;
-
-			const categoryKey = userRoleCategoryKey(externalId, userRole);
-			const expectedUserId = incomingByCategoryKey.get(categoryKey);
-			if (
-				expectedUserId &&
-				expectedUserId !== participant.userId &&
-				!toRemoveSet.has(participant.userId)
-			) {
-				toRemove.push(participant.userId);
-				toRemoveSet.add(participant.userId);
-			}
-		}
-
-		// Preserve original participants list for notifications (before changes)
-		const originalParticipants = chatRoom.participants.map((p: any) => ({ userId: p.userId }));
-
-		// Apply changes in a transaction
-		const joinedAt = newParticipantJoinedAt();
-
-		await this.prisma.$transaction(async (tx) => {
-			if (toAdd.length > 0) {
-				await tx.chatRoomParticipant.createMany({
-					data: toAdd.map((userId) => ({
-						chatRoomId: chatRoom.id,
-						userId,
-						joinedAt,
-					})),
-				});
-			}
-
-			for (const userId of toRemove) {
-				await tx.chatRoomParticipant.delete({
-					where: { chatRoomId_userId: { chatRoomId: chatRoom.id, userId } },
-				});
-			}
+		const results = await this.createLoadChat({
+			load_id: loadId,
+			title,
+			company,
+			participants: updateDto.participants,
 		});
 
-		// Build participants payload for WebSocket events
-		const newParticipants = toAdd.length
-			? await this.prisma.chatRoomParticipant.findMany({
-				where: { chatRoomId: chatRoom.id, userId: { in: toAdd } },
-				include: {
-					user: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							role: true,
-							profilePhoto: true,
-							userColor: true,
-						},
-					},
-				},
-			})
-			: [];
+		const created = results.filter(
+			(r) => r.kind === 'created' || r.kind === 'converted',
+		);
+		const existing = results.filter((r) => r.kind === 'noop');
 
-		// Create DB notifications similar to GROUP chat behavior
-		try {
-			// Added participants notifications
-			if (toAdd.length > 0) {
-				const addedUsers = await this.prisma.user.findMany({
-					where: { id: { in: toAdd } },
-					select: { id: true, firstName: true, lastName: true },
-				});
-
-				const allParticipantsAfterAdd = [
-					...originalParticipants,
-					...toAdd.map((id) => ({ userId: id })),
-				];
-
-				await this.notificationsService.createParticipantsAddedNotifications(
-					addedUsers,
-					{ id: chatRoom.id, name: chatRoom.name, avatar: chatRoom.avatar },
-					allParticipantsAfterAdd,
-					'system',
-				);
-			}
-
-			// Removed participants notifications (notify all including removed, exclude none)
-			if (toRemove.length > 0) {
-				for (const removedId of toRemove) {
-					const removedUser = await this.prisma.user.findUnique({
-						where: { id: removedId },
-						select: { id: true, firstName: true, lastName: true },
-					});
-					if (removedUser) {
-						await this.notificationsService.createParticipantRemovedNotifications(
-							removedUser,
-							{ id: chatRoom.id, name: chatRoom.name, avatar: chatRoom.avatar },
-							originalParticipants, // before removal includes the removed one
-							'system',
-						);
-					}
-				}
-			}
-		} catch (e) {
-			// Do not block update on notification errors
-			console.error('Failed to create notifications for LOAD chat update:', e);
-		}
+		this.logger.log(
+			`[update_load_chat] Completed: created=${created.length}, existingUntouched=${existing.length}, chatRoomIds=${results
+				.map((r) => r.chatRoom?.id ?? 'n/a')
+				.join(',')}`,
+		);
 
 		return {
-			chatRoomId: chatRoom.id,
-			addedUserIds: toAdd,
-			removedUserIds: toRemove,
-			newParticipants,
-			notFoundExternalIds,
+			results,
+			created,
+			existing,
+			chats: results.map((r) => r.chatRoom),
 		};
+	}
+
+	/** Remove trailing "(externalId First Last)" suffix from a LOAD chat title. */
+	private stripLoadChatDriverSuffix(name: string | null | undefined): string {
+		return String(name ?? '')
+			.trim()
+			.replace(/\s*\([^)]*\)\s*$/, '')
+			.trim();
 	}
 }
