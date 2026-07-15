@@ -162,6 +162,7 @@ export class BidRatesService {
 		ownerId: string;
 		chatId: string | null;
 		route: Prisma.JsonValue;
+		distance: number | null;
 		isArchive: boolean;
 		createdAt: Date;
 		updatedAt: Date;
@@ -179,6 +180,7 @@ export class BidRatesService {
 			ownerId: row.ownerId,
 			chatId: row.chatId,
 			route: row.route,
+			distance: row.distance,
 			isArchive: row.isArchive,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
@@ -238,6 +240,7 @@ export class BidRatesService {
 
 		const broker = dto.broker.trim();
 		const rate = dto.rate;
+		const distance = dto.distance;
 		const routeJson = normalizedRoute as unknown as Prisma.InputJsonValue;
 		const { pickUp, delivery } = getRouteEndpoints(normalizedRoute);
 		const chatName =
@@ -304,6 +307,7 @@ export class BidRatesService {
 					route: routeJson,
 					broker,
 					rate,
+					distance,
 					ownerId: creatorId,
 					chatId: chatRoom.id,
 					createdAt: roomTimestamps.createdAt,

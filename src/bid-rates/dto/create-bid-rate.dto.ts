@@ -32,4 +32,13 @@ export class CreateBidRateDto {
 	@IsNumber()
 	@Min(0)
 	rate: number;
+
+	@ApiProperty({
+		description: 'Route distance in miles (auto-calculated or manually overridden)',
+		example: 425,
+	})
+	@Type(() => Number)
+	@IsNumber()
+	@Min(0)
+	distance: number;
 }
