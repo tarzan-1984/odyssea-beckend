@@ -944,6 +944,41 @@ export class ChatGateway
 	}
 
 	/**
+	 * Notify chat participants that a bid rate card should refresh.
+	 * Prefer user rooms (always joined on connect); also emit to chat room if joined.
+	 */
+	notifyBidRateUpdated(payload: {
+		bidRateId: number;
+		chatRoomId: string | null;
+		reason: string;
+		participantIds: string[];
+		bidRate?: unknown;
+	}) {
+		const eventPayload = {
+			bidRateId: payload.bidRateId,
+			chatRoomId: payload.chatRoomId,
+			reason: payload.reason,
+			bidRate: payload.bidRate ?? null,
+			refreshedAt: new Date().toISOString(),
+		};
+
+		if (payload.chatRoomId) {
+			void this.server
+				.to(`chat_${payload.chatRoomId}`)
+				.emit('bidRateUpdated', eventPayload);
+		}
+
+		const notified = new Set<string>();
+		for (const participantId of payload.participantIds) {
+			if (!participantId || notified.has(participantId)) continue;
+			notified.add(participantId);
+			void this.server
+				.to(`user_${participantId}`)
+				.emit('bidRateUpdated', eventPayload);
+		}
+	}
+
+	/**
 	 * Notify all participants about a new chat room created via HTTP API
 	 * This method is called from the HTTP controller to send WebSocket notifications
 	 */

@@ -38,7 +38,11 @@ export class BidRatesController {
 	) {}
 
 	@Get()
-	@ApiOperation({ summary: 'List bid rates with owner and route' })
+	@ApiOperation({
+		summary: 'List bid rates with owner and route',
+		description:
+			'Returns non-archived bids whose linked chat includes the current user as a participant.',
+	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
 	@ApiResponse({ status: 200, description: 'Bid rates list' })
@@ -53,6 +57,7 @@ export class BidRatesController {
 		}
 
 		return this.bidRatesService.findAll(
+			req.user.id,
 			page ? Number(page) : 1,
 			limit ? Number(limit) : 10,
 		);

@@ -7,6 +7,7 @@ import {
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ChatGateway } from '../chats/chat.gateway';
 import {
 	newChatRoomTimestamps,
 	newParticipantJoinedAt,
@@ -108,10 +109,67 @@ export class BidRatesService {
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly notificationsService: NotificationsService,
+		private readonly chatGateway: ChatGateway,
 	) {}
 
 	private normalizeExternalId(externalId: string | null | undefined): string {
 		return String(externalId ?? '').trim();
+	}
+
+	private async resolveChatParticipantIds(
+		chatId: string | null | undefined,
+	): Promise<string[]> {
+		if (!chatId) return [];
+		const rows = await this.prisma.chatRoomParticipant.findMany({
+			where: { chatRoomId: chatId },
+			select: { userId: true },
+		});
+		return [...new Set(rows.map((row) => row.userId))];
+	}
+
+	private notifyBidRateUpdated(params: {
+		bidRateId: number;
+		chatRoomId: string | null;
+		reason: string;
+		participantIds: string[];
+		bidRate?: unknown;
+	}) {
+		this.chatGateway.notifyBidRateUpdated(params);
+	}
+
+	private async notifyBidRateChangedById(
+		bidRateId: number,
+		reason: string,
+		bidRate?: unknown,
+	) {
+		const row = await this.prisma.bidRate.findUnique({
+			where: { id: bidRateId },
+			select: {
+				id: true,
+				chatId: true,
+				chatRoom: {
+					select: {
+						participants: { select: { userId: true } },
+					},
+				},
+			},
+		});
+
+		if (!row) return;
+
+		const participantIds = [
+			...new Set(
+				(row.chatRoom?.participants ?? []).map((p) => p.userId),
+			),
+		];
+
+		this.notifyBidRateUpdated({
+			bidRateId: row.id,
+			chatRoomId: row.chatId,
+			reason,
+			participantIds,
+			bidRate,
+		});
 	}
 
 	private async resolveBidChatParticipants(): Promise<BidChatParticipant[]> {
@@ -197,11 +255,21 @@ export class BidRatesService {
 		};
 	}
 
-	async findAll(page = 1, limit = 10) {
+	async findAll(requesterId: string, page = 1, limit = 10) {
 		const safePage = Math.max(1, Number(page) || 1);
 		const safeLimit = Math.max(1, Math.min(100, Number(limit) || 10));
 		const skip = (safePage - 1) * safeLimit;
-		const listWhere = { isArchive: false };
+		// Only bids whose linked chat includes the requester as a participant.
+		const listWhere = {
+			isArchive: false,
+			chatRoom: {
+				participants: {
+					some: {
+						userId: requesterId,
+					},
+				},
+			},
+		};
 
 		const [rows, totalCount] = await Promise.all([
 			this.prisma.bidRate.findMany({
@@ -343,6 +411,13 @@ export class BidRatesService {
 			console.error('Failed to create bid chat notifications:', error);
 		}
 
+		this.notifyBidRateUpdated({
+			bidRateId: bidRate.id,
+			chatRoomId: chatRoom?.id ?? null,
+			reason: 'created',
+			participantIds,
+		});
+
 		return {
 			bidRate,
 			chatRoom,
@@ -380,6 +455,13 @@ export class BidRatesService {
 				(bidRate.chatRoom?.participants ?? []).map((p) => p.userId),
 			),
 		];
+
+		this.notifyBidRateUpdated({
+			bidRateId: id,
+			chatRoomId: chatId,
+			reason: 'deleted',
+			participantIds,
+		});
 
 		await this.prisma.$transaction(async (tx) => {
 			await tx.bidRate.delete({
@@ -555,7 +637,9 @@ export class BidRatesService {
 			},
 		});
 
-		return this.mapBidRate(updated);
+		const mapped = this.mapBidRate(updated);
+		await this.notifyBidRateChangedById(id, 'timer_extended', mapped);
+		return mapped;
 	}
 
 	/**
@@ -611,7 +695,13 @@ export class BidRatesService {
 			},
 		});
 
-		return this.mapBidRate(updated);
+		const mapped = this.mapBidRate(updated);
+		await this.notifyBidRateChangedById(
+			id,
+			hasParticipants ? 'new_price_updated' : 'rate_updated',
+			mapped,
+		);
+		return mapped;
 	}
 
 	/**
@@ -728,6 +818,14 @@ export class BidRatesService {
 					createdAt: now,
 					updatedAt: now,
 				},
+			});
+
+			const participantIds = await this.resolveChatParticipantIds(chatRoomId);
+			this.notifyBidRateUpdated({
+				bidRateId: bidRate.id,
+				chatRoomId,
+				reason: 'participant_joined',
+				participantIds,
 			});
 
 			return {
@@ -912,6 +1010,14 @@ export class BidRatesService {
 				createdAt: true,
 				updatedAt: true,
 			},
+		});
+
+		const participantIds = await this.resolveChatParticipantIds(chatRoomId);
+		this.notifyBidRateUpdated({
+			bidRateId: bidRate.id,
+			chatRoomId,
+			reason: 'participant_timer_extended',
+			participantIds,
 		});
 
 		return {
