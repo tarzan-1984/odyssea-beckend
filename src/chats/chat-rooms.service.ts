@@ -2,6 +2,7 @@ import {
 	BadRequestException,
 	Injectable,
 	InternalServerErrorException,
+	Logger,
 	NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -81,6 +82,8 @@ type PrismaClientLike = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class ChatRoomsService {
+	private readonly logger = new Logger(ChatRoomsService.name);
+
 	constructor(
 		private prisma: PrismaService,
 		private notificationsService: NotificationsService,
@@ -2263,6 +2266,26 @@ export class ChatRoomsService {
 							})
 						: [];
 
+				this.logger.log(
+					`[create_load_chat] OFFER→LOAD CONVERTED ${JSON.stringify({
+						chatRoomId: convertOutcome.chatRoom.id,
+						loadId: load_id,
+						title: chatName,
+						titleFromRequest: title,
+						company,
+						driver: {
+							userId: driver.id,
+							externalId: driver.externalId ?? driver.requestExternalId,
+							firstName: driver.firstName,
+							lastName: driver.lastName,
+						},
+						participantUserIds: desiredUnique,
+						hiddenParticipantUserIds: hiddenParticipantIds,
+						addedUserIds: convertOutcome.toAdd,
+						removedUserIds: toRemove,
+					})}`,
+				);
+
 				results.push({
 					chatRoom: convertOutcome.chatRoom,
 					kind: 'converted',
@@ -2383,6 +2406,24 @@ export class ChatRoomsService {
 					});
 					continue;
 				}
+
+				this.logger.log(
+					`[create_load_chat] NEW LOAD CHAT CREATED ${JSON.stringify({
+						chatRoomId: outcome.chatRoom.id,
+						loadId: load_id,
+						title: chatName,
+						titleFromRequest: title,
+						company,
+						driver: {
+							userId: driver.id,
+							externalId: driver.externalId ?? driver.requestExternalId,
+							firstName: driver.firstName,
+							lastName: driver.lastName,
+						},
+						participantUserIds: desiredUnique,
+						hiddenParticipantUserIds: hiddenParticipantIds,
+					})}`,
+				);
 
 				results.push({
 					chatRoom: outcome.chatRoom,
