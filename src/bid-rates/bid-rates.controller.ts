@@ -6,6 +6,7 @@ import {
 	Get,
 	Param,
 	ParseIntPipe,
+	Patch,
 	Post,
 	Query,
 	Request,
@@ -24,6 +25,7 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { ChatGateway } from '../chats/chat.gateway';
 import { BidRatesService } from './bid-rates.service';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
+import { UpdateBidRatePriceDto } from './dto/update-bid-rate-price.dto';
 
 @ApiTags('Bid rates')
 @ApiBearerAuth()
@@ -190,6 +192,27 @@ export class BidRatesController {
 		}
 
 		return this.bidRatesService.extendTime(id, req.user.id);
+	}
+
+	@Patch(':id/new-price')
+	@ApiOperation({
+		summary: 'Update bid price',
+		description:
+			'Creator only. Writes to rate if no +1 participants exist; otherwise writes to new_price.',
+	})
+	@ApiResponse({ status: 200, description: 'Bid price updated' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async updateNewPrice(
+		@Param('id', ParseIntPipe) id: number,
+		@Body() dto: UpdateBidRatePriceDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.updateNewPrice(id, req.user.id, dto);
 	}
 
 	@Get(':id/participants')

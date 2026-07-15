@@ -15,6 +15,7 @@ import {
 } from '../common/utils/ny-wall-clock';
 import { getRouteEndpoints } from '../offers/offer-route.util';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
+import { UpdateBidRatePriceDto } from './dto/update-bid-rate-price.dto';
 import { RoutePointDto } from '../offers/dto/create-offer.dto';
 
 const BID_TIMER_MS = 15 * 60 * 1000;
@@ -542,6 +543,62 @@ export class BidRatesService {
 			where: { id },
 			data: {
 				updatedAt: nextUpdatedAt,
+			},
+			include: {
+				owner: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+					},
+				},
+			},
+		});
+
+		return this.mapBidRate(updated);
+	}
+
+	/**
+	 * Updates bid price for the creator.
+	 * If nobody joined via +1 (no bid_rate_participants), writes to `rate`.
+	 * If at least one participant exists, writes to `new_price`.
+	 * Preserves updated_at so the bid timer is not affected.
+	 */
+	async updateNewPrice(
+		id: number,
+		requesterId: string,
+		dto: UpdateBidRatePriceDto,
+	) {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				ownerId: true,
+				updatedAt: true,
+			},
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
+		}
+
+		if (bidRate.ownerId !== requesterId) {
+			throw new ForbiddenException('Only the bid creator can update the price');
+		}
+
+		const participantCount = await this.prisma.bidRateParticipant.count({
+			where: { bidRateId: id },
+		});
+		const hasParticipants = participantCount > 0;
+
+		const updated = await this.prisma.bidRate.update({
+			where: { id },
+			data: {
+				...(hasParticipants
+					? { newPrice: dto.newPrice }
+					: { rate: dto.newPrice }),
+				// Keep timer stable: @updatedAt would otherwise bump on write.
+				updatedAt: bidRate.updatedAt,
 			},
 			include: {
 				owner: {
