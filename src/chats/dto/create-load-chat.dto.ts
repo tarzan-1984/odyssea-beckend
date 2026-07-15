@@ -27,8 +27,9 @@ export class CreateLoadChatDto {
 	load_id: string;
 
 	@ApiProperty({
-		description: 'Chat title',
-		example: 'Load #12345 Discussion',
+		description:
+			'Chat title base. Stored as `{title} ({driverExternalId} {firstName} {lastName})` per driver chat.',
+		example: '160134 Aurora IL - MISSISSAUGA, ON',
 	})
 	@IsString()
 	title: string;
@@ -42,10 +43,12 @@ export class CreateLoadChatDto {
 	company: 'Odysseia' | 'Martlet' | 'Endurance';
 
 	@ApiProperty({
-		description: 'Array of participants with their IDs and roles',
+		description:
+			'Participants. Every DRIVER gets their own LOAD chat for this load_id (reuse if that load+driver chat already exists). Non-drivers are copied into each chat.',
 		type: [ParticipantDto],
 		example: [
 			{ id: 'ext_driver_1', role: 'DRIVER' },
+			{ id: 'ext_driver_2', role: 'DRIVER' },
 			{ id: 'ext_dispatcher_1', role: 'DISPATCHER' },
 		],
 	})

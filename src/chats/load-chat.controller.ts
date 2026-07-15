@@ -24,40 +24,28 @@ export class LoadChatController {
 	@Post()
 	@HttpCode(HttpStatus.CREATED)
 	@ApiOperation({
-		summary: 'Create a LOAD chat',
+		summary: 'Create LOAD chat(s) — one per driver',
 		description:
-			'Creates a new LOAD chat with external participants. Verifies driver exists and is active, then creates chat with all valid participants plus ADMINISTRATOR users (hidden).',
+			'Creates a LOAD chat per driver in participants. Reuses an existing chat for the same load_id + driver. Non-driver participants are shared across chats. Title is appended with `(externalId FirstName LastName)`.',
 	})
 	@ApiResponse({
 		status: 201,
-		description: 'Load chat created successfully',
+		description: 'Load chat(s) created or reused successfully',
 		schema: {
 			example: {
-				id: 'chat_room_xyz',
-				name: 'Load #12345 Discussion',
-				type: 'LOAD',
-				loadId: 'load_12345',
-				company: 'Odysseia',
-				avatar: null,
-				isArchived: false,
-				adminId: null,
-				createdAt: '2025-10-19T18:00:00.000Z',
-				updatedAt: '2025-10-19T18:00:00.000Z',
-				participants: [
+				chats: [
 					{
-						id: 'participant_1',
-						userId: 'driver_user_id',
-						chatRoomId: 'chat_room_xyz',
-						joinedAt: '2025-10-19T18:00:00.000Z',
-						isHidden: false,
-						user: {
-							id: 'driver_user_id',
-							firstName: 'John',
-							lastName: 'Doe',
-							email: 'john@example.com',
-							role: 'DRIVER',
-							profilePhoto: null,
-						},
+						id: 'chat_room_xyz',
+						name: 'Load #12345 Discussion (ext_driver_1 John Doe)',
+						type: 'LOAD',
+						loadId: 'load_12345',
+						company: 'Odysseia',
+						avatar: null,
+						isArchived: false,
+						adminId: null,
+						createdAt: '2025-10-19T18:00:00.000Z',
+						updatedAt: '2025-10-19T18:00:00.000Z',
+						participants: [],
 					},
 				],
 			},
@@ -80,15 +68,36 @@ export class LoadChatController {
 			})}`,
 		);
 
-		const result: CreateLoadChatResult =
+		const results: CreateLoadChatResult[] =
 			await this.chatRoomsService.createLoadChat(createLoadChatDto);
 
-		const chatRoom = result.chatRoom;
 		this.logger.log(
-			`[create_load_chat] Completed: kind=${result.kind}, success=true, loadId=${chatRoom?.loadId ?? createLoadChatDto.load_id}, chatRoomId=${chatRoom?.id ?? 'n/a'}, participantCount=${chatRoom?.participants?.length ?? 0}, hardDeletedOfferChats=${result.hardDeletedChats.length}`,
+			`[create_load_chat] Completed: count=${results.length}, kinds=${results
+				.map((r) => r.kind)
+				.join(',')}, loadId=${createLoadChatDto.load_id}, chatRoomIds=${results
+				.map((r) => r.chatRoom?.id ?? 'n/a')
+				.join(',')}`,
 		);
 
-		// Hard-deleted OFFER chats (same offer, non-selected drivers) — same payload as delete_load_chat
+		for (const result of results) {
+			await this.applyCreateLoadChatSideEffects(
+				result,
+				createLoadChatDto.dispatch_message,
+			);
+		}
+
+		const chats = results.map((r) => r.chatRoom);
+		// Backward compatible: single-driver requests still get the chat room object.
+		if (chats.length === 1) {
+			return chats[0];
+		}
+		return { chats };
+	}
+
+	private async applyCreateLoadChatSideEffects(
+		result: CreateLoadChatResult,
+		dispatchMessage?: string,
+	) {
 		for (const deleted of result.hardDeletedChats) {
 			for (const userId of deleted.notifyUserIds) {
 				this.chatGateway.server
@@ -101,7 +110,7 @@ export class LoadChatController {
 		}
 
 		if (result.kind === 'noop') {
-			return result.chatRoom;
+			return;
 		}
 
 		if (result.kind === 'converted' && result.conversionParticipantEvents) {
@@ -166,12 +175,7 @@ export class LoadChatController {
 			}
 		}
 
-		await this.maybeCreateDispatchSystemMessage(
-			result,
-			createLoadChatDto.dispatch_message,
-		);
-
-		return result.chatRoom;
+		await this.maybeCreateDispatchSystemMessage(result, dispatchMessage);
 	}
 
 	private async maybeCreateDispatchSystemMessage(
@@ -253,4 +257,3 @@ export class LoadChatController {
 		return { updated: true, chatRoomId, addedUserIds, removedUserIds, notFoundExternalIds };
 	}
 }
-
