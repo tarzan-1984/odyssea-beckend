@@ -217,11 +217,11 @@ export class LoadChatController {
 	@Post('update')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
-		summary: 'Ensure LOAD chats exist for each driver (TMS)',
+		summary: 'Ensure LOAD chats exist for each driver and sync non-driver participants (TMS)',
 		description:
-			'Same as POST /update_load_chat: creates missing per-driver LOAD chats; existing load+driver chats are left untouched.',
+			'Same as POST /update_load_chat: creates missing per-driver LOAD chats, then syncs non-driver participants across all LOAD chats for this load_id.',
 	})
-	@ApiResponse({ status: 200, description: 'LOAD chats ensured for requested drivers' })
+	@ApiResponse({ status: 200, description: 'LOAD chats ensured and non-driver participants synced' })
 	async updateLoadChat(@Body() dto: UpdateLoadChatDto) {
 		const outcome = await this.chatRoomsService.updateLoadChatParticipants(dto);
 
@@ -295,12 +295,61 @@ export class LoadChatController {
 			}
 		}
 
+		for (const event of outcome.staffSyncEvents) {
+			const { chatRoomId, chatRoom, newParticipants, addedUserIds, removedUserIds } =
+				event;
+
+			if (addedUserIds.length > 0 && newParticipants.length > 0) {
+				this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
+					chatRoomId,
+					newParticipants,
+					addedBy: 'system',
+				});
+				for (const userId of addedUserIds) {
+					const socketId = this.chatGateway['userSockets']?.get?.(userId);
+					if (socketId) {
+						this.chatGateway.server
+							.to(socketId)
+							.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+					}
+				}
+			}
+
+			for (const removedId of removedUserIds) {
+				this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantRemoved', {
+					chatRoomId,
+					removedUserId: removedId,
+					removedBy: 'system',
+				});
+				const socketId = this.chatGateway['userSockets']?.get?.(removedId);
+				if (socketId) {
+					this.chatGateway.server
+						.to(socketId)
+						.emit('removedFromChatRoom', { chatRoomId, removedBy: 'system' });
+				}
+			}
+
+			if (chatRoom?.participants?.length) {
+				const updatedAt = new Date().toISOString();
+				for (const participant of chatRoom.participants) {
+					this.chatGateway.server.to(`user_${participant.userId}`).emit('chatRoomUpdated', {
+						chatRoomId,
+						updatedChatRoom: chatRoom,
+						updatedBy: 'system',
+						updatedAt,
+					});
+				}
+			}
+		}
+
 		return {
 			updated: true,
 			createdCount: outcome.created.length,
 			existingCount: outcome.existing.length,
+			staffSyncedChatCount: outcome.staffSyncEvents.length,
 			createdChatRoomIds: outcome.created.map((r) => r.chatRoom?.id),
 			existingChatRoomIds: outcome.existing.map((r) => r.chatRoom?.id),
+			staffSyncedChatRoomIds: outcome.staffSyncEvents.map((e) => e.chatRoomId),
 			chats: outcome.chats,
 		};
 	}

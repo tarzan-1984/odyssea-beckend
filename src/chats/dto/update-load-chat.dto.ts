@@ -44,7 +44,7 @@ export class UpdateLoadChatDto {
 
 	@ApiProperty({
 		description:
-			'Participants. Every DRIVER without an existing LOAD chat for this load_id gets a new chat; drivers that already have a chat are left untouched. Non-drivers are copied into newly created chats.',
+			'Participants. Every DRIVER without an existing LOAD chat for this load_id gets a new chat. Non-driver participants are synced across all LOAD chats for this load_id (add missing / remove stale); drivers themselves are never added or removed by that sync.',
 		type: [UpdateParticipantDto],
 	})
 	@IsArray()

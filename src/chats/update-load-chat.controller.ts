@@ -1,6 +1,10 @@
 import { Body, Controller, HttpCode, HttpStatus, Logger, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { ChatRoomsService, CreateLoadChatResult } from './chat-rooms.service';
+import {
+	ChatRoomsService,
+	CreateLoadChatResult,
+	LoadChatStaffSyncEvent,
+} from './chat-rooms.service';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { ChatGateway } from './chat.gateway';
 
@@ -17,26 +21,78 @@ export class UpdateLoadChatController {
 	@Post()
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
-		summary: 'Ensure LOAD chats exist for each driver (TMS)',
+		summary: 'Ensure LOAD chats exist for each driver and sync non-driver participants (TMS)',
 		description:
-			'Same per-driver rules as create_load_chat: creates a LOAD chat for each driver that does not yet have one for this load_id; existing load+driver chats are left untouched. Non-driver participants are copied into newly created chats.',
+			'Same per-driver rules as create_load_chat: creates a LOAD chat for each driver that does not yet have one for this load_id. Then compares non-driver participants from the request with every LOAD chat for this load_id and adds/removes staff accordingly (drivers are never changed by this sync).',
 	})
-	@ApiResponse({ status: 200, description: 'LOAD chats ensured for requested drivers' })
+	@ApiResponse({ status: 200, description: 'LOAD chats ensured and non-driver participants synced' })
 	async update(@Body() dto: UpdateLoadChatDto) {
 		const outcome = await this.chatRoomsService.updateLoadChatParticipants(dto);
 
 		for (const result of outcome.results) {
 			this.emitSideEffects(result);
 		}
+		for (const event of outcome.staffSyncEvents) {
+			this.emitStaffSyncSideEffects(event);
+		}
 
 		return {
 			updated: true,
 			createdCount: outcome.created.length,
 			existingCount: outcome.existing.length,
+			staffSyncedChatCount: outcome.staffSyncEvents.length,
 			createdChatRoomIds: outcome.created.map((r) => r.chatRoom?.id),
 			existingChatRoomIds: outcome.existing.map((r) => r.chatRoom?.id),
+			staffSyncedChatRoomIds: outcome.staffSyncEvents.map((e) => e.chatRoomId),
 			chats: outcome.chats,
 		};
+	}
+
+	private emitStaffSyncSideEffects(event: LoadChatStaffSyncEvent) {
+		const { chatRoomId, chatRoom, newParticipants, addedUserIds, removedUserIds } =
+			event;
+
+		if (addedUserIds.length > 0 && newParticipants.length > 0) {
+			this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
+				chatRoomId,
+				newParticipants,
+				addedBy: 'system',
+			});
+			for (const userId of addedUserIds) {
+				const socketId = this.chatGateway['userSockets']?.get?.(userId);
+				if (socketId) {
+					this.chatGateway.server
+						.to(socketId)
+						.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+				}
+			}
+		}
+
+		for (const removedId of removedUserIds) {
+			this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantRemoved', {
+				chatRoomId,
+				removedUserId: removedId,
+				removedBy: 'system',
+			});
+			const socketId = this.chatGateway['userSockets']?.get?.(removedId);
+			if (socketId) {
+				this.chatGateway.server
+					.to(socketId)
+					.emit('removedFromChatRoom', { chatRoomId, removedBy: 'system' });
+			}
+		}
+
+		if (chatRoom?.participants?.length) {
+			const updatedAt = new Date().toISOString();
+			for (const participant of chatRoom.participants) {
+				this.chatGateway.server.to(`user_${participant.userId}`).emit('chatRoomUpdated', {
+					chatRoomId,
+					updatedChatRoom: chatRoom,
+					updatedBy: 'system',
+					updatedAt,
+				});
+			}
+		}
 	}
 
 	private emitSideEffects(result: CreateLoadChatResult) {

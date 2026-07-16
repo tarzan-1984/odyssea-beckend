@@ -56,11 +56,21 @@ export type CreateLoadChatResult = {
 	};
 };
 
+/** Non-driver participant add/remove applied across every LOAD chat for a load_id. */
+export type LoadChatStaffSyncEvent = {
+	chatRoomId: string;
+	chatRoom: any;
+	newParticipants: any[];
+	addedUserIds: string[];
+	removedUserIds: string[];
+};
+
 export type UpdateLoadChatResult = {
 	results: CreateLoadChatResult[];
 	created: CreateLoadChatResult[];
 	existing: CreateLoadChatResult[];
 	chats: any[];
+	staffSyncEvents: LoadChatStaffSyncEvent[];
 };
 
 export type CreateChatRoomResult = {
@@ -1978,54 +1988,10 @@ export class ChatRoomsService {
 		}
 
 		// Shared non-driver participants (same staff for every per-driver LOAD chat)
-		const staffParticipantIds: string[] = [];
-		for (const participant of participants) {
-			if (participant.role.toUpperCase() === 'DRIVER') {
-				continue;
-			}
-
-			try {
-				const user = await findSingleUserByExternalIdAndParticipantRole(
-					this.prisma,
-					participant.id,
-					participant.role,
-					{ id: true },
-				);
-				if (user) {
-					staffParticipantIds.push(user.id);
-				}
-			} catch (error) {
-				this.mapExternalIdLookupError(error);
-			}
-		}
-
-		const adminUsers = await this.prisma.user.findMany({
-			where: {
-				role: {
-					in: ['ADMINISTRATOR'],
-				},
-				AND: ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_LOAD_CHAT_AUTOPARTICIPANTS.map(
-					(externalId) => ({
-						NOT: { externalId },
-					}),
-				),
-			},
-			select: {
-				id: true,
-			},
-		});
-
-		const hiddenParticipantIds: string[] = [];
-		for (const user of adminUsers) {
-			if (
-				!staffParticipantIds.includes(user.id) &&
-				!drivers.some((d) => d.id === user.id)
-			) {
-				staffParticipantIds.push(user.id);
-				hiddenParticipantIds.push(user.id);
-			}
-		}
-
+		const { staffParticipantIds, hiddenParticipantIds } =
+			await this.resolveLoadChatStaffParticipantIds(participants, {
+				excludeUserIds: drivers.map((d) => d.id),
+			});
 		const hiddenIdSet = new Set(hiddenParticipantIds);
 		const requestDriverUserIds = new Set(drivers.map((d) => d.id));
 
@@ -2463,8 +2429,9 @@ export class ChatRoomsService {
 
 	/**
 	 * Ensure one LOAD chat per driver in the request (same rules as create_load_chat).
-	 * Drivers that already have a LOAD chat for this load_id are left untouched.
 	 * Missing per-driver chats are created with shared non-driver participants.
+	 * After that, non-driver participants are synced across ALL LOAD chats for this load_id
+	 * (drivers in each chat are never added/removed by this sync).
 	 */
 	async updateLoadChatParticipants(
 		updateDto: UpdateLoadChatDto,
@@ -2525,23 +2492,260 @@ export class ChatRoomsService {
 			participants: updateDto.participants,
 		});
 
-		const created = results.filter(
+		const staffSyncEvents = await this.syncNonDriverParticipantsForLoad(
+			loadId,
+			updateDto.participants,
+		);
+
+		const syncedByChatId = new Map(
+			staffSyncEvents.map((event) => [event.chatRoomId, event.chatRoom]),
+		);
+		const refreshedResults = results.map((result) => {
+			const synced = result.chatRoom?.id
+				? syncedByChatId.get(result.chatRoom.id)
+				: undefined;
+			return synced ? { ...result, chatRoom: synced } : result;
+		});
+
+		const created = refreshedResults.filter(
 			(r) => r.kind === 'created' || r.kind === 'converted',
 		);
-		const existing = results.filter((r) => r.kind === 'noop');
+		const existing = refreshedResults.filter((r) => r.kind === 'noop');
 
 		this.logger.log(
-			`[update_load_chat] Completed: created=${created.length}, existingUntouched=${existing.length}, chatRoomIds=${results
+			`[update_load_chat] Completed: created=${created.length}, existing=${existing.length}, staffSyncedChats=${staffSyncEvents.length}, chatRoomIds=${refreshedResults
 				.map((r) => r.chatRoom?.id ?? 'n/a')
 				.join(',')}`,
 		);
 
 		return {
-			results,
+			results: refreshedResults,
 			created,
 			existing,
-			chats: results.map((r) => r.chatRoom),
+			chats: refreshedResults.map((r) => r.chatRoom),
+			staffSyncEvents,
 		};
+	}
+
+	/**
+	 * Compare request non-driver participants (+ auto-admins) with each LOAD chat for the
+	 * load, then add/remove staff so every chat matches. Drivers are never touched.
+	 */
+	private async syncNonDriverParticipantsForLoad(
+		loadId: string,
+		participants: Array<{ id: string; role: string }>,
+	): Promise<LoadChatStaffSyncEvent[]> {
+		const { staffParticipantIds, hiddenParticipantIds } =
+			await this.resolveLoadChatStaffParticipantIds(participants);
+		const desiredStaffIds = [...new Set(staffParticipantIds)];
+		const desiredStaffSet = new Set(desiredStaffIds);
+		const hiddenIdSet = new Set(hiddenParticipantIds);
+
+		const fullChatInclude = {
+			participants: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+							role: true,
+							profilePhoto: true,
+							userColor: true,
+							externalId: true,
+						},
+					},
+				},
+			},
+		} as const;
+
+		const loadChats = await this.prisma.chatRoom.findMany({
+			where: { loadId, type: 'LOAD' },
+			include: fullChatInclude,
+			orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
+		});
+
+		const events: LoadChatStaffSyncEvent[] = [];
+
+		for (const chat of loadChats) {
+			const currentStaffIds = chat.participants
+				.filter((p) => !isDriverUserRole(p.user?.role))
+				.map((p) => p.userId);
+			const currentStaffSet = new Set(currentStaffIds);
+
+			const toAdd = desiredStaffIds.filter((id) => !currentStaffSet.has(id));
+			const toRemove = currentStaffIds.filter((id) => !desiredStaffSet.has(id));
+
+			if (toAdd.length === 0 && toRemove.length === 0) {
+				continue;
+			}
+
+			this.logger.log(
+				`[update_load_chat] Syncing non-driver participants: ${JSON.stringify({
+					loadId,
+					chatRoomId: chat.id,
+					desiredStaffIds,
+					currentStaffIds,
+					toAdd,
+					toRemove,
+				})}`,
+			);
+
+			const addedJoinedAt = newParticipantJoinedAt();
+
+			await this.prisma.$transaction(async (tx) => {
+				for (const userId of toRemove) {
+					await tx.chatRoomParticipant.delete({
+						where: {
+							chatRoomId_userId: {
+								chatRoomId: chat.id,
+								userId,
+							},
+						},
+					});
+				}
+
+				for (const userId of toAdd) {
+					await tx.chatRoomParticipant.create({
+						data: {
+							chatRoomId: chat.id,
+							userId,
+							isHidden: false,
+							hideParticipant: hiddenIdSet.has(userId),
+							joinedAt: addedJoinedAt,
+						},
+					});
+				}
+
+				const retained = desiredStaffIds.filter((id) => currentStaffSet.has(id));
+				for (const userId of retained) {
+					await tx.chatRoomParticipant.update({
+						where: {
+							chatRoomId_userId: {
+								chatRoomId: chat.id,
+								userId,
+							},
+						},
+						data: {
+							hideParticipant: hiddenIdSet.has(userId),
+						},
+					});
+				}
+
+				await tx.chatRoom.update({
+					where: { id: chat.id },
+					data: { updatedAt: nowInNewYorkAsNaiveDate() },
+				});
+			});
+
+			const completeChatRoom = await this.prisma.chatRoom.findUnique({
+				where: { id: chat.id },
+				include: fullChatInclude,
+			});
+			if (!completeChatRoom) {
+				throw new InternalServerErrorException(
+					`LOAD chat ${chat.id} not found after staff participant sync`,
+				);
+			}
+
+			const newParticipants =
+				toAdd.length > 0
+					? await this.prisma.chatRoomParticipant.findMany({
+							where: {
+								chatRoomId: chat.id,
+								userId: { in: toAdd },
+							},
+							include: {
+								user: {
+									select: {
+										id: true,
+										firstName: true,
+										lastName: true,
+										role: true,
+										profilePhoto: true,
+										userColor: true,
+										externalId: true,
+									},
+								},
+							},
+						})
+					: [];
+
+			events.push({
+				chatRoomId: chat.id,
+				chatRoom: completeChatRoom,
+				newParticipants,
+				addedUserIds: toAdd,
+				removedUserIds: toRemove,
+			});
+		}
+
+		return events;
+	}
+
+	/**
+	 * Resolve non-driver request participants + auto-added ADMINISTRATOR users
+	 * (same rules as create_load_chat).
+	 */
+	private async resolveLoadChatStaffParticipantIds(
+		participants: Array<{ id: string; role: string }>,
+		options?: { excludeUserIds?: string[] },
+	): Promise<{
+		staffParticipantIds: string[];
+		hiddenParticipantIds: string[];
+	}> {
+		const excludeUserIds = new Set(options?.excludeUserIds ?? []);
+		const staffParticipantIds: string[] = [];
+
+		for (const participant of participants) {
+			if (participant.role.toUpperCase() === 'DRIVER') {
+				continue;
+			}
+
+			try {
+				const user = await findSingleUserByExternalIdAndParticipantRole(
+					this.prisma,
+					participant.id,
+					participant.role,
+					{ id: true },
+				);
+				if (user && !excludeUserIds.has(user.id)) {
+					staffParticipantIds.push(user.id);
+				}
+			} catch (error) {
+				this.mapExternalIdLookupError(error);
+			}
+		}
+
+		const adminUsers = await this.prisma.user.findMany({
+			where: {
+				role: {
+					in: ['ADMINISTRATOR'],
+				},
+				AND: ADMIN_EXTERNAL_IDS_EXCLUDED_FROM_LOAD_CHAT_AUTOPARTICIPANTS.map(
+					(externalId) => ({
+						NOT: { externalId },
+					}),
+				),
+			},
+			select: {
+				id: true,
+			},
+		});
+
+		const hiddenParticipantIds: string[] = [];
+		for (const user of adminUsers) {
+			if (
+				!staffParticipantIds.includes(user.id) &&
+				!excludeUserIds.has(user.id)
+			) {
+				staffParticipantIds.push(user.id);
+				hiddenParticipantIds.push(user.id);
+			}
+		}
+
+		return { staffParticipantIds, hiddenParticipantIds };
 	}
 
 	/** Remove trailing "(externalId First Last)" suffix from a LOAD chat title. */

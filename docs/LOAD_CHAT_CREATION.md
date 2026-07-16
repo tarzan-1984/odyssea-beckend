@@ -94,7 +94,12 @@ When participants are added or removed from GROUP or LOAD chats via the app:
 
 ### Step 2c: `update_load_chat`
 
-Same role-aware resolution as creation. The endpoint also removes stale visible participants when the same `externalId` + role category resolves to a different user id than the one currently in the chat.
+Same role-aware resolution as creation. After ensuring one LOAD chat per driver:
+
+1. Resolve non-driver participants from the request (plus auto-added administrators)
+2. Compare that staff set with every LOAD chat for the `load_id`
+3. Add missing / remove stale non-driver participants in all those chats
+4. Drivers in each chat are never added or removed by this sync
 
 ### Step 3: Auto-add Admin Users
 
