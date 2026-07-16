@@ -399,35 +399,29 @@ export class NotificationsService {
     participants: { userId: string; role: string }[],
     adminUserId: string
   ): Promise<Notification[]> {
-    const notifications: Notification[] = [];
-    
-    // Create notifications for all participants except admin
-    for (const participant of participants) {
-      if (participant.userId !== adminUserId) {
-        const title = 'Added to Group Chat';
-        const chatName = chatRoom.name || 'Group Chat';
-        const message = `You were added to the group chat "${chatName}"`;
-        
-        // Use chat avatar if available, otherwise generate initials from chat name
-        let avatar: string;
-        if (chatRoom.avatar) {
-          avatar = chatRoom.avatar;
-        } else {
-          avatar = this.generateChatInitials(chatName);
-        }
-        
-        const notification = await this.createNotification({
+    const title = 'Added to Group Chat';
+    const chatName = chatRoom.name || 'Group Chat';
+    const message = `You were added to the group chat "${chatName}"`;
+    const avatar = chatRoom.avatar
+      ? chatRoom.avatar
+      : this.generateChatInitials(chatName);
+
+    const recipients = participants.filter(
+      (participant) => participant.userId !== adminUserId,
+    );
+
+    const notifications = await Promise.all(
+      recipients.map((participant) =>
+        this.createNotification({
           userId: participant.userId,
           title,
           message,
           type: 'group_chat_created',
           avatar,
-        });
-        
-        notifications.push(notification);
-      }
-    }
-    
+        }),
+      ),
+    );
+
     return notifications;
   }
 

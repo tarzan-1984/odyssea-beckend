@@ -177,33 +177,34 @@ export class BidRatesService {
 	}
 
 	private async resolveBidChatParticipants(): Promise<BidChatParticipant[]> {
-		const roleUsers = await this.prisma.user.findMany({
-			where: {
-				role: { in: BID_CHAT_DISPATCHER_ROLES },
-				status: UserStatus.ACTIVE,
-			},
-			select: {
-				id: true,
-				externalId: true,
-				role: true,
-				firstName: true,
-				lastName: true,
-			},
-		});
-
-		const administrators = await this.prisma.user.findMany({
-			where: {
-				role: UserRole.ADMINISTRATOR,
-				status: UserStatus.ACTIVE,
-			},
-			select: {
-				id: true,
-				externalId: true,
-				role: true,
-				firstName: true,
-				lastName: true,
-			},
-		});
+		const [roleUsers, administrators] = await Promise.all([
+			this.prisma.user.findMany({
+				where: {
+					role: { in: BID_CHAT_DISPATCHER_ROLES },
+					status: UserStatus.ACTIVE,
+				},
+				select: {
+					id: true,
+					externalId: true,
+					role: true,
+					firstName: true,
+					lastName: true,
+				},
+			}),
+			this.prisma.user.findMany({
+				where: {
+					role: UserRole.ADMINISTRATOR,
+					status: UserStatus.ACTIVE,
+				},
+				select: {
+					id: true,
+					externalId: true,
+					role: true,
+					firstName: true,
+					lastName: true,
+				},
+			}),
+		]);
 
 		const adminUsers = administrators.filter((user) =>
 			BID_CHAT_ADMIN_EXTERNAL_IDS.has(this.normalizeExternalId(user.externalId)),
@@ -361,7 +362,7 @@ export class BidRatesService {
 		);
 		const bidUnix = nowUnixSeconds();
 
-		const { bidRate, chatRoom } = await this.prisma.$transaction(async (tx) => {
+		const { bidRate, chatRoomId } = await this.prisma.$transaction(async (tx) => {
 			const chatRoom = await tx.chatRoom.create({
 				data: {
 					name: chatName,
@@ -407,34 +408,36 @@ export class BidRatesService {
 				},
 			});
 
-			const fullChatRoom = await tx.chatRoom.findUnique({
-				where: { id: chatRoom.id },
-				include: bidChatInclude,
-			});
-
-			return { bidRate, chatRoom: fullChatRoom };
+			return { bidRate, chatRoomId: chatRoom.id };
 		});
 
-		try {
-			await this.notificationsService.createGroupChatNotifications(
+		// Load chat payload outside the write transaction (many participants).
+		const chatRoom = await this.prisma.chatRoom.findUnique({
+			where: { id: chatRoomId },
+			include: bidChatInclude,
+		});
+
+		// Notifications are sequential per participant and slow — do not block create response.
+		void this.notificationsService
+			.createGroupChatNotifications(
 				{
-					id: chatRoom!.id,
-					name: chatRoom!.name,
-					avatar: chatRoom!.avatar,
+					id: chatRoomId,
+					name: chatRoom?.name ?? chatName,
+					avatar: chatRoom?.avatar ?? null,
 				},
 				uniqueParticipants.map((user) => ({
 					userId: user.id,
 					role: user.role,
 				})),
 				creatorId,
-			);
-		} catch (error) {
-			console.error('Failed to create bid chat notifications:', error);
-		}
+			)
+			.catch((error) => {
+				console.error('Failed to create bid chat notifications:', error);
+			});
 
 		this.notifyBidRateUpdated({
 			bidRateId: bidRate.id,
-			chatRoomId: chatRoom?.id ?? null,
+			chatRoomId,
 			reason: 'created',
 			participantIds,
 		});
