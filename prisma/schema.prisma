@@ -315,6 +315,8 @@ model BidRateParticipant {
   externalId String   @map("external_id")
   rate       Float?
   bidRateId  Int      @map("bid_rate_id")
+  /// True for the bid creator row inserted on bid create.
+  isOwner    Boolean  @default(false) @map("is_owner")
   /// NY wall-clock naive timestamp (set via nowInNewYorkAsNaiveDate() on insert/update).
   createdAt  DateTime @map("created_at")
   /// NY wall-clock naive timestamp (set via nowInNewYorkAsNaiveDate() on insert/update).

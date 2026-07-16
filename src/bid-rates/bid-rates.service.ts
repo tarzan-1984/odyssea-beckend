@@ -351,6 +351,10 @@ export class BidRatesService {
 
 		const roomTimestamps = newChatRoomTimestamps();
 		const joinedAt = newParticipantJoinedAt(roomTimestamps.createdAt);
+		const creatorParticipant = byId.get(creatorId);
+		const creatorExternalId = this.normalizeExternalId(
+			creatorParticipant?.externalId,
+		);
 
 		const { bidRate, chatRoom } = await this.prisma.$transaction(async (tx) => {
 			const chatRoom = await tx.chatRoom.create({
@@ -381,6 +385,18 @@ export class BidRatesService {
 					distance,
 					ownerId: creatorId,
 					chatId: chatRoom.id,
+					createdAt: roomTimestamps.createdAt,
+					updatedAt: roomTimestamps.updatedAt,
+				},
+			});
+
+			// Record bid creator in bid_rate_participants with is_owner=true.
+			await tx.bidRateParticipant.create({
+				data: {
+					userId: creatorId,
+					externalId: creatorExternalId,
+					bidRateId: bidRate.id,
+					isOwner: true,
 					createdAt: roomTimestamps.createdAt,
 					updatedAt: roomTimestamps.updatedAt,
 				},
@@ -670,8 +686,9 @@ export class BidRatesService {
 			throw new ForbiddenException('Only the bid creator can update the price');
 		}
 
+		// Only +1 joiners count; the creator row (is_owner=true) is ignored.
 		const participantCount = await this.prisma.bidRateParticipant.count({
-			where: { bidRateId: id },
+			where: { bidRateId: id, isOwner: false },
 		});
 		const hasParticipants = participantCount > 0;
 
@@ -724,14 +741,16 @@ export class BidRatesService {
 					bidRateId: bidRate.id,
 				},
 			},
-			select: { id: true, createdAt: true, updatedAt: true },
+			select: { id: true, isOwner: true, createdAt: true, updatedAt: true },
 		});
+
+		const hasJoined = Boolean(participant && !participant.isOwner);
 
 		return {
 			bidRateId: bidRate.id,
-			hasJoined: Boolean(participant),
-			createdAt: participant?.createdAt ?? null,
-			updatedAt: participant?.updatedAt ?? null,
+			hasJoined,
+			createdAt: hasJoined ? (participant?.createdAt ?? null) : null,
+			updatedAt: hasJoined ? (participant?.updatedAt ?? null) : null,
 		};
 	}
 
@@ -785,16 +804,28 @@ export class BidRatesService {
 					bidRateId: bidRate.id,
 				},
 			},
-			select: { id: true, createdAt: true, updatedAt: true },
+			select: { id: true, isOwner: true, createdAt: true, updatedAt: true },
 		});
 
-		if (existing) {
+		// Owner row (is_owner=true) is from bid create, not a +1 join.
+		if (existing && !existing.isOwner) {
 			return {
 				bidRateId: bidRate.id,
 				hasJoined: true,
 				alreadyJoined: true,
 				createdAt: existing.createdAt,
 				updatedAt: existing.updatedAt,
+			};
+		}
+
+		if (existing?.isOwner) {
+			// Creator is already recorded; they cannot also take a +1 slot.
+			return {
+				bidRateId: bidRate.id,
+				hasJoined: false,
+				alreadyJoined: true,
+				createdAt: null,
+				updatedAt: null,
 			};
 		}
 
@@ -815,6 +846,7 @@ export class BidRatesService {
 					userId: user.id,
 					externalId: this.normalizeExternalId(user.externalId),
 					bidRateId: bidRate.id,
+					isOwner: false,
 					createdAt: now,
 					updatedAt: now,
 				},
@@ -894,8 +926,9 @@ export class BidRatesService {
 	}
 
 	private async listParticipantsByBidRateId(bidRateId: number, ownerId: string) {
+		// Auction +1 joiners only; exclude the creator row (is_owner=true).
 		const participants = await this.prisma.bidRateParticipant.findMany({
-			where: { bidRateId },
+			where: { bidRateId, isOwner: false },
 			orderBy: { createdAt: 'asc' },
 			select: {
 				userId: true,
@@ -969,12 +1002,13 @@ export class BidRatesService {
 			select: {
 				id: true,
 				userId: true,
+				isOwner: true,
 				createdAt: true,
 				updatedAt: true,
 			},
 		});
 
-		if (!participant) {
+		if (!participant || participant.isOwner) {
 			throw new NotFoundException('Bid participant not found');
 		}
 
