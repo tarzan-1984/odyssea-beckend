@@ -298,8 +298,10 @@ model BidRate {
   /// Route distance in miles (same source as offer loadedMiles).
   distance     Float?
   isArchive    Boolean              @default(false) @map("is_archive")
-  createdAt    DateTime             @default(now()) @map("created_at")
-  updatedAt    DateTime             @updatedAt @map("updated_at")
+  /// Unix timestamp in seconds (UTC). Timer starts at create.
+  createdAt    Int                  @map("created_at")
+  /// Unix timestamp in seconds (UTC). Extended by +15 min on timer extend.
+  updatedAt    Int                  @map("updated_at")
   owner        User                 @relation("BidRateOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   chatRoom     ChatRoom?            @relation(fields: [chatId], references: [id], onDelete: SetNull)
   participants BidRateParticipant[]
@@ -317,10 +319,10 @@ model BidRateParticipant {
   bidRateId  Int      @map("bid_rate_id")
   /// True for the bid creator row inserted on bid create.
   isOwner    Boolean  @default(false) @map("is_owner")
-  /// NY wall-clock naive timestamp (set via nowInNewYorkAsNaiveDate() on insert/update).
-  createdAt  DateTime @map("created_at")
-  /// NY wall-clock naive timestamp (set via nowInNewYorkAsNaiveDate() on insert/update).
-  updatedAt  DateTime @map("updated_at")
+  /// Unix timestamp in seconds (UTC).
+  createdAt  Int      @map("created_at")
+  /// Unix timestamp in seconds (UTC).
+  updatedAt  Int      @map("updated_at")
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   bidRate    BidRate  @relation(fields: [bidRateId], references: [id], onDelete: Cascade)
 

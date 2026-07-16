@@ -11,21 +11,25 @@ import { ChatGateway } from '../chats/chat.gateway';
 import {
 	newChatRoomTimestamps,
 	newParticipantJoinedAt,
-	nowInNewYorkAsNaiveDate,
-	getNyWallClockHoursAgo,
 } from '../common/utils/ny-wall-clock';
 import { getRouteEndpoints } from '../offers/offer-route.util';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
 import { UpdateBidRatePriceDto } from './dto/update-bid-rate-price.dto';
 import { RoutePointDto } from '../offers/dto/create-offer.dto';
 
-const BID_TIMER_MS = 15 * 60 * 1000;
-const BID_MAX_EXTEND_MS = 3 * BID_TIMER_MS; // 45 min between created_at and updated_at
-/** Soft-archive idle bids after this (NY wall clock vs updated_at). */
+/** Bid / participant timer length in unix seconds. */
+const BID_TIMER_SEC = 15 * 60;
+/** Max extend window between created_at and updated_at (unix seconds). */
+const BID_MAX_EXTEND_SEC = 3 * BID_TIMER_SEC;
+/** Soft-archive idle bids after this many hours (unix vs updated_at). */
 const BID_ARCHIVE_IDLE_HOURS = 12;
-/** Hard-delete archived bids after this (NY wall clock vs updated_at). */
+/** Hard-delete archived bids after this (unix vs updated_at). */
 const BID_PURGE_ARCHIVED_DAYS = 15;
 const BID_PURGE_ARCHIVED_HOURS = BID_PURGE_ARCHIVED_DAYS * 24;
+
+function nowUnixSeconds(): number {
+	return Math.floor(Date.now() / 1000);
+}
 function normalizeBidRateRoute(route: RoutePointDto[]): RoutePointDto[] {
 	return route.map((point) => ({
 		type: point.type,
@@ -224,8 +228,8 @@ export class BidRatesService {
 		route: Prisma.JsonValue;
 		distance: number | null;
 		isArchive: boolean;
-		createdAt: Date;
-		updatedAt: Date;
+		createdAt: number;
+		updatedAt: number;
 		owner?: {
 			id: string;
 			firstName: string | null;
@@ -355,6 +359,7 @@ export class BidRatesService {
 		const creatorExternalId = this.normalizeExternalId(
 			creatorParticipant?.externalId,
 		);
+		const bidUnix = nowUnixSeconds();
 
 		const { bidRate, chatRoom } = await this.prisma.$transaction(async (tx) => {
 			const chatRoom = await tx.chatRoom.create({
@@ -385,8 +390,8 @@ export class BidRatesService {
 					distance,
 					ownerId: creatorId,
 					chatId: chatRoom.id,
-					createdAt: roomTimestamps.createdAt,
-					updatedAt: roomTimestamps.updatedAt,
+					createdAt: bidUnix,
+					updatedAt: bidUnix,
 				},
 			});
 
@@ -397,8 +402,8 @@ export class BidRatesService {
 					externalId: creatorExternalId,
 					bidRateId: bidRate.id,
 					isOwner: true,
-					createdAt: roomTimestamps.createdAt,
-					updatedAt: roomTimestamps.updatedAt,
+					createdAt: bidUnix,
+					updatedAt: bidUnix,
 				},
 			});
 
@@ -501,11 +506,12 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Soft-archive idle bids: is_archive=false and updated_at older than 12h (NY wall clock).
+	 * Soft-archive idle bids: is_archive=false and updated_at older than 12h (unix).
 	 * Bumping updated_at on archive starts the 15-day purge clock.
 	 */
 	async archiveStaleBidRates(): Promise<{ archivedCount: number }> {
-		const cutoff = getNyWallClockHoursAgo(BID_ARCHIVE_IDLE_HOURS);
+		const nowSec = nowUnixSeconds();
+		const cutoff = nowSec - BID_ARCHIVE_IDLE_HOURS * 3600;
 		const result = await this.prisma.bidRate.updateMany({
 			where: {
 				isArchive: false,
@@ -513,21 +519,21 @@ export class BidRatesService {
 			},
 			data: {
 				isArchive: true,
-				updatedAt: nowInNewYorkAsNaiveDate(),
+				updatedAt: nowSec,
 			},
 		});
 		return { archivedCount: result.count };
 	}
 
 	/**
-	 * Hard-delete archived bids whose updated_at is older than 15 days (NY),
+	 * Hard-delete archived bids whose updated_at is older than 15 days (unix),
 	 * including linked BID chats (no cloud message archive).
 	 */
 	async purgeExpiredArchivedBidRates(): Promise<{
 		deletedBidRates: number;
 		deletedChats: Array<{ chatId: string; participantIds: string[] }>;
 	}> {
-		const cutoff = getNyWallClockHoursAgo(BID_PURGE_ARCHIVED_HOURS);
+		const cutoff = nowUnixSeconds() - BID_PURGE_ARCHIVED_HOURS * 3600;
 		const rows = await this.prisma.bidRate.findMany({
 			where: {
 				isArchive: true,
@@ -590,7 +596,7 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Extend bid timer by +15 minutes on updated_at (NY wall-clock).
+	 * Extend bid timer by +15 minutes on updated_at (unix seconds).
 	 * Allowed up to 3 times: (updated_at - created_at) must stay under 45 minutes.
 	 */
 	async extendTime(id: number, requesterId: string) {
@@ -613,25 +619,25 @@ export class BidRatesService {
 			throw new ForbiddenException('Only the bid creator can extend the timer');
 		}
 
-		const createdAtMs = bidRate.createdAt.getTime();
-		const updatedAtMs = bidRate.updatedAt.getTime();
-		const alreadyExtendedMs = Math.max(0, updatedAtMs - createdAtMs);
+		const createdAtSec = bidRate.createdAt;
+		const updatedAtSec = bidRate.updatedAt;
+		const alreadyExtendedSec = Math.max(0, updatedAtSec - createdAtSec);
 
-		if (alreadyExtendedMs >= BID_MAX_EXTEND_MS) {
+		if (alreadyExtendedSec >= BID_MAX_EXTEND_SEC) {
 			throw new BadRequestException(
 				'Bid time can be extended at most 3 times (1 hour total)',
 			);
 		}
 
-		const nowNyMs = nowInNewYorkAsNaiveDate().getTime();
-		const expiryMs = updatedAtMs + BID_TIMER_MS;
-		if (expiryMs <= nowNyMs) {
+		const nowSec = nowUnixSeconds();
+		const expirySec = updatedAtSec + BID_TIMER_SEC;
+		if (expirySec <= nowSec) {
 			throw new BadRequestException('Bid time has already expired');
 		}
 
-		const nextUpdatedAt = new Date(updatedAtMs + BID_TIMER_MS);
-		const nextExtendedMs = nextUpdatedAt.getTime() - createdAtMs;
-		if (nextExtendedMs > BID_MAX_EXTEND_MS) {
+		const nextUpdatedAt = updatedAtSec + BID_TIMER_SEC;
+		const nextExtendedSec = nextUpdatedAt - createdAtSec;
+		if (nextExtendedSec > BID_MAX_EXTEND_SEC) {
 			throw new BadRequestException(
 				'Bid time can be extended at most 3 times (1 hour total)',
 			);
@@ -698,7 +704,7 @@ export class BidRatesService {
 				...(hasParticipants
 					? { newPrice: dto.newPrice }
 					: { rate: dto.newPrice }),
-				// Keep timer stable: @updatedAt would otherwise bump on write.
+				// Keep timer stable when only price changes.
 				updatedAt: bidRate.updatedAt,
 			},
 			include: {
@@ -838,7 +844,7 @@ export class BidRatesService {
 			throw new NotFoundException('User not found');
 		}
 
-		const now = nowInNewYorkAsNaiveDate();
+		const now = nowUnixSeconds();
 
 		try {
 			const created = await this.prisma.bidRateParticipant.create({
@@ -1012,25 +1018,25 @@ export class BidRatesService {
 			throw new NotFoundException('Bid participant not found');
 		}
 
-		const createdAtMs = participant.createdAt.getTime();
-		const updatedAtMs = participant.updatedAt.getTime();
-		const alreadyExtendedMs = Math.max(0, updatedAtMs - createdAtMs);
+		const createdAtSec = participant.createdAt;
+		const updatedAtSec = participant.updatedAt;
+		const alreadyExtendedSec = Math.max(0, updatedAtSec - createdAtSec);
 
-		if (alreadyExtendedMs >= BID_MAX_EXTEND_MS) {
+		if (alreadyExtendedSec >= BID_MAX_EXTEND_SEC) {
 			throw new BadRequestException(
 				'Bid time can be extended at most 3 times (1 hour total)',
 			);
 		}
 
-		const nowNyMs = nowInNewYorkAsNaiveDate().getTime();
-		const expiryMs = updatedAtMs + BID_TIMER_MS;
-		if (expiryMs <= nowNyMs) {
+		const nowSec = nowUnixSeconds();
+		const expirySec = updatedAtSec + BID_TIMER_SEC;
+		if (expirySec <= nowSec) {
 			throw new BadRequestException('Bid time has already expired');
 		}
 
-		const nextUpdatedAt = new Date(updatedAtMs + BID_TIMER_MS);
-		const nextExtendedMs = nextUpdatedAt.getTime() - createdAtMs;
-		if (nextExtendedMs > BID_MAX_EXTEND_MS) {
+		const nextUpdatedAt = updatedAtSec + BID_TIMER_SEC;
+		const nextExtendedSec = nextUpdatedAt - createdAtSec;
+		if (nextExtendedSec > BID_MAX_EXTEND_SEC) {
 			throw new BadRequestException(
 				'Bid time can be extended at most 3 times (1 hour total)',
 			);

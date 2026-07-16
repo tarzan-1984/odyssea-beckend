@@ -182,7 +182,7 @@ export class BidRatesController {
 	@ApiOperation({
 		summary: 'Extend bid timer by 15 minutes',
 		description:
-			'Adds 15 minutes to updated_at (NY wall-clock). Allowed up to 3 times for the creator only.',
+			'Adds 15 minutes to updated_at (unix seconds). Allowed up to 3 times for the creator only.',
 	})
 	@ApiResponse({ status: 200, description: 'Bid timer extended' })
 	@ApiResponse({ status: 400, description: 'Cannot extend' })
