@@ -222,7 +222,6 @@ export class BidRatesService {
 		id: number;
 		broker: string;
 		rate: number;
-		newPrice: number | null;
 		status: string;
 		ownerId: string;
 		chatId: string | null;
@@ -241,7 +240,6 @@ export class BidRatesService {
 			id: row.id,
 			broker: row.broker,
 			rate: row.rate,
-			newPrice: row.newPrice,
 			status: row.status,
 			ownerId: row.ownerId,
 			chatId: row.chatId,
@@ -669,9 +667,13 @@ export class BidRatesService {
 
 	/**
 	 * Updates bid price for any linked BID chat participant.
-	 * If nobody joined via +1 (no bid_rate_participants), writes to `rate`.
-	 * If at least one participant exists, writes to `new_price`.
-	 * Preserves updated_at so the bid timer is not affected.
+	 *
+	 * If no non-owner +1 rows exist, or all their timers have expired:
+	 *   write to bid_rates.rate and reset created_at/updated_at to now
+	 *   (restarts the 15-min card timer with up to 3 extends).
+	 *
+	 * If at least one non-owner +1 timer is still active:
+	 *   write to bid_rate_participants.rate for the bid owner row (is_owner=true).
 	 */
 	async updateNewPrice(
 		id: number,
@@ -682,8 +684,8 @@ export class BidRatesService {
 			where: { id },
 			select: {
 				id: true,
+				ownerId: true,
 				chatId: true,
-				updatedAt: true,
 			},
 		});
 
@@ -711,20 +713,71 @@ export class BidRatesService {
 			);
 		}
 
-		// Only +1 joiners count; the creator row (is_owner=true) is ignored.
-		const participantCount = await this.prisma.bidRateParticipant.count({
+		const plusOneRows = await this.prisma.bidRateParticipant.findMany({
 			where: { bidRateId: id, isOwner: false },
+			select: { updatedAt: true },
 		});
-		const hasParticipants = participantCount > 0;
+		const nowSec = nowUnixSeconds();
+		const hasActivePlusOneTimer = plusOneRows.some(
+			(row) => row.updatedAt + BID_TIMER_SEC > nowSec,
+		);
+
+		if (hasActivePlusOneTimer) {
+			const ownerRow = await this.prisma.bidRateParticipant.findUnique({
+				where: {
+					userId_bidRateId: {
+						userId: bidRate.ownerId,
+						bidRateId: id,
+					},
+				},
+				select: { id: true, isOwner: true },
+			});
+
+			if (!ownerRow || !ownerRow.isOwner) {
+				throw new NotFoundException('Bid owner participant row not found');
+			}
+
+			await this.prisma.bidRateParticipant.update({
+				where: { id: ownerRow.id },
+				data: {
+					rate: dto.newPrice,
+					createdRateAt: nowSec,
+				},
+			});
+
+			const current = await this.prisma.bidRate.findUnique({
+				where: { id },
+				include: {
+					owner: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+						},
+					},
+				},
+			});
+
+			if (!current) {
+				throw new NotFoundException('Bid rate not found');
+			}
+
+			const mapped = this.mapBidRate(current);
+			await this.notifyBidRateChangedById(
+				id,
+				'owner_participant_rate_updated',
+				mapped,
+			);
+			return mapped;
+		}
 
 		const updated = await this.prisma.bidRate.update({
 			where: { id },
 			data: {
-				...(hasParticipants
-					? { newPrice: dto.newPrice }
-					: { rate: dto.newPrice }),
-				// Keep timer stable when only price changes.
-				updatedAt: bidRate.updatedAt,
+				rate: dto.newPrice,
+				// Restart card timer: fresh 15 min + up to 3 extends.
+				createdAt: nowSec,
+				updatedAt: nowSec,
 			},
 			include: {
 				owner: {
@@ -738,11 +791,7 @@ export class BidRatesService {
 		});
 
 		const mapped = this.mapBidRate(updated);
-		await this.notifyBidRateChangedById(
-			id,
-			hasParticipants ? 'new_price_updated' : 'rate_updated',
-			mapped,
-		);
+		await this.notifyBidRateChangedById(id, 'rate_updated', mapped);
 		return mapped;
 	}
 

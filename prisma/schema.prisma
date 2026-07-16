@@ -290,7 +290,6 @@ model BidRate {
   id           Int                  @id @default(autoincrement())
   broker       String
   rate         Float
-  newPrice     Float?               @map("new_price")
   status       BidRateStatus        @default(in_process)
   ownerId      String               @map("owner")
   chatId       String?              @map("chat_id")
@@ -312,19 +311,21 @@ model BidRate {
 }
 
 model BidRateParticipant {
-  id         String   @id @default(cuid())
-  userId     String   @map("user_id")
-  externalId String   @map("external_id")
-  rate       Float?
-  bidRateId  Int      @map("bid_rate_id")
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  externalId    String   @map("external_id")
+  rate          Float?
+  /// Unix timestamp in seconds when `rate` was last written.
+  createdRateAt Int?     @map("created_rate_at")
+  bidRateId     Int      @map("bid_rate_id")
   /// True for the bid creator row inserted on bid create.
-  isOwner    Boolean  @default(false) @map("is_owner")
+  isOwner       Boolean  @default(false) @map("is_owner")
   /// Unix timestamp in seconds (UTC).
-  createdAt  Int      @map("created_at")
+  createdAt     Int      @map("created_at")
   /// Unix timestamp in seconds (UTC).
-  updatedAt  Int      @map("updated_at")
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bidRate    BidRate  @relation(fields: [bidRateId], references: [id], onDelete: Cascade)
+  updatedAt     Int      @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bidRate       BidRate  @relation(fields: [bidRateId], references: [id], onDelete: Cascade)
 
   @@unique([userId, bidRateId])
   @@index([userId])
