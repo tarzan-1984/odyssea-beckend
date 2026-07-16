@@ -13,6 +13,7 @@ import {
 	UploadedFile,
 	HttpCode,
 	HttpStatus,
+	Logger,
 } from '@nestjs/common';
 import {
 	ApiTags,
@@ -36,18 +37,26 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { MessageReactionsService } from './message-reactions.service';
 import { SetMessageReactionDto } from './dto/set-message-reaction.dto';
 import { SyncMessagesBatchDto } from './dto/sync-messages-batch.dto';
+import {
+	logMessageSendFailure,
+	reasonFromSendError,
+} from './utils/message-send-failure.logger';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('Messages')
 @Controller('messages')
 @UseGuards(JwtAuthIgnoreExpirationGuard)
 @ApiBearerAuth()
 export class MessagesController {
+	private readonly logger = new Logger(MessagesController.name);
+
 	constructor(
 		private readonly messagesService: MessagesService,
 		private readonly fileUploadService: FileUploadService,
 		private readonly chatGateway: ChatGateway,
 		private readonly chatRoomsService: ChatRoomsService,
 		private readonly messageReactionsService: MessageReactionsService,
+		private readonly prisma: PrismaService,
 	) {}
 
 	@Post()
@@ -102,47 +111,85 @@ export class MessagesController {
 	) {
 		const userId = req.user.id;
 
-		// For DIRECT and OFFER chats: unhide chat for all participants if hidden
-		const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
-			sendMessageDto.chatRoomId,
-			userId,
-		);
+		try {
+			// For DIRECT and OFFER chats: unhide chat for all participants if hidden
+			const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
+				sendMessageDto.chatRoomId,
+				userId,
+			);
 
-		if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
-			await Promise.all(
-				chatRoom.participants.map(async (participant) => {
-					const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
-						sendMessageDto.chatRoomId,
-						participant.userId,
-					);
-					if (wasUnhidden) {
-						this.chatGateway.notifyChatRoomRestored(
+			if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
+				await Promise.all(
+					chatRoom.participants.map(async (participant) => {
+						const wasUnhidden = await this.chatRoomsService.unhideChatRoom(
 							sendMessageDto.chatRoomId,
 							participant.userId,
 						);
-					}
-				}),
+						if (wasUnhidden) {
+							this.chatGateway.notifyChatRoomRestored(
+								sendMessageDto.chatRoomId,
+								participant.userId,
+							);
+						}
+					}),
+				);
+			}
+
+			const participantUserIds = chatRoom.participants.map(
+				(participant) => participant.userId,
 			);
+
+			const message = await this.messagesService.sendMessage(
+				sendMessageDto,
+				userId,
+				{ participantUserIds },
+			);
+
+			// Broadcast message via WebSocket to all participants
+			void this.chatGateway.broadcastMessage(
+				sendMessageDto.chatRoomId,
+				message,
+				participantUserIds,
+			);
+
+			return message;
+		} catch (error) {
+			let senderName: string | null = null;
+			let senderExternalId: string | null = null;
+			try {
+				const user = await this.prisma.user.findUnique({
+					where: { id: userId },
+					select: {
+						firstName: true,
+						lastName: true,
+						externalId: true,
+					},
+				});
+				if (user) {
+					senderName =
+						[user.firstName, user.lastName]
+							.filter((part) => !!part?.trim())
+							.join(' ')
+							.trim() || null;
+					senderExternalId = user.externalId ?? null;
+				}
+			} catch {
+				// Ignore enrichment failures; core failure log still goes out.
+			}
+
+			logMessageSendFailure(this.logger, {
+				transport: 'http',
+				senderUserId: userId,
+				senderEmail: req.user.email,
+				senderName,
+				senderExternalId,
+				chatRoomId: sendMessageDto.chatRoomId,
+				clientMessageId: sendMessageDto.clientMessageId,
+				reason: reasonFromSendError(error),
+				error,
+			});
+			throw error;
 		}
-
-		const participantUserIds = chatRoom.participants.map(
-			(participant) => participant.userId,
-		);
-
-		const message = await this.messagesService.sendMessage(
-			sendMessageDto,
-			userId,
-			{ participantUserIds },
-		);
-
-		// Broadcast message via WebSocket to all participants
-		void this.chatGateway.broadcastMessage(
-			sendMessageDto.chatRoomId,
-			message,
-			participantUserIds,
-		);
-
-		return message;
 	}
 
 	@Put('read-all')

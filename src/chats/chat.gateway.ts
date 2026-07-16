@@ -9,7 +9,7 @@ import {
 	OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { JWT_VERIFY_ALLOW_EXPIRED_OPTIONS } from '../auth/constants/jwt-verify-options';
@@ -18,6 +18,10 @@ import { ChatRoomsService } from './chat-rooms.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { userDeviceSocketRoom } from '../common/user-device-socket.util';
+import {
+	logMessageSendFailure,
+	reasonFromSendError,
+} from './utils/message-send-failure.logger';
 
 interface AuthenticatedSocket extends Socket {
 	userId?: string;
@@ -40,6 +44,8 @@ export class ChatGateway
 	@WebSocketServer()
 	server: Server;
 
+	private readonly logger = new Logger(ChatGateway.name);
+
 	// Store user socket connections for real-time messaging
 	private userSockets = new Map<string, string>();
 
@@ -53,6 +59,49 @@ export class ChatGateway
 		private notificationsWebSocketService: NotificationsWebSocketService,
 		private prisma: PrismaService,
 	) {}
+
+	private async resolveSenderForFailureLog(userId?: string | null) {
+		if (!userId) {
+			return {
+				senderName: null as string | null,
+				senderEmail: null as string | null,
+				senderExternalId: null as string | null,
+			};
+		}
+		try {
+			const user = await this.prisma.user.findUnique({
+				where: { id: userId },
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+					externalId: true,
+				},
+			});
+			if (!user) {
+				return {
+					senderName: null,
+					senderEmail: null,
+					senderExternalId: null,
+				};
+			}
+			const name = [user.firstName, user.lastName]
+				.filter((part) => !!part?.trim())
+				.join(' ')
+				.trim();
+			return {
+				senderName: name || null,
+				senderEmail: user.email ?? null,
+				senderExternalId: user.externalId ?? null,
+			};
+		} catch {
+			return {
+				senderName: null,
+				senderEmail: null,
+				senderExternalId: null,
+			};
+		}
+	}
 
 	/**
 	 * Initialize WebSocket server after module initialization
@@ -431,7 +480,15 @@ export class ChatGateway
 		const userId = client.userId;
 
 		if (!userId) {
-			console.log('❌ WebSocket sendMessage: Unauthorized - no userId');
+			const sender = await this.resolveSenderForFailureLog(userId);
+			logMessageSendFailure(this.logger, {
+				transport: 'websocket',
+				senderUserId: userId,
+				chatRoomId,
+				clientMessageId,
+				reason: 'Unauthorized - no userId on socket',
+				...sender,
+			});
 			return { error: 'Unauthorized' };
 		}
 
@@ -501,10 +558,15 @@ export class ChatGateway
 				contentLength: content.length,
 			});
 		} catch (error) {
-			console.error('❌ WebSocket sendMessage: Error', {
-				userId,
+			const sender = await this.resolveSenderForFailureLog(userId);
+			logMessageSendFailure(this.logger, {
+				transport: 'websocket',
+				senderUserId: userId,
 				chatRoomId,
-				error: error.message,
+				clientMessageId,
+				reason: reasonFromSendError(error),
+				error,
+				...sender,
 			});
 			client.emit('error', {
 				message: 'Failed to send message',
