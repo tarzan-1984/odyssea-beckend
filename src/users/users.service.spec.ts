@@ -78,6 +78,8 @@ describe('UsersService', () => {
 					useValue: {
 						sendUserLocationUpdate: jest.fn(),
 						sendDeviceDeactivatedLogout: jest.fn().mockResolvedValue(undefined),
+						sendDriverProfileSync: jest.fn().mockResolvedValue(undefined),
+						sendDriverStatusUpdate: jest.fn().mockResolvedValue(undefined),
 					},
 				},
 				{
@@ -123,7 +125,9 @@ describe('UsersService', () => {
 				},
 				{
 					provide: NotificationsService,
-					useValue: {},
+					useValue: {
+						sendDriverStatusChangedPush: jest.fn().mockResolvedValue(undefined),
+					},
 				},
 				{
 					provide: TmsLoadDetailsService,
@@ -527,6 +531,9 @@ describe('UsersService', () => {
 				id: 'user-1',
 				externalId: '122',
 			});
+			mockPrismaService.user.findUnique.mockResolvedValue({
+				externalId: '122',
+			});
 			mockPrismaService.userDevice.findMany.mockResolvedValue([
 				{ deviceId: 'device-a' },
 				{ deviceId: 'device-b' },
@@ -536,8 +543,11 @@ describe('UsersService', () => {
 
 			const result = await service.processWebhookSync(webhookData);
 
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+				where: { externalId: '122', role: UserRole.DRIVER },
+			});
 			expect(mockPrismaService.userDevice.findMany).toHaveBeenCalledWith({
-				where: { user: { id: 'user-1' } },
+				where: { userExternalId: '122' },
 				select: { deviceId: true },
 			});
 			expect(
@@ -547,7 +557,7 @@ describe('UsersService', () => {
 				notificationsWebSocketService.sendDeviceDeactivatedLogout,
 			).toHaveBeenNthCalledWith(2, 'user-1', 'device-b');
 			expect(mockPrismaService.userDevice.deleteMany).toHaveBeenCalledWith({
-				where: { user: { id: 'user-1' } },
+				where: { userExternalId: '122' },
 			});
 			expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
 				where: { id: 'user-1' },
@@ -572,6 +582,9 @@ describe('UsersService', () => {
 				id: 'user-33',
 				externalId: '33',
 			});
+			mockPrismaService.user.findUnique.mockResolvedValue({
+				externalId: '33',
+			});
 			mockPrismaService.userDevice.findMany.mockResolvedValue([
 				{ deviceId: 'device-x' },
 			]);
@@ -580,10 +593,15 @@ describe('UsersService', () => {
 
 			const result = await service.processWebhookSync(webhookData);
 
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+				where: { externalId: '33', role: { not: UserRole.DRIVER } },
+			});
 			expect(
 				notificationsWebSocketService.sendDeviceDeactivatedLogout,
 			).toHaveBeenCalledWith('user-33', 'device-x');
-			expect(mockPrismaService.userDevice.deleteMany).toHaveBeenCalled();
+			expect(mockPrismaService.userDevice.deleteMany).toHaveBeenCalledWith({
+				where: { userExternalId: '33' },
+			});
 			expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
 				where: { id: 'user-33' },
 			});
@@ -592,6 +610,68 @@ describe('UsersService', () => {
 				externalId: '33',
 				message: 'Employee deleted successfully',
 			});
+		});
+
+		it('should update driver by externalId+role when email changes', async () => {
+			const webhookData: WebhookSyncDto = {
+				type: WebhookType.UPDATE,
+				role: WebhookRole.DRIVER,
+				timestamp: '2025-09-12 04:31:45',
+				source: 'tms-statistics',
+				driver_data: {
+					driver_id: '3343',
+					driver_name: 'Test Driver 2',
+					driver_email: 'new-email@gmail.com',
+					driver_phone: '(013) 242-3423',
+					vehicle_type: 'sprinter-van',
+					vin: '44444421224',
+				},
+			};
+
+			const existingDriver = {
+				id: 'user-1',
+				externalId: '3343',
+				email: 'old-email@gmail.com',
+				firstName: 'Test',
+				lastName: 'Driver',
+				phone: '(013) 242-3423',
+				role: UserRole.DRIVER,
+				status: UserStatus.ACTIVE,
+				driverStatus: 'available',
+				type: 'sprinter-van',
+				vin: '44444421224',
+				company: [],
+				isAutoupdate: false,
+			};
+
+			mockPrismaService.user.findFirst.mockResolvedValue(existingDriver);
+			mockPrismaService.user.findUnique.mockResolvedValue(existingDriver);
+			mockPrismaService.user.update.mockResolvedValue({
+				...existingDriver,
+				email: 'new-email@gmail.com',
+				statusDate: null,
+				deactivateAccount: false,
+			});
+
+			const result = await service.processWebhookSync(webhookData);
+
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+				where: { externalId: '3343', role: UserRole.DRIVER },
+			});
+			expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { id: 'user-1' },
+					data: expect.objectContaining({
+						email: 'new-email@gmail.com',
+						externalId: '3343',
+					}),
+				}),
+			);
+			expect(result).toEqual(
+				expect.objectContaining({
+					action: 'updated',
+				}),
+			);
 		});
 	});
 });

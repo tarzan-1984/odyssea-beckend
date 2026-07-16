@@ -2234,7 +2234,8 @@ export class UsersService {
 
 	/**
 	 * Processes webhook sync data from TMS
-	 * Handles add, update, and delete operations for drivers and employees
+	 * Handles add, update, and delete operations for drivers and employees.
+	 * Matching key: externalId + role (DRIVER vs non-DRIVER). Email is a mutable field.
 	 */
 	async processWebhookSync(webhookData: WebhookSyncDto) {
 		try {
@@ -2259,78 +2260,53 @@ export class UsersService {
 		return String(email ?? '').trim();
 	}
 
-	private async findDriverByEmailForWebhook(email?: string | null) {
-		const normalizedEmail = this.normalizeWebhookEmail(email);
-		if (!normalizedEmail) {
-			return null;
-		}
-
-		const user = await this.prisma.user.findUnique({
-			where: { email: normalizedEmail },
-		});
-		if (!user || user.role !== UserRole.DRIVER) {
-			return null;
-		}
-		return user;
+	private normalizeWebhookExternalId(
+		externalId?: string | number | null,
+	): string {
+		return String(externalId ?? '').trim();
 	}
 
 	/**
-	 * Driver webhook lookup: prefer email; DELETE payloads may only include driver_id.
+	 * TMS identity key: externalId + DRIVER role.
+	 * Email may change on TMS side and must not be used for matching.
 	 */
-	private async findDriverForWebhook(params: {
-		email?: string | null;
-		externalId?: string | null;
-	}) {
-		const byEmail = await this.findDriverByEmailForWebhook(params.email);
-		if (byEmail) {
-			return byEmail;
-		}
-
-		const externalId = String(params.externalId ?? '').trim();
-		if (!externalId) {
+	private async findDriverForWebhook(externalId?: string | number | null) {
+		const id = this.normalizeWebhookExternalId(externalId);
+		if (!id) {
 			return null;
 		}
 
 		return this.prisma.user.findFirst({
-			where: { externalId, role: UserRole.DRIVER },
+			where: { externalId: id, role: UserRole.DRIVER },
 		});
-	}
-
-	private async findEmployeeByEmailForWebhook(email?: string | null) {
-		const normalizedEmail = this.normalizeWebhookEmail(email);
-		if (!normalizedEmail) {
-			return null;
-		}
-
-		const user = await this.prisma.user.findUnique({
-			where: { email: normalizedEmail },
-		});
-		if (!user || user.role === UserRole.DRIVER) {
-			return null;
-		}
-		return user;
 	}
 
 	/**
-	 * Employee webhook lookup: prefer email; DELETE payloads may only include user_id.
+	 * TMS identity key: externalId + non-DRIVER role.
+	 * Email may change on TMS side and must not be used for matching.
 	 */
-	private async findEmployeeForWebhook(params: {
-		email?: string | null;
-		externalId?: string | null;
-	}) {
-		const byEmail = await this.findEmployeeByEmailForWebhook(params.email);
-		if (byEmail) {
-			return byEmail;
-		}
-
-		const externalId = String(params.externalId ?? '').trim();
-		if (!externalId) {
+	private async findEmployeeForWebhook(externalId?: string | number | null) {
+		const id = this.normalizeWebhookExternalId(externalId);
+		if (!id) {
 			return null;
 		}
 
 		return this.prisma.user.findFirst({
-			where: { externalId, role: { not: UserRole.DRIVER } },
+			where: { externalId: id, role: { not: UserRole.DRIVER } },
 		});
+	}
+
+	/** Email stays globally unique; allow reuse only for the same row being updated. */
+	private async assertWebhookEmailAvailable(
+		email: string,
+		exceptUserId?: string,
+	) {
+		const existing = await this.prisma.user.findUnique({
+			where: { email },
+		});
+		if (existing && existing.id !== exceptUserId) {
+			throw new ConflictException('Email already in use');
+		}
 	}
 
 	private async processDriverWebhook(webhookData: WebhookSyncDto) {
@@ -2358,10 +2334,7 @@ export class UsersService {
 				);
 			}
 
-			const user = await this.findDriverForWebhook({
-				email: driver_data?.driver_email,
-				externalId: driver_id,
-			});
+			const user = await this.findDriverForWebhook(driver_id);
 
 			if (!user) {
 				throw new NotFoundException('Driver not found');
@@ -2415,6 +2388,11 @@ export class UsersService {
 			return normalized;
 		};
 
+		const normalizedDriverId = this.normalizeWebhookExternalId(driverId);
+		if (!normalizedDriverId) {
+			throw new BadRequestException('driver_id is required');
+		}
+
 		const normalizedDriverEmail = this.normalizeWebhookEmail(driver_email);
 		if (!normalizedDriverEmail) {
 			throw new BadRequestException('driver_email is required');
@@ -2429,7 +2407,7 @@ export class UsersService {
 		const mappedRole = UserRole.DRIVER;
 
 		const userData: Prisma.UserUncheckedCreateInput = {
-			externalId: driverId,
+			externalId: normalizedDriverId,
 			email: normalizedDriverEmail,
 			firstName,
 			lastName,
@@ -2446,13 +2424,14 @@ export class UsersService {
 		};
 
 		if (type === WebhookType.ADD) {
-			const existingUser = await this.prisma.user.findUnique({
-				where: { email: normalizedDriverEmail },
-			});
+			const existingUser =
+				await this.findDriverForWebhook(normalizedDriverId);
 
 			if (existingUser) {
 				throw new ConflictException('Driver already exists');
 			}
+
+			await this.assertWebhookEmailAvailable(normalizedDriverEmail);
 
 			const newUser = await this.prisma.user.create({
 				data: userData,
@@ -2481,19 +2460,14 @@ export class UsersService {
 			};
 		} else if (type === WebhookType.UPDATE) {
 			const existingUser =
-				await this.findDriverByEmailForWebhook(normalizedDriverEmail);
+				await this.findDriverForWebhook(normalizedDriverId);
 
 			if (!existingUser) {
 				// TMS may send "update" before our DB has the driver (desync) — create instead of 404
 				this.logger.warn(
-					`[Webhook Driver] UPDATE for unknown email=${normalizedDriverEmail} — creating user (sync recovery)`,
+					`[Webhook Driver] UPDATE for unknown externalId=${normalizedDriverId} — creating user (sync recovery)`,
 				);
-				const conflict = await this.prisma.user.findUnique({
-					where: { email: normalizedDriverEmail },
-				});
-				if (conflict) {
-					throw new ConflictException('Driver already exists');
-				}
+				await this.assertWebhookEmailAvailable(normalizedDriverEmail);
 				const newUser = await this.prisma.user.create({
 					data: userData,
 					select: {
@@ -2522,13 +2496,18 @@ export class UsersService {
 				};
 			}
 
+			await this.assertWebhookEmailAvailable(
+				normalizedDriverEmail,
+				existingUser.id,
+			);
+
 			const oldDriverStatus = existingUser.driverStatus;
 
 			// Partial update: only set fields present in the webhook payload so we do not
 			// wipe driverStatus/etc. when TMS omits them.
 			// Location fields (lat/lng, city, zip, state, location) are mobile-only — not TMS.
 			const updateData: Prisma.UserUpdateInput = {
-				externalId: driverId,
+				externalId: normalizedDriverId,
 				email: normalizedDriverEmail,
 				firstName,
 				lastName,
@@ -2627,7 +2606,7 @@ export class UsersService {
 			});
 
 			await this.recordDriverChangeLog(
-				driverId,
+				normalizedDriverId,
 				driverChangesText,
 				DriverLogSource.TMS,
 			);
@@ -2685,10 +2664,7 @@ export class UsersService {
 				);
 			}
 
-			const user = await this.findEmployeeForWebhook({
-				email: user_data?.user_email,
-				externalId: user_id.toString(),
-			});
+			const user = await this.findEmployeeForWebhook(user_id);
 
 			if (!user) {
 				throw new NotFoundException('Employee not found');
@@ -2712,6 +2688,11 @@ export class UsersService {
 		const { id, user_email, first_name, last_name, roles, acf_fields } =
 			user_data;
 
+		const normalizedEmployeeId = this.normalizeWebhookExternalId(id);
+		if (!normalizedEmployeeId) {
+			throw new BadRequestException('user id is required');
+		}
+
 		const normalizedEmployeeEmail = this.normalizeWebhookEmail(user_email);
 		if (!normalizedEmployeeEmail) {
 			throw new BadRequestException('user_email is required');
@@ -2724,7 +2705,7 @@ export class UsersService {
 				: UserStatus.ACTIVE;
 
 		const employeeData = {
-			externalId: String(id),
+			externalId: normalizedEmployeeId,
 			email: normalizedEmployeeEmail,
 			firstName: first_name,
 			lastName: last_name,
@@ -2737,13 +2718,14 @@ export class UsersService {
 		};
 
 		if (type === WebhookType.ADD) {
-			const existingUser = await this.prisma.user.findUnique({
-				where: { email: normalizedEmployeeEmail },
-			});
+			const existingUser =
+				await this.findEmployeeForWebhook(normalizedEmployeeId);
 
 			if (existingUser) {
 				throw new ConflictException('Employee already exists');
 			}
+
+			await this.assertWebhookEmailAvailable(normalizedEmployeeEmail);
 
 			const newUser = await this.prisma.user.create({
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -2774,11 +2756,16 @@ export class UsersService {
 			};
 		} else if (type === WebhookType.UPDATE) {
 			const existingUser =
-				await this.findEmployeeByEmailForWebhook(normalizedEmployeeEmail);
+				await this.findEmployeeForWebhook(normalizedEmployeeId);
 
 			if (!existingUser) {
 				throw new NotFoundException('Employee not found');
 			}
+
+			await this.assertWebhookEmailAvailable(
+				normalizedEmployeeEmail,
+				existingUser.id,
+			);
 
 			const updatedUser = await this.prisma.user.update({
 				where: { id: existingUser.id },
