@@ -8,6 +8,7 @@ import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatGateway } from '../chats/chat.gateway';
+import { MessagesService } from '../chats/messages.service';
 import {
 	newChatRoomTimestamps,
 	newParticipantJoinedAt,
@@ -114,10 +115,43 @@ export class BidRatesService {
 		private readonly prisma: PrismaService,
 		private readonly notificationsService: NotificationsService,
 		private readonly chatGateway: ChatGateway,
+		private readonly messagesService: MessagesService,
 	) {}
 
 	private normalizeExternalId(externalId: string | null | undefined): string {
 		return String(externalId ?? '').trim();
+	}
+
+	private formatBidPriceUsd(price: number): string {
+		return `$${Number(price).toLocaleString('en-US', {
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 2,
+		})}`;
+	}
+
+	/**
+	 * Posts an automated chat message as the bid creator and broadcasts it.
+	 */
+	private async sendOwnerBidPriceChatMessage(
+		chatRoomId: string,
+		ownerId: string,
+		content: string,
+	): Promise<void> {
+		try {
+			const participantIds = await this.resolveChatParticipantIds(chatRoomId);
+			const message = await this.messagesService.sendMessage(
+				{ chatRoomId, content },
+				ownerId,
+				{ participantUserIds: participantIds },
+			);
+			void this.chatGateway.broadcastMessage(
+				chatRoomId,
+				message,
+				participantIds,
+			);
+		} catch (error) {
+			console.error('Failed to send bid price chat message:', error);
+		}
 	}
 
 	private async resolveChatParticipantIds(
@@ -768,6 +802,11 @@ export class BidRatesService {
 				'owner_participant_rate_updated',
 				mapped,
 			);
+			await this.sendOwnerBidPriceChatMessage(
+				bidRate.chatId,
+				bidRate.ownerId,
+				`New offer: ${this.formatBidPriceUsd(dto.newPrice)}`,
+			);
 			return mapped;
 		}
 
@@ -792,6 +831,11 @@ export class BidRatesService {
 
 		const mapped = this.mapBidRate(updated);
 		await this.notifyBidRateChangedById(id, 'rate_updated', mapped);
+		await this.sendOwnerBidPriceChatMessage(
+			bidRate.chatId,
+			bidRate.ownerId,
+			`Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`,
+		);
 		return mapped;
 	}
 
