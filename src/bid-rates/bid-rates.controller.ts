@@ -114,9 +114,9 @@ export class BidRatesController {
 
 	@Post('by-chat/:chatRoomId/join')
 	@ApiOperation({
-		summary: 'Join bid via +1 (once per user)',
+		summary: 'Join bid via +1 (or restart after timer expiry)',
 		description:
-			'Creates bid_rate_participants row for the current user. Idempotent if already joined.',
+			'Creates bid_rate_participants on first +1. While the 15-min timer is active, further presses are ignored. After expiry, resets created_at/updated_at and starts a new extendable cycle.',
 	})
 	@ApiResponse({ status: 200, description: 'Joined (or already joined)' })
 	@ApiResponse({ status: 403, description: 'Forbidden' })

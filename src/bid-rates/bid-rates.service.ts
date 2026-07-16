@@ -728,7 +728,8 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Returns whether the current user already pressed +1 for the bid linked to this chat.
+	 * Returns whether the current user already pressed +1 for the bid linked to this chat,
+	 * and whether their +1 timer is still running.
 	 */
 	async getParticipationByChatId(chatRoomId: string, userId: string) {
 		const bidRate = await this.prisma.bidRate.findFirst({
@@ -751,18 +752,27 @@ export class BidRatesService {
 		});
 
 		const hasJoined = Boolean(participant && !participant.isOwner);
+		const nowSec = nowUnixSeconds();
+		const timerActive =
+			hasJoined &&
+			participant != null &&
+			participant.updatedAt + BID_TIMER_SEC > nowSec;
 
 		return {
 			bidRateId: bidRate.id,
 			hasJoined,
+			timerActive,
 			createdAt: hasJoined ? (participant?.createdAt ?? null) : null,
 			updatedAt: hasJoined ? (participant?.updatedAt ?? null) : null,
 		};
 	}
 
 	/**
-	 * Registers the user in bid_rate_participants (one +1 per user per bid).
-	 * Idempotent: if already joined, returns alreadyJoined=true without creating a duplicate.
+	 * +1 join / re-join for a BID chat.
+	 * First press creates the participant row and starts a 15-min timer.
+	 * While the timer is active, further presses are no-ops (alreadyJoined).
+	 * After the timer expires, press again resets created_at/updated_at to now
+	 * and starts a fresh timer cycle (extendable up to 3 times / 1 hour).
 	 */
 	async joinByChatId(chatRoomId: string, userId: string) {
 		const bidRate = await this.prisma.bidRate.findFirst({
@@ -813,25 +823,57 @@ export class BidRatesService {
 			select: { id: true, isOwner: true, createdAt: true, updatedAt: true },
 		});
 
-		// Owner row (is_owner=true) is from bid create, not a +1 join.
-		if (existing && !existing.isOwner) {
-			return {
-				bidRateId: bidRate.id,
-				hasJoined: true,
-				alreadyJoined: true,
-				createdAt: existing.createdAt,
-				updatedAt: existing.updatedAt,
-			};
-		}
-
 		if (existing?.isOwner) {
 			// Creator is already recorded; they cannot also take a +1 slot.
 			return {
 				bidRateId: bidRate.id,
 				hasJoined: false,
 				alreadyJoined: true,
+				timerActive: false,
 				createdAt: null,
 				updatedAt: null,
+			};
+		}
+
+		const now = nowUnixSeconds();
+
+		if (existing && !existing.isOwner) {
+			const timerActive = existing.updatedAt + BID_TIMER_SEC > now;
+			if (timerActive) {
+				return {
+					bidRateId: bidRate.id,
+					hasJoined: true,
+					alreadyJoined: true,
+					timerActive: true,
+					createdAt: existing.createdAt,
+					updatedAt: existing.updatedAt,
+				};
+			}
+
+			// Previous timer expired — restart a fresh 15-min cycle.
+			const restarted = await this.prisma.bidRateParticipant.update({
+				where: { id: existing.id },
+				data: {
+					createdAt: now,
+					updatedAt: now,
+				},
+			});
+
+			const participantIds = await this.resolveChatParticipantIds(chatRoomId);
+			this.notifyBidRateUpdated({
+				bidRateId: bidRate.id,
+				chatRoomId,
+				reason: 'participant_rejoined',
+				participantIds,
+			});
+
+			return {
+				bidRateId: bidRate.id,
+				hasJoined: true,
+				alreadyJoined: false,
+				timerActive: true,
+				createdAt: restarted.createdAt,
+				updatedAt: restarted.updatedAt,
 			};
 		}
 
@@ -843,8 +885,6 @@ export class BidRatesService {
 		if (!user) {
 			throw new NotFoundException('User not found');
 		}
-
-		const now = nowUnixSeconds();
 
 		try {
 			const created = await this.prisma.bidRateParticipant.create({
@@ -870,6 +910,7 @@ export class BidRatesService {
 				bidRateId: bidRate.id,
 				hasJoined: true,
 				alreadyJoined: false,
+				timerActive: true,
 				createdAt: created.createdAt,
 				updatedAt: created.updatedAt,
 			};
@@ -885,14 +926,26 @@ export class BidRatesService {
 							bidRateId: bidRate.id,
 						},
 					},
-					select: { createdAt: true, updatedAt: true },
+					select: { createdAt: true, updatedAt: true, isOwner: true },
 				});
+				if (again && !again.isOwner) {
+					const timerActive = again.updatedAt + BID_TIMER_SEC > now;
+					return {
+						bidRateId: bidRate.id,
+						hasJoined: true,
+						alreadyJoined: true,
+						timerActive,
+						createdAt: again.createdAt,
+						updatedAt: again.updatedAt,
+					};
+				}
 				return {
 					bidRateId: bidRate.id,
-					hasJoined: true,
+					hasJoined: false,
 					alreadyJoined: true,
-					createdAt: again?.createdAt ?? now,
-					updatedAt: again?.updatedAt ?? now,
+					timerActive: false,
+					createdAt: null,
+					updatedAt: null,
 				};
 			}
 			throw error;
