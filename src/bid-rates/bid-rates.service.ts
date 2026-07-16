@@ -668,7 +668,7 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Updates bid price for the creator.
+	 * Updates bid price for any linked BID chat participant.
 	 * If nobody joined via +1 (no bid_rate_participants), writes to `rate`.
 	 * If at least one participant exists, writes to `new_price`.
 	 * Preserves updated_at so the bid timer is not affected.
@@ -682,7 +682,7 @@ export class BidRatesService {
 			where: { id },
 			select: {
 				id: true,
-				ownerId: true,
+				chatId: true,
 				updatedAt: true,
 			},
 		});
@@ -691,8 +691,24 @@ export class BidRatesService {
 			throw new NotFoundException('Bid rate not found');
 		}
 
-		if (bidRate.ownerId !== requesterId) {
-			throw new ForbiddenException('Only the bid creator can update the price');
+		if (!bidRate.chatId) {
+			throw new ForbiddenException('Bid has no linked chat');
+		}
+
+		const chatMembership = await this.prisma.chatRoomParticipant.findUnique({
+			where: {
+				chatRoomId_userId: {
+					chatRoomId: bidRate.chatId,
+					userId: requesterId,
+				},
+			},
+			select: { id: true },
+		});
+
+		if (!chatMembership) {
+			throw new ForbiddenException(
+				'Only chat participants can update the bid price',
+			);
 		}
 
 		// Only +1 joiners count; the creator row (is_owner=true) is ignored.

@@ -203,7 +203,7 @@ export class BidRatesController {
 	@ApiOperation({
 		summary: 'Update bid price',
 		description:
-			'Creator only. Writes to rate if no +1 participants exist; otherwise writes to new_price.',
+			'Any linked BID chat participant. Writes to rate if no +1 participants exist; otherwise writes to new_price.',
 	})
 	@ApiResponse({ status: 200, description: 'Bid price updated' })
 	@ApiResponse({ status: 403, description: 'Forbidden' })
