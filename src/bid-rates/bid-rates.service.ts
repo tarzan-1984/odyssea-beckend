@@ -482,7 +482,8 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Hard-delete bid rate and linked BID chat (no message archiving).
+	 * Hard-delete bid rate and linked BID chat.
+	 * Messages are removed with the chat room (DB cascade) — no S3 / cloud message archive.
 	 */
 	async remove(id: number, deletedByUserId: string) {
 		const bidRate = await this.prisma.bidRate.findUnique({
@@ -543,21 +544,64 @@ export class BidRatesService {
 	/**
 	 * Soft-archive idle bids: is_archive=false and updated_at older than 12h (unix).
 	 * Bumping updated_at on archive starts the 15-day purge clock.
+	 * Linked BID chats stay in DB until purge, but are excluded from chat lists / unread badges.
 	 */
-	async archiveStaleBidRates(): Promise<{ archivedCount: number }> {
+	async archiveStaleBidRates(): Promise<{
+		archivedCount: number;
+		archivedChats: Array<{
+			bidRateId: number;
+			chatId: string;
+			participantIds: string[];
+		}>;
+	}> {
 		const nowSec = nowUnixSeconds();
 		const cutoff = nowSec - BID_ARCHIVE_IDLE_HOURS * 3600;
-		const result = await this.prisma.bidRate.updateMany({
+		const rows = await this.prisma.bidRate.findMany({
 			where: {
 				isArchive: false,
 				updatedAt: { lt: cutoff },
+			},
+			select: {
+				id: true,
+				chatId: true,
+				chatRoom: {
+					select: {
+						participants: { select: { userId: true } },
+					},
+				},
+			},
+		});
+
+		if (rows.length === 0) {
+			return { archivedCount: 0, archivedChats: [] };
+		}
+
+		const result = await this.prisma.bidRate.updateMany({
+			where: {
+				id: { in: rows.map((row) => row.id) },
 			},
 			data: {
 				isArchive: true,
 				updatedAt: nowSec,
 			},
 		});
-		return { archivedCount: result.count };
+
+		const archivedChats = rows
+			.filter(
+				(row): row is typeof row & { chatId: string } =>
+					typeof row.chatId === 'string' && row.chatId.length > 0,
+			)
+			.map((row) => ({
+				bidRateId: row.id,
+				chatId: row.chatId,
+				participantIds: [
+					...new Set(
+						(row.chatRoom?.participants ?? []).map((p) => p.userId),
+					),
+				],
+			}));
+
+		return { archivedCount: result.count, archivedChats };
 	}
 
 	/**

@@ -22,10 +22,30 @@ export class BidRatesCleanupScheduler {
 		this.logger.log('Starting bid_rates archive / purge cron...');
 
 		try {
-			const { archivedCount } = await this.bidRatesService.archiveStaleBidRates();
+			const { archivedCount, archivedChats } =
+				await this.bidRatesService.archiveStaleBidRates();
 			this.logger.log(
 				`bid_rates archive done: marked ${archivedCount} row(s) is_archive=true`,
 			);
+
+			// Drop archived bid chats from client stores so Bid rates unread badge updates immediately
+			for (const chat of archivedChats) {
+				this.chatGateway.notifyBidRateUpdated({
+					bidRateId: chat.bidRateId,
+					chatRoomId: chat.chatId,
+					reason: 'archived',
+					participantIds: chat.participantIds,
+				});
+				const payload = {
+					chatRoomId: chat.chatId,
+					deletedBy: 'system',
+				};
+				for (const userId of chat.participantIds) {
+					this.chatGateway.server
+						.to(`user_${userId}`)
+						.emit('chatRoomDeleted', payload);
+				}
+			}
 		} catch (error) {
 			this.logger.error('bid_rates archive step failed:', error);
 		}

@@ -754,7 +754,26 @@ export class ChatRoomsService {
 					},
 				},
 				isArchived: false,
-				OR: [{ type: { not: 'LOAD' } }, { type: 'LOAD', isLoadArchived: false }],
+				AND: [
+					{
+						OR: [
+							{ type: { not: 'LOAD' } },
+							{ type: 'LOAD', isLoadArchived: false },
+						],
+					},
+					// Soft-archived bids (bid_rates.is_archive=true) must not appear in lists / unread badges
+					{
+						OR: [
+							{ type: { not: 'BID' } },
+							{
+								type: 'BID',
+								bidRates: {
+									some: { isArchive: false },
+								},
+							},
+						],
+					},
+				],
 			},
 			include: this.participantListInclude as any,
 		});
