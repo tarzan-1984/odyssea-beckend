@@ -132,27 +132,36 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Posts an automated chat message as the bid creator and broadcasts it.
+	 * Posts an automated BID price chat message as `senderId` and broadcasts it.
+	 * Used for both owner ("Rate changed" / "New offer") and non-owner ("New offer").
 	 */
-	private async sendOwnerBidPriceChatMessage(
+	private async sendBidPriceChatMessage(
 		chatRoomId: string,
-		ownerId: string,
+		senderId: string,
 		content: string,
 	): Promise<void> {
 		try {
 			const participantIds = await this.resolveChatParticipantIds(chatRoomId);
+			const recipients = participantIds.includes(senderId)
+				? participantIds
+				: [...participantIds, senderId];
 			const message = await this.messagesService.sendMessage(
 				{ chatRoomId, content },
-				ownerId,
-				{ participantUserIds: participantIds },
+				senderId,
+				{ participantUserIds: recipients },
 			);
-			void this.chatGateway.broadcastMessage(
+			await this.chatGateway.broadcastMessage(
 				chatRoomId,
 				message,
-				participantIds,
+				recipients,
 			);
 		} catch (error) {
-			console.error('Failed to send bid price chat message:', error);
+			console.error('Failed to send bid price chat message:', {
+				chatRoomId,
+				senderId,
+				content,
+				error,
+			});
 		}
 	}
 
@@ -749,15 +758,17 @@ export class BidRatesService {
 	 * Updates bid price for any linked BID chat participant.
 	 *
 	 * Non-owner (not the bid creator):
-	 *   always write to that user's bid_rate_participants.rate and set
-	 *   created_rate_at to now (does not change created_at / updated_at).
+	 *   write to that user's bid_rate_participants.rate + created_rate_at,
+	 *   and post yellow "New offer: $X" chat message from the requester.
 	 *
 	 * Owner:
 	 *   If no non-owner +1 rows exist, or all their timers have expired:
 	 *     write to bid_rates.rate and reset created_at/updated_at to now
-	 *     (restarts the 15-min card timer with up to 3 extends).
+	 *     (restarts the 15-min card timer with up to 3 extends)
+	 *     + green "Rate changed to $X" from the owner.
 	 *   If at least one non-owner +1 timer is still active:
-	 *     write to bid_rate_participants.rate for the bid owner row (is_owner=true).
+	 *     write to bid_rate_participants.rate for the bid owner row
+	 *     + yellow "New offer: $X" from the owner.
 	 */
 	async updateNewPrice(
 		id: number,
@@ -777,14 +788,15 @@ export class BidRatesService {
 			throw new NotFoundException('Bid rate not found');
 		}
 
-		if (!bidRate.chatId) {
+		const chatId = bidRate.chatId;
+		if (!chatId) {
 			throw new ForbiddenException('Bid has no linked chat');
 		}
 
 		const chatMembership = await this.prisma.chatRoomParticipant.findUnique({
 			where: {
 				chatRoomId_userId: {
-					chatRoomId: bidRate.chatId,
+					chatRoomId: chatId,
 					userId: requesterId,
 				},
 			},
@@ -799,6 +811,8 @@ export class BidRatesService {
 
 		const nowSec = nowUnixSeconds();
 		const isOwnerRequester = requesterId === bidRate.ownerId;
+		const offerMessage = `New offer: ${this.formatBidPriceUsd(dto.newPrice)}`;
+		const rateChangedMessage = `Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`;
 
 		if (!isOwnerRequester) {
 			const existing = await this.prisma.bidRateParticipant.findUnique({
@@ -863,15 +877,12 @@ export class BidRatesService {
 			}
 
 			const mapped = this.mapBidRate(current);
+			// Yellow "New offer" bubble — same style as owner offer while +1 is active.
+			await this.sendBidPriceChatMessage(chatId, requesterId, offerMessage);
 			await this.notifyBidRateChangedById(
 				id,
 				'participant_rate_updated',
 				mapped,
-			);
-			await this.sendOwnerBidPriceChatMessage(
-				bidRate.chatId,
-				requesterId,
-				`New offer: ${this.formatBidPriceUsd(dto.newPrice)}`,
 			);
 			return mapped;
 		}
@@ -925,15 +936,15 @@ export class BidRatesService {
 			}
 
 			const mapped = this.mapBidRate(current);
+			await this.sendBidPriceChatMessage(
+				chatId,
+				bidRate.ownerId,
+				offerMessage,
+			);
 			await this.notifyBidRateChangedById(
 				id,
 				'owner_participant_rate_updated',
 				mapped,
-			);
-			await this.sendOwnerBidPriceChatMessage(
-				bidRate.chatId,
-				bidRate.ownerId,
-				`New offer: ${this.formatBidPriceUsd(dto.newPrice)}`,
 			);
 			return mapped;
 		}
@@ -958,12 +969,12 @@ export class BidRatesService {
 		});
 
 		const mapped = this.mapBidRate(updated);
-		await this.notifyBidRateChangedById(id, 'rate_updated', mapped);
-		await this.sendOwnerBidPriceChatMessage(
-			bidRate.chatId,
+		await this.sendBidPriceChatMessage(
+			chatId,
 			bidRate.ownerId,
-			`Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`,
+			rateChangedMessage,
 		);
+		await this.notifyBidRateChangedById(id, 'rate_updated', mapped);
 		return mapped;
 	}
 
