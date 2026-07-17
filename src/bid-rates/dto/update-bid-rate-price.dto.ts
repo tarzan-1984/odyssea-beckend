@@ -5,7 +5,7 @@ import { IsNumber, Min } from 'class-validator';
 export class UpdateBidRatePriceDto {
 	@ApiProperty({
 		description:
-			'Updated bid price. Stored in bid_rates.rate when no +1 timers are active; otherwise in bid_rate_participants.rate for the owner.',
+			'Updated bid price. Non-owner: bid_rate_participants.rate + created_rate_at for the requester. Owner: bid_rates.rate when no +1 timers are active; otherwise bid_rate_participants.rate for the owner.',
 		example: 3200,
 	})
 	@Type(() => Number)

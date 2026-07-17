@@ -746,12 +746,16 @@ export class BidRatesService {
 	/**
 	 * Updates bid price for any linked BID chat participant.
 	 *
-	 * If no non-owner +1 rows exist, or all their timers have expired:
-	 *   write to bid_rates.rate and reset created_at/updated_at to now
-	 *   (restarts the 15-min card timer with up to 3 extends).
+	 * Non-owner (not the bid creator):
+	 *   always write to that user's bid_rate_participants.rate and set
+	 *   created_rate_at to now (does not change created_at / updated_at).
 	 *
-	 * If at least one non-owner +1 timer is still active:
-	 *   write to bid_rate_participants.rate for the bid owner row (is_owner=true).
+	 * Owner:
+	 *   If no non-owner +1 rows exist, or all their timers have expired:
+	 *     write to bid_rates.rate and reset created_at/updated_at to now
+	 *     (restarts the 15-min card timer with up to 3 extends).
+	 *   If at least one non-owner +1 timer is still active:
+	 *     write to bid_rate_participants.rate for the bid owner row (is_owner=true).
 	 */
 	async updateNewPrice(
 		id: number,
@@ -791,11 +795,89 @@ export class BidRatesService {
 			);
 		}
 
+		const nowSec = nowUnixSeconds();
+		const isOwnerRequester = requesterId === bidRate.ownerId;
+
+		if (!isOwnerRequester) {
+			const existing = await this.prisma.bidRateParticipant.findUnique({
+				where: {
+					userId_bidRateId: {
+						userId: requesterId,
+						bidRateId: id,
+					},
+				},
+				select: { id: true, isOwner: true },
+			});
+
+			if (existing?.isOwner) {
+				throw new ForbiddenException(
+					'Bid creator participant row cannot store a non-owner offer',
+				);
+			}
+
+			if (existing) {
+				await this.prisma.bidRateParticipant.update({
+					where: { id: existing.id },
+					data: {
+						rate: dto.newPrice,
+						createdRateAt: nowSec,
+					},
+				});
+			} else {
+				const user = await this.prisma.user.findUnique({
+					where: { id: requesterId },
+					select: { externalId: true },
+				});
+				await this.prisma.bidRateParticipant.create({
+					data: {
+						userId: requesterId,
+						externalId: this.normalizeExternalId(user?.externalId),
+						bidRateId: id,
+						isOwner: false,
+						rate: dto.newPrice,
+						createdRateAt: nowSec,
+						// Required row timestamps; not tied to the +1 timer cycle.
+						createdAt: nowSec,
+						updatedAt: nowSec,
+					},
+				});
+			}
+
+			const current = await this.prisma.bidRate.findUnique({
+				where: { id },
+				include: {
+					owner: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+						},
+					},
+				},
+			});
+
+			if (!current) {
+				throw new NotFoundException('Bid rate not found');
+			}
+
+			const mapped = this.mapBidRate(current);
+			await this.notifyBidRateChangedById(
+				id,
+				'participant_rate_updated',
+				mapped,
+			);
+			await this.sendOwnerBidPriceChatMessage(
+				bidRate.chatId,
+				requesterId,
+				`New offer: ${this.formatBidPriceUsd(dto.newPrice)}`,
+			);
+			return mapped;
+		}
+
 		const plusOneRows = await this.prisma.bidRateParticipant.findMany({
 			where: { bidRateId: id, isOwner: false },
 			select: { updatedAt: true },
 		});
-		const nowSec = nowUnixSeconds();
 		const hasActivePlusOneTimer = plusOneRows.some(
 			(row) => row.updatedAt + BID_TIMER_SEC > nowSec,
 		);
