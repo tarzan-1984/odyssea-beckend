@@ -1146,8 +1146,8 @@ export class ChatGateway
 				: participantIds.map((id) => ({ id }));
 
 		try {
-			// Add participants using the service (LOAD + DRIVER forks a new chat)
-			const { newParticipants, forkedChatRooms } =
+			// LOAD + DRIVER: forks when source already has a driver; otherwise attaches in place
+			const { newParticipants, forkedChatRooms, updatedSourceRoom } =
 				await this.chatRoomsService.addParticipants(
 					chatRoomId,
 					participantIds,
@@ -1172,6 +1172,17 @@ export class ChatGateway
 				client.emit('loadChatForked', {
 					sourceChatRoomId: chatRoomId,
 					chatRooms: roomsForClient,
+				});
+			}
+
+			if (updatedSourceRoom) {
+				void this.server.to(`chat_${chatRoomId}`).emit('chatRoomUpdated', {
+					chatRoomId,
+					updatedChatRoom: updatedSourceRoom,
+				});
+				client.emit('chatRoomUpdated', {
+					chatRoomId,
+					updatedChatRoom: updatedSourceRoom,
 				});
 			}
 

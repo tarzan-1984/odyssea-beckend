@@ -1191,8 +1191,11 @@ export class ChatRoomsService {
 
 	/**
 	 * Add new participants to an existing chat room.
-	 * For LOAD chats, adding a DRIVER forks a new LOAD chat (same loadId / staff) instead of
-	 * adding the driver to the source room.
+	 * For LOAD chats:
+	 * - If the source already has a DRIVER, adding another DRIVER forks a new LOAD chat
+	 *   (same loadId / staff) instead of adding the driver to the source room.
+	 * - If the source has no DRIVER, the first driver is attached in place (name updated);
+	 *   any additional drivers still fork.
 	 * Each participant is resolved by internal user id, or by externalId + role (driver vs employee).
 	 */
 	async addParticipants(
@@ -1203,6 +1206,7 @@ export class ChatRoomsService {
 	): Promise<{
 		newParticipants: any[];
 		forkedChatRooms: any[];
+		updatedSourceRoom?: { id: string; name: string | null };
 	}> {
 		const refs = await this.buildParticipantRefs(participantIds, participantRefs);
 
@@ -1210,7 +1214,16 @@ export class ChatRoomsService {
 		const chatRoom = await this.prisma.chatRoom.findUnique({
 			where: { id: chatRoomId },
 			include: {
-				participants: true,
+				participants: {
+					include: {
+						user: {
+							select: {
+								id: true,
+								role: true,
+							},
+						},
+					},
+				},
 			},
 		});
 
@@ -1237,6 +1250,7 @@ export class ChatRoomsService {
 			firstName: string;
 			lastName: string;
 			role: string;
+			externalId: string | null;
 		}> = [];
 		const resolvedUserIds: string[] = [];
 
@@ -1246,6 +1260,7 @@ export class ChatRoomsService {
 				firstName: true,
 				lastName: true,
 				role: true,
+				externalId: true,
 			});
 
 			if (!resolvedUserIds.includes(resolved.id)) {
@@ -1258,20 +1273,61 @@ export class ChatRoomsService {
 		const nonDriverUsers = resolvedUsers.filter((u) => !isDriverUserRole(u.role));
 
 		const forkedChatRooms: Array<{ chatRoom: any; created: boolean }> = [];
+		let driversToAddToSource: typeof driverUsers = [];
+
 		if (chatRoom.type === 'LOAD' && driverUsers.length > 0) {
-			for (const driver of driverUsers) {
-				const forked = await this.forkLoadChatWithDriver(
-					chatRoomId,
-					driver.id,
-					userId,
-				);
-				forkedChatRooms.push(forked);
+			const sourceHasDriver = chatRoom.participants.some((p) =>
+				isDriverUserRole(p.user?.role),
+			);
+
+			if (!sourceHasDriver) {
+				const [firstDriver, ...restDrivers] = driverUsers;
+
+				// Prefer an existing LOAD chat for this loadId that already has this driver
+				if (chatRoom.loadId?.trim()) {
+					const existingWithDriver = await this.prisma.chatRoom.findFirst({
+						where: {
+							...this.loadChatWithDriverWhere(chatRoom.loadId, firstDriver.id),
+							isArchived: false,
+						},
+						include: this.participantListInclude as any,
+						orderBy: [{ isLoadArchived: 'asc' }, { createdAt: 'desc' }],
+					});
+					if (existingWithDriver && existingWithDriver.id !== chatRoom.id) {
+						forkedChatRooms.push({
+							chatRoom: existingWithDriver,
+							created: false,
+						});
+					} else {
+						driversToAddToSource = [firstDriver];
+					}
+				} else {
+					driversToAddToSource = [firstDriver];
+				}
+
+				for (const driver of restDrivers) {
+					const forked = await this.forkLoadChatWithDriver(
+						chatRoomId,
+						driver.id,
+						userId,
+					);
+					forkedChatRooms.push(forked);
+				}
+			} else {
+				for (const driver of driverUsers) {
+					const forked = await this.forkLoadChatWithDriver(
+						chatRoomId,
+						driver.id,
+						userId,
+					);
+					forkedChatRooms.push(forked);
+				}
 			}
 		}
 
 		const usersToAddToSource =
 			chatRoom.type === 'LOAD' && driverUsers.length > 0
-				? nonDriverUsers
+				? [...nonDriverUsers, ...driversToAddToSource]
 				: resolvedUsers;
 
 		const newParticipants =
@@ -1283,7 +1339,20 @@ export class ChatRoomsService {
 					)
 				: [];
 
-		return { newParticipants, forkedChatRooms };
+		let updatedSourceRoom: { id: string; name: string | null } | undefined;
+		if (driversToAddToSource.length > 0) {
+			const attachedDriver = driversToAddToSource[0];
+			const newName = this.buildLoadChatNameForDriver(chatRoom.name, attachedDriver);
+			if (newName !== chatRoom.name) {
+				await this.prisma.chatRoom.update({
+					where: { id: chatRoom.id },
+					data: { name: newName },
+				});
+				updatedSourceRoom = { id: chatRoom.id, name: newName };
+			}
+		}
+
+		return { newParticipants, forkedChatRooms, updatedSourceRoom };
 	}
 
 	private async addParticipantsToRoom(
