@@ -163,6 +163,14 @@ export class BidRatesService {
 		}
 	}
 
+	/** New price must be strictly below the current bid_rates.rate. */
+	private assertNewOfferBelowBidRate(bidRate: number, newPrice: number): void {
+		if (!Number.isFinite(bidRate) || newPrice < bidRate) return;
+		throw new BadRequestException(
+			`Your bid must be less than ${this.formatBidPriceUsd(bidRate)}`,
+		);
+	}
+
 	/**
 	 * Posts an automated BID price chat message as `senderId` and broadcasts it.
 	 * Used for both owner ("Rate changed" / "New offer") and non-owner ("New offer").
@@ -813,6 +821,7 @@ export class BidRatesService {
 				id: true,
 				ownerId: true,
 				chatId: true,
+				rate: true,
 			},
 		});
 
@@ -847,6 +856,7 @@ export class BidRatesService {
 		const rateChangedMessage = `Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`;
 
 		if (!isOwnerRequester) {
+			this.assertNewOfferBelowBidRate(bidRate.rate, dto.newPrice);
 			await this.assertNewOfferBelowActiveMin(id, dto.newPrice);
 
 			const existing = await this.prisma.bidRateParticipant.findUnique({
@@ -930,6 +940,7 @@ export class BidRatesService {
 		);
 
 		if (hasActivePlusOneTimer) {
+			this.assertNewOfferBelowBidRate(bidRate.rate, dto.newPrice);
 			await this.assertNewOfferBelowActiveMin(id, dto.newPrice);
 
 			const ownerRow = await this.prisma.bidRateParticipant.findUnique({
