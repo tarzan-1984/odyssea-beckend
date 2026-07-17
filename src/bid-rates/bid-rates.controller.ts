@@ -220,6 +220,26 @@ export class BidRatesController {
 		return this.bidRatesService.updateNewPrice(id, req.user.id, dto);
 	}
 
+	@Get(':id/rate-voters')
+	@ApiOperation({
+		summary: 'List recent rate offer voters for a bid',
+		description:
+			'Returns bid_rate_participants with non-null rate and created_rate_at within the last 4 minutes (avatar + name).',
+	})
+	@ApiResponse({ status: 200, description: 'Rate voters list' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async listRateVotersByBid(
+		@Param('id', ParseIntPipe) id: number,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.listRateVotersByBidId(id);
+	}
+
 	@Get(':id/participants')
 	@ApiOperation({
 		summary: 'List bid auction participants (+1) for a bid',

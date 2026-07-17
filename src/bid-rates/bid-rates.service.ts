@@ -20,6 +20,8 @@ import { RoutePointDto } from '../offers/dto/create-offer.dto';
 
 /** Bid / participant timer length in unix seconds. */
 const BID_TIMER_SEC = 15 * 60;
+/** Freshness window for rate-offer “voters” on the bid card. */
+const BID_RATE_VOTE_FRESH_SEC = 4 * 60;
 /** Max extend window between created_at and updated_at (unix seconds). */
 const BID_MAX_EXTEND_SEC = 3 * BID_TIMER_SEC;
 /** Soft-archive idle bids after this many hours (unix vs updated_at). */
@@ -1220,6 +1222,62 @@ export class BidRatesService {
 		}
 
 		return this.listParticipantsByBidRateId(bidRate.id, bidRate.ownerId);
+	}
+
+	/**
+	 * Participants who submitted a rate offer within the last 4 minutes
+	 * (rate IS NOT NULL and created_rate_at is fresh).
+	 */
+	async listRateVotersByBidId(bidRateId: number) {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id: bidRateId },
+			select: { id: true, ownerId: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
+		}
+
+		const minCreatedRateAt = nowUnixSeconds() - BID_RATE_VOTE_FRESH_SEC;
+
+		const voters = await this.prisma.bidRateParticipant.findMany({
+			where: {
+				bidRateId: bidRate.id,
+				rate: { not: null },
+				createdRateAt: { gte: minCreatedRateAt },
+			},
+			orderBy: { createdRateAt: 'desc' },
+			select: {
+				userId: true,
+				rate: true,
+				createdRateAt: true,
+				user: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						profilePhoto: true,
+						userColor: true,
+						role: true,
+					},
+				},
+			},
+		});
+
+		return {
+			bidRateId: bidRate.id,
+			ownerId: bidRate.ownerId,
+			participants: voters.map((row) => ({
+				userId: row.userId,
+				firstName: row.user.firstName,
+				lastName: row.user.lastName,
+				profilePhoto: row.user.profilePhoto,
+				userColor: row.user.userColor,
+				role: row.user.role,
+				rate: row.rate,
+				createdRateAt: row.createdRateAt,
+			})),
+		};
 	}
 
 	private async listParticipantsByBidRateId(bidRateId: number, ownerId: string) {
