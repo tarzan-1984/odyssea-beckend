@@ -150,10 +150,20 @@ export class MessageReactionsService {
 	private async assertMessageAccess(
 		messageId: string,
 		userId: string,
-	): Promise<{ id: string; chatRoomId: string; senderId: string }> {
+	): Promise<{
+		id: string;
+		chatRoomId: string;
+		senderId: string;
+		chatRoomType: string;
+	}> {
 		const message = await this.prisma.message.findUnique({
 			where: { id: messageId },
-			select: { id: true, chatRoomId: true, senderId: true },
+			select: {
+				id: true,
+				chatRoomId: true,
+				senderId: true,
+				chatRoom: { select: { type: true } },
+			},
 		});
 
 		if (!message) {
@@ -173,7 +183,21 @@ export class MessageReactionsService {
 			throw new NotFoundException('Chat room not found or access denied');
 		}
 
-		return message;
+		return {
+			id: message.id,
+			chatRoomId: message.chatRoomId,
+			senderId: message.senderId,
+			chatRoomType: message.chatRoom.type,
+		};
+	}
+
+	/** Reactions are disabled in BID chats. */
+	private assertReactionsAllowed(chatRoomType: string): void {
+		if (chatRoomType === 'BID') {
+			throw new BadRequestException(
+				'Reactions are not allowed in bid chats',
+			);
+		}
 	}
 
 	/** Reactions only on incoming messages (not on your own). */
@@ -231,6 +255,7 @@ export class MessageReactionsService {
 	}> {
 		const normalized = this.normalizeEmoji(emoji);
 		const message = await this.assertMessageAccess(messageId, userId);
+		this.assertReactionsAllowed(message.chatRoomType);
 		this.assertNotOwnMessage(message, userId);
 
 		await this.prisma.messageReaction.upsert({
@@ -390,6 +415,7 @@ export class MessageReactionsService {
 		reactions: MessageReactionGroup[];
 	}> {
 		const message = await this.assertMessageAccess(messageId, userId);
+		this.assertReactionsAllowed(message.chatRoomType);
 		this.assertNotOwnMessage(message, userId);
 
 		await this.prisma.messageReaction.deleteMany({
