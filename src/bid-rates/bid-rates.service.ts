@@ -132,6 +132,38 @@ export class BidRatesService {
 	}
 
 	/**
+	 * Auction rule: a new offer must be strictly below the lowest still-active
+	 * participant rate (created_rate_at within the last 4 minutes).
+	 */
+	private async assertNewOfferBelowActiveMin(
+		bidRateId: number,
+		newPrice: number,
+	): Promise<void> {
+		const minCreatedRateAt = nowUnixSeconds() - BID_RATE_VOTE_FRESH_SEC;
+		const rows = await this.prisma.bidRateParticipant.findMany({
+			where: {
+				bidRateId,
+				rate: { not: null },
+				createdRateAt: { gte: minCreatedRateAt },
+			},
+			select: { rate: true },
+		});
+
+		const activeRates = rows
+			.map((row) => row.rate)
+			.filter((rate): rate is number => rate != null && Number.isFinite(rate));
+
+		if (activeRates.length === 0) return;
+
+		const minRate = Math.min(...activeRates);
+		if (newPrice >= minRate) {
+			throw new BadRequestException(
+				`Your bid must be less than ${this.formatBidPriceUsd(minRate)}`,
+			);
+		}
+	}
+
+	/**
 	 * Posts an automated BID price chat message as `senderId` and broadcasts it.
 	 * Used for both owner ("Rate changed" / "New offer") and non-owner ("New offer").
 	 */
@@ -815,6 +847,8 @@ export class BidRatesService {
 		const rateChangedMessage = `Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`;
 
 		if (!isOwnerRequester) {
+			await this.assertNewOfferBelowActiveMin(id, dto.newPrice);
+
 			const existing = await this.prisma.bidRateParticipant.findUnique({
 				where: {
 					userId_bidRateId: {
@@ -896,6 +930,8 @@ export class BidRatesService {
 		);
 
 		if (hasActivePlusOneTimer) {
+			await this.assertNewOfferBelowActiveMin(id, dto.newPrice);
+
 			const ownerRow = await this.prisma.bidRateParticipant.findUnique({
 				where: {
 					userId_bidRateId: {
