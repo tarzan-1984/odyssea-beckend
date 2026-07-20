@@ -23,6 +23,8 @@ import { RoutePointDto } from '../offers/dto/create-offer.dto';
 const BID_TIMER_SEC = 15 * 60;
 /** Freshness window for rate-offer “voters” on the bid card. */
 const BID_RATE_VOTE_FRESH_SEC = 4 * 60;
+/** Max concurrent active rate offers per bid. */
+const BID_MAX_ACTIVE_OFFERS = 3;
 /** Max extend window between created_at and updated_at (unix seconds). */
 const BID_MAX_EXTEND_SEC = 3 * BID_TIMER_SEC;
 /** Soft-archive idle bids after this many hours (unix vs updated_at). */
@@ -340,6 +342,28 @@ export class BidRatesService {
 		});
 	}
 
+	/**
+	 * Silently reject every other active offer on this bid (no chat messages).
+	 * Used when someone Accepts one offer — remaining offers are cleared as Reject.
+	 */
+	private async clearOtherActiveOffers(
+		bidRateId: number,
+		keepOffererUserId: string,
+	): Promise<void> {
+		await this.prisma.bidRateParticipant.updateMany({
+			where: {
+				bidRateId,
+				userId: { not: keepOffererUserId },
+				rate: { not: null },
+			},
+			data: {
+				rate: null,
+				createdRateAt: null,
+				userVotes: Prisma.JsonNull,
+			},
+		});
+	}
+
 	private async acceptParticipantOffer(params: {
 		participantId: string;
 		bidRateId: number;
@@ -394,6 +418,24 @@ export class BidRatesService {
 		if (newPrice >= minRate) {
 			throw new BadRequestException(
 				`Your bid must be less than ${this.formatBidPriceUsd(minRate)}`,
+			);
+		}
+	}
+
+	/** At most BID_MAX_ACTIVE_OFFERS live offers (4-min window) per bid. */
+	private async assertActiveOffersBelowMax(bidRateId: number): Promise<void> {
+		const minCreatedRateAt = nowUnixSeconds() - BID_RATE_VOTE_FRESH_SEC;
+		const count = await this.prisma.bidRateParticipant.count({
+			where: {
+				bidRateId,
+				rate: { not: null },
+				createdRateAt: { gte: minCreatedRateAt },
+			},
+		});
+
+		if (count >= BID_MAX_ACTIVE_OFFERS) {
+			throw new BadRequestException(
+				`Maximum of ${BID_MAX_ACTIVE_OFFERS} active offers allowed. Wait until one expires or is resolved.`,
 			);
 		}
 	}
@@ -1129,6 +1171,9 @@ export class BidRatesService {
 		const offerMessage = `New offer: ${this.formatBidPriceUsd(dto.newPrice)}`;
 		const rateChangedMessage = `Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`;
 
+		// Block any price update while the bid already has 3 live offers.
+		await this.assertActiveOffersBelowMax(id);
+
 		if (!isOwnerRequester) {
 			await this.assertRequesterHasActivePlusOne(id, requesterId);
 			await this.assertRequesterHasNoActiveOffer(id, requesterId);
@@ -1708,8 +1753,9 @@ export class BidRatesService {
 
 	/**
 	 * Accept / reject another participant's offer.
-	 * Reject (false) clears the offer immediately.
-	 * Accept when every snapshot vote is true → write rate to bid_rates.
+	 * Manual Reject → chat message + clear that offer.
+	 * Accept → chat Confirm message, silently Reject/clear all other offers,
+	 * then when every snapshot vote is true → write rate to bid_rates.
 	 */
 	async voteOnOffer(
 		bidRateId: number,
@@ -1823,11 +1869,12 @@ export class BidRatesService {
 				.join(' ')
 				.trim() || 'Unknown';
 		const offerPriceLabel = this.formatBidPriceUsd(offer.rate);
-		const voteChatMessage = dto.accept
-			? `Confirmed offer from ${offererName}: ${offerPriceLabel}`
-			: `Rejected offer from ${offererName}: ${offerPriceLabel}`;
 
+		// Chat message only for the explicit button click (Accept or Reject).
 		if (bidRate.chatId) {
+			const voteChatMessage = dto.accept
+				? `Confirmed offer from ${offererName}: ${offerPriceLabel}`
+				: `Rejected offer from ${offererName}: ${offerPriceLabel}`;
 			await this.sendBidPriceChatMessage(
 				bidRate.chatId,
 				voterUserId,
@@ -1837,15 +1884,15 @@ export class BidRatesService {
 
 		if (dto.accept === false) {
 			await this.clearParticipantOffer(offer.id);
-			await this.notifyBidRateChangedById(
-				bidRateId,
-				'offer_rejected',
-			);
+			await this.notifyBidRateChangedById(bidRateId, 'offer_rejected');
 			return {
 				bidRateId,
 				status: 'rejected' as const,
 			};
 		}
+
+		// Accept: silently clear every other offer (no Reject chat messages).
+		await this.clearOtherActiveOffers(bidRateId, offererUserId);
 
 		await this.prisma.bidRateParticipant.update({
 			where: { id: offer.id },
