@@ -16,6 +16,7 @@ import {
 import { getRouteEndpoints } from '../offers/offer-route.util';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
 import { UpdateBidRatePriceDto } from './dto/update-bid-rate-price.dto';
+import { VoteBidOfferDto } from './dto/vote-bid-offer.dto';
 import { RoutePointDto } from '../offers/dto/create-offer.dto';
 
 /** Bid / participant timer length in unix seconds. */
@@ -29,6 +30,13 @@ const BID_ARCHIVE_IDLE_HOURS = 12;
 /** Hard-delete archived bids after this (unix vs updated_at). */
 const BID_PURGE_ARCHIVED_DAYS = 15;
 const BID_PURGE_ARCHIVED_HOURS = BID_PURGE_ARCHIVED_DAYS * 24;
+
+/** Snapshot entry stored in bid_rate_participants.user_votes. */
+type BidOfferUserVote = {
+	userId: string;
+	user_vote: boolean | null;
+	plusOneCreatedAt: number;
+};
 
 function nowUnixSeconds(): number {
 	return Math.floor(Date.now() / 1000);
@@ -131,6 +139,170 @@ export class BidRatesService {
 		})}`;
 	}
 
+	private parseUserVotes(raw: unknown): BidOfferUserVote[] {
+		if (!Array.isArray(raw)) return [];
+		const votes: BidOfferUserVote[] = [];
+		for (const entry of raw) {
+			if (!entry || typeof entry !== 'object') continue;
+			const row = entry as Record<string, unknown>;
+			const userId = typeof row.userId === 'string' ? row.userId : null;
+			const plusOneCreatedAt = Number(row.plusOneCreatedAt);
+			if (!userId || !Number.isFinite(plusOneCreatedAt)) continue;
+			const voteRaw = row.user_vote;
+			const user_vote =
+				voteRaw === true || voteRaw === false ? voteRaw : null;
+			votes.push({ userId, user_vote, plusOneCreatedAt });
+		}
+		return votes;
+	}
+
+	private isPlusOneTimerActive(
+		updatedAt: number,
+		nowSec: number = nowUnixSeconds(),
+	): boolean {
+		return updatedAt + BID_TIMER_SEC > nowSec;
+	}
+
+	private isOfferFresh(
+		createdRateAt: number | null | undefined,
+		nowSec: number = nowUnixSeconds(),
+	): boolean {
+		return (
+			createdRateAt != null &&
+			Number.isFinite(createdRateAt) &&
+			createdRateAt + BID_RATE_VOTE_FRESH_SEC > nowSec
+		);
+	}
+
+	/**
+	 * Snapshot of users with an active +1 cycle (excluding the offerer).
+	 */
+	private async buildOfferUserVotesSnapshot(
+		bidRateId: number,
+		offererUserId: string,
+		nowSec: number = nowUnixSeconds(),
+	): Promise<BidOfferUserVote[]> {
+		const rows = await this.prisma.bidRateParticipant.findMany({
+			where: {
+				bidRateId,
+				isOwner: false,
+				userId: { not: offererUserId },
+			},
+			select: { userId: true, createdAt: true, updatedAt: true },
+		});
+
+		return rows
+			.filter((row) => this.isPlusOneTimerActive(row.updatedAt, nowSec))
+			.map((row) => ({
+				userId: row.userId,
+				user_vote: null,
+				plusOneCreatedAt: row.createdAt,
+			}));
+	}
+
+	/** Non-owner must have a live +1 cycle to place an offer. */
+	private async assertRequesterHasActivePlusOne(
+		bidRateId: number,
+		requesterId: string,
+	): Promise<{ id: string; createdAt: number; updatedAt: number }> {
+		const participant = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId: requesterId,
+					bidRateId,
+				},
+			},
+			select: {
+				id: true,
+				isOwner: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+
+		if (!participant || participant.isOwner) {
+			throw new BadRequestException(
+				'You must press +1 and have an active timer before placing an offer',
+			);
+		}
+
+		if (!this.isPlusOneTimerActive(participant.updatedAt)) {
+			throw new BadRequestException(
+				'Your +1 timer has expired. Press +1 again before placing an offer',
+			);
+		}
+
+		return participant;
+	}
+
+	private async loadVoterPlusOneState(
+		bidRateId: number,
+		voterUserId: string,
+	): Promise<{ createdAt: number; updatedAt: number } | null> {
+		const row = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId: voterUserId,
+					bidRateId,
+				},
+			},
+			select: { isOwner: true, createdAt: true, updatedAt: true },
+		});
+		if (!row || row.isOwner) return null;
+		return { createdAt: row.createdAt, updatedAt: row.updatedAt };
+	}
+
+	private canUserVoteOnOffer(params: {
+		snapshot: BidOfferUserVote;
+		voterPlusOne: { createdAt: number; updatedAt: number } | null;
+		nowSec?: number;
+	}): boolean {
+		const nowSec = params.nowSec ?? nowUnixSeconds();
+		if (params.snapshot.user_vote !== null) return false;
+		if (!params.voterPlusOne) return false;
+		if (params.voterPlusOne.createdAt !== params.snapshot.plusOneCreatedAt) {
+			return false;
+		}
+		return this.isPlusOneTimerActive(params.voterPlusOne.updatedAt, nowSec);
+	}
+
+	private async clearParticipantOffer(participantId: string): Promise<void> {
+		await this.prisma.bidRateParticipant.update({
+			where: { id: participantId },
+			data: {
+				rate: null,
+				createdRateAt: null,
+				userVotes: Prisma.JsonNull,
+			},
+		});
+	}
+
+	private async acceptParticipantOffer(params: {
+		participantId: string;
+		bidRateId: number;
+		offerRate: number;
+	}): Promise<void> {
+		const nowSec = nowUnixSeconds();
+		await this.prisma.$transaction([
+			this.prisma.bidRate.update({
+				where: { id: params.bidRateId },
+				data: {
+					rate: params.offerRate,
+					createdAt: nowSec,
+					updatedAt: nowSec,
+				},
+			}),
+			this.prisma.bidRateParticipant.update({
+				where: { id: params.participantId },
+				data: {
+					rate: null,
+					createdRateAt: null,
+					userVotes: Prisma.JsonNull,
+				},
+			}),
+		]);
+	}
+
 	/**
 	 * Auction rule: a new offer must be strictly below the lowest still-active
 	 * participant rate (created_rate_at within the last 4 minutes).
@@ -159,6 +331,40 @@ export class BidRatesService {
 		if (newPrice >= minRate) {
 			throw new BadRequestException(
 				`Your bid must be less than ${this.formatBidPriceUsd(minRate)}`,
+			);
+		}
+	}
+
+	/**
+	 * Auction rule: a user may not place another offer while their previous
+	 * rate is still within the 4-minute active window.
+	 */
+	private async assertRequesterHasNoActiveOffer(
+		bidRateId: number,
+		requesterId: string,
+	): Promise<void> {
+		const participant = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId: requesterId,
+					bidRateId,
+				},
+			},
+			select: { rate: true, createdRateAt: true },
+		});
+
+		if (
+			participant?.rate == null ||
+			participant.createdRateAt == null ||
+			!Number.isFinite(participant.createdRateAt)
+		) {
+			return;
+		}
+
+		const nowSec = nowUnixSeconds();
+		if (participant.createdRateAt + BID_RATE_VOTE_FRESH_SEC > nowSec) {
+			throw new BadRequestException(
+				'You already have an active offer. Wait until the timer expires.',
 			);
 		}
 	}
@@ -856,6 +1062,8 @@ export class BidRatesService {
 		const rateChangedMessage = `Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`;
 
 		if (!isOwnerRequester) {
+			await this.assertRequesterHasActivePlusOne(id, requesterId);
+			await this.assertRequesterHasNoActiveOffer(id, requesterId);
 			this.assertNewOfferBelowBidRate(bidRate.rate, dto.newPrice);
 			await this.assertNewOfferBelowActiveMin(id, dto.newPrice);
 
@@ -869,39 +1077,77 @@ export class BidRatesService {
 				select: { id: true, isOwner: true },
 			});
 
-			if (existing?.isOwner) {
-				throw new ForbiddenException(
-					'Bid creator participant row cannot store a non-owner offer',
+			if (!existing || existing.isOwner) {
+				throw new BadRequestException(
+					'You must press +1 and have an active timer before placing an offer',
 				);
 			}
 
-			if (existing) {
-				await this.prisma.bidRateParticipant.update({
-					where: { id: existing.id },
-					data: {
-						rate: dto.newPrice,
-						createdRateAt: nowSec,
+			const userVotes = await this.buildOfferUserVotesSnapshot(
+				id,
+				requesterId,
+				nowSec,
+			);
+
+			if (userVotes.length === 0) {
+				// No eligible +1 voters — apply offer to bid rate immediately.
+				await this.prisma.$transaction([
+					this.prisma.bidRate.update({
+						where: { id },
+						data: {
+							rate: dto.newPrice,
+							createdAt: nowSec,
+							updatedAt: nowSec,
+						},
+					}),
+					this.prisma.bidRateParticipant.update({
+						where: { id: existing.id },
+						data: {
+							rate: null,
+							createdRateAt: null,
+							userVotes: Prisma.JsonNull,
+						},
+					}),
+				]);
+
+				const current = await this.prisma.bidRate.findUnique({
+					where: { id },
+					include: {
+						owner: {
+							select: {
+								id: true,
+								firstName: true,
+								lastName: true,
+							},
+						},
 					},
 				});
-			} else {
-				const user = await this.prisma.user.findUnique({
-					where: { id: requesterId },
-					select: { externalId: true },
-				});
-				await this.prisma.bidRateParticipant.create({
-					data: {
-						userId: requesterId,
-						externalId: this.normalizeExternalId(user?.externalId),
-						bidRateId: id,
-						isOwner: false,
-						rate: dto.newPrice,
-						createdRateAt: nowSec,
-						// Required row timestamps; not tied to the +1 timer cycle.
-						createdAt: nowSec,
-						updatedAt: nowSec,
-					},
-				});
+				if (!current) {
+					throw new NotFoundException('Bid rate not found');
+				}
+				const mapped = this.mapBidRate(current);
+				await this.sendBidPriceChatMessage(
+					chatId,
+					requesterId,
+					offerMessage,
+				);
+				await this.sendBidPriceChatMessage(
+					chatId,
+					bidRate.ownerId,
+					`Rate changed to ${this.formatBidPriceUsd(dto.newPrice)}`,
+				);
+				await this.notifyBidRateChangedById(id, 'offer_auto_accepted', mapped);
+				return mapped;
 			}
+
+			await this.prisma.bidRateParticipant.update({
+				where: { id: existing.id },
+				data: {
+					rate: dto.newPrice,
+					createdRateAt: nowSec,
+					userVotes: userVotes as unknown as Prisma.InputJsonValue,
+				},
+			});
 
 			const current = await this.prisma.bidRate.findUnique({
 				where: { id },
@@ -940,6 +1186,7 @@ export class BidRatesService {
 		);
 
 		if (hasActivePlusOneTimer) {
+			await this.assertRequesterHasNoActiveOffer(id, requesterId);
 			this.assertNewOfferBelowBidRate(bidRate.rate, dto.newPrice);
 			await this.assertNewOfferBelowActiveMin(id, dto.newPrice);
 
@@ -962,6 +1209,11 @@ export class BidRatesService {
 				data: {
 					rate: dto.newPrice,
 					createdRateAt: nowSec,
+					userVotes: (await this.buildOfferUserVotesSnapshot(
+						id,
+						bidRate.ownerId,
+						nowSec,
+					)) as unknown as Prisma.InputJsonValue,
 				},
 			});
 
@@ -1283,10 +1535,12 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Participants who submitted a rate offer within the last 4 minutes
-	 * (rate IS NOT NULL and created_rate_at is fresh).
+	 * Active rate offers (last 4 minutes).
+	 * For a non-owner viewer: only offers they can still vote on
+	 * (in user_votes snapshot, same +1 cycle, live +1 timer).
+	 * Bid owner sees all active offers.
 	 */
-	async listRateVotersByBidId(bidRateId: number) {
+	async listRateVotersByBidId(bidRateId: number, viewerId: string) {
 		const bidRate = await this.prisma.bidRate.findUnique({
 			where: { id: bidRateId },
 			select: { id: true, ownerId: true },
@@ -1296,9 +1550,10 @@ export class BidRatesService {
 			throw new NotFoundException('Bid rate not found');
 		}
 
-		const minCreatedRateAt = nowUnixSeconds() - BID_RATE_VOTE_FRESH_SEC;
+		const nowSec = nowUnixSeconds();
+		const minCreatedRateAt = nowSec - BID_RATE_VOTE_FRESH_SEC;
 
-		const voters = await this.prisma.bidRateParticipant.findMany({
+		const offers = await this.prisma.bidRateParticipant.findMany({
 			where: {
 				bidRateId: bidRate.id,
 				rate: { not: null },
@@ -1309,6 +1564,7 @@ export class BidRatesService {
 				userId: true,
 				rate: true,
 				createdRateAt: true,
+				userVotes: true,
 				user: {
 					select: {
 						id: true,
@@ -1322,19 +1578,213 @@ export class BidRatesService {
 			},
 		});
 
+		const isBidOwner = viewerId === bidRate.ownerId;
+		let viewerPlusOne: { createdAt: number; updatedAt: number } | null =
+			null;
+		if (!isBidOwner) {
+			viewerPlusOne = await this.loadVoterPlusOneState(bidRate.id, viewerId);
+		}
+
+		const participants = offers
+			.filter((row) => {
+				if (isBidOwner) return true;
+				if (row.userId === viewerId) return true;
+				const votes = this.parseUserVotes(row.userVotes);
+				const snapshot = votes.find((v) => v.userId === viewerId);
+				if (!snapshot) return false;
+				return this.canUserVoteOnOffer({
+					snapshot,
+					voterPlusOne: viewerPlusOne,
+					nowSec,
+				});
+			})
+			.map((row) => {
+				const votes = this.parseUserVotes(row.userVotes);
+				const myVote =
+					votes.find((v) => v.userId === viewerId)?.user_vote ?? null;
+				const canVote =
+					!isBidOwner &&
+					row.userId !== viewerId &&
+					this.canUserVoteOnOffer({
+						snapshot:
+							votes.find((v) => v.userId === viewerId) ?? {
+								userId: viewerId,
+								user_vote: null,
+								plusOneCreatedAt: -1,
+							},
+						voterPlusOne: viewerPlusOne,
+						nowSec,
+					});
+
+				return {
+					userId: row.userId,
+					firstName: row.user.firstName,
+					lastName: row.user.lastName,
+					profilePhoto: row.user.profilePhoto,
+					userColor: row.user.userColor,
+					role: row.user.role,
+					rate: row.rate,
+					createdRateAt: row.createdRateAt,
+					userVotes: votes,
+					myVote,
+					canVote,
+				};
+			});
+
 		return {
 			bidRateId: bidRate.id,
 			ownerId: bidRate.ownerId,
-			participants: voters.map((row) => ({
-				userId: row.userId,
-				firstName: row.user.firstName,
-				lastName: row.user.lastName,
-				profilePhoto: row.user.profilePhoto,
-				userColor: row.user.userColor,
-				role: row.user.role,
-				rate: row.rate,
-				createdRateAt: row.createdRateAt,
-			})),
+			participants,
+		};
+	}
+
+	/**
+	 * Accept / reject another participant's offer.
+	 * Reject (false) clears the offer immediately.
+	 * Accept when every snapshot vote is true → write rate to bid_rates.
+	 */
+	async voteOnOffer(
+		bidRateId: number,
+		offererUserId: string,
+		voterUserId: string,
+		dto: VoteBidOfferDto,
+	) {
+		if (offererUserId === voterUserId) {
+			throw new BadRequestException('You cannot vote on your own offer');
+		}
+
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id: bidRateId },
+			select: { id: true, ownerId: true, chatId: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
+		}
+
+		const offer = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId: offererUserId,
+					bidRateId,
+				},
+			},
+			select: {
+				id: true,
+				userId: true,
+				rate: true,
+				createdRateAt: true,
+				userVotes: true,
+			},
+		});
+
+		if (
+			!offer ||
+			offer.rate == null ||
+			!this.isOfferFresh(offer.createdRateAt)
+		) {
+			throw new NotFoundException('Active offer not found');
+		}
+
+		const votes = this.parseUserVotes(offer.userVotes);
+		const snapshotIndex = votes.findIndex((v) => v.userId === voterUserId);
+		if (snapshotIndex < 0) {
+			throw new ForbiddenException(
+				'You are not eligible to vote on this offer',
+			);
+		}
+
+		const snapshot = votes[snapshotIndex];
+		if (snapshot.user_vote !== null) {
+			throw new BadRequestException('You have already voted on this offer');
+		}
+
+		const voterPlusOne = await this.loadVoterPlusOneState(
+			bidRateId,
+			voterUserId,
+		);
+		if (
+			!this.canUserVoteOnOffer({
+				snapshot,
+				voterPlusOne,
+			})
+		) {
+			throw new ForbiddenException(
+				'Your +1 timer for this offer has expired or was restarted',
+			);
+		}
+
+		votes[snapshotIndex] = {
+			...snapshot,
+			user_vote: dto.accept,
+		};
+
+		if (dto.accept === false) {
+			await this.clearParticipantOffer(offer.id);
+			await this.notifyBidRateChangedById(
+				bidRateId,
+				'offer_rejected',
+			);
+			return {
+				bidRateId,
+				status: 'rejected' as const,
+			};
+		}
+
+		await this.prisma.bidRateParticipant.update({
+			where: { id: offer.id },
+			data: {
+				userVotes: votes as unknown as Prisma.InputJsonValue,
+			},
+		});
+
+		const allAccepted =
+			votes.length > 0 && votes.every((v) => v.user_vote === true);
+
+		if (allAccepted) {
+			await this.acceptParticipantOffer({
+				participantId: offer.id,
+				bidRateId,
+				offerRate: offer.rate,
+			});
+
+			if (bidRate.chatId) {
+				await this.sendBidPriceChatMessage(
+					bidRate.chatId,
+					bidRate.ownerId,
+					`Rate changed to ${this.formatBidPriceUsd(offer.rate)}`,
+				);
+			}
+
+			const current = await this.prisma.bidRate.findUnique({
+				where: { id: bidRateId },
+				include: {
+					owner: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+						},
+					},
+				},
+			});
+			const mapped = current ? this.mapBidRate(current) : undefined;
+			await this.notifyBidRateChangedById(
+				bidRateId,
+				'offer_accepted',
+				mapped,
+			);
+			return {
+				bidRateId,
+				status: 'accepted' as const,
+				rate: offer.rate,
+			};
+		}
+
+		await this.notifyBidRateChangedById(bidRateId, 'offer_vote_recorded');
+		return {
+			bidRateId,
+			status: 'pending' as const,
 		};
 	}
 

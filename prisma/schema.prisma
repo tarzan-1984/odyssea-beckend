@@ -317,6 +317,9 @@ model BidRateParticipant {
   rate          Float?
   /// Unix timestamp in seconds when `rate` was last written.
   createdRateAt Int?     @map("created_rate_at")
+  /// Snapshot of eligible +1 voters when this participant placed an offer.
+  /// Shape: [{ userId, user_vote: null|true|false, plusOneCreatedAt }]
+  userVotes     Json?    @map("user_votes")
   bidRateId     Int      @map("bid_rate_id")
   /// True for the bid creator row inserted on bid create.
   isOwner       Boolean  @default(false) @map("is_owner")

@@ -26,6 +26,7 @@ import { ChatGateway } from '../chats/chat.gateway';
 import { BidRatesService } from './bid-rates.service';
 import { CreateBidRateDto } from './dto/create-bid-rate.dto';
 import { UpdateBidRatePriceDto } from './dto/update-bid-rate-price.dto';
+import { VoteBidOfferDto } from './dto/vote-bid-offer.dto';
 
 @ApiTags('Bid rates')
 @ApiBearerAuth()
@@ -222,11 +223,11 @@ export class BidRatesController {
 
 	@Get(':id/rate-voters')
 	@ApiOperation({
-		summary: 'List recent rate offer voters for a bid',
+		summary: 'List recent rate offers for a bid',
 		description:
-			'Returns bid_rate_participants with non-null rate and created_rate_at within the last 4 minutes (avatar + name).',
+			'Active offers (rate + created_rate_at within 4 min). Non-owners only see offers they can still vote on. Bid owner sees all.',
 	})
-	@ApiResponse({ status: 200, description: 'Rate voters list' })
+	@ApiResponse({ status: 200, description: 'Rate offers list' })
 	@ApiResponse({ status: 403, description: 'Forbidden' })
 	@ApiResponse({ status: 404, description: 'Not found' })
 	async listRateVotersByBid(
@@ -237,7 +238,35 @@ export class BidRatesController {
 			throw new ForbiddenException('You do not have access to bid rates');
 		}
 
-		return this.bidRatesService.listRateVotersByBidId(id);
+		return this.bidRatesService.listRateVotersByBidId(id, req.user.id);
+	}
+
+	@Post(':id/offers/:offererUserId/vote')
+	@ApiOperation({
+		summary: 'Vote on a participant rate offer',
+		description:
+			'Accept (true) or reject (false) an offer. Voter must be in the offer snapshot with the same active +1 cycle.',
+	})
+	@ApiResponse({ status: 200, description: 'Vote recorded' })
+	@ApiResponse({ status: 400, description: 'Bad request' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async voteOnOffer(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('offererUserId') offererUserId: string,
+		@Body() dto: VoteBidOfferDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.voteOnOffer(
+			id,
+			offererUserId,
+			req.user.id,
+			dto,
+		);
 	}
 
 	@Get(':id/participants')
