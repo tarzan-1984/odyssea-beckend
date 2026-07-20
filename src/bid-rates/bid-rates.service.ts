@@ -175,13 +175,20 @@ export class BidRatesService {
 	}
 
 	/**
-	 * Snapshot of users with an active +1 cycle (excluding the offerer).
+	 * Snapshot of voters for a new offer:
+	 * - users with an active +1 cycle (excluding the offerer)
+	 * - always the bid owner (no +1 required — creator cannot use +1)
 	 */
 	private async buildOfferUserVotesSnapshot(
 		bidRateId: number,
 		offererUserId: string,
 		nowSec: number = nowUnixSeconds(),
 	): Promise<BidOfferUserVote[]> {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id: bidRateId },
+			select: { ownerId: true },
+		});
+
 		const rows = await this.prisma.bidRateParticipant.findMany({
 			where: {
 				bidRateId,
@@ -191,13 +198,28 @@ export class BidRatesService {
 			select: { userId: true, createdAt: true, updatedAt: true },
 		});
 
-		return rows
+		const votes: BidOfferUserVote[] = rows
 			.filter((row) => this.isPlusOneTimerActive(row.updatedAt, nowSec))
 			.map((row) => ({
 				userId: row.userId,
 				user_vote: null,
 				plusOneCreatedAt: row.createdAt,
 			}));
+
+		const ownerId = bidRate?.ownerId;
+		if (ownerId && ownerId !== offererUserId) {
+			const alreadyIncluded = votes.some((v) => v.userId === ownerId);
+			if (!alreadyIncluded) {
+				votes.push({
+					userId: ownerId,
+					user_vote: null,
+					// Sentinel: bid creator has no +1 cycle.
+					plusOneCreatedAt: 0,
+				});
+			}
+		}
+
+		return votes;
 	}
 
 	/** Non-owner must have a live +1 cycle to place an offer. */
@@ -256,14 +278,55 @@ export class BidRatesService {
 		snapshot: BidOfferUserVote;
 		voterPlusOne: { createdAt: number; updatedAt: number } | null;
 		nowSec?: number;
+		/** Bid creator may vote without an active +1. */
+		isBidOwner?: boolean;
 	}): boolean {
-		const nowSec = params.nowSec ?? nowUnixSeconds();
 		if (params.snapshot.user_vote !== null) return false;
+		if (params.isBidOwner) return true;
+		const nowSec = params.nowSec ?? nowUnixSeconds();
 		if (!params.voterPlusOne) return false;
 		if (params.voterPlusOne.createdAt !== params.snapshot.plusOneCreatedAt) {
 			return false;
 		}
 		return this.isPlusOneTimerActive(params.voterPlusOne.updatedAt, nowSec);
+	}
+
+	/**
+	 * After a positive vote, the voter is locked to that offer until it expires
+	 * (4 min) or resolves (full accept / reject clears the row).
+	 * Returns the offerer userId of that lock, if any.
+	 */
+	private findActiveAcceptVoteLock(
+		offers: Array<{ userId: string; userVotes: unknown }>,
+		voterUserId: string,
+		excludeOffererUserId?: string,
+	): string | null {
+		for (const offer of offers) {
+			if (excludeOffererUserId && offer.userId === excludeOffererUserId) {
+				continue;
+			}
+			const votes = this.parseUserVotes(offer.userVotes);
+			const accepted = votes.some(
+				(v) => v.userId === voterUserId && v.user_vote === true,
+			);
+			if (accepted) return offer.userId;
+		}
+		return null;
+	}
+
+	private async loadActiveOffersForVoteLock(
+		bidRateId: number,
+		nowSec: number = nowUnixSeconds(),
+	): Promise<Array<{ userId: string; userVotes: unknown }>> {
+		const minCreatedRateAt = nowSec - BID_RATE_VOTE_FRESH_SEC;
+		return this.prisma.bidRateParticipant.findMany({
+			where: {
+				bidRateId,
+				rate: { not: null },
+				createdRateAt: { gte: minCreatedRateAt },
+			},
+			select: { userId: true, userVotes: true },
+		});
 	}
 
 	private async clearParticipantOffer(participantId: string): Promise<void> {
@@ -1595,19 +1658,31 @@ export class BidRatesService {
 			bidRate.id,
 			viewerId,
 		);
+		const isBidOwner = viewerId === bidRate.ownerId;
+		const acceptLockedToOffererId = this.findActiveAcceptVoteLock(
+			offers,
+			viewerId,
+		);
 
 		const participants = offers.map((row) => {
 			const votes = this.parseUserVotes(row.userVotes);
 			const snapshot = votes.find((v) => v.userId === viewerId);
 			const myVote = snapshot?.user_vote ?? null;
-			const canVote =
+			const eligible =
 				row.userId !== viewerId &&
-				Boolean(snapshot) &&
-				this.canUserVoteOnOffer({
-					snapshot: snapshot!,
-					voterPlusOne: viewerPlusOne,
-					nowSec,
-				});
+				(isBidOwner
+					? myVote === null
+					: Boolean(snapshot) &&
+						this.canUserVoteOnOffer({
+							snapshot: snapshot!,
+							voterPlusOne: viewerPlusOne,
+							nowSec,
+						}));
+			// Positive vote on one offer blocks voting on any other active offer.
+			const canVote =
+				eligible &&
+				(acceptLockedToOffererId == null ||
+					acceptLockedToOffererId === row.userId);
 
 			return {
 				userId: row.userId,
@@ -1680,7 +1755,19 @@ export class BidRatesService {
 		}
 
 		const votes = this.parseUserVotes(offer.userVotes);
-		const snapshotIndex = votes.findIndex((v) => v.userId === voterUserId);
+		const isBidOwner = voterUserId === bidRate.ownerId;
+		let snapshotIndex = votes.findIndex((v) => v.userId === voterUserId);
+
+		// Owner may vote even on older offers that were snapshotted without them.
+		if (snapshotIndex < 0 && isBidOwner) {
+			votes.push({
+				userId: voterUserId,
+				user_vote: null,
+				plusOneCreatedAt: 0,
+			});
+			snapshotIndex = votes.length - 1;
+		}
+
 		if (snapshotIndex < 0) {
 			throw new ForbiddenException(
 				'You are not eligible to vote on this offer',
@@ -1692,18 +1779,32 @@ export class BidRatesService {
 			throw new BadRequestException('You have already voted on this offer');
 		}
 
-		const voterPlusOne = await this.loadVoterPlusOneState(
-			bidRateId,
-			voterUserId,
-		);
+		const voterPlusOne = isBidOwner
+			? null
+			: await this.loadVoterPlusOneState(bidRateId, voterUserId);
 		if (
 			!this.canUserVoteOnOffer({
 				snapshot,
 				voterPlusOne,
+				isBidOwner,
 			})
 		) {
 			throw new ForbiddenException(
-				'Your +1 timer for this offer has expired or was restarted',
+				isBidOwner
+					? 'You are not eligible to vote on this offer'
+					: 'Your +1 timer for this offer has expired or was restarted',
+			);
+		}
+
+		const activeOffers = await this.loadActiveOffersForVoteLock(bidRateId);
+		const acceptLockedToOffererId = this.findActiveAcceptVoteLock(
+			activeOffers,
+			voterUserId,
+			offererUserId,
+		);
+		if (acceptLockedToOffererId) {
+			throw new ForbiddenException(
+				'You already accepted another offer. Wait until it expires or is finalized before voting on others',
 			);
 		}
 
