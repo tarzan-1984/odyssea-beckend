@@ -428,6 +428,11 @@ export class BidRatesService {
 		reason: string;
 		participantIds: string[];
 		bidRate?: unknown;
+		participant?: {
+			userId: string;
+			createdAt: number;
+			updatedAt: number;
+		} | null;
 	}) {
 		this.chatGateway.notifyBidRateUpdated(params);
 	}
@@ -1415,6 +1420,11 @@ export class BidRatesService {
 				chatRoomId,
 				reason: 'participant_rejoined',
 				participantIds,
+				participant: {
+					userId,
+					createdAt: restarted.createdAt,
+					updatedAt: restarted.updatedAt,
+				},
 			});
 
 			return {
@@ -1454,6 +1464,11 @@ export class BidRatesService {
 				chatRoomId,
 				reason: 'participant_joined',
 				participantIds,
+				participant: {
+					userId: created.userId,
+					createdAt: created.createdAt,
+					updatedAt: created.updatedAt,
+				},
 			});
 
 			return {
@@ -1915,6 +1930,11 @@ export class BidRatesService {
 			chatRoomId,
 			reason: 'participant_timer_extended',
 			participantIds,
+			participant: {
+				userId: updated.userId,
+				createdAt: updated.createdAt,
+				updatedAt: updated.updatedAt,
+			},
 		});
 
 		return {

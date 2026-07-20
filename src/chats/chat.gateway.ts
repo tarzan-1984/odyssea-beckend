@@ -1015,12 +1015,19 @@ export class ChatGateway
 		reason: string;
 		participantIds: string[];
 		bidRate?: unknown;
+		/** +1 timer row — clients apply immediately without waiting for refetch. */
+		participant?: {
+			userId: string;
+			createdAt: number;
+			updatedAt: number;
+		} | null;
 	}) {
 		const eventPayload = {
 			bidRateId: payload.bidRateId,
 			chatRoomId: payload.chatRoomId,
 			reason: payload.reason,
 			bidRate: payload.bidRate ?? null,
+			participant: payload.participant ?? null,
 			refreshedAt: new Date().toISOString(),
 		};
 
