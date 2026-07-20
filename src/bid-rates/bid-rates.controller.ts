@@ -225,7 +225,7 @@ export class BidRatesController {
 	@ApiOperation({
 		summary: 'List recent rate offers for a bid',
 		description:
-			'Active offers (rate + created_rate_at within 4 min). Non-owners only see offers they can still vote on. Bid owner sees all.',
+			'Active offers (rate + created_rate_at within 4 min). Visible to all; canVote marks who may accept/reject.',
 	})
 	@ApiResponse({ status: 200, description: 'Rate offers list' })
 	@ApiResponse({ status: 403, description: 'Forbidden' })

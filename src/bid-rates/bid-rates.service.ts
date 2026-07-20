@@ -1536,9 +1536,7 @@ export class BidRatesService {
 
 	/**
 	 * Active rate offers (last 4 minutes).
-	 * For a non-owner viewer: only offers they can still vote on
-	 * (in user_votes snapshot, same +1 cycle, live +1 timer).
-	 * Bid owner sees all active offers.
+	 * All chat participants see every active offer; `canVote` marks who may vote.
 	 */
 	async listRateVotersByBidId(bidRateId: number, viewerId: string) {
 		const bidRate = await this.prisma.bidRate.findUnique({
@@ -1578,58 +1576,38 @@ export class BidRatesService {
 			},
 		});
 
-		const isBidOwner = viewerId === bidRate.ownerId;
-		let viewerPlusOne: { createdAt: number; updatedAt: number } | null =
-			null;
-		if (!isBidOwner) {
-			viewerPlusOne = await this.loadVoterPlusOneState(bidRate.id, viewerId);
-		}
+		const viewerPlusOne = await this.loadVoterPlusOneState(
+			bidRate.id,
+			viewerId,
+		);
 
-		const participants = offers
-			.filter((row) => {
-				if (isBidOwner) return true;
-				if (row.userId === viewerId) return true;
-				const votes = this.parseUserVotes(row.userVotes);
-				const snapshot = votes.find((v) => v.userId === viewerId);
-				if (!snapshot) return false;
-				return this.canUserVoteOnOffer({
-					snapshot,
+		const participants = offers.map((row) => {
+			const votes = this.parseUserVotes(row.userVotes);
+			const snapshot = votes.find((v) => v.userId === viewerId);
+			const myVote = snapshot?.user_vote ?? null;
+			const canVote =
+				row.userId !== viewerId &&
+				Boolean(snapshot) &&
+				this.canUserVoteOnOffer({
+					snapshot: snapshot!,
 					voterPlusOne: viewerPlusOne,
 					nowSec,
 				});
-			})
-			.map((row) => {
-				const votes = this.parseUserVotes(row.userVotes);
-				const myVote =
-					votes.find((v) => v.userId === viewerId)?.user_vote ?? null;
-				const canVote =
-					!isBidOwner &&
-					row.userId !== viewerId &&
-					this.canUserVoteOnOffer({
-						snapshot:
-							votes.find((v) => v.userId === viewerId) ?? {
-								userId: viewerId,
-								user_vote: null,
-								plusOneCreatedAt: -1,
-							},
-						voterPlusOne: viewerPlusOne,
-						nowSec,
-					});
 
-				return {
-					userId: row.userId,
-					firstName: row.user.firstName,
-					lastName: row.user.lastName,
-					profilePhoto: row.user.profilePhoto,
-					userColor: row.user.userColor,
-					role: row.user.role,
-					rate: row.rate,
-					createdRateAt: row.createdRateAt,
-					userVotes: votes,
-					myVote,
-					canVote,
-				};
-			});
+			return {
+				userId: row.userId,
+				firstName: row.user.firstName,
+				lastName: row.user.lastName,
+				profilePhoto: row.user.profilePhoto,
+				userColor: row.user.userColor,
+				role: row.user.role,
+				rate: row.rate,
+				createdRateAt: row.createdRateAt,
+				userVotes: votes,
+				myVote,
+				canVote,
+			};
+		});
 
 		return {
 			bidRateId: bidRate.id,
@@ -1718,6 +1696,28 @@ export class BidRatesService {
 			...snapshot,
 			user_vote: dto.accept,
 		};
+
+		const offerer = await this.prisma.user.findUnique({
+			where: { id: offererUserId },
+			select: { firstName: true, lastName: true },
+		});
+		const offererName =
+			[offerer?.firstName, offerer?.lastName]
+				.filter(Boolean)
+				.join(' ')
+				.trim() || 'Unknown';
+		const offerPriceLabel = this.formatBidPriceUsd(offer.rate);
+		const voteChatMessage = dto.accept
+			? `Confirmed offer from ${offererName}: ${offerPriceLabel}`
+			: `Rejected offer from ${offererName}: ${offerPriceLabel}`;
+
+		if (bidRate.chatId) {
+			await this.sendBidPriceChatMessage(
+				bidRate.chatId,
+				voterUserId,
+				voteChatMessage,
+			);
+		}
 
 		if (dto.accept === false) {
 			await this.clearParticipantOffer(offer.id);
