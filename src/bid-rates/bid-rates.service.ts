@@ -2090,4 +2090,129 @@ export class BidRatesService {
 			participant: updated,
 		};
 	}
+
+	/**
+	 * Client-driven: when a 4-min offer timer hits 0 and the offer was never
+	 * Rejected (manual Reject or auto-clear when another offer was Accepted),
+	 * apply offer rate to bid_rates.rate (only if not higher) and clear offer columns.
+	 * Idempotent — safe when multiple open clients call at once.
+	 */
+	async autoAcceptExpiredOffer(
+		bidRateId: number,
+		offererUserId: string,
+		requesterId: string,
+	) {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id: bidRateId },
+			select: { id: true, ownerId: true, chatId: true, rate: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
+		}
+
+		if (bidRate.chatId) {
+			const membership = await this.prisma.chatRoomParticipant.findUnique({
+				where: {
+					chatRoomId_userId: {
+						chatRoomId: bidRate.chatId,
+						userId: requesterId,
+					},
+				},
+				select: { id: true },
+			});
+			if (!membership) {
+				throw new ForbiddenException(
+					'Only chat participants can resolve expired offers',
+				);
+			}
+		}
+
+		const offer = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId: offererUserId,
+					bidRateId,
+				},
+			},
+			select: {
+				id: true,
+				userId: true,
+				rate: true,
+				createdRateAt: true,
+			},
+		});
+
+		// Already cleared — Reject (manual/auto) won, or another client resolved it.
+		if (!offer || offer.rate == null || offer.createdRateAt == null) {
+			return {
+				bidRateId,
+				status: 'already_cleared' as const,
+			};
+		}
+
+		const nowSec = nowUnixSeconds();
+		// Still within the 4-min window — not expired yet.
+		if (this.isOfferFresh(offer.createdRateAt, nowSec)) {
+			throw new BadRequestException('Offer timer has not expired yet');
+		}
+
+		// Offer still present ⇒ it was not Rejected (manual or auto when another
+		// offer was Accepted). Timer expired ⇒ auto-accept.
+		const offerRate = offer.rate;
+		const currentRate = bidRate.rate;
+		const shouldApplyRate =
+			Number.isFinite(offerRate) &&
+			Number.isFinite(currentRate) &&
+			offerRate <= currentRate;
+
+		if (shouldApplyRate) {
+			await this.acceptParticipantOffer({
+				participantId: offer.id,
+				bidRateId,
+				offerRate,
+			});
+
+			if (bidRate.chatId) {
+				await this.sendBidPriceChatMessage(
+					bidRate.chatId,
+					bidRate.ownerId,
+					`Rate changed to ${this.formatBidPriceUsd(offerRate)}`,
+				);
+			}
+
+			const current = await this.prisma.bidRate.findUnique({
+				where: { id: bidRateId },
+				include: {
+					owner: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+						},
+					},
+				},
+			});
+			const mapped = current ? this.mapBidRate(current) : undefined;
+			await this.notifyBidRateChangedById(
+				bidRateId,
+				'offer_auto_accepted',
+				mapped,
+			);
+
+			return {
+				bidRateId,
+				status: 'accepted' as const,
+				rate: offerRate,
+			};
+		}
+
+		// Offer price higher than current bid rate — clear only, do not raise rate.
+		await this.clearParticipantOffer(offer.id);
+		await this.notifyBidRateChangedById(bidRateId, 'offer_expired_cleared');
+		return {
+			bidRateId,
+			status: 'cleared_price_too_high' as const,
+		};
+	}
 }

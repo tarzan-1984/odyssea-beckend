@@ -269,6 +269,32 @@ export class BidRatesController {
 		);
 	}
 
+	@Post(':id/offers/:offererUserId/auto-accept-expired')
+	@ApiOperation({
+		summary: 'Auto-accept an expired rate offer',
+		description:
+			'Called by clients when the 4-min offer timer hits 0. If the offer was not Rejected (manual or auto when another offer won), applies rate only if not higher than current bid_rates.rate, then clears offer columns.',
+	})
+	@ApiResponse({ status: 200, description: 'Offer resolved' })
+	@ApiResponse({ status: 400, description: 'Timer not expired' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async autoAcceptExpiredOffer(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('offererUserId') offererUserId: string,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessBidRates(req.user.role)) {
+			throw new ForbiddenException('You do not have access to bid rates');
+		}
+
+		return this.bidRatesService.autoAcceptExpiredOffer(
+			id,
+			offererUserId,
+			req.user.id,
+		);
+	}
+
 	@Get(':id/participants')
 	@ApiOperation({
 		summary: 'List bid auction participants (+1) for a bid',
