@@ -10,10 +10,30 @@ export function trimExternalId(externalId: string | null | undefined): string {
 	return String(externalId ?? '').trim();
 }
 
+/** Normalize TMS / DB role for comparisons: "tracking-tl" → "TRACKING_TL". */
+export function normalizeParticipantRole(
+	role: string | null | undefined,
+): string {
+	return trimExternalId(role).toUpperCase().replace(/-/g, '_');
+}
+
+const USER_ROLE_VALUES = new Set<string>(Object.values(UserRole));
+
+/** Map TMS participant role to a Prisma UserRole when it matches an enum value. */
+export function resolveUserRoleFromParticipantRole(
+	participantRole: string | null | undefined,
+): UserRole | null {
+	const normalized = normalizeParticipantRole(participantRole);
+	if (!normalized || !USER_ROLE_VALUES.has(normalized)) {
+		return null;
+	}
+	return normalized as UserRole;
+}
+
 export function isDriverParticipantRole(
 	role: string | null | undefined,
 ): boolean {
-	return trimExternalId(role).toUpperCase() === 'DRIVER';
+	return normalizeParticipantRole(role) === UserRole.DRIVER;
 }
 
 export function userWhereDriverByExternalId(
@@ -41,29 +61,56 @@ export function userWhereByExternalIdAndParticipantRole(
 	if (isDriverParticipantRole(participantRole)) {
 		return userWhereDriverByExternalId(externalId);
 	}
+	const exactRole = resolveUserRoleFromParticipantRole(participantRole);
+	if (exactRole && exactRole !== UserRole.DRIVER) {
+		return {
+			externalId: trimExternalId(externalId),
+			role: exactRole,
+		};
+	}
+	// Unknown TMS role → any non-driver row with this externalId.
 	return userWhereEmployeeByExternalId(externalId);
 }
 
 export function isDriverUserRole(role: string | null | undefined): boolean {
-	return trimExternalId(role).toUpperCase() === 'DRIVER';
+	return normalizeParticipantRole(role) === UserRole.DRIVER;
 }
 
-/** TMS participant role (driver vs employee) must match the users.role category. */
+/**
+ * TMS participant role vs users.role:
+ * - known enum roles must match exactly (after normalize);
+ * - otherwise fall back to DRIVER vs EMPLOYEE category.
+ */
 export function participantRoleMatchesUser(
 	participantRole: string | null | undefined,
 	userRole: string | null | undefined,
 ): boolean {
+	const exactRole = resolveUserRoleFromParticipantRole(participantRole);
+	if (exactRole) {
+		return normalizeParticipantRole(userRole) === exactRole;
+	}
 	return (
 		isDriverParticipantRole(participantRole) === isDriverUserRole(userRole)
 	);
 }
 
-/** Payload key: externalId + raw participant role (case-insensitive). */
+/** Composite identity: externalId + role (normalized, order-independent). */
 export function participantExternalRoleKey(
 	externalId: string,
 	participantRole: string | null | undefined,
 ): string {
-	return `${trimExternalId(externalId)}|${trimExternalId(participantRole).toUpperCase()}`;
+	return `${trimExternalId(externalId)}|${normalizeParticipantRole(participantRole)}`;
+}
+
+/** Same key shape for a user row already in a chat. */
+export function userExternalRoleKey(
+	externalId: string | null | undefined,
+	userRole: string | null | undefined,
+): string {
+	return participantExternalRoleKey(
+		trimExternalId(externalId),
+		userRole,
+	);
 }
 
 /** Lookup/dedup key: externalId + DRIVER vs EMPLOYEE category. */

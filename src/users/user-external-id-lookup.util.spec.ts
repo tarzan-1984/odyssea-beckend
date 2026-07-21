@@ -4,9 +4,12 @@ import {
 	findSingleUserByExternalIdAndParticipantRole,
 	isDriverParticipantRole,
 	isDriverUserRole,
+	normalizeParticipantRole,
 	participantExternalRoleKey,
 	participantRoleCategoryKey,
 	participantRoleMatchesUser,
+	resolveUserRoleFromParticipantRole,
+	userExternalRoleKey,
 	userRoleCategoryKey,
 	userWhereByExternalIdAndParticipantRole,
 	userWhereDriverByExternalId,
@@ -15,6 +18,16 @@ import {
 import { UserRole } from '@prisma/client';
 
 describe('user-external-id-lookup.util', () => {
+	it('normalizes TMS roles to UserRole-shaped keys', () => {
+		expect(normalizeParticipantRole('tracking-tl')).toBe('TRACKING_TL');
+		expect(normalizeParticipantRole(' nightshift_tracking ')).toBe(
+			'NIGHTSHIFT_TRACKING',
+		);
+		expect(resolveUserRoleFromParticipantRole('tracking-tl')).toBe(
+			UserRole.TRACKING_TL,
+		);
+	});
+
 	it('detects driver participant role case-insensitively', () => {
 		expect(isDriverParticipantRole('DRIVER')).toBe(true);
 		expect(isDriverParticipantRole('driver')).toBe(true);
@@ -35,18 +48,34 @@ describe('user-external-id-lookup.util', () => {
 		});
 	});
 
-	it('maps participant role to driver or employee where clause', () => {
+	it('maps participant role to exact UserRole when known', () => {
 		expect(userWhereByExternalIdAndParticipantRole('1', 'DRIVER')).toEqual(
 			userWhereDriverByExternalId('1'),
 		);
 		expect(
-			userWhereByExternalIdAndParticipantRole('1', 'DISPATCHER'),
+			userWhereByExternalIdAndParticipantRole('1', 'dispatcher'),
+		).toEqual({
+			externalId: '1',
+			role: UserRole.DISPATCHER,
+		});
+		expect(
+			userWhereByExternalIdAndParticipantRole('77', 'tracking-tl'),
+		).toEqual({
+			externalId: '77',
+			role: UserRole.TRACKING_TL,
+		});
+		expect(
+			userWhereByExternalIdAndParticipantRole('1', 'custom_role'),
 		).toEqual(userWhereEmployeeByExternalId('1'));
 	});
 
-	it('matches participant role category to user role', () => {
+	it('matches participant role to user role (exact when known)', () => {
 		expect(participantRoleMatchesUser('driver', 'DRIVER')).toBe(true);
 		expect(participantRoleMatchesUser('DISPATCHER', 'DISPATCHER')).toBe(true);
+		expect(participantRoleMatchesUser('tracking-tl', 'TRACKING_TL')).toBe(
+			true,
+		);
+		expect(participantRoleMatchesUser('tracking', 'TRACKING_TL')).toBe(false);
 		expect(participantRoleMatchesUser('driver', 'DISPATCHER')).toBe(false);
 		expect(participantRoleMatchesUser('DISPATCHER', 'DRIVER')).toBe(false);
 	});
@@ -58,6 +87,10 @@ describe('user-external-id-lookup.util', () => {
 
 	it('builds externalId + role composite key', () => {
 		expect(participantExternalRoleKey(' 3343 ', 'driver')).toBe('3343|DRIVER');
+		expect(participantExternalRoleKey('77', 'tracking-tl')).toBe(
+			'77|TRACKING_TL',
+		);
+		expect(userExternalRoleKey('77', 'TRACKING_TL')).toBe('77|TRACKING_TL');
 	});
 
 	it('builds externalId + role category key', () => {

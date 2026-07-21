@@ -78,12 +78,14 @@ POST /v1/create_load_chat
 For each participant (except driver):
 1. Resolve user by `externalId` **and** `role` from the payload
 2. `role: "driver"` → user must have `role = DRIVER`
-3. Any other role → user must have `role != DRIVER` (employee)
-4. If exactly one user matches → add to chat
-5. If no user matches → skip (no error)
-6. If **multiple** users match the same `externalId` + role category → `400 Bad Request`
+3. Known TMS roles (`dispatcher`, `tracking-tl`, `nightshift_tracking`, …) are normalized
+   (`tracking-tl` → `TRACKING_TL`) and must match `users.role` exactly
+4. Unknown roles → user must have `role != DRIVER` (employee fallback)
+5. If exactly one user matches → add to chat
+6. If no user matches → skip (no error) on create; on `update_load_chat` sync → `400`
+7. If **multiple** users match → `400 Bad Request`
 
-**Important:** `externalId` is not unique in the database. The `role` field in the request is required to distinguish driver vs employee rows that share the same TMS id.
+**Important:** `externalId` is not unique in the database. The `role` field in the request is required. Staff sync compares participants by `externalId + role` (not by list order).
 
 ### Step 2b: Manual participant changes (Web / Mobile)
 
@@ -97,9 +99,11 @@ When participants are added or removed from GROUP or LOAD chats via the app:
 Same role-aware resolution as creation. After ensuring one LOAD chat per driver:
 
 1. Resolve non-driver participants from the request (plus auto-added administrators)
-2. Compare that staff set with every LOAD chat for the `load_id`
-3. Add missing / remove stale non-driver participants in all those chats
-4. Drivers in each chat are never added or removed by this sync
+   by `externalId + role` (TMS roles normalized: `tracking-tl` → `TRACKING_TL`)
+2. If any non-driver `externalId + role` from the request cannot be resolved → `400 Bad Request`
+3. Compare old vs new staff by `externalId + role` keys (order-independent)
+4. Add missing / remove stale non-driver participants in all LOAD chats for the `load_id`
+5. Drivers in each chat are never added or removed by this sync
 
 ### Step 3: Auto-add Admin Users
 

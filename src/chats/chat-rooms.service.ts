@@ -23,8 +23,12 @@ import {
 	ChatParticipantRef,
 	ExternalIdRoleRequiredError,
 	findSingleUserByExternalIdAndParticipantRole,
+	isDriverParticipantRole,
 	isDriverUserRole,
+	participantExternalRoleKey,
 	resolveParticipantUser,
+	trimExternalId,
+	userExternalRoleKey,
 	userWhereDriverByExternalId,
 	userWhereDriversByExternalIds,
 } from '../users/user-external-id-lookup.util';
@@ -2618,15 +2622,28 @@ export class ChatRoomsService {
 	/**
 	 * Compare request non-driver participants (+ auto-admins) with each LOAD chat for the
 	 * load, then add/remove staff so every chat matches. Drivers are never touched.
+	 *
+	 * Comparison is by externalId + role (normalized, order-independent). Request staff
+	 * that cannot be resolved must not silently shrink the desired set.
 	 */
 	private async syncNonDriverParticipantsForLoad(
 		loadId: string,
 		participants: Array<{ id: string; role: string }>,
 	): Promise<LoadChatStaffSyncEvent[]> {
-		const { staffParticipantIds, hiddenParticipantIds } =
-			await this.resolveLoadChatStaffParticipantIds(participants);
-		const desiredStaffIds = [...new Set(staffParticipantIds)];
-		const desiredStaffSet = new Set(desiredStaffIds);
+		const { staffParticipants, hiddenParticipantIds } =
+			await this.resolveLoadChatStaffParticipants(participants, {
+				// Update sync must see every requested staff member or abort.
+				// Otherwise a failed lookup drops them from desired and deletes them.
+				requireAllResolved: true,
+			});
+
+		const desiredByKey = new Map(
+			staffParticipants.map((entry) => [entry.key, entry]),
+		);
+		const desiredStaffIds = [
+			...new Set(staffParticipants.map((entry) => entry.userId)),
+		];
+		const desiredKeySet = new Set(desiredByKey.keys());
 		const hiddenIdSet = new Set(hiddenParticipantIds);
 
 		const fullChatInclude = {
@@ -2657,13 +2674,43 @@ export class ChatRoomsService {
 		const events: LoadChatStaffSyncEvent[] = [];
 
 		for (const chat of loadChats) {
-			const currentStaffIds = chat.participants
-				.filter((p) => !isDriverUserRole(p.user?.role))
-				.map((p) => p.userId);
+			const currentStaff = chat.participants.filter(
+				(p) => !isDriverUserRole(p.user?.role),
+			);
+			const currentByKey = new Map<
+				string,
+				{ userId: string; key: string; externalId: string; role: string }
+			>();
+			for (const p of currentStaff) {
+				const externalId = trimExternalId(p.user?.externalId);
+				const role = String(p.user?.role ?? '');
+				const key = userExternalRoleKey(externalId, role);
+				// First wins; duplicate keys should not exist in a chat.
+				if (!currentByKey.has(key)) {
+					currentByKey.set(key, {
+						userId: p.userId,
+						key,
+						externalId,
+						role,
+					});
+				}
+			}
+			const currentKeySet = new Set(currentByKey.keys());
+			const currentStaffIds = currentStaff.map((p) => p.userId);
 			const currentStaffSet = new Set(currentStaffIds);
 
-			const toAdd = desiredStaffIds.filter((id) => !currentStaffSet.has(id));
-			const toRemove = currentStaffIds.filter((id) => !desiredStaffSet.has(id));
+			const toAdd = [...desiredByKey.values()]
+				.filter((entry) => !currentKeySet.has(entry.key))
+				.map((entry) => entry.userId)
+				.filter((userId, index, arr) => arr.indexOf(userId) === index)
+				.filter((userId) => !currentStaffSet.has(userId));
+
+			const toRemove = [...currentByKey.values()]
+				.filter((entry) => !desiredKeySet.has(entry.key))
+				.map((entry) => entry.userId)
+				.filter((userId, index, arr) => arr.indexOf(userId) === index)
+				// Same person still desired under another key — keep membership.
+				.filter((userId) => !desiredStaffIds.includes(userId));
 
 			if (toAdd.length === 0 && toRemove.length === 0) {
 				continue;
@@ -2673,6 +2720,8 @@ export class ChatRoomsService {
 				`[update_load_chat] Syncing non-driver participants: ${JSON.stringify({
 					loadId,
 					chatRoomId: chat.id,
+					desiredKeys: [...desiredKeySet],
+					currentKeys: [...currentKeySet],
 					desiredStaffIds,
 					currentStaffIds,
 					toAdd,
@@ -2774,20 +2823,40 @@ export class ChatRoomsService {
 
 	/**
 	 * Resolve non-driver request participants + auto-added ADMINISTRATOR users
-	 * (same rules as create_load_chat).
+	 * (same rules as create_load_chat). Identity key is externalId + role.
 	 */
-	private async resolveLoadChatStaffParticipantIds(
+	private async resolveLoadChatStaffParticipants(
 		participants: Array<{ id: string; role: string }>,
-		options?: { excludeUserIds?: string[] },
+		options?: { excludeUserIds?: string[]; requireAllResolved?: boolean },
 	): Promise<{
+		staffParticipants: Array<{
+			userId: string;
+			externalId: string;
+			role: string;
+			key: string;
+		}>;
 		staffParticipantIds: string[];
 		hiddenParticipantIds: string[];
+		unresolvedStaff: Array<{ id: string; role: string }>;
 	}> {
 		const excludeUserIds = new Set(options?.excludeUserIds ?? []);
-		const staffParticipantIds: string[] = [];
+		const staffParticipants: Array<{
+			userId: string;
+			externalId: string;
+			role: string;
+			key: string;
+		}> = [];
+		const seenKeys = new Set<string>();
+		const unresolvedStaff: Array<{ id: string; role: string }> = [];
 
 		for (const participant of participants) {
-			if (participant.role.toUpperCase() === 'DRIVER') {
+			if (isDriverParticipantRole(participant.role)) {
+				continue;
+			}
+
+			const externalId = trimExternalId(participant.id);
+			const key = participantExternalRoleKey(externalId, participant.role);
+			if (!externalId || seenKeys.has(key)) {
 				continue;
 			}
 
@@ -2796,14 +2865,35 @@ export class ChatRoomsService {
 					this.prisma,
 					participant.id,
 					participant.role,
-					{ id: true },
+					{ id: true, externalId: true, role: true },
 				);
 				if (user && !excludeUserIds.has(user.id)) {
-					staffParticipantIds.push(user.id);
+					seenKeys.add(key);
+					staffParticipants.push({
+						userId: user.id,
+						externalId: trimExternalId(user.externalId) || externalId,
+						role: String(user.role),
+						// Keep request role in the comparison key so TMS payload is source of truth.
+						key,
+					});
+				} else if (!user) {
+					unresolvedStaff.push({
+						id: externalId,
+						role: participant.role,
+					});
 				}
 			} catch (error) {
 				this.mapExternalIdLookupError(error);
 			}
+		}
+
+		if (options?.requireAllResolved && unresolvedStaff.length > 0) {
+			const details = unresolvedStaff
+				.map((p) => `${p.id} (${p.role})`)
+				.join(', ');
+			throw new BadRequestException(
+				`Cannot sync LOAD chat participants: unresolved non-driver externalId(s): ${details}`,
+			);
 		}
 
 		const adminUsers = await this.prisma.user.findMany({
@@ -2819,21 +2909,62 @@ export class ChatRoomsService {
 			},
 			select: {
 				id: true,
+				externalId: true,
+				role: true,
 			},
 		});
 
 		const hiddenParticipantIds: string[] = [];
+		const staffParticipantIds = staffParticipants.map((entry) => entry.userId);
 		for (const user of adminUsers) {
 			if (
-				!staffParticipantIds.includes(user.id) &&
-				!excludeUserIds.has(user.id)
+				staffParticipantIds.includes(user.id) ||
+				excludeUserIds.has(user.id)
 			) {
-				staffParticipantIds.push(user.id);
-				hiddenParticipantIds.push(user.id);
+				continue;
 			}
+			const externalId = trimExternalId(user.externalId);
+			const key = userExternalRoleKey(externalId, user.role);
+			if (seenKeys.has(key)) {
+				continue;
+			}
+			seenKeys.add(key);
+			staffParticipants.push({
+				userId: user.id,
+				externalId,
+				role: String(user.role),
+				key,
+			});
+			staffParticipantIds.push(user.id);
+			hiddenParticipantIds.push(user.id);
 		}
 
-		return { staffParticipantIds, hiddenParticipantIds };
+		return {
+			staffParticipants,
+			staffParticipantIds,
+			hiddenParticipantIds,
+			unresolvedStaff,
+		};
+	}
+
+	/** @deprecated Prefer resolveLoadChatStaffParticipants — kept for create path IDs. */
+	private async resolveLoadChatStaffParticipantIds(
+		participants: Array<{ id: string; role: string }>,
+		options?: { excludeUserIds?: string[]; requireAllResolved?: boolean },
+	): Promise<{
+		staffParticipantIds: string[];
+		hiddenParticipantIds: string[];
+		unresolvedStaff: Array<{ id: string; role: string }>;
+	}> {
+		const resolved = await this.resolveLoadChatStaffParticipants(
+			participants,
+			options,
+		);
+		return {
+			staffParticipantIds: resolved.staffParticipantIds,
+			hiddenParticipantIds: resolved.hiddenParticipantIds,
+			unresolvedStaff: resolved.unresolvedStaff,
+		};
 	}
 
 	/** Remove trailing "(externalId First Last)" suffix from a LOAD chat title. */
