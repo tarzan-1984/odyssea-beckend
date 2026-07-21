@@ -16,7 +16,7 @@ export class NotificationsCleanupController {
     @HttpCode(HttpStatus.OK)
     @ApiOperation({
         summary: 'Manually trigger notifications cleanup',
-        description: 'Manually delete notifications older than 7 days. This is normally handled by a daily cron job.',
+        description: 'Manually delete notifications older than 2 days. This is normally handled by a daily cron job.',
     })
     @ApiResponse({
         status: 200,
@@ -55,7 +55,7 @@ export class NotificationsCleanupController {
         schema: {
             example: {
                 total: 1000,
-                olderThan7Days: 150,
+                olderThan2Days: 150,
                 olderThan30Days: 50,
             },
         },

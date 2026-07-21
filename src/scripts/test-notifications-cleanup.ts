@@ -28,7 +28,7 @@ async function testNotificationsCleanup() {
         console.log('Statistics after cleanup:', statsAfter);
         
         // Calculate difference
-        const deletedCount = statsBefore.olderThan7Days - statsAfter.olderThan7Days;
+        const deletedCount = statsBefore.olderThan2Days - statsAfter.olderThan2Days;
         console.log(`✅ Cleanup completed successfully! Deleted ${deletedCount} notifications.`);
         
         // Close application context

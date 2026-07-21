@@ -7,7 +7,7 @@ This document describes the automated cleanup system for notifications that remo
 ## Features
 
 - **Daily Automatic Cleanup**: Runs every day at 2:00 AM
-- **7-Day Retention Policy**: Deletes notifications older than 7 days
+- **2-Day Retention Policy**: Deletes notifications older than 2 days
 - **Manual Trigger**: Admin endpoint for manual cleanup
 - **Statistics Monitoring**: Track notification counts and cleanup effectiveness
 - **Comprehensive Logging**: Detailed logs for monitoring and debugging
@@ -70,7 +70,7 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "total": 1000,
-  "olderThan7Days": 150,
+  "olderThan2Days": 150,
   "olderThan30Days": 50
 }
 ```
@@ -94,11 +94,11 @@ This script will:
 ```
 🚀 Starting notifications cleanup test...
 📊 Getting notification statistics...
-Statistics before cleanup: { total: 44, olderThan7Days: 0, olderThan30Days: 0 }
+Statistics before cleanup: { total: 44, olderThan2Days: 0, olderThan30Days: 0 }
 🧹 Running manual cleanup...
 Cleanup result: { count: 0 }
 📊 Getting notification statistics after cleanup...
-Statistics after cleanup: { total: 44, olderThan7Days: 0, olderThan30Days: 0 }
+Statistics after cleanup: { total: 44, olderThan2Days: 0, olderThan30Days: 0 }
 ✅ Cleanup completed successfully! Deleted 0 notifications.
 ```
 
@@ -139,7 +139,7 @@ The service provides comprehensive logging:
 [NotificationsCleanupService] Starting daily notifications cleanup...
 [NotificationsCleanupService] Deleting notifications older than: 2025-10-10T14:08:51.845Z
 [NotificationsCleanupService] Successfully deleted 0 old notifications
-[NotificationsCleanupService] Notifications cleanup completed. Deleted 0 notifications older than 7 days.
+[NotificationsCleanupService] Notifications cleanup completed. Deleted 0 notifications older than 2 days.
 ```
 
 ### Error Handling
@@ -194,7 +194,7 @@ The service provides comprehensive logging:
 
 ### Potential Improvements
 
-1. **Configurable Retention**: Make 7-day limit configurable
+1. **Configurable Retention**: Make 2-day limit configurable
 2. **Soft Delete**: Implement soft delete for audit trails
 3. **Archive Integration**: Move old notifications to archive storage
 4. **Metrics Dashboard**: Real-time monitoring dashboard
