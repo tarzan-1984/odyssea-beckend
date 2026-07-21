@@ -364,30 +364,55 @@ export class BidRatesService {
 		});
 	}
 
+	/**
+	 * Write the main bid price (`bid_rates.rate`) and restart the card timer
+	 * as a fresh cycle: 15 minutes from now, up to 3 extends
+	 * (created_at = updated_at = now).
+	 * Call this only when the official rate column is being set.
+	 */
+	private async writeMainBidRate(
+		bidRateId: number,
+		newRate: number,
+	): Promise<void> {
+		const nowSec = nowUnixSeconds();
+		await this.prisma.bidRate.update({
+			where: { id: bidRateId },
+			data: {
+				rate: newRate,
+				isRateChange: true,
+				createdAt: nowSec,
+				updatedAt: nowSec,
+				isArchive: false,
+			},
+		});
+	}
+
 	private async acceptParticipantOffer(params: {
 		participantId: string;
 		bidRateId: number;
 		offerRate: number;
 	}): Promise<void> {
-		const nowSec = nowUnixSeconds();
-		await this.prisma.$transaction([
-			this.prisma.bidRate.update({
+		await this.prisma.$transaction(async (tx) => {
+			const nowSec = nowUnixSeconds();
+			await tx.bidRate.update({
 				where: { id: params.bidRateId },
 				data: {
 					rate: params.offerRate,
+					isRateChange: true,
 					createdAt: nowSec,
 					updatedAt: nowSec,
+					isArchive: false,
 				},
-			}),
-			this.prisma.bidRateParticipant.update({
+			});
+			await tx.bidRateParticipant.update({
 				where: { id: params.participantId },
 				data: {
 					rate: null,
 					createdRateAt: null,
 					userVotes: Prisma.JsonNull,
 				},
-			}),
-		]);
+			});
+		});
 	}
 
 	/**
@@ -629,6 +654,7 @@ export class BidRatesService {
 		route: Prisma.JsonValue;
 		distance: number | null;
 		isArchive: boolean;
+		isRateChange: boolean;
 		createdAt: number;
 		updatedAt: number;
 		owner?: {
@@ -647,6 +673,7 @@ export class BidRatesService {
 			route: row.route,
 			distance: row.distance,
 			isArchive: row.isArchive,
+			isRateChange: row.isRateChange,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 			owner: row.owner
@@ -1203,25 +1230,29 @@ export class BidRatesService {
 			);
 
 			if (userVotes.length === 0) {
-				// No eligible +1 voters — apply offer to bid rate immediately.
-				await this.prisma.$transaction([
-					this.prisma.bidRate.update({
+				// No eligible +1 voters — apply offer to main bid_rates.rate immediately
+				// (restarts card timer).
+				await this.prisma.$transaction(async (tx) => {
+					const applyAt = nowUnixSeconds();
+					await tx.bidRate.update({
 						where: { id },
 						data: {
 							rate: dto.newPrice,
-							createdAt: nowSec,
-							updatedAt: nowSec,
+							isRateChange: true,
+							createdAt: applyAt,
+							updatedAt: applyAt,
+							isArchive: false,
 						},
-					}),
-					this.prisma.bidRateParticipant.update({
+					});
+					await tx.bidRateParticipant.update({
 						where: { id: existing.id },
 						data: {
 							rate: null,
 							createdRateAt: null,
 							userVotes: Prisma.JsonNull,
 						},
-					}),
-				]);
+					});
+				});
 
 				const current = await this.prisma.bidRate.findUnique({
 					where: { id },
@@ -1365,9 +1396,11 @@ export class BidRatesService {
 			where: { id },
 			data: {
 				rate: dto.newPrice,
-				// Restart card timer: fresh 15 min + up to 3 extends.
+				isRateChange: true,
+				// Main price write → restart card timer (15 min + up to 3 extends).
 				createdAt: nowSec,
 				updatedAt: nowSec,
+				isArchive: false,
 			},
 			include: {
 				owner: {
@@ -2188,15 +2221,8 @@ export class BidRatesService {
 		}
 
 		if (shouldApplyRate) {
-			const nowApplySec = nowUnixSeconds();
-			await this.prisma.bidRate.update({
-				where: { id: bidRateId },
-				data: {
-					rate: offerRate,
-					createdAt: nowApplySec,
-					updatedAt: nowApplySec,
-				},
-			});
+			// Official price write → restart bid card timer.
+			await this.writeMainBidRate(bidRateId, offerRate);
 
 			if (bidRate.chatId) {
 				// Attribute "Rate changed" to the offer author, not the bid creator.

@@ -297,6 +297,8 @@ model BidRate {
   /// Route distance in miles (same source as offer loadedMiles).
   distance     Float?
   isArchive    Boolean              @default(false) @map("is_archive")
+  /// True after bid_rates.rate has been changed from the initial create value.
+  isRateChange Boolean              @default(false) @map("is_rate_change")
   /// Unix timestamp in seconds (UTC). Timer starts at create.
   createdAt    Int                  @map("created_at")
   /// Unix timestamp in seconds (UTC). Extended by +15 min on timer extend.
