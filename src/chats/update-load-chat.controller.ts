@@ -7,6 +7,7 @@ import {
 } from './chat-rooms.service';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { ChatGateway } from './chat.gateway';
+import { LoadChatLogService } from './load-chat-log.service';
 
 @ApiTags('Load Chat')
 @Controller('update_load_chat')
@@ -16,6 +17,7 @@ export class UpdateLoadChatController {
 	constructor(
 		private readonly chatRoomsService: ChatRoomsService,
 		private readonly chatGateway: ChatGateway,
+		private readonly loadChatLogService: LoadChatLogService,
 	) {}
 
 	@Post()
@@ -27,25 +29,39 @@ export class UpdateLoadChatController {
 	})
 	@ApiResponse({ status: 200, description: 'LOAD chats ensured and non-driver participants synced' })
 	async update(@Body() dto: UpdateLoadChatDto) {
-		const outcome = await this.chatRoomsService.updateLoadChatParticipants(dto);
+		try {
+			const outcome = await this.chatRoomsService.updateLoadChatParticipants(dto);
 
-		for (const result of outcome.results) {
-			this.emitSideEffects(result);
-		}
-		for (const event of outcome.staffSyncEvents) {
-			this.emitStaffSyncSideEffects(event);
-		}
+			for (const result of outcome.results) {
+				this.emitSideEffects(result);
+			}
+			for (const event of outcome.staffSyncEvents) {
+				this.emitStaffSyncSideEffects(event);
+			}
 
-		return {
-			updated: true,
-			createdCount: outcome.created.length,
-			existingCount: outcome.existing.length,
-			staffSyncedChatCount: outcome.staffSyncEvents.length,
-			createdChatRoomIds: outcome.created.map((r) => r.chatRoom?.id),
-			existingChatRoomIds: outcome.existing.map((r) => r.chatRoom?.id),
-			staffSyncedChatRoomIds: outcome.staffSyncEvents.map((e) => e.chatRoomId),
-			chats: outcome.chats,
-		};
+			const response = {
+				updated: true,
+				createdCount: outcome.created.length,
+				existingCount: outcome.existing.length,
+				staffSyncedChatCount: outcome.staffSyncEvents.length,
+				createdChatRoomIds: outcome.created.map((r) => r.chatRoom?.id),
+				existingChatRoomIds: outcome.existing.map((r) => r.chatRoom?.id),
+				staffSyncedChatRoomIds: outcome.staffSyncEvents.map((e) => e.chatRoomId),
+				chats: outcome.chats,
+			};
+
+			await this.loadChatLogService.recordSuccess('update', 'tms', dto, {
+				ok: true,
+				...response,
+				chats: undefined,
+				chatRoomIds: outcome.chats.map((c) => c?.id ?? null),
+			});
+
+			return response;
+		} catch (error) {
+			await this.loadChatLogService.recordFailure('update', 'tms', dto, error);
+			throw error;
+		}
 	}
 
 	private emitStaffSyncSideEffects(event: LoadChatStaffSyncEvent) {

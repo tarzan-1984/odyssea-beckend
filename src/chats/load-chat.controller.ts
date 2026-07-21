@@ -9,6 +9,7 @@ import { CreateLoadChatDto } from './dto/create-load-chat.dto';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { ChatGateway } from './chat.gateway';
 import { MessagesService } from './messages.service';
+import { LoadChatLogService } from './load-chat-log.service';
 
 @ApiTags('Load Chat')
 @Controller('create_load_chat')
@@ -19,6 +20,7 @@ export class LoadChatController {
 		private readonly chatRoomsService: ChatRoomsService,
 		@Inject(ChatGateway) private readonly chatGateway: ChatGateway,
 		private readonly messagesService: MessagesService,
+		private readonly loadChatLogService: LoadChatLogService,
 	) {}
 
 	@Post()
@@ -68,30 +70,51 @@ export class LoadChatController {
 			})}`,
 		);
 
-		const results: CreateLoadChatResult[] =
-			await this.chatRoomsService.createLoadChat(createLoadChatDto);
+		try {
+			const results: CreateLoadChatResult[] =
+				await this.chatRoomsService.createLoadChat(createLoadChatDto);
 
-		this.logger.log(
-			`[create_load_chat] Completed: count=${results.length}, kinds=${results
-				.map((r) => r.kind)
-				.join(',')}, loadId=${createLoadChatDto.load_id}, chatRoomIds=${results
-				.map((r) => r.chatRoom?.id ?? 'n/a')
-				.join(',')}`,
-		);
-
-		for (const result of results) {
-			await this.applyCreateLoadChatSideEffects(
-				result,
-				createLoadChatDto.dispatch_message,
+			this.logger.log(
+				`[create_load_chat] Completed: count=${results.length}, kinds=${results
+					.map((r) => r.kind)
+					.join(',')}, loadId=${createLoadChatDto.load_id}, chatRoomIds=${results
+					.map((r) => r.chatRoom?.id ?? 'n/a')
+					.join(',')}`,
 			);
-		}
 
-		const chats = results.map((r) => r.chatRoom);
-		// Backward compatible: single-driver requests still get the chat room object.
-		if (chats.length === 1) {
-			return chats[0];
+			for (const result of results) {
+				await this.applyCreateLoadChatSideEffects(
+					result,
+					createLoadChatDto.dispatch_message,
+				);
+			}
+
+			await this.loadChatLogService.recordSuccess(
+				'create',
+				'tms',
+				createLoadChatDto,
+				{
+					ok: true,
+					kinds: results.map((r) => r.kind),
+					chatRoomIds: results.map((r) => r.chatRoom?.id ?? null),
+				},
+			);
+
+			const chats = results.map((r) => r.chatRoom);
+			// Backward compatible: single-driver requests still get the chat room object.
+			if (chats.length === 1) {
+				return chats[0];
+			}
+			return { chats };
+		} catch (error) {
+			await this.loadChatLogService.recordFailure(
+				'create',
+				'tms',
+				createLoadChatDto,
+				error,
+			);
+			throw error;
 		}
-		return { chats };
 	}
 
 	private async applyCreateLoadChatSideEffects(
@@ -223,25 +246,82 @@ export class LoadChatController {
 	})
 	@ApiResponse({ status: 200, description: 'LOAD chats ensured and non-driver participants synced' })
 	async updateLoadChat(@Body() dto: UpdateLoadChatDto) {
-		const outcome = await this.chatRoomsService.updateLoadChatParticipants(dto);
+		try {
+			const outcome = await this.chatRoomsService.updateLoadChatParticipants(dto);
 
-		for (const result of outcome.results) {
-			for (const deleted of result.hardDeletedChats) {
-				for (const userId of deleted.notifyUserIds) {
-					this.chatGateway.server.to(`user_${userId}`).emit('chatRoomDeleted', {
-						chatRoomId: deleted.chatRoomId,
-						deletedBy: 'system',
-					});
+			for (const result of outcome.results) {
+				for (const deleted of result.hardDeletedChats) {
+					for (const userId of deleted.notifyUserIds) {
+						this.chatGateway.server.to(`user_${userId}`).emit('chatRoomDeleted', {
+							chatRoomId: deleted.chatRoomId,
+							deletedBy: 'system',
+						});
+					}
+				}
+
+				if (result.kind === 'noop' || !result.chatRoom) {
+					continue;
+				}
+
+				if (result.kind === 'converted' && result.conversionParticipantEvents) {
+					const { chatRoomId, newParticipants, addedUserIds, removedUserIds } =
+						result.conversionParticipantEvents;
+
+					if (addedUserIds.length > 0 && newParticipants.length > 0) {
+						this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
+							chatRoomId,
+							newParticipants,
+							addedBy: 'system',
+						});
+						for (const userId of addedUserIds) {
+							const socketId = this.chatGateway['userSockets']?.get?.(userId);
+							if (socketId) {
+								this.chatGateway.server
+									.to(socketId)
+									.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+							}
+						}
+					}
+
+					for (const removedId of removedUserIds) {
+						this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantRemoved', {
+							chatRoomId,
+							removedUserId: removedId,
+							removedBy: 'system',
+						});
+						const socketId = this.chatGateway['userSockets']?.get?.(removedId);
+						if (socketId) {
+							this.chatGateway.server
+								.to(socketId)
+								.emit('removedFromChatRoom', { chatRoomId, removedBy: 'system' });
+						}
+					}
+
+					if (result.chatRoom.participants?.length) {
+						const updatedAt = new Date().toISOString();
+						for (const participant of result.chatRoom.participants) {
+							this.chatGateway.server
+								.to(`user_${participant.userId}`)
+								.emit('chatRoomUpdated', {
+									chatRoomId: result.chatRoom.id,
+									updatedChatRoom: result.chatRoom,
+									updatedBy: 'system',
+									updatedAt,
+								});
+						}
+					}
+				} else if (result.kind === 'created' && result.chatRoom.participants?.length) {
+					for (const participant of result.chatRoom.participants) {
+						this.chatGateway.server
+							.to(`user_${participant.userId}`)
+							.emit('chatRoomCreated', result.chatRoom);
+					}
 				}
 			}
 
-			if (result.kind === 'noop' || !result.chatRoom) {
-				continue;
-			}
-
-			if (result.kind === 'converted' && result.conversionParticipantEvents) {
-				const { chatRoomId, newParticipants, addedUserIds, removedUserIds } =
-					result.conversionParticipantEvents;
+			for (const event of outcome.staffSyncEvents) {
+				const { chatRoomId, chatRoom, newParticipants, addedUserIds, removedUserIds } =
+					event;
 
 				if (addedUserIds.length > 0 && newParticipants.length > 0) {
 					this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
@@ -273,84 +353,41 @@ export class LoadChatController {
 					}
 				}
 
-				if (result.chatRoom.participants?.length) {
+				if (chatRoom?.participants?.length) {
 					const updatedAt = new Date().toISOString();
-					for (const participant of result.chatRoom.participants) {
-						this.chatGateway.server
-							.to(`user_${participant.userId}`)
-							.emit('chatRoomUpdated', {
-								chatRoomId: result.chatRoom.id,
-								updatedChatRoom: result.chatRoom,
-								updatedBy: 'system',
-								updatedAt,
-							});
-					}
-				}
-			} else if (result.kind === 'created' && result.chatRoom.participants?.length) {
-				for (const participant of result.chatRoom.participants) {
-					this.chatGateway.server
-						.to(`user_${participant.userId}`)
-						.emit('chatRoomCreated', result.chatRoom);
-				}
-			}
-		}
-
-		for (const event of outcome.staffSyncEvents) {
-			const { chatRoomId, chatRoom, newParticipants, addedUserIds, removedUserIds } =
-				event;
-
-			if (addedUserIds.length > 0 && newParticipants.length > 0) {
-				this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
-					chatRoomId,
-					newParticipants,
-					addedBy: 'system',
-				});
-				for (const userId of addedUserIds) {
-					const socketId = this.chatGateway['userSockets']?.get?.(userId);
-					if (socketId) {
-						this.chatGateway.server
-							.to(socketId)
-							.emit('addedToChatRoom', { chatRoomId, addedBy: 'system' });
+					for (const participant of chatRoom.participants) {
+						this.chatGateway.server.to(`user_${participant.userId}`).emit('chatRoomUpdated', {
+							chatRoomId,
+							updatedChatRoom: chatRoom,
+							updatedBy: 'system',
+							updatedAt,
+						});
 					}
 				}
 			}
 
-			for (const removedId of removedUserIds) {
-				this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantRemoved', {
-					chatRoomId,
-					removedUserId: removedId,
-					removedBy: 'system',
-				});
-				const socketId = this.chatGateway['userSockets']?.get?.(removedId);
-				if (socketId) {
-					this.chatGateway.server
-						.to(socketId)
-						.emit('removedFromChatRoom', { chatRoomId, removedBy: 'system' });
-				}
-			}
+			const response = {
+				updated: true,
+				createdCount: outcome.created.length,
+				existingCount: outcome.existing.length,
+				staffSyncedChatCount: outcome.staffSyncEvents.length,
+				createdChatRoomIds: outcome.created.map((r) => r.chatRoom?.id),
+				existingChatRoomIds: outcome.existing.map((r) => r.chatRoom?.id),
+				staffSyncedChatRoomIds: outcome.staffSyncEvents.map((e) => e.chatRoomId),
+				chats: outcome.chats,
+			};
 
-			if (chatRoom?.participants?.length) {
-				const updatedAt = new Date().toISOString();
-				for (const participant of chatRoom.participants) {
-					this.chatGateway.server.to(`user_${participant.userId}`).emit('chatRoomUpdated', {
-						chatRoomId,
-						updatedChatRoom: chatRoom,
-						updatedBy: 'system',
-						updatedAt,
-					});
-				}
-			}
+			await this.loadChatLogService.recordSuccess('update', 'tms', dto, {
+				ok: true,
+				...response,
+				chats: undefined,
+				chatRoomIds: outcome.chats.map((c) => c?.id ?? null),
+			});
+
+			return response;
+		} catch (error) {
+			await this.loadChatLogService.recordFailure('update', 'tms', dto, error);
+			throw error;
 		}
-
-		return {
-			updated: true,
-			createdCount: outcome.created.length,
-			existingCount: outcome.existing.length,
-			staffSyncedChatCount: outcome.staffSyncEvents.length,
-			createdChatRoomIds: outcome.created.map((r) => r.chatRoom?.id),
-			existingChatRoomIds: outcome.existing.map((r) => r.chatRoom?.id),
-			staffSyncedChatRoomIds: outcome.staffSyncEvents.map((e) => e.chatRoomId),
-			chats: outcome.chats,
-		};
 	}
 }

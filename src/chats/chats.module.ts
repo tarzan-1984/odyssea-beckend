@@ -17,6 +17,8 @@ import { MessagesArchiveService } from './messages-archive.service';
 import { MessagesArchiveScheduler } from './messages-archive.scheduler';
 import { DeliveredLoadChatCleanupScheduler } from './delivered-load-chat-cleanup.scheduler';
 import { LoadChatTmsSyncService } from './load-chat-tms-sync.service';
+import { LoadChatLogService } from './load-chat-log.service';
+import { LoadChatLogRetentionScheduler } from './load-chat-log-retention.scheduler';
 import { ArchiveBackgroundService } from './services/archive-background.service';
 import { S3Service } from '../s3/s3.service';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -60,6 +62,8 @@ import { StorageModule } from '../storage/storage.module';
 		MessagesArchiveScheduler,
 		DeliveredLoadChatCleanupScheduler,
 		LoadChatTmsSyncService,
+		LoadChatLogService,
+		LoadChatLogRetentionScheduler,
 		ArchiveBackgroundService,
 		S3Service,
 		ChatGateway,
@@ -75,6 +79,7 @@ import { StorageModule } from '../storage/storage.module';
 		FileUploadService,
 		ChatGateway,
 		LoadChatTmsSyncService,
+		LoadChatLogService,
 	],
 })
 export class ChatsModule {}
