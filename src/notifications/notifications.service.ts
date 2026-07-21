@@ -21,6 +21,19 @@ const OFFER_NOTIFICATION_TYPES = new Set([
 	'offer_unavailable',
 ]);
 
+/** Group / BID chat events — ADMINISTRATOR must not receive these. */
+const GROUP_CHAT_NOTIFICATION_TYPES = new Set([
+	'group_chat_created',
+	'participants_added_to_group_chat',
+	'participant_removed_from_group_chat',
+	'user_left_group_chat',
+]);
+
+const ADMINISTRATOR_EXCLUDED_NOTIFICATION_TYPES = new Set([
+	...OFFER_NOTIFICATION_TYPES,
+	...GROUP_CHAT_NOTIFICATION_TYPES,
+]);
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -56,7 +69,7 @@ export class NotificationsService {
   }
 
   /**
-   * ADMINISTRATOR users must not receive offer-related in-app / push notifications.
+   * ADMINISTRATOR users must not receive offer / bid-chat in-app notifications.
    */
   private async isAdministratorUser(userId: string): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
@@ -64,6 +77,19 @@ export class NotificationsService {
       select: { role: true },
     });
     return user?.role === UserRole.ADMINISTRATOR;
+  }
+
+  private async administratorNotificationWhere(userId: string): Promise<{
+    userId: string;
+    type?: { notIn: string[] };
+  }> {
+    if (!(await this.isAdministratorUser(userId))) {
+      return { userId };
+    }
+    return {
+      userId,
+      type: { notIn: [...ADMINISTRATOR_EXCLUDED_NOTIFICATION_TYPES] },
+    };
   }
 
   /**
@@ -78,11 +104,11 @@ export class NotificationsService {
   }): Promise<Notification | null> {
     try {
       if (
-        OFFER_NOTIFICATION_TYPES.has(data.type) &&
+        ADMINISTRATOR_EXCLUDED_NOTIFICATION_TYPES.has(data.type) &&
         (await this.isAdministratorUser(data.userId))
       ) {
         this.logger.debug(
-          `Skipping offer notification "${data.type}" for administrator ${data.userId}`,
+          `Skipping notification "${data.type}" for administrator ${data.userId}`,
         );
         return null;
       }
@@ -837,21 +863,20 @@ export class NotificationsService {
   ): Promise<{ notifications: Notification[]; total: number; hasMore: boolean; unreadCount: number }> {
     try {
       const skip = (page - 1) * limit;
+      const where = await this.administratorNotificationWhere(userId);
       
       const [notifications, total, unreadCount] = await Promise.all([
         this.prisma.notification.findMany({
-          where: { userId },
+          where,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
         }),
+        this.prisma.notification.count({ where }),
         this.prisma.notification.count({
-          where: { userId },
-        }),
-        this.prisma.notification.count({
-          where: { 
-            userId,
-            isRead: false 
+          where: {
+            ...where,
+            isRead: false,
           },
         }),
       ]);
@@ -930,9 +955,10 @@ export class NotificationsService {
    */
   async getUnreadCount(userId: string): Promise<number> {
     try {
+      const where = await this.administratorNotificationWhere(userId);
       return await this.prisma.notification.count({
         where: {
-          userId,
+          ...where,
           isRead: false,
         },
       });
