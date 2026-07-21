@@ -2166,17 +2166,43 @@ export class BidRatesService {
 			Number.isFinite(currentRate) &&
 			offerRate <= currentRate;
 
-		if (shouldApplyRate) {
-			await this.acceptParticipantOffer({
-				participantId: offer.id,
+		// Atomic claim so only one of many open clients sends chat / applies rate.
+		const claimed = await this.prisma.bidRateParticipant.updateMany({
+			where: {
+				id: offer.id,
+				rate: { not: null },
+				createdRateAt: offer.createdRateAt,
+			},
+			data: {
+				rate: null,
+				createdRateAt: null,
+				userVotes: Prisma.JsonNull,
+			},
+		});
+
+		if (claimed.count === 0) {
+			return {
 				bidRateId,
-				offerRate,
+				status: 'already_cleared' as const,
+			};
+		}
+
+		if (shouldApplyRate) {
+			const nowApplySec = nowUnixSeconds();
+			await this.prisma.bidRate.update({
+				where: { id: bidRateId },
+				data: {
+					rate: offerRate,
+					createdAt: nowApplySec,
+					updatedAt: nowApplySec,
+				},
 			});
 
 			if (bidRate.chatId) {
+				// Attribute "Rate changed" to the offer author, not the bid creator.
 				await this.sendBidPriceChatMessage(
 					bidRate.chatId,
-					bidRate.ownerId,
+					offer.userId,
 					`Rate changed to ${this.formatBidPriceUsd(offerRate)}`,
 				);
 			}
@@ -2207,8 +2233,7 @@ export class BidRatesService {
 			};
 		}
 
-		// Offer price higher than current bid rate — clear only, do not raise rate.
-		await this.clearParticipantOffer(offer.id);
+		// Offer price higher than current bid rate — already cleared above.
 		await this.notifyBidRateChangedById(bidRateId, 'offer_expired_cleared');
 		return {
 			bidRateId,
