@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsWebSocketService } from './notifications-websocket.service';
-import { Notification, User } from '@prisma/client';
+import { Notification, UserRole } from '@prisma/client';
 import { FcmPushService } from './fcm-push.service';
 import { ExpoPushService } from './expo-push.service';
 import { MailerService } from '../mailer/mailer.service';
@@ -10,6 +10,16 @@ import {
 	findUserByExternalIdPreferDriver,
 	userWhereDriverByExternalId,
 } from '../users/user-external-id-lookup.util';
+
+const OFFER_NOTIFICATION_TYPES = new Set([
+	'offer_bid',
+	'offer_refused',
+	'offer_extend_time',
+	'offer_selected',
+	'offer_added',
+	'offer_updated',
+	'offer_unavailable',
+]);
 
 @Injectable()
 export class NotificationsService {
@@ -46,6 +56,17 @@ export class NotificationsService {
   }
 
   /**
+   * ADMINISTRATOR users must not receive offer-related in-app / push notifications.
+   */
+  private async isAdministratorUser(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    return user?.role === UserRole.ADMINISTRATOR;
+  }
+
+  /**
    * Create a new notification
    */
   async createNotification(data: {
@@ -54,8 +75,18 @@ export class NotificationsService {
     message: string;
     type: string;
     avatar?: string;
-  }): Promise<Notification> {
+  }): Promise<Notification | null> {
     try {
+      if (
+        OFFER_NOTIFICATION_TYPES.has(data.type) &&
+        (await this.isAdministratorUser(data.userId))
+      ) {
+        this.logger.debug(
+          `Skipping offer notification "${data.type}" for administrator ${data.userId}`,
+        );
+        return null;
+      }
+
       const notification = await this.prisma.notification.create({
         data: {
           userId: data.userId,
@@ -370,7 +401,7 @@ export class NotificationsService {
     creator: { id: string; firstName: string; lastName: string; profilePhoto: string | null },
     recipientId: string,
     chatRoomId: string
-  ): Promise<Notification> {
+  ): Promise<Notification | null> {
     const title = 'New Private Chat';
     const message = `${creator.firstName} ${creator.lastName} created a new private chat with you`;
     
@@ -392,7 +423,8 @@ export class NotificationsService {
   }
 
   /**
-   * Create notifications for new group chat
+   * Create notifications for new group chat.
+   * ADMINISTRATOR participants are excluded (e.g. auto-added to BID chats).
    */
   async createGroupChatNotifications(
     chatRoom: { id: string; name: string | null; avatar?: string | null },
@@ -407,20 +439,24 @@ export class NotificationsService {
       : this.generateChatInitials(chatName);
 
     const recipients = participants.filter(
-      (participant) => participant.userId !== adminUserId,
+      (participant) =>
+        participant.userId !== adminUserId &&
+        participant.role !== UserRole.ADMINISTRATOR,
     );
 
-    const notifications = await Promise.all(
-      recipients.map((participant) =>
-        this.createNotification({
-          userId: participant.userId,
-          title,
-          message,
-          type: 'group_chat_created',
-          avatar,
-        }),
-      ),
-    );
+    const notifications = (
+      await Promise.all(
+        recipients.map((participant) =>
+          this.createNotification({
+            userId: participant.userId,
+            title,
+            message,
+            type: 'group_chat_created',
+            avatar,
+          }),
+        ),
+      )
+    ).filter((notification): notification is Notification => notification != null);
 
     return notifications;
   }
@@ -457,7 +493,7 @@ export class NotificationsService {
         avatar,
       });
       
-      notifications.push(notification);
+      if (notification) notifications.push(notification);
     }
     
     return notifications;
@@ -500,7 +536,7 @@ export class NotificationsService {
           avatar,
         });
         
-        notifications.push(notification);
+        if (notification) notifications.push(notification);
       }
     }
     
@@ -541,7 +577,7 @@ export class NotificationsService {
           avatar,
         });
         
-        notifications.push(notification);
+        if (notification) notifications.push(notification);
       }
     }
     
@@ -551,6 +587,7 @@ export class NotificationsService {
   /**
    * Create notification when driver makes a bid on an offer.
    * Creates DB record + sends via WebSocket.
+   * Skipped for ADMINISTRATOR recipients.
    */
   async createOfferBidNotification(data: {
     userId: string;
@@ -558,7 +595,11 @@ export class NotificationsService {
     offerTitle: string;
     driverName: string;
     driverAvatar?: string | null;
-  }): Promise<Notification> {
+  }): Promise<Notification | null> {
+    if (await this.isAdministratorUser(data.userId)) {
+      return null;
+    }
+
     const normalizedOfferTitle =
       String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
     const title = 'New offer bid';
@@ -572,6 +613,7 @@ export class NotificationsService {
       type: 'offer_bid',
       avatar,
     });
+    if (!notification) return null;
 
     await this.sendPushToUser({
       userId: data.userId,
@@ -590,6 +632,7 @@ export class NotificationsService {
   /**
    * Create notification when driver refuses an offer.
    * Creates DB record + sends via WebSocket.
+   * Skipped for ADMINISTRATOR recipients.
    */
   async createOfferRefusedNotification(data: {
     userId: string;
@@ -597,7 +640,11 @@ export class NotificationsService {
     offerTitle: string;
     driverName: string;
     driverAvatar?: string | null;
-  }): Promise<Notification> {
+  }): Promise<Notification | null> {
+    if (await this.isAdministratorUser(data.userId)) {
+      return null;
+    }
+
     const normalizedOfferTitle =
       String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
     const title = 'Offer declined';
@@ -611,6 +658,7 @@ export class NotificationsService {
       type: 'offer_refused',
       avatar,
     });
+    if (!notification) return null;
 
     await this.sendPushToUser({
       userId: data.userId,
@@ -629,6 +677,7 @@ export class NotificationsService {
   /**
    * Create notification when driver extends bid time on an offer.
    * Creates DB record + sends via WebSocket.
+   * Skipped for ADMINISTRATOR recipients.
    */
   async createOfferExtendTimeNotification(data: {
     userId: string;
@@ -636,27 +685,33 @@ export class NotificationsService {
     offerTitle: string;
     driverName: string;
     driverAvatar?: string | null;
-  }): Promise<Notification> {
+  }): Promise<Notification | null> {
+    if (await this.isAdministratorUser(data.userId)) {
+      return null;
+    }
+
     const title = data.driverName;
     const message = `extended bid time on offer "${data.offerTitle}"`;
     const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
 
-    const notification = await this.createNotification({
+    return this.createNotification({
       userId: data.userId,
       title,
       message,
       type: 'offer_extend_time',
       avatar,
     });
-
-    return notification;
   }
 
   async createOfferSelectedNotification(data: {
     userId: string;
     offerId: number;
     offerTitle: string;
-  }): Promise<Notification> {
+  }): Promise<Notification | null> {
+    if (await this.isAdministratorUser(data.userId)) {
+      return null;
+    }
+
     const normalizedOfferTitle =
       String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
     const title = 'Offer Assignment Confirmed';
@@ -670,6 +725,7 @@ export class NotificationsService {
       type: 'offer_selected',
       avatar,
     });
+    if (!notification) return null;
 
     await this.sendPushToUser({
       userId: data.userId,
@@ -689,7 +745,11 @@ export class NotificationsService {
     userId: string;
     offerId: number;
     offerTitle: string;
-  }): Promise<Notification> {
+  }): Promise<Notification | null> {
+    if (await this.isAdministratorUser(data.userId)) {
+      return null;
+    }
+
     const normalizedOfferTitle =
       String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
     const title = 'Offer Assignment';
@@ -703,6 +763,7 @@ export class NotificationsService {
       type: 'offer_added',
       avatar,
     });
+    if (!notification) return null;
 
     await this.sendPushToUser({
       userId: data.userId,
@@ -720,6 +781,7 @@ export class NotificationsService {
 
   /**
    * Notify driver that an existing offer was updated and bids were reset.
+   * Skipped for ADMINISTRATOR recipients.
    */
   async createOfferUpdatedNotification(data: {
     userId: string;
@@ -727,7 +789,11 @@ export class NotificationsService {
     offerTitle: string;
     pickUp: string;
     delivery: string;
-  }): Promise<Notification> {
+  }): Promise<Notification | null> {
+    if (await this.isAdministratorUser(data.userId)) {
+      return null;
+    }
+
     const routeLabel =
       data.pickUp.trim() && data.delivery.trim()
         ? `${data.pickUp.trim()} – ${data.delivery.trim()}`
@@ -745,6 +811,7 @@ export class NotificationsService {
       type: 'offer_updated',
       avatar,
     });
+    if (!notification) return null;
 
     await this.sendPushToUser({
       userId: data.userId,

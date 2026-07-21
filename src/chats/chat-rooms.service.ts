@@ -6,7 +6,7 @@ import {
 	NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { CreateLoadChatDto } from './dto/create-load-chat.dto';
@@ -363,7 +363,12 @@ export class ChatRoomsService {
 						(p) => p.userId !== creatorId,
 					);
 
-					if (creator && recipient) {
+					// OFFER chats: do not notify ADMINISTRATOR recipients
+					const skipOfferAdminNotify =
+						type === 'OFFER' &&
+						recipient?.user.role === UserRole.ADMINISTRATOR;
+
+					if (creator && recipient && !skipOfferAdminNotify) {
 						// Create notification for the recipient
 						await this.notificationsService.createPrivateChatNotification(
 							creator,

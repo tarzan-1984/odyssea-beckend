@@ -1520,6 +1520,7 @@ export class OffersService {
 	/**
 	 * Get offer notification context for the offer creator.
 	 * Returns recipient user IDs (creator only), offer title, and driver info.
+	 * ADMINISTRATOR creators are never notified about offer events.
 	 */
 	async getOfferNotificationContext(
 		offerId: number,
@@ -1554,9 +1555,11 @@ export class OffersService {
 		) {
 			const creator = await this.prisma.user.findFirst({
 				where: userWhereEmployeeByExternalId(offer.externalUserId),
-				select: { id: true },
+				select: { id: true, role: true },
 			});
-			if (creator) recipientIds.add(creator.id);
+			if (creator && creator.role !== UserRole.ADMINISTRATOR) {
+				recipientIds.add(creator.id);
+			}
 		}
 
 		return {
