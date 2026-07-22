@@ -76,32 +76,31 @@ POST /v1/create_load_chat
 ### Step 2: Participant Validation
 
 For each participant (except driver):
-1. Resolve user by `externalId` **and** `role` from the payload
+1. Resolve user by `externalId` (role from payload is used only to distinguish driver vs non-driver)
 2. `role: "driver"` → user must have `role = DRIVER`
-3. Known TMS roles (`dispatcher`, `tracking-tl`, `nightshift_tracking`, …) are normalized
-   (`tracking-tl` → `TRACKING_TL`) and must match `users.role` exactly
-4. Unknown roles → user must have `role != DRIVER` (employee fallback)
-5. If exactly one user matches → add to chat
-6. If no user matches → skip (no error) on create; on `update_load_chat` sync → `400`
-7. If **multiple** users match → `400 Bad Request`
+3. Any non-driver role (`dispatcher`, `tracking-tl`, `nightshift_tracking`, …) →
+   user must have `role != DRIVER` (exact staff role name is **not** compared)
+4. If exactly one user matches → add to chat
+5. If no user matches → skip (no error) on create; on `update_load_chat` sync → `400`
+6. If **multiple** users match → `400 Bad Request`
 
-**Important:** `externalId` is not unique in the database. The `role` field in the request is required. Staff sync compares participants by `externalId + role` (not by list order).
+**Important:** `externalId` is not unique in the database. The `role` field in the request is still required to separate DRIVER vs employee. Staff sync compares participants by `externalId` within the employee category (not by list order, not by exact role name).
 
 ### Step 2b: Manual participant changes (Web / Mobile)
 
 When participants are added or removed from GROUP or LOAD chats via the app:
 - The client sends `{ id, role }` for each participant
-- The backend resolves by internal user id (with role validation) or by `externalId + role`
+- The backend resolves by internal user id (with DRIVER vs non-DRIVER validation) or by `externalId` + DRIVER/employee category
 - Resolving by `externalId` without `role` is rejected
 
 ### Step 2c: `update_load_chat`
 
-Same role-aware resolution as creation. After ensuring one LOAD chat per driver:
+Same role-category resolution as creation. After ensuring one LOAD chat per driver:
 
 1. Resolve non-driver participants from the request (plus auto-added administrators)
-   by `externalId + role` (TMS roles normalized: `tracking-tl` → `TRACKING_TL`)
-2. If any non-driver `externalId + role` from the request cannot be resolved → `400 Bad Request`
-3. Compare old vs new staff by `externalId + role` keys (order-independent)
+   by `externalId` where `users.role != DRIVER`
+2. If any non-driver `externalId` from the request cannot be resolved → `400 Bad Request`
+3. Compare old vs new staff by `externalId` + EMPLOYEE category keys (order-independent)
 4. Add missing / remove stale non-driver participants in all LOAD chats for the `load_id`
 5. Drivers in each chat are never added or removed by this sync
 

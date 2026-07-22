@@ -48,34 +48,33 @@ describe('user-external-id-lookup.util', () => {
 		});
 	});
 
-	it('maps participant role to exact UserRole when known', () => {
+	it('maps non-driver participant role to employee where (no exact role match)', () => {
 		expect(userWhereByExternalIdAndParticipantRole('1', 'DRIVER')).toEqual(
 			userWhereDriverByExternalId('1'),
 		);
 		expect(
 			userWhereByExternalIdAndParticipantRole('1', 'dispatcher'),
-		).toEqual({
-			externalId: '1',
-			role: UserRole.DISPATCHER,
-		});
+		).toEqual(userWhereEmployeeByExternalId('1'));
 		expect(
 			userWhereByExternalIdAndParticipantRole('77', 'tracking-tl'),
-		).toEqual({
-			externalId: '77',
-			role: UserRole.TRACKING_TL,
-		});
+		).toEqual(userWhereEmployeeByExternalId('77'));
 		expect(
 			userWhereByExternalIdAndParticipantRole('1', 'custom_role'),
 		).toEqual(userWhereEmployeeByExternalId('1'));
 	});
 
-	it('matches participant role to user role (exact when known)', () => {
+	it('matches participant role by DRIVER vs non-DRIVER category only', () => {
 		expect(participantRoleMatchesUser('driver', 'DRIVER')).toBe(true);
 		expect(participantRoleMatchesUser('DISPATCHER', 'DISPATCHER')).toBe(true);
 		expect(participantRoleMatchesUser('tracking-tl', 'TRACKING_TL')).toBe(
 			true,
 		);
-		expect(participantRoleMatchesUser('tracking', 'TRACKING_TL')).toBe(false);
+		expect(participantRoleMatchesUser('dispatcher', 'DISPATCHER_TL')).toBe(
+			true,
+		);
+		expect(participantRoleMatchesUser('tracking', 'NIGHTSHIFT_TRACKING')).toBe(
+			true,
+		);
 		expect(participantRoleMatchesUser('driver', 'DISPATCHER')).toBe(false);
 		expect(participantRoleMatchesUser('DISPATCHER', 'DRIVER')).toBe(false);
 	});

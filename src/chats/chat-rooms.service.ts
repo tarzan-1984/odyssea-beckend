@@ -25,10 +25,10 @@ import {
 	findSingleUserByExternalIdAndParticipantRole,
 	isDriverParticipantRole,
 	isDriverUserRole,
-	participantExternalRoleKey,
+	participantRoleCategoryKey,
 	resolveParticipantUser,
 	trimExternalId,
-	userExternalRoleKey,
+	userRoleCategoryKey,
 	userWhereDriverByExternalId,
 	userWhereDriversByExternalIds,
 } from '../users/user-external-id-lookup.util';
@@ -2699,8 +2699,9 @@ export class ChatRoomsService {
 	 * Compare request non-driver participants (+ auto-admins) with each LOAD chat for the
 	 * load, then add/remove staff so every chat matches. Drivers are never touched.
 	 *
-	 * Comparison is by externalId + role (normalized, order-independent). Request staff
-	 * that cannot be resolved must not silently shrink the desired set.
+	 * Comparison is by externalId + EMPLOYEE category (order-independent). Exact staff
+	 * role names are ignored. Request staff that cannot be resolved must not silently
+	 * shrink the desired set.
 	 */
 	private async syncNonDriverParticipantsForLoad(
 		loadId: string,
@@ -2760,7 +2761,7 @@ export class ChatRoomsService {
 			for (const p of currentStaff) {
 				const externalId = trimExternalId(p.user?.externalId);
 				const role = String(p.user?.role ?? '');
-				const key = userExternalRoleKey(externalId, role);
+				const key = userRoleCategoryKey(externalId, role);
 				// First wins; duplicate keys should not exist in a chat.
 				if (!currentByKey.has(key)) {
 					currentByKey.set(key, {
@@ -2899,7 +2900,8 @@ export class ChatRoomsService {
 
 	/**
 	 * Resolve non-driver request participants + auto-added ADMINISTRATOR users
-	 * (same rules as create_load_chat). Identity key is externalId + role.
+	 * (same rules as create_load_chat). Identity key is externalId + EMPLOYEE category
+	 * (exact TMS staff role names are not matched).
 	 */
 	private async resolveLoadChatStaffParticipants(
 		participants: Array<{ id: string; role: string }>,
@@ -2931,7 +2933,7 @@ export class ChatRoomsService {
 			}
 
 			const externalId = trimExternalId(participant.id);
-			const key = participantExternalRoleKey(externalId, participant.role);
+			const key = participantRoleCategoryKey(externalId, participant.role);
 			if (!externalId || seenKeys.has(key)) {
 				continue;
 			}
@@ -2949,7 +2951,6 @@ export class ChatRoomsService {
 						userId: user.id,
 						externalId: trimExternalId(user.externalId) || externalId,
 						role: String(user.role),
-						// Keep request role in the comparison key so TMS payload is source of truth.
 						key,
 					});
 				} else if (!user) {
@@ -3000,7 +3001,7 @@ export class ChatRoomsService {
 				continue;
 			}
 			const externalId = trimExternalId(user.externalId);
-			const key = userExternalRoleKey(externalId, user.role);
+			const key = userRoleCategoryKey(externalId, user.role);
 			if (seenKeys.has(key)) {
 				continue;
 			}

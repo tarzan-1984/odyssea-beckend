@@ -61,14 +61,8 @@ export function userWhereByExternalIdAndParticipantRole(
 	if (isDriverParticipantRole(participantRole)) {
 		return userWhereDriverByExternalId(externalId);
 	}
-	const exactRole = resolveUserRoleFromParticipantRole(participantRole);
-	if (exactRole && exactRole !== UserRole.DRIVER) {
-		return {
-			externalId: trimExternalId(externalId),
-			role: exactRole,
-		};
-	}
-	// Unknown TMS role → any non-driver row with this externalId.
+	// Non-drivers: match by externalId only; any non-DRIVER role is accepted.
+	// TMS role labels (dispatcher vs dispatcher_tl, etc.) are not compared exactly.
 	return userWhereEmployeeByExternalId(externalId);
 }
 
@@ -78,17 +72,12 @@ export function isDriverUserRole(role: string | null | undefined): boolean {
 
 /**
  * TMS participant role vs users.role:
- * - known enum roles must match exactly (after normalize);
- * - otherwise fall back to DRIVER vs EMPLOYEE category.
+ * only DRIVER vs non-DRIVER category must match (exact staff role names are ignored).
  */
 export function participantRoleMatchesUser(
 	participantRole: string | null | undefined,
 	userRole: string | null | undefined,
 ): boolean {
-	const exactRole = resolveUserRoleFromParticipantRole(participantRole);
-	if (exactRole) {
-		return normalizeParticipantRole(userRole) === exactRole;
-	}
 	return (
 		isDriverParticipantRole(participantRole) === isDriverUserRole(userRole)
 	);
