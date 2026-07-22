@@ -579,6 +579,8 @@ enum DriverLogSource {
 enum LoadChatLogAction {
   create
   update
+  add_participent    @map("add participent")
+  delete_participent @map("delete participent")
 }
 
 enum LoadChatLogSource {

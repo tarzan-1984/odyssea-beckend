@@ -1373,7 +1373,7 @@ export class ChatRoomsService {
 
 			const outcome = { newParticipants, forkedChatRooms, updatedSourceRoom };
 
-			if (chatRoom.type === 'LOAD' && driverUsers.length > 0) {
+			if (chatRoom.type === 'LOAD') {
 				const createdForkIds = forkedChatRooms
 					.filter((f) => f.created)
 					.map((f) => f.chatRoom?.id ?? null);
@@ -1381,13 +1381,9 @@ export class ChatRoomsService {
 					.filter((f) => !f.created)
 					.map((f) => f.chatRoom?.id ?? null);
 				const attachedDriverIds = driversToAddToSource.map((d) => d.id);
-				const action =
-					createdForkIds.length > 0 || attachedDriverIds.length > 0
-						? 'create'
-						: 'update';
 
 				await this.loadChatLogService.recordSuccess(
-					action,
+					'add_participent',
 					'web',
 					requestData,
 					{
@@ -1415,16 +1411,16 @@ export class ChatRoomsService {
 				})
 				.catch(() => null);
 
-			const looksLikeLoadDriverAdd =
+			const looksLikeLoadAdd =
 				chatRoom?.type === 'LOAD' ||
 				(participantRefs?.some((r) =>
 					isDriverParticipantRole(r.role ?? ''),
 				) ??
 					false);
 
-			if (looksLikeLoadDriverAdd) {
+			if (looksLikeLoadAdd) {
 				await this.loadChatLogService.recordFailure(
-					'create',
+					'add_participent',
 					'web',
 					requestData,
 					error,
@@ -1560,136 +1556,180 @@ export class ChatRoomsService {
 		userId: string,
 		participantRole?: string,
 	) {
-		let role = participantRole?.trim() || undefined;
-		if (!role) {
-			const byInternalId = await this.prisma.user.findUnique({
-				where: { id: participantId.trim() },
-				select: { role: true },
-			});
-			role = byInternalId?.role;
-		}
+		const requestData = {
+			chatRoomId,
+			participantId,
+			participantRole,
+			actorUserId: userId,
+		};
 
-		let resolved;
 		try {
-			resolved = await resolveParticipantUser(
-				this.prisma,
-				{ id: participantId, role },
-				{
-					id: true,
-					firstName: true,
-					lastName: true,
-					profilePhoto: true,
-					userColor: true,
-				},
-			);
-		} catch (error) {
-			this.mapExternalIdLookupError(error);
-		}
+			let role = participantRole?.trim() || undefined;
+			if (!role) {
+				const byInternalId = await this.prisma.user.findUnique({
+					where: { id: participantId.trim() },
+					select: { role: true },
+				});
+				role = byInternalId?.role;
+			}
 
-		if (!resolved) {
-			const roleHint = role ? ` and role ${role}` : '';
-			throw new BadRequestException(
-				`Participant with id ${participantId}${roleHint} not found`,
-			);
-		}
-
-		const resolvedParticipantId = resolved.id;
-
-		// Get chat room info first
-		const chatRoom = await this.prisma.chatRoom.findUnique({
-			where: { id: chatRoomId },
-			include: {
-				participants: true,
-			},
-		});
-
-		if (!chatRoom) {
-			throw new NotFoundException('Chat room not found');
-		}
-
-		// Verify user is participant and can remove others
-		const participant = await this.prisma.chatRoomParticipant.findUnique({
-			where: {
-				chatRoomId_userId: {
-					chatRoomId,
-					userId,
-				},
-			},
-		});
-
-		if (!participant) {
-			throw new NotFoundException('Chat room not found or access denied');
-		}
-
-		// Check if user is removing themselves (leaving group chat)
-		const isLeavingSelf = resolvedParticipantId === userId;
-		const isGroupChat = isMultiUserChatType(chatRoom.type);
-
-		const leavingUser = resolved;
-
-		// Get remaining participants (excluding the leaving user)
-		const remainingParticipants = chatRoom.participants
-			.filter((p) => p.userId !== resolvedParticipantId)
-			.map((p) => ({ userId: p.userId }));
-
-		// Remove participant
-		await this.prisma.chatRoomParticipant.delete({
-			where: {
-				chatRoomId_userId: {
-					chatRoomId,
-					userId: resolvedParticipantId,
-				},
-			},
-		});
-
-		// Participant removed from chat
-
-		// Create notifications based on the type of removal
-		if (isGroupChat && leavingUser) {
+			let resolved;
 			try {
-				if (isLeavingSelf) {
-					// User is leaving themselves - notify remaining participants
-					if (remainingParticipants.length > 0) {
-						await this.notificationsService.createUserLeftGroupNotifications(
-							leavingUser,
+				resolved = await resolveParticipantUser(
+					this.prisma,
+					{ id: participantId, role },
+					{
+						id: true,
+						firstName: true,
+						lastName: true,
+						profilePhoto: true,
+						userColor: true,
+						externalId: true,
+						role: true,
+					},
+				);
+			} catch (error) {
+				this.mapExternalIdLookupError(error);
+			}
+
+			if (!resolved) {
+				const roleHint = role ? ` and role ${role}` : '';
+				throw new BadRequestException(
+					`Participant with id ${participantId}${roleHint} not found`,
+				);
+			}
+
+			const resolvedParticipantId = resolved.id;
+
+			// Get chat room info first
+			const chatRoom = await this.prisma.chatRoom.findUnique({
+				where: { id: chatRoomId },
+				include: {
+					participants: true,
+				},
+			});
+
+			if (!chatRoom) {
+				throw new NotFoundException('Chat room not found');
+			}
+
+			// Verify user is participant and can remove others
+			const participant = await this.prisma.chatRoomParticipant.findUnique({
+				where: {
+					chatRoomId_userId: {
+						chatRoomId,
+						userId,
+					},
+				},
+			});
+
+			if (!participant) {
+				throw new NotFoundException('Chat room not found or access denied');
+			}
+
+			// Check if user is removing themselves (leaving group chat)
+			const isLeavingSelf = resolvedParticipantId === userId;
+			const isGroupChat = isMultiUserChatType(chatRoom.type);
+
+			const leavingUser = resolved;
+
+			// Get remaining participants (excluding the leaving user)
+			const remainingParticipants = chatRoom.participants
+				.filter((p) => p.userId !== resolvedParticipantId)
+				.map((p) => ({ userId: p.userId }));
+
+			// Remove participant
+			await this.prisma.chatRoomParticipant.delete({
+				where: {
+					chatRoomId_userId: {
+						chatRoomId,
+						userId: resolvedParticipantId,
+					},
+				},
+			});
+
+			// Create notifications based on the type of removal
+			if (isGroupChat && leavingUser) {
+				try {
+					if (isLeavingSelf) {
+						// User is leaving themselves - notify remaining participants
+						if (remainingParticipants.length > 0) {
+							await this.notificationsService.createUserLeftGroupNotifications(
+								leavingUser,
+								{
+									id: chatRoom.id,
+									name: chatRoom.name,
+								},
+								remainingParticipants,
+							);
+						}
+					} else {
+						// Admin is removing a participant - notify all participants (including removed one) except admin
+						const allParticipants = chatRoom.participants.map((p) => ({
+							userId: p.userId,
+						}));
+
+						await this.notificationsService.createParticipantRemovedNotifications(
+							{
+								id: leavingUser.id,
+								firstName: leavingUser.firstName,
+								lastName: leavingUser.lastName,
+							},
 							{
 								id: chatRoom.id,
 								name: chatRoom.name,
+								avatar: chatRoom.avatar,
 							},
-							remainingParticipants,
+							allParticipants,
+							userId, // admin who removed
 						);
 					}
-				} else {
-					// Admin is removing a participant - notify all participants (including removed one) except admin
-					const allParticipants = chatRoom.participants.map((p) => ({
-						userId: p.userId,
-					}));
-
-					await this.notificationsService.createParticipantRemovedNotifications(
-						{
-							id: leavingUser.id,
-							firstName: leavingUser.firstName,
-							lastName: leavingUser.lastName,
-						},
-						{
-							id: chatRoom.id,
-							name: chatRoom.name,
-							avatar: chatRoom.avatar,
-						},
-						allParticipants,
-						userId, // admin who removed
+				} catch (error) {
+					// Ignore notification errors to not block removal
+					console.error(
+						'Failed to create participant removal notifications:',
+						error,
 					);
 				}
-			} catch (error) {
-				// Ignore notification errors to not block removal
-				console.error(
-					'Failed to create participant removal notifications:',
-					error,
+			}
+
+			if (chatRoom.type === 'LOAD') {
+				await this.loadChatLogService.recordSuccess(
+					'delete_participent',
+					'web',
+					requestData,
+					{
+						ok: true,
+						loadId: chatRoom.loadId,
+						chatRoomId,
+						removedUserId: resolvedParticipantId,
+						removedExternalId: resolved.externalId ?? null,
+						removedRole: resolved.role ?? null,
+					},
+					chatRoom.loadId,
 				);
 			}
-		}
 
-		return { success: true, removedUserId: resolvedParticipantId };
+			return { success: true, removedUserId: resolvedParticipantId };
+		} catch (error) {
+			const chatRoom = await this.prisma.chatRoom
+				.findUnique({
+					where: { id: chatRoomId },
+					select: { type: true, loadId: true },
+				})
+				.catch(() => null);
+
+			if (chatRoom?.type === 'LOAD') {
+				await this.loadChatLogService.recordFailure(
+					'delete_participent',
+					'web',
+					requestData,
+					error,
+					chatRoom.loadId,
+				);
+			}
+			throw error;
+		}
 	}
 
 	/**

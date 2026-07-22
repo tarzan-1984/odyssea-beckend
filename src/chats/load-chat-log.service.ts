@@ -152,7 +152,7 @@ export class LoadChatLogService {
 			logs: rows.map((row) => ({
 				id: row.id,
 				loadId: row.loadId,
-				action: row.action,
+				action: this.formatActionForApi(row.action),
 				source: row.source,
 				data: row.data,
 				// Naive NY wall-clock TIMESTAMP — expose UTC components as wall time.
@@ -172,6 +172,21 @@ export class LoadChatLogService {
 	/** Escape `%`, `_`, and `\` for PostgreSQL ILIKE … ESCAPE '\\'. */
 	private escapeIlikePattern(value: string): string {
 		return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+	}
+
+	/**
+	 * Prisma enum keys use underscores; DB stores mapped labels with spaces.
+	 * Normalize so API always returns the DB-facing action string.
+	 */
+	private formatActionForApi(action: string): string {
+		switch (action) {
+			case 'add_participent':
+				return 'add participent';
+			case 'delete_participent':
+				return 'delete participent';
+			default:
+				return action;
+		}
 	}
 
 	/** Naive NY wall-clock TIMESTAMP as `YYYY-MM-DD HH:mm:ss`. */
