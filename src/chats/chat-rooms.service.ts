@@ -1386,18 +1386,24 @@ export class ChatRoomsService {
 						? 'create'
 						: 'update';
 
-				await this.loadChatLogService.recordSuccess(action, 'web', requestData, {
-					ok: true,
-					loadId: chatRoom.loadId,
-					sourceChatRoomId: chatRoomId,
-					createdChatRoomIds: createdForkIds,
-					reusedChatRoomIds: reusedForkIds,
-					attachedDriverIds,
-					updatedSourceRoom,
-					addedParticipantUserIds: newParticipants.map(
-						(p: { userId: string }) => p.userId,
-					),
-				});
+				await this.loadChatLogService.recordSuccess(
+					action,
+					'web',
+					requestData,
+					{
+						ok: true,
+						loadId: chatRoom.loadId,
+						sourceChatRoomId: chatRoomId,
+						createdChatRoomIds: createdForkIds,
+						reusedChatRoomIds: reusedForkIds,
+						attachedDriverIds,
+						updatedSourceRoom,
+						addedParticipantUserIds: newParticipants.map(
+							(p: { userId: string }) => p.userId,
+						),
+					},
+					chatRoom.loadId,
+				);
 			}
 
 			return outcome;
@@ -1405,7 +1411,7 @@ export class ChatRoomsService {
 			const chatRoom = await this.prisma.chatRoom
 				.findUnique({
 					where: { id: chatRoomId },
-					select: { type: true },
+					select: { type: true, loadId: true },
 				})
 				.catch(() => null);
 
@@ -1422,6 +1428,7 @@ export class ChatRoomsService {
 					'web',
 					requestData,
 					error,
+					chatRoom?.loadId,
 				);
 			}
 			throw error;

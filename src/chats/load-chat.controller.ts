@@ -98,6 +98,7 @@ export class LoadChatController {
 					kinds: results.map((r) => r.kind),
 					chatRoomIds: results.map((r) => r.chatRoom?.id ?? null),
 				},
+				createLoadChatDto.load_id,
 			);
 
 			const chats = results.map((r) => r.chatRoom);
@@ -112,6 +113,7 @@ export class LoadChatController {
 				'tms',
 				createLoadChatDto,
 				error,
+				createLoadChatDto.load_id,
 			);
 			throw error;
 		}
@@ -382,11 +384,11 @@ export class LoadChatController {
 				...response,
 				chats: undefined,
 				chatRoomIds: outcome.chats.map((c) => c?.id ?? null),
-			});
+			}, dto.load_id);
 
 			return response;
 		} catch (error) {
-			await this.loadChatLogService.recordFailure('update', 'tms', dto, error);
+			await this.loadChatLogService.recordFailure('update', 'tms', dto, error, dto.load_id);
 			throw error;
 		}
 	}

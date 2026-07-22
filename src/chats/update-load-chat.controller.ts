@@ -55,11 +55,11 @@ export class UpdateLoadChatController {
 				...response,
 				chats: undefined,
 				chatRoomIds: outcome.chats.map((c) => c?.id ?? null),
-			});
+			}, dto.load_id);
 
 			return response;
 		} catch (error) {
-			await this.loadChatLogService.recordFailure('update', 'tms', dto, error);
+			await this.loadChatLogService.recordFailure('update', 'tms', dto, error, dto.load_id);
 			throw error;
 		}
 	}

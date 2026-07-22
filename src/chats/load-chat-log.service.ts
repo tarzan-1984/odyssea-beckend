@@ -21,12 +21,15 @@ export class LoadChatLogService {
 		action: LoadChatLogAction,
 		source: LoadChatLogSource,
 		payload: LoadChatLogPayload,
+		loadId?: string | null,
 	): Promise<void> {
 		try {
+			const trimmedLoadId = loadId?.trim() || null;
 			await this.prisma.loadChatLog.create({
 				data: {
 					action,
 					source,
+					loadId: trimmedLoadId,
 					data: payload as Prisma.InputJsonValue,
 					createdAt: nowInNewYorkAsNaiveDate(),
 				},
@@ -41,11 +44,17 @@ export class LoadChatLogService {
 		source: LoadChatLogSource,
 		requestData: unknown,
 		result: unknown,
+		loadId?: string | null,
 	): Promise<void> {
-		await this.record(action, source, {
-			data: requestData,
-			result,
-		});
+		await this.record(
+			action,
+			source,
+			{
+				data: requestData,
+				result,
+			},
+			loadId,
+		);
 	}
 
 	async recordFailure(
@@ -53,14 +62,20 @@ export class LoadChatLogService {
 		source: LoadChatLogSource,
 		requestData: unknown,
 		error: unknown,
+		loadId?: string | null,
 	): Promise<void> {
-		await this.record(action, source, {
-			data: requestData,
-			result: {
-				ok: false,
-				error: this.formatError(error),
+		await this.record(
+			action,
+			source,
+			{
+				data: requestData,
+				result: {
+					ok: false,
+					error: this.formatError(error),
+				},
 			},
-		});
+			loadId,
+		);
 	}
 
 	/** Deletes rows with createdAt strictly older than N hours (NY wall-clock). */
