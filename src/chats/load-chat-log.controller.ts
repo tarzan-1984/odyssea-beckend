@@ -33,12 +33,19 @@ export class LoadChatLogController {
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number })
 	@ApiQuery({ name: 'limit', required: false, type: Number })
+	@ApiQuery({
+		name: 'search',
+		required: false,
+		type: String,
+		description: 'Case-insensitive substring match against JSON data column',
+	})
 	@ApiResponse({ status: 200, description: 'Paginated load chat logs' })
 	@ApiResponse({ status: 403, description: 'Forbidden' })
 	async list(
 		@Request() req: AuthenticatedRequest,
 		@Query('page') page?: number,
 		@Query('limit') limit?: number,
+		@Query('search') search?: string,
 	) {
 		if (!canAccessAppLogs(req.user.role)) {
 			throw new ForbiddenException(
@@ -49,6 +56,6 @@ export class LoadChatLogController {
 		const pageNum = page ? Number(page) : 1;
 		const limitNum = limit ? Number(limit) : 20;
 
-		return this.loadChatLogService.findMany(pageNum, limitNum);
+		return this.loadChatLogService.findMany(pageNum, limitNum, search);
 	}
 }

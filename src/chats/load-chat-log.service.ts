@@ -81,28 +81,70 @@ export class LoadChatLogService {
 	/**
 	 * Paginated list for App Logs admin page.
 	 * Sorted by createdAt DESC (newest first).
+	 * Optional `search` matches any substring in the JSON `data` column (case-insensitive).
 	 */
-	async findMany(page: number = 1, limit: number = 20) {
+	async findMany(page: number = 1, limit: number = 20, search?: string) {
 		const safePage = Math.max(1, page);
 		const safeLimit = Math.min(100, Math.max(1, limit));
 		const skip = (safePage - 1) * safeLimit;
+		const q = search?.trim() ?? '';
 
-		const [total, rows] = await Promise.all([
-			this.prisma.loadChatLog.count(),
-			this.prisma.loadChatLog.findMany({
-				orderBy: { createdAt: 'desc' },
-				skip,
-				take: safeLimit,
-				select: {
-					id: true,
-					loadId: true,
-					action: true,
-					source: true,
-					data: true,
-					createdAt: true,
-				},
-			}),
-		]);
+		type LogRow = {
+			id: string;
+			loadId: string | null;
+			action: string;
+			source: string;
+			data: unknown;
+			createdAt: Date;
+		};
+
+		let total: number;
+		let rows: LogRow[];
+
+		if (q) {
+			const pattern = `%${this.escapeIlikePattern(q)}%`;
+			const [countResult, matched] = await Promise.all([
+				this.prisma.$queryRaw<[{ count: bigint }]>`
+					SELECT COUNT(*)::bigint AS count
+					FROM load_chats_logs
+					WHERE data::text ILIKE ${pattern} ESCAPE '\\'
+				`,
+				this.prisma.$queryRaw<LogRow[]>`
+					SELECT
+						id,
+						load_id AS "loadId",
+						action::text AS action,
+						source::text AS source,
+						data,
+						created_at AS "createdAt"
+					FROM load_chats_logs
+					WHERE data::text ILIKE ${pattern} ESCAPE '\\'
+					ORDER BY created_at DESC
+					LIMIT ${safeLimit} OFFSET ${skip}
+				`,
+			]);
+			total = Number(countResult[0]?.count ?? 0);
+			rows = matched;
+		} else {
+			const [count, matched] = await Promise.all([
+				this.prisma.loadChatLog.count(),
+				this.prisma.loadChatLog.findMany({
+					orderBy: { createdAt: 'desc' },
+					skip,
+					take: safeLimit,
+					select: {
+						id: true,
+						loadId: true,
+						action: true,
+						source: true,
+						data: true,
+						createdAt: true,
+					},
+				}),
+			]);
+			total = count;
+			rows = matched;
+		}
 
 		const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
 
@@ -125,6 +167,11 @@ export class LoadChatLogService {
 				has_prev_page: safePage > 1,
 			},
 		};
+	}
+
+	/** Escape `%`, `_`, and `\` for PostgreSQL ILIKE … ESCAPE '\\'. */
+	private escapeIlikePattern(value: string): string {
+		return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 	}
 
 	/** Naive NY wall-clock TIMESTAMP as `YYYY-MM-DD HH:mm:ss`. */
