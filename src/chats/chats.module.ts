@@ -18,6 +18,7 @@ import { MessagesArchiveScheduler } from './messages-archive.scheduler';
 import { DeliveredLoadChatCleanupScheduler } from './delivered-load-chat-cleanup.scheduler';
 import { LoadChatTmsSyncService } from './load-chat-tms-sync.service';
 import { LoadChatLogService } from './load-chat-log.service';
+import { LoadChatLogController } from './load-chat-log.controller';
 import { LoadChatLogRetentionScheduler } from './load-chat-log-retention.scheduler';
 import { ArchiveBackgroundService } from './services/archive-background.service';
 import { S3Service } from '../s3/s3.service';
@@ -53,6 +54,7 @@ import { StorageModule } from '../storage/storage.module';
 		LoadChatController,
 		UpdateLoadChatController,
 		DeleteLoadChatController,
+		LoadChatLogController,
 	],
 	providers: [
 		ChatRoomsService,

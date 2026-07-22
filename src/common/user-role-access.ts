@@ -8,6 +8,11 @@ export function canModifyAppSettings(role: UserRole): boolean {
 	return role === UserRole.ADMINISTRATOR;
 }
 
+/** App Logs page / API: administrators only. */
+export function canAccessAppLogs(role: UserRole): boolean {
+	return role === UserRole.ADMINISTRATOR;
+}
+
 export function canSendCheckListMessages(role: UserRole): boolean {
 	return role !== UserRole.GAST;
 }
