@@ -61,6 +61,11 @@ export type CreateLoadChatResult = {
 	};
 };
 
+export type CreateLoadChatOutcome = {
+	results: CreateLoadChatResult[];
+	warnings: string[];
+};
+
 /** Non-driver participant add/remove applied across every LOAD chat for a load_id. */
 export type LoadChatStaffSyncEvent = {
 	chatRoomId: string;
@@ -76,6 +81,7 @@ export type UpdateLoadChatResult = {
 	existing: CreateLoadChatResult[];
 	chats: any[];
 	staffSyncEvents: LoadChatStaffSyncEvent[];
+	warnings: string[];
 };
 
 export type CreateChatRoomResult = {
@@ -2107,8 +2113,9 @@ export class ChatRoomsService {
 	 */
 	async createLoadChat(
 		createLoadChatDto: CreateLoadChatDto,
-	): Promise<CreateLoadChatResult[]> {
+	): Promise<CreateLoadChatOutcome> {
 		const { load_id, title, company, participants } = createLoadChatDto;
+		const warnings: string[] = [];
 
 		const fullChatInclude = {
 			participants: {
@@ -2174,15 +2181,25 @@ export class ChatRoomsService {
 			})();
 
 			if (!driver) {
-				throw new BadRequestException(
-					`Driver with external ID ${driverParticipant.id} not found`,
+				const warning = this.formatSkippedParticipantWarning(
+					driverParticipant.id,
+					driverParticipant.role,
+					'not_found',
 				);
+				warnings.push(warning);
+				this.logger.warn(`[create_load_chat] ${warning}`);
+				continue;
 			}
 
 			if (driver.status !== 'ACTIVE') {
-				throw new BadRequestException(
-					`Driver with external ID ${driverParticipant.id} is not active`,
+				const warning = this.formatSkippedParticipantWarning(
+					driverParticipant.id,
+					driverParticipant.role,
+					'inactive',
 				);
+				warnings.push(warning);
+				this.logger.warn(`[create_load_chat] ${warning}`);
+				continue;
 			}
 
 			drivers.push({
@@ -2195,11 +2212,27 @@ export class ChatRoomsService {
 			});
 		}
 
+		if (drivers.length === 0) {
+			this.logger.warn(
+				`[create_load_chat] No resolvable active drivers for load_id=${load_id}; skipping chat create`,
+			);
+			return { results: [], warnings };
+		}
+
 		// Shared non-driver participants (same staff for every per-driver LOAD chat)
-		const { staffParticipantIds, hiddenParticipantIds } =
+		const { staffParticipantIds, hiddenParticipantIds, unresolvedStaff } =
 			await this.resolveLoadChatStaffParticipantIds(participants, {
 				excludeUserIds: drivers.map((d) => d.id),
 			});
+		for (const skipped of unresolvedStaff) {
+			const warning = this.formatSkippedParticipantWarning(
+				skipped.id,
+				skipped.role,
+				'not_found',
+			);
+			warnings.push(warning);
+			this.logger.warn(`[create_load_chat] ${warning}`);
+		}
 		const hiddenIdSet = new Set(hiddenParticipantIds);
 		const requestDriverUserIds = new Set(drivers.map((d) => d.id));
 
@@ -2632,7 +2665,7 @@ export class ChatRoomsService {
 			}
 		}
 
-		return results;
+		return { results, warnings };
 	}
 
 	/**
@@ -2693,17 +2726,20 @@ export class ChatRoomsService {
 			})}`,
 		);
 
-		const results = await this.createLoadChat({
+		const { results, warnings: createWarnings } = await this.createLoadChat({
 			load_id: loadId,
 			title,
 			company,
 			participants: updateDto.participants,
 		});
 
-		const staffSyncEvents = await this.syncNonDriverParticipantsForLoad(
-			loadId,
-			updateDto.participants,
-		);
+		const { events: staffSyncEvents, warnings: syncWarnings } =
+			await this.syncNonDriverParticipantsForLoad(
+				loadId,
+				updateDto.participants,
+			);
+
+		const warnings = [...createWarnings, ...syncWarnings];
 
 		const syncedByChatId = new Map(
 			staffSyncEvents.map((event) => [event.chatRoomId, event.chatRoom]),
@@ -2721,7 +2757,7 @@ export class ChatRoomsService {
 		const existing = refreshedResults.filter((r) => r.kind === 'noop');
 
 		this.logger.log(
-			`[update_load_chat] Completed: created=${created.length}, existing=${existing.length}, staffSyncedChats=${staffSyncEvents.length}, chatRoomIds=${refreshedResults
+			`[update_load_chat] Completed: created=${created.length}, existing=${existing.length}, staffSyncedChats=${staffSyncEvents.length}, warnings=${warnings.length}, chatRoomIds=${refreshedResults
 				.map((r) => r.chatRoom?.id ?? 'n/a')
 				.join(',')}`,
 		);
@@ -2732,6 +2768,7 @@ export class ChatRoomsService {
 			existing,
 			chats: refreshedResults.map((r) => r.chatRoom),
 			staffSyncEvents,
+			warnings,
 		};
 	}
 
@@ -2740,19 +2777,26 @@ export class ChatRoomsService {
 	 * load, then add/remove staff so every chat matches. Drivers are never touched.
 	 *
 	 * Comparison is by externalId + EMPLOYEE category (order-independent). Exact staff
-	 * role names are ignored. Request staff that cannot be resolved must not silently
-	 * shrink the desired set.
+	 * role names are ignored. Unresolved request staff are skipped (not added) and kept
+	 * in existing chats when their category key still matches a current participant.
 	 */
 	private async syncNonDriverParticipantsForLoad(
 		loadId: string,
 		participants: Array<{ id: string; role: string }>,
-	): Promise<LoadChatStaffSyncEvent[]> {
-		const { staffParticipants, hiddenParticipantIds } =
-			await this.resolveLoadChatStaffParticipants(participants, {
-				// Update sync must see every requested staff member or abort.
-				// Otherwise a failed lookup drops them from desired and deletes them.
-				requireAllResolved: true,
-			});
+	): Promise<{ events: LoadChatStaffSyncEvent[]; warnings: string[] }> {
+		const { staffParticipants, hiddenParticipantIds, unresolvedStaff } =
+			await this.resolveLoadChatStaffParticipants(participants);
+
+		const warnings: string[] = [];
+		for (const skipped of unresolvedStaff) {
+			const warning = this.formatSkippedParticipantWarning(
+				skipped.id,
+				skipped.role,
+				'not_found',
+			);
+			warnings.push(warning);
+			this.logger.warn(`[update_load_chat] ${warning}`);
+		}
 
 		const desiredByKey = new Map(
 			staffParticipants.map((entry) => [entry.key, entry]),
@@ -2761,6 +2805,11 @@ export class ChatRoomsService {
 			...new Set(staffParticipants.map((entry) => entry.userId)),
 		];
 		const desiredKeySet = new Set(desiredByKey.keys());
+		const unresolvedKeySet = new Set(
+			unresolvedStaff.map((p) =>
+				participantRoleCategoryKey(p.id, p.role),
+			),
+		);
 		const hiddenIdSet = new Set(hiddenParticipantIds);
 
 		const fullChatInclude = {
@@ -2824,6 +2873,8 @@ export class ChatRoomsService {
 
 			const toRemove = [...currentByKey.values()]
 				.filter((entry) => !desiredKeySet.has(entry.key))
+				// Request asked for this staff but lookup failed — keep existing membership.
+				.filter((entry) => !unresolvedKeySet.has(entry.key))
 				.map((entry) => entry.userId)
 				.filter((userId, index, arr) => arr.indexOf(userId) === index)
 				// Same person still desired under another key — keep membership.
@@ -2839,6 +2890,7 @@ export class ChatRoomsService {
 					chatRoomId: chat.id,
 					desiredKeys: [...desiredKeySet],
 					currentKeys: [...currentKeySet],
+					unresolvedKeys: [...unresolvedKeySet],
 					desiredStaffIds,
 					currentStaffIds,
 					toAdd,
@@ -2935,7 +2987,21 @@ export class ChatRoomsService {
 			});
 		}
 
-		return events;
+		return { events, warnings };
+	}
+
+	/** Warning text when a request participant is skipped during LOAD chat create/update. */
+	private formatSkippedParticipantWarning(
+		externalId: string,
+		role: string,
+		reason: 'not_found' | 'inactive',
+	): string {
+		const id = trimExternalId(externalId) || externalId;
+		const roleLabel = String(role || '').trim() || 'UNKNOWN';
+		if (reason === 'inactive') {
+			return `User with external ID ${id} (${roleLabel}) was not added to the chat because they are not active`;
+		}
+		return `User with external ID ${id} (${roleLabel}) was not added to the chat because the system did not find them in the database`;
 	}
 
 	/**
@@ -2945,7 +3011,7 @@ export class ChatRoomsService {
 	 */
 	private async resolveLoadChatStaffParticipants(
 		participants: Array<{ id: string; role: string }>,
-		options?: { excludeUserIds?: string[]; requireAllResolved?: boolean },
+		options?: { excludeUserIds?: string[] },
 	): Promise<{
 		staffParticipants: Array<{
 			userId: string;
@@ -3004,15 +3070,6 @@ export class ChatRoomsService {
 			}
 		}
 
-		if (options?.requireAllResolved && unresolvedStaff.length > 0) {
-			const details = unresolvedStaff
-				.map((p) => `${p.id} (${p.role})`)
-				.join(', ');
-			throw new BadRequestException(
-				`Cannot sync LOAD chat participants: unresolved non-driver externalId(s): ${details}`,
-			);
-		}
-
 		const adminUsers = await this.prisma.user.findMany({
 			where: {
 				role: {
@@ -3067,7 +3124,7 @@ export class ChatRoomsService {
 	/** @deprecated Prefer resolveLoadChatStaffParticipants — kept for create path IDs. */
 	private async resolveLoadChatStaffParticipantIds(
 		participants: Array<{ id: string; role: string }>,
-		options?: { excludeUserIds?: string[]; requireAllResolved?: boolean },
+		options?: { excludeUserIds?: string[] },
 	): Promise<{
 		staffParticipantIds: string[];
 		hiddenParticipantIds: string[];

@@ -52,12 +52,20 @@ export class UpdateLoadChatController {
 
 			await this.loadChatLogService.recordSuccess('update', 'tms', dto, {
 				ok: true,
+				...(outcome.warnings.length > 0
+					? { level: 'warning', warnings: outcome.warnings }
+					: {}),
 				...response,
 				chats: undefined,
 				chatRoomIds: outcome.chats.map((c) => c?.id ?? null),
 			}, dto.load_id);
 
-			return response;
+			return {
+				...response,
+				...(outcome.warnings.length > 0
+					? { warnings: outcome.warnings }
+					: {}),
+			};
 		} catch (error) {
 			await this.loadChatLogService.recordFailure('update', 'tms', dto, error, dto.load_id);
 			throw error;

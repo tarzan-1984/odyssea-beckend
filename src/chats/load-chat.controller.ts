@@ -55,7 +55,8 @@ export class LoadChatController {
 	})
 	@ApiResponse({
 		status: 400,
-		description: 'Bad request - driver not found, inactive, or missing',
+		description:
+			'Bad request - missing driver participant role in request (unknown users are skipped with warnings)',
 	})
 	async createLoadChat(@Body() createLoadChatDto: CreateLoadChatDto) {
 		this.logger.log(
@@ -71,13 +72,13 @@ export class LoadChatController {
 		);
 
 		try {
-			const results: CreateLoadChatResult[] =
+			const { results, warnings } =
 				await this.chatRoomsService.createLoadChat(createLoadChatDto);
 
 			this.logger.log(
 				`[create_load_chat] Completed: count=${results.length}, kinds=${results
 					.map((r) => r.kind)
-					.join(',')}, loadId=${createLoadChatDto.load_id}, chatRoomIds=${results
+					.join(',')}, warnings=${warnings.length}, loadId=${createLoadChatDto.load_id}, chatRoomIds=${results
 					.map((r) => r.chatRoom?.id ?? 'n/a')
 					.join(',')}`,
 			);
@@ -95,6 +96,7 @@ export class LoadChatController {
 				createLoadChatDto,
 				{
 					ok: true,
+					...(warnings.length > 0 ? { level: 'warning', warnings } : {}),
 					kinds: results.map((r) => r.kind),
 					chatRoomIds: results.map((r) => r.chatRoom?.id ?? null),
 				},
@@ -106,7 +108,7 @@ export class LoadChatController {
 			if (chats.length === 1) {
 				return chats[0];
 			}
-			return { chats };
+			return { chats, ...(warnings.length > 0 ? { warnings } : {}) };
 		} catch (error) {
 			await this.loadChatLogService.recordFailure(
 				'create',
@@ -381,12 +383,20 @@ export class LoadChatController {
 
 			await this.loadChatLogService.recordSuccess('update', 'tms', dto, {
 				ok: true,
+				...(outcome.warnings.length > 0
+					? { level: 'warning', warnings: outcome.warnings }
+					: {}),
 				...response,
 				chats: undefined,
 				chatRoomIds: outcome.chats.map((c) => c?.id ?? null),
 			}, dto.load_id);
 
-			return response;
+			return {
+				...response,
+				...(outcome.warnings.length > 0
+					? { warnings: outcome.warnings }
+					: {}),
+			};
 		} catch (error) {
 			await this.loadChatLogService.recordFailure('update', 'tms', dto, error, dto.load_id);
 			throw error;
