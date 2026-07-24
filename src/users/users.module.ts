@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { UsersController } from './users.controller';
 import { SyncController } from './sync.controller';
-import { DriversWebhookController } from './drivers-webhook.controller';
+import {
+	DriversWebhookController,
+	TmsDriverRatingSyncController,
+} from './drivers-webhook.controller';
 import { UsersService } from './users.service';
 import { ImportDriversService } from './services/import-drivers.service';
 import { ImportDriversBackgroundService } from './services/import-drivers-background.service';
@@ -27,7 +30,12 @@ import { DriverLogModule } from './driver-log.module';
 		GeocodingModule,
 		DriverLogModule,
 	],
-		controllers: [UsersController, SyncController, DriversWebhookController],
+		controllers: [
+			UsersController,
+			SyncController,
+			DriversWebhookController,
+			TmsDriverRatingSyncController,
+		],
 	providers: [
 		UsersService,
 		ImportDriversService,

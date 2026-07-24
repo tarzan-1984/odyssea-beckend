@@ -70,3 +70,36 @@ export class DriversWebhookController {
 		);
 	}
 }
+
+/** Path TMS was given for rating sync webhooks. */
+@ApiTags('TMS')
+@Controller('tms/driver/rating')
+export class TmsDriverRatingSyncController {
+	private readonly logger = new Logger(TmsDriverRatingSyncController.name);
+
+	constructor(private readonly usersService: UsersService) {}
+
+	@Post('sync')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'TMS webhook: driver average rating sync (open, no auth)',
+		description:
+			'Finds DRIVER by users.externalId = driver_id and updates users.driver_rating from average_rating.',
+	})
+	@ApiBody({ type: TmsDriverRatingWebhookDto })
+	@ApiResponse({
+		status: 200,
+		description: 'Updated driver rating',
+	})
+	@ApiResponse({ status: 400, description: 'Invalid payload' })
+	@ApiResponse({ status: 404, description: 'No driver with this externalId' })
+	async syncDriverRating(@Body() body: TmsDriverRatingWebhookDto) {
+		this.logger.log(
+			`[TMS driver rating sync] driver_id=${body.driver_id} average_rating=${body.average_rating}`,
+		);
+		return this.usersService.applyTmsDriverRatingWebhook(
+			body.driver_id,
+			body.average_rating,
+		);
+	}
+}
