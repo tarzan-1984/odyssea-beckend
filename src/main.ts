@@ -6,6 +6,7 @@ import { OdysseaIoAdapter } from './common/adapters/odyssea-io.adapter';
 
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { HttpTimingInterceptor } from './common/interceptors/http-timing.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
@@ -89,8 +90,11 @@ async function bootstrap() {
 	// Global filters
 	app.useGlobalFilters(new HttpExceptionFilter());
 
-	// Global interceptors
-	app.useGlobalInterceptors(new TransformInterceptor());
+	// Global interceptors (timing outermost so duration includes response transform)
+	app.useGlobalInterceptors(
+		new HttpTimingInterceptor(),
+		new TransformInterceptor(),
+	);
 
 	// CORS
 	app.enableCors({
