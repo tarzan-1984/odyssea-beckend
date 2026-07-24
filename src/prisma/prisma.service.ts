@@ -7,9 +7,17 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { ErrorWithResponse } from '../types/request.types';
 import { withPrismaPoolParams } from './prisma-database-url.util';
+import { parsePositiveIntEnv } from '../common/utils/prisma-pool-config';
 
-/** Cap main DB pool — Render Postgres max_connections is shared across clients. */
-const MAIN_DB_CONNECTION_LIMIT = 8;
+/**
+ * Cap main DB pool — Render Postgres max_connections is shared across clients.
+ * Default 25 leaves headroom under a 100-connection DB with one web instance.
+ * Override via PRISMA_CONNECTION_LIMIT.
+ */
+const MAIN_DB_CONNECTION_LIMIT = parsePositiveIntEnv(
+	process.env.PRISMA_CONNECTION_LIMIT,
+	25,
+);
 
 @Injectable()
 export class PrismaService
@@ -54,7 +62,9 @@ export class PrismaService
 				);
 			}
 
-			this.logger.log('Connecting to database...');
+			this.logger.log(
+				`Connecting to database (Prisma connection_limit=${MAIN_DB_CONNECTION_LIMIT})...`,
+			);
 			await this.$connect();
 			this.logger.log('Successfully connected to database');
 		} catch (error) {

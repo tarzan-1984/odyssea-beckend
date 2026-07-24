@@ -11,6 +11,7 @@ import { stripMarkdown } from './utils/strip-markdown.util';
 import { Prisma, UserRole } from '@prisma/client';
 import { MessageReactionsService } from './message-reactions.service';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
+import { CHAT_INTERACTIVE_TX } from '../common/utils/prisma-pool-config';
 import { ThumbnailService } from '../storage/thumbnail.service';
 import { HeicAttachmentService } from '../storage/heic-attachment.service';
 
@@ -260,39 +261,42 @@ export class MessagesService {
 
 		let message;
 		try {
-			message = await this.prisma.$transaction(async (tx) => {
-				const created = await tx.message.create({
-					data: {
+			message = await this.prisma.$transaction(
+				async (tx) => {
+					const created = await tx.message.create({
+						data: {
+							chatRoomId,
+							senderId,
+							createdAt,
+							content,
+							fileUrl: effectiveFileUrl,
+							fileName: effectiveFileName,
+							fileSize: effectiveFileSize,
+							clientMessageId,
+							attachments: undefined,
+							replyData,
+							receiverId,
+							isRead: false,
+							readBy: [senderId],
+						},
+						include: createInclude,
+					});
+
+					await tx.chatRoom.update({
+						where: { id: chatRoomId },
+						data: { updatedAt: createdAt },
+					});
+
+					await this.incrementUnreadCountForOtherParticipants(
 						chatRoomId,
 						senderId,
-						createdAt,
-						content,
-						fileUrl: effectiveFileUrl,
-						fileName: effectiveFileName,
-						fileSize: effectiveFileSize,
-						clientMessageId,
-						attachments: undefined,
-						replyData,
-						receiverId,
-						isRead: false,
-						readBy: [senderId],
-					},
-					include: createInclude,
-				});
+						tx,
+					);
 
-				await tx.chatRoom.update({
-					where: { id: chatRoomId },
-					data: { updatedAt: createdAt },
-				});
-
-				await this.incrementUnreadCountForOtherParticipants(
-					chatRoomId,
-					senderId,
-					tx,
-				);
-
-				return created;
-			});
+					return created;
+				},
+				CHAT_INTERACTIVE_TX,
+			);
 		} catch (error) {
 			if (clientMessageId && this.isClientMessageIdUniqueViolation(error)) {
 				const existing = await this.findExistingClientOutboundMessage(
@@ -343,34 +347,37 @@ export class MessagesService {
 		const senderId = await this.resolveLoadDispatchSystemSenderId();
 		const createdAt = nowInNewYorkAsNaiveDate();
 
-		const message = await this.prisma.$transaction(async (tx) => {
-			const created = await tx.message.create({
-				data: {
+		const message = await this.prisma.$transaction(
+			async (tx) => {
+				const created = await tx.message.create({
+					data: {
+						chatRoomId,
+						senderId,
+						content: trimmedContent,
+						isSystemMessage: true,
+						readBy: [],
+						isRead: false,
+						receiverId: null,
+						createdAt,
+					},
+					include: this.messageSenderOnlyInclude,
+				});
+
+				await tx.chatRoom.update({
+					where: { id: chatRoomId },
+					data: { updatedAt: createdAt },
+				});
+
+				await this.incrementUnreadCountForOtherParticipants(
 					chatRoomId,
 					senderId,
-					content: trimmedContent,
-					isSystemMessage: true,
-					readBy: [],
-					isRead: false,
-					receiverId: null,
-					createdAt,
-				},
-				include: this.messageSenderOnlyInclude,
-			});
+					tx,
+				);
 
-			await tx.chatRoom.update({
-				where: { id: chatRoomId },
-				data: { updatedAt: createdAt },
-			});
-
-			await this.incrementUnreadCountForOtherParticipants(
-				chatRoomId,
-				senderId,
-				tx,
-			);
-
-			return created;
-		});
+				return created;
+			},
+			CHAT_INTERACTIVE_TX,
+		);
 
 		const transformedMessage = {
 			...this.transformMessageForClient(message),

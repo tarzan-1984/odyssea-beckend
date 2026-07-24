@@ -16,6 +16,7 @@ import {
 	newParticipantJoinedAt,
 	nowInNewYorkAsNaiveDate,
 } from '../common/utils/ny-wall-clock';
+import { CHAT_INTERACTIVE_TX } from '../common/utils/prisma-pool-config';
 import { buildArchivedLoadChatSearchWhereInput } from './chat-room-search.util';
 import { isMultiUserChatType } from './chat-room-types';
 import {
@@ -424,7 +425,7 @@ export class ChatRoomsService {
 				},
 				created: true,
 			};
-		});
+		}, CHAT_INTERACTIVE_TX);
 	}
 
 	/**

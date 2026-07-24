@@ -57,6 +57,8 @@ import { formatDriverLocationPersistedLog } from '../geocoding/driver-location-s
 import { DriverLogService } from './driver-log.service';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { formatStatusDateNyDisplay } from '../common/utils/status-date-ny.util';
+import { AsyncSemaphore } from '../common/utils/async-semaphore';
+import { parsePositiveIntEnv } from '../common/utils/prisma-pool-config';
 import {
 	appendDriverTrackingPointCreatedNote,
 	buildMobileDriverStatusUpdateChanges,
@@ -82,6 +84,18 @@ function formatAddressGeocodeSourceLabel(
 
 const DEFAULT_TRACKING_POINT_MIN_INTERVAL_MS = 30 * 60 * 1000;
 const TRACKING_POINT_MIN_DISTANCE_M = 5000;
+
+/**
+ * Cap concurrent background location pings so they cannot exhaust the Prisma pool
+ * and starve interactive chat transactions. Override via LOCATION_UPDATE_CONCURRENCY.
+ */
+const BACKGROUND_LOCATION_CONCURRENCY = parsePositiveIntEnv(
+	process.env.LOCATION_UPDATE_CONCURRENCY,
+	10,
+);
+const backgroundLocationSemaphore = new AsyncSemaphore(
+	BACKGROUND_LOCATION_CONCURRENCY,
+);
 
 function distanceMeters(a: LatLng, b: LatLng): number {
 	const earthRadiusM = 6_371_000;
@@ -1579,6 +1593,21 @@ export class UsersService {
 	 * Verbose `[manual]` logs only when `isManualDriverLocationAction` is true (status submit / Share location from app).
 	 */
 	async updateUserLocation(
+		id: string,
+		locationDto: UpdateUserLocationDto,
+		requestTrace: LocationUpdateRequestTrace = {},
+	) {
+		// Background GPS pings arrive in bursts from ~1500 drivers; serialize concurrency
+		// so chat/$transaction can still obtain Prisma pool connections.
+		if (locationDto.isBackgroundTaskLocationUpdate === true) {
+			return backgroundLocationSemaphore.run(() =>
+				this.executeUpdateUserLocation(id, locationDto, requestTrace),
+			);
+		}
+		return this.executeUpdateUserLocation(id, locationDto, requestTrace);
+	}
+
+	private async executeUpdateUserLocation(
 		id: string,
 		locationDto: UpdateUserLocationDto,
 		requestTrace: LocationUpdateRequestTrace = {},

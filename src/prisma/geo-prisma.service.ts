@@ -6,9 +6,16 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/geo-client';
 import { withPrismaPoolParams } from './prisma-database-url.util';
+import { parsePositiveIntEnv } from '../common/utils/prisma-pool-config';
 
-/** Geo DB is queried during location bursts; keep a small dedicated pool. */
-const GEO_DB_CONNECTION_LIMIT = 4;
+/**
+ * Geo DB is queried during location bursts.
+ * Override via GEO_PRISMA_CONNECTION_LIMIT.
+ */
+const GEO_DB_CONNECTION_LIMIT = parsePositiveIntEnv(
+	process.env.GEO_PRISMA_CONNECTION_LIMIT,
+	8,
+);
 const GEO_DB_CONNECT_MAX_ATTEMPTS = 3;
 const GEO_DB_CONNECT_RETRY_DELAY_MS = 2_000;
 
@@ -61,7 +68,7 @@ export class GeoPrismaService
 		for (let attempt = 1; attempt <= GEO_DB_CONNECT_MAX_ATTEMPTS; attempt++) {
 			try {
 				this.logger.log(
-					`Connecting to geo database (attempt ${attempt}/${GEO_DB_CONNECT_MAX_ATTEMPTS})...`,
+					`Connecting to geo database (attempt ${attempt}/${GEO_DB_CONNECT_MAX_ATTEMPTS}, connection_limit=${GEO_DB_CONNECTION_LIMIT})...`,
 				);
 				await this.$connect();
 				this.connected = true;
