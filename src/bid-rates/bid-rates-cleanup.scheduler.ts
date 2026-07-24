@@ -1,12 +1,21 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ChatGateway } from '../chats/chat.gateway';
+import { PrismaService } from '../prisma/prisma.service';
 import { BidRatesService } from './bid-rates.service';
 
+/** Nest cron with seconds field — every 15 seconds. */
+const OFFER_EXPIRY_CRON = '*/15 * * * * *';
+/** Max expired rate offers resolved concurrently per chunk. */
+const OFFER_EXPIRY_BATCH_SIZE = 50;
+/** Postgres advisory lock keys (must not collide with TMS batch locks). */
+const OFFER_EXPIRY_LOCK_KEY1 = 88442211;
+const OFFER_EXPIRY_LOCK_KEY2 = 15;
+
 /**
- * Every 3 hours:
- * 1) soft-archive idle bids (is_archive=false, updated_at older than 12h NY)
- * 2) hard-delete archived bids older than 15 days + linked BID chats (no cloud archive)
+ * Bid rates lifecycle crons:
+ * 1) every 15s — resolve expired 4-min rate offers (same as client auto-accept)
+ * 2) every 3h — soft-archive idle bids + hard-delete old archived bids
  */
 @Injectable()
 export class BidRatesCleanupScheduler {
@@ -14,8 +23,44 @@ export class BidRatesCleanupScheduler {
 
 	constructor(
 		private readonly bidRatesService: BidRatesService,
+		private readonly prisma: PrismaService,
 		@Inject(ChatGateway) private readonly chatGateway: ChatGateway,
 	) {}
+
+	/**
+	 * Mirror the Next.js BidRateVotersPopup timer expiry path on the server so
+	 * offers still resolve when nobody has /bid-rates open.
+	 */
+	@Cron(OFFER_EXPIRY_CRON, { name: 'bid-rates-resolve-expired-offers' })
+	async handleExpiredOffers(): Promise<void> {
+		const rows = await this.prisma.$queryRawUnsafe<{ got: boolean }[]>(
+			'SELECT pg_try_advisory_lock($1::int, $2::int) AS got',
+			OFFER_EXPIRY_LOCK_KEY1,
+			OFFER_EXPIRY_LOCK_KEY2,
+		);
+		if (rows[0]?.got !== true) {
+			return;
+		}
+
+		try {
+			const result = await this.bidRatesService.resolveExpiredOffersBatch(
+				OFFER_EXPIRY_BATCH_SIZE,
+			);
+			if (result.found > 0) {
+				this.logger.log(
+					`bid_rates expired offers: found=${result.found} accepted=${result.accepted} cleared_too_high=${result.clearedPriceTooHigh} already_cleared=${result.alreadyCleared} failed=${result.failed}`,
+				);
+			}
+		} catch (error) {
+			this.logger.error('bid_rates expired offers cron failed:', error);
+		} finally {
+			await this.prisma.$queryRawUnsafe(
+				'SELECT pg_advisory_unlock($1::int, $2::int)',
+				OFFER_EXPIRY_LOCK_KEY1,
+				OFFER_EXPIRY_LOCK_KEY2,
+			);
+		}
+	}
 
 	@Cron('0 */3 * * *', { name: 'bid-rates-archive-and-purge' })
 	async handleArchiveAndPurge(): Promise<void> {

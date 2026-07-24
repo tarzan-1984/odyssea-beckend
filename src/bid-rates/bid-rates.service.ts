@@ -2137,7 +2137,7 @@ export class BidRatesService {
 	) {
 		const bidRate = await this.prisma.bidRate.findUnique({
 			where: { id: bidRateId },
-			select: { id: true, ownerId: true, chatId: true, rate: true },
+			select: { id: true, chatId: true },
 		});
 
 		if (!bidRate) {
@@ -2159,6 +2159,95 @@ export class BidRatesService {
 					'Only chat participants can resolve expired offers',
 				);
 			}
+		}
+
+		return this.resolveExpiredOffer(bidRateId, offererUserId);
+	}
+
+	/**
+	 * Server cron: find all expired rate offers (created_rate_at older than 4 min)
+	 * and resolve them with the same logic as the client auto-accept path.
+	 * Processes in batches to keep DB/WS load bounded (e.g. 1500 offers → 50/chunk).
+	 */
+	async resolveExpiredOffersBatch(batchSize = 50): Promise<{
+		found: number;
+		accepted: number;
+		clearedPriceTooHigh: number;
+		alreadyCleared: number;
+		failed: number;
+	}> {
+		const nowSec = nowUnixSeconds();
+		const expiredBefore = nowSec - BID_RATE_VOTE_FRESH_SEC;
+		const size = Math.max(1, Math.floor(batchSize));
+
+		const expired = await this.prisma.bidRateParticipant.findMany({
+			where: {
+				rate: { not: null },
+				createdRateAt: { not: null, lte: expiredBefore },
+				bidRate: { isArchive: false },
+			},
+			select: {
+				bidRateId: true,
+				userId: true,
+			},
+			orderBy: { createdRateAt: 'asc' },
+		});
+
+		let accepted = 0;
+		let clearedPriceTooHigh = 0;
+		let alreadyCleared = 0;
+		let failed = 0;
+
+		for (let i = 0; i < expired.length; i += size) {
+			const chunk = expired.slice(i, i + size);
+			const results = await Promise.allSettled(
+				chunk.map((row) =>
+					this.resolveExpiredOffer(row.bidRateId, row.userId),
+				),
+			);
+
+			for (const result of results) {
+				if (result.status === 'rejected') {
+					failed += 1;
+					continue;
+				}
+				switch (result.value.status) {
+					case 'accepted':
+						accepted += 1;
+						break;
+					case 'cleared_price_too_high':
+						clearedPriceTooHigh += 1;
+						break;
+					case 'already_cleared':
+						alreadyCleared += 1;
+						break;
+					default:
+						break;
+				}
+			}
+		}
+
+		return {
+			found: expired.length,
+			accepted,
+			clearedPriceTooHigh,
+			alreadyCleared,
+			failed,
+		};
+	}
+
+	/**
+	 * Core resolve for an expired 4-min rate offer (client or cron).
+	 * Idempotent — safe under concurrent callers via atomic claim.
+	 */
+	private async resolveExpiredOffer(bidRateId: number, offererUserId: string) {
+		const bidRate = await this.prisma.bidRate.findUnique({
+			where: { id: bidRateId },
+			select: { id: true, ownerId: true, chatId: true, rate: true },
+		});
+
+		if (!bidRate) {
+			throw new NotFoundException('Bid rate not found');
 		}
 
 		const offer = await this.prisma.bidRateParticipant.findUnique({
@@ -2199,7 +2288,7 @@ export class BidRatesService {
 			Number.isFinite(currentRate) &&
 			offerRate <= currentRate;
 
-		// Atomic claim so only one of many open clients sends chat / applies rate.
+		// Atomic claim so only one of many open clients / cron ticks resolves it.
 		const claimed = await this.prisma.bidRateParticipant.updateMany({
 			where: {
 				id: offer.id,
