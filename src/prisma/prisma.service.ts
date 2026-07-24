@@ -11,12 +11,12 @@ import { parsePositiveIntEnv } from '../common/utils/prisma-pool-config';
 
 /**
  * Cap main DB pool — Render Postgres max_connections is shared across clients.
- * Default 50 leaves headroom under a 100-connection DB with one web instance.
+ * Default 60 leaves headroom under a 100-connection DB with one web instance.
  * Override via PRISMA_CONNECTION_LIMIT.
  */
 const MAIN_DB_CONNECTION_LIMIT = parsePositiveIntEnv(
 	process.env.PRISMA_CONNECTION_LIMIT,
-	50,
+	60,
 );
 
 @Injectable()

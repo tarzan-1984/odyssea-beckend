@@ -14,7 +14,7 @@ import { parsePositiveIntEnv } from '../common/utils/prisma-pool-config';
  */
 const GEO_DB_CONNECTION_LIMIT = parsePositiveIntEnv(
 	process.env.GEO_PRISMA_CONNECTION_LIMIT,
-	8,
+	60,
 );
 const GEO_DB_CONNECT_MAX_ATTEMPTS = 3;
 const GEO_DB_CONNECT_RETRY_DELAY_MS = 2_000;
