@@ -5,55 +5,72 @@ import {
 	IsISO8601,
 	IsOptional,
 	IsString,
-	ArrayNotEmpty,
+	ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+export class TrackingTransferMembershipDto {
+	@ApiProperty({
+		example: 1,
+		description: 'externalId of non-driver user (dispatcher)',
+	})
+	@Type(() => Number)
+	@IsInt()
+	dispatcher_id!: number;
+
+	@ApiProperty({
+		example: [2, 3],
+		description: 'externalIds of non-driver TRACKING replacements',
+	})
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	trackings!: number[];
+
+	@ApiProperty({
+		example: [1015, 1088],
+		description: 'loadIds to skip (no TRACKING replacement)',
+		required: false,
+	})
+	@IsOptional()
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	exclude_loads?: number[];
+}
+
 export class TrackingTransferDto {
-	@ApiProperty({ example: '2026-05-28T12:16:00+00:00', required: false })
+	@ApiProperty({ example: '2026-07-25T13:21:00+00:00', required: false })
 	@IsOptional()
 	@IsISO8601()
 	ts?: string;
 
-	@ApiProperty({ example: 'odysseia' })
+	@ApiProperty({ example: 'Odysseia' })
 	@IsString()
 	project!: string;
 
-	@ApiProperty({ example: 123, description: 'Driver externalId to replace' })
-	@Type(() => Number)
-	@IsInt()
-	old_tracking!: number;
-
-	@ApiProperty({ example: 456, description: 'Driver externalId to add' })
-	@Type(() => Number)
-	@IsInt()
-	new_tracking!: number;
-
-	@ApiProperty({ example: [2, 3, 10], required: false })
+	@ApiProperty({
+		example: 'manage_teams_save',
+		required: false,
+	})
 	@IsOptional()
-	@IsArray()
-	@Type(() => Number)
-	@IsInt({ each: true })
-	dispatchers?: number[];
+	@IsString()
+	source?: string;
 
-	@ApiProperty({ example: [101, 102, 2050, 3333], description: 'TMS load ids' })
-	@IsArray()
-	@ArrayNotEmpty()
-	@Type(() => Number)
-	@IsInt({ each: true })
-	id_loads!: number[];
-
-	@ApiProperty({ example: 4, required: false })
-	@IsOptional()
-	@Type(() => Number)
-	@IsInt()
-	loads_count?: number;
-
-	@ApiProperty({ example: 84, required: false })
+	@ApiProperty({ example: 99, required: false })
 	@IsOptional()
 	@Type(() => Number)
 	@IsInt()
 	viewer_id?: number;
+
+	@ApiProperty({
+		type: [TrackingTransferMembershipDto],
+		description: 'Per-dispatcher TRACKING membership updates',
+	})
+	@IsArray()
+	@ValidateNested({ each: true })
+	@Type(() => TrackingTransferMembershipDto)
+	memberships!: TrackingTransferMembershipDto[];
 
 	@ApiProperty({ example: 1, required: false })
 	@IsOptional()
@@ -61,9 +78,10 @@ export class TrackingTransferDto {
 	@IsInt()
 	doing_ajax?: number;
 
-	@ApiProperty({ example: 'debug_save_weekends', required: false })
-	@IsOptional()
+	@ApiProperty({
+		example: 'save_manage_teams',
+		description: 'Stored in load_chats_logs.action',
+	})
 	@IsString()
-	action?: string;
+	action!: string;
 }
-

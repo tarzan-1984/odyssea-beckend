@@ -1,5 +1,5 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
-import { LoadChatLogAction, LoadChatLogSource, Prisma } from '@prisma/client';
+import { LoadChatLogSource, Prisma } from '@prisma/client';
 import {
 	getNyWallClockHoursAgo,
 	nowInNewYorkAsNaiveDate,
@@ -11,6 +11,12 @@ export type LoadChatLogPayload = {
 	result: unknown;
 };
 
+/** Legacy Prisma enum keys → DB-facing labels (spaces). New TMS actions pass through as-is. */
+const LEGACY_ACTION_LABELS: Record<string, string> = {
+	add_participent: 'add participent',
+	delete_participent: 'delete participent',
+};
+
 @Injectable()
 export class LoadChatLogService {
 	private readonly logger = new Logger(LoadChatLogService.name);
@@ -18,7 +24,7 @@ export class LoadChatLogService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	async record(
-		action: LoadChatLogAction,
+		action: string,
 		source: LoadChatLogSource,
 		payload: LoadChatLogPayload,
 		loadId?: string | null,
@@ -27,7 +33,7 @@ export class LoadChatLogService {
 			const trimmedLoadId = loadId?.trim() || null;
 			await this.prisma.loadChatLog.create({
 				data: {
-					action,
+					action: this.normalizeActionForDb(action),
 					source,
 					loadId: trimmedLoadId,
 					data: payload as Prisma.InputJsonValue,
@@ -40,7 +46,7 @@ export class LoadChatLogService {
 	}
 
 	async recordSuccess(
-		action: LoadChatLogAction,
+		action: string,
 		source: LoadChatLogSource,
 		requestData: unknown,
 		result: unknown,
@@ -58,7 +64,7 @@ export class LoadChatLogService {
 	}
 
 	async recordFailure(
-		action: LoadChatLogAction,
+		action: string,
 		source: LoadChatLogSource,
 		requestData: unknown,
 		error: unknown,
@@ -174,19 +180,16 @@ export class LoadChatLogService {
 		return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 	}
 
+	private normalizeActionForDb(action: string): string {
+		const trimmed = String(action ?? '').trim();
+		return LEGACY_ACTION_LABELS[trimmed] ?? trimmed;
+	}
+
 	/**
-	 * Prisma enum keys use underscores; DB stores mapped labels with spaces.
-	 * Normalize so API always returns the DB-facing action string.
+	 * Normalize legacy underscore keys so API always returns the DB-facing action string.
 	 */
 	private formatActionForApi(action: string): string {
-		switch (action) {
-			case 'add_participent':
-				return 'add participent';
-			case 'delete_participent':
-				return 'delete participent';
-			default:
-				return action;
-		}
+		return this.normalizeActionForDb(action);
 	}
 
 	/** Naive NY wall-clock TIMESTAMP as `YYYY-MM-DD HH:mm:ss`. */

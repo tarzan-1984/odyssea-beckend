@@ -464,7 +464,8 @@ model DriverLog {
 /// Audit log for LOAD chat create/update (TMS + web). Purged after 24h (NY wall clock).
 model LoadChatLog {
   id     String             @id @default(cuid())
-  action LoadChatLogAction
+  /// Free-form action label (create/update/add participent/… or TMS action string).
+  action String
   source LoadChatLogSource
   /// TMS / chat load id for search & filter. Null on rows written before this column.
   loadId String?            @map("load_id")
@@ -574,13 +575,6 @@ enum DriverLogSource {
   webApp
   mobileApp
   TMS
-}
-
-enum LoadChatLogAction {
-  create
-  update
-  add_participent    @map("add participent")
-  delete_participent @map("delete participent")
 }
 
 enum LoadChatLogSource {

@@ -11,13 +11,12 @@ export class TrackingTransferController {
 	@Post('transfer')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
-		summary: 'Transfer load chat participants from one driver to another',
+		summary: 'Replace TRACKING participants in manage-team load chats',
 		description:
-			'Replaces old_tracking participant with new_tracking across LOAD chats matching id_loads. If old participant is absent, new participant is still added. Messages are not modified.',
+			'For each membership: find non-archived LOAD chats with dispatcher_id (non-driver externalId), skip exclude_loads, remove all TRACKING participants and add trackings (non-driver externalIds). Logged to load_chats_logs with source=tms and request action.',
 	})
 	@ApiResponse({ status: 200, description: 'Transfer applied' })
 	async transfer(@Body() dto: TrackingTransferDto) {
 		return await this.trackingTransferService.transfer(dto);
 	}
 }
-
