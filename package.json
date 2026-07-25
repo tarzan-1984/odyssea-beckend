@@ -14,7 +14,7 @@
 		"start:dev": "nest start --watch",
 		"start:debug": "nest start --debug --watch",
 		"start:prod": "node dist/main",
-		"release:prod": "prisma db execute --file prisma/sql/load_chats_logs_action_to_text.sql && prisma db push --accept-data-loss",
+		"release:prod": "prisma db execute --schema prisma/schema.prisma --file prisma/sql/load_chats_logs_action_to_text.sql && prisma db push --accept-data-loss",
 		"lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
 		"lint:fix": "eslint \"{src,apps,libs}/**/*.ts\" --fix --fix-type suggestion",
 		"test": "jest",
