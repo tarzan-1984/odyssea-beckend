@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { LoadChatLogService } from './load-chat-log.service';
 
 /** Rows with created_at older than this (NY wall clock) are purged. */
-const LOAD_CHAT_LOG_RETENTION_HOURS = 24;
+const LOAD_CHAT_LOG_RETENTION_HOURS = 48;
 
 /** Twice daily at 00:00 and 12:00 (server cron; purge cutoff uses NY wall clock). */
 const LOAD_CHAT_LOG_RETENTION_CRON = '0 0 0,12 * * *';
