@@ -1,5 +1,6 @@
--- Allow arbitrary TMS action strings (e.g. save_manage_teams) in load_chats_logs.action
--- Idempotent: safe if already converted to TEXT.
+-- Safe enum → TEXT conversion for load_chats_logs.action (idempotent).
+-- prisma db push cannot cast LoadChatLogAction → TEXT when the column has data;
+-- run this before db push on deploy.
 DO $$
 BEGIN
   IF EXISTS (
