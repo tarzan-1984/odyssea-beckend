@@ -25,12 +25,14 @@ import { canModifyOffers } from '../common/user-role-access';
 import { AuthenticatedRequest } from '../types/request.types';
 import { OffersService } from './offers.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UserRole } from '@prisma/client';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { GetDraftLoadsDto } from './dto/get-draft-loads.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { SetDriverCounterOfferDto } from './dto/set-driver-counter-offer.dto';
+import { RespondDriverCounterOfferDto } from './dto/respond-driver-counter-offer.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 import { OffersRealtimeService } from './offers-realtime.service';
 import { OfferPostCreateBackgroundService } from './offer-post-create-background.service';
@@ -514,6 +516,83 @@ export class OffersController {
 		await this.offersRealtimeService.emitOfferUpdated(
 			id,
 			'driver_counter_offer_updated',
+			{
+				affectedExternalIds: [driverExternalId],
+				requestingUserId: req.user?.id,
+			},
+		);
+
+		const pushCtx =
+			await this.offersService.getDriverCounterOfferNotificationContext(
+				id,
+				driverExternalId,
+			);
+		if (pushCtx && result.counter_offer != null) {
+			await this.notificationsService
+				.createOfferCounterOfferNotification({
+					userId: pushCtx.driverUserId,
+					offerId: id,
+					offerTitle: pushCtx.offerTitle,
+					counterOffer: result.counter_offer,
+				})
+				.catch((err) =>
+					console.error(
+						`Failed to send offer_counter_offer notification to ${pushCtx.driverUserId}:`,
+						err,
+					),
+				);
+		}
+
+		return result;
+	}
+
+	@Patch(':id/drivers/:driverExternalId/counter-offer/respond')
+	@ApiOperation({
+		summary: 'Accept or decline a counter offer',
+		description:
+			'Driver accepts (applies counter_offer as rate) or declines (clears counter_offer). Emits offerUpdated websocket event.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
+	@ApiBody({ type: RespondDriverCounterOfferDto })
+	@ApiResponse({ status: 200, description: 'Counter offer response saved' })
+	@ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async respondDriverCounterOffer(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('driverExternalId') driverExternalId: string,
+		@Body() dto: RespondDriverCounterOfferDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (req.user.role === UserRole.DRIVER) {
+			const driverUser = await this.offersService.getDriverExternalIdByUserId(
+				req.user.id,
+			);
+			if (
+				!driverUser ||
+				driverUser !== driverExternalId.trim()
+			) {
+				throw new ForbiddenException(
+					'You can only respond to your own counter offer',
+				);
+			}
+		} else {
+			this.ensureCanModifyOffers(req.user.role);
+		}
+
+		const result = await this.offersService.respondDriverCounterOffer(
+			id,
+			driverExternalId,
+			dto,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(
+			id,
+			dto.action === 'accept'
+				? 'driver_counter_offer_accepted'
+				: 'driver_counter_offer_declined',
 			{
 				affectedExternalIds: [driverExternalId],
 				requestingUserId: req.user?.id,

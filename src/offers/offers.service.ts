@@ -33,6 +33,7 @@ import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { SetDriverCounterOfferDto } from './dto/set-driver-counter-offer.dto';
+import { RespondDriverCounterOfferDto } from './dto/respond-driver-counter-offer.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 import {
 	AMERICA_NEW_YORK_TZ,
@@ -699,6 +700,121 @@ export class OffersService {
 			rate: updated.rate ?? null,
 			counter_offer: updated.counterOffer ?? null,
 		};
+	}
+
+	/**
+	 * Driver accepts or declines a counter offer.
+	 * Accept → apply counter_offer as rate and clear counter_offer.
+	 * Decline → clear counter_offer only.
+	 */
+	async respondDriverCounterOffer(
+		offerId: number,
+		driverExternalId: string,
+		dto: RespondDriverCounterOfferDto,
+	): Promise<{
+		offer_id: number;
+		driver_id: string;
+		rate: number | null;
+		counter_offer: number | null;
+		action: 'accept' | 'decline';
+	}> {
+		const driverId = driverExternalId.trim();
+		if (!driverId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverExternalId is required'],
+			});
+		}
+
+		const rateOffer = await this.prisma.rateOffer.findFirst({
+			where: {
+				offerId,
+				driverId,
+				active: true,
+			},
+		});
+
+		if (!rateOffer) {
+			throw new NotFoundException(
+				`Active rate_offer not found for offer_id=${offerId} and driver_id=${driverId}`,
+			);
+		}
+
+		if (rateOffer.counterOffer == null) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['No counter offer to respond to'],
+			});
+		}
+
+		if (dto.action === 'accept') {
+			const counterOffer = Number(rateOffer.counterOffer);
+			const updated = await this.prisma.rateOffer.update({
+				where: { id: rateOffer.id },
+				data: {
+					rate: counterOffer,
+					counterOffer: null,
+				},
+			});
+
+			return {
+				offer_id: offerId,
+				driver_id: driverId,
+				rate: updated.rate ?? null,
+				counter_offer: null,
+				action: 'accept',
+			};
+		}
+
+		const updated = await this.prisma.rateOffer.update({
+			where: { id: rateOffer.id },
+			data: {
+				counterOffer: null,
+			},
+		});
+
+		return {
+			offer_id: offerId,
+			driver_id: driverId,
+			rate: updated.rate ?? null,
+			counter_offer: null,
+			action: 'decline',
+		};
+	}
+
+	/**
+	 * Resolve driver user id + offer title for counter-offer push.
+	 */
+	async getDriverCounterOfferNotificationContext(
+		offerId: number,
+		driverExternalId: string,
+	): Promise<{ driverUserId: string; offerTitle: string } | null> {
+		const offer = await this.prisma.offer.findUnique({
+			where: { id: offerId },
+			select: { route: true },
+		});
+		if (!offer) return null;
+
+		const driver = await this.prisma.user.findFirst({
+			where: userWhereDriverByExternalId(driverExternalId),
+			select: { id: true },
+		});
+		if (!driver) return null;
+
+		return {
+			driverUserId: driver.id,
+			offerTitle: getOfferTitleFromRoute(offer.route, offerId),
+		};
+	}
+
+	async getDriverExternalIdByUserId(userId: string): Promise<string | null> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { externalId: true, role: true },
+		});
+		if (!user || user.role !== UserRole.DRIVER) return null;
+		const externalId = user.externalId?.trim();
+		return externalId || null;
 	}
 
 	async extendDriverTime(

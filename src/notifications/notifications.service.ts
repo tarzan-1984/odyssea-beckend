@@ -19,6 +19,7 @@ const OFFER_NOTIFICATION_TYPES = new Set([
 	'offer_added',
 	'offer_updated',
 	'offer_unavailable',
+	'offer_counter_offer',
 ]);
 
 /** Group / BID chat events — ADMINISTRATOR must not receive these. */
@@ -847,6 +848,50 @@ export class NotificationsService {
         type: 'offer_updated',
         offerId: String(data.offerId),
         offerTitle: String(data.offerTitle || '').trim() || routeLabel,
+      },
+    });
+
+    return notification;
+  }
+
+  /**
+   * Notify driver that staff sent a counter offer on their bid.
+   */
+  async createOfferCounterOfferNotification(data: {
+    userId: string;
+    offerId: number;
+    offerTitle: string;
+    counterOffer: number;
+  }): Promise<Notification | null> {
+    if (await this.isAdministratorUser(data.userId)) {
+      return null;
+    }
+
+    const normalizedOfferTitle =
+      String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
+    const formattedRate = `$${Number(data.counterOffer).toLocaleString('en-US')}`;
+    const title = 'Counter offer';
+    const message = `You have a counter offer of ${formattedRate} for "${normalizedOfferTitle}".`;
+    const avatar = this.generateChatInitials(normalizedOfferTitle);
+
+    const notification = await this.createNotification({
+      userId: data.userId,
+      title,
+      message,
+      type: 'offer_counter_offer',
+      avatar,
+    });
+    if (!notification) return null;
+
+    await this.sendPushToUser({
+      userId: data.userId,
+      title,
+      body: message,
+      payload: {
+        type: 'offer_counter_offer',
+        offerId: String(data.offerId),
+        offerTitle: normalizedOfferTitle,
+        counterOffer: String(data.counterOffer),
       },
     });
 
