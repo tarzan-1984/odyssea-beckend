@@ -30,6 +30,7 @@ import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { GetDraftLoadsDto } from './dto/get-draft-loads.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
+import { SetDriverCounterOfferDto } from './dto/set-driver-counter-offer.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 import { OffersRealtimeService } from './offers-realtime.service';
 import { OfferPostCreateBackgroundService } from './offer-post-create-background.service';
@@ -477,6 +478,47 @@ export class OffersController {
 				),
 			);
 		}
+		return result;
+	}
+
+	@Patch(':id/drivers/:driverExternalId/counter-offer')
+	@ApiOperation({
+		summary: 'Set counter offer for a driver on an offer',
+		description:
+			'Updates rate_offers.counter_offer for the given offer and driver. Value must not be higher than the driver rate.',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
+	@ApiBody({ type: SetDriverCounterOfferDto })
+	@ApiResponse({ status: 200, description: 'Counter offer saved successfully' })
+	@ApiResponse({
+		status: 400,
+		description: 'Bad request - validation failed',
+	})
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async setDriverCounterOffer(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('driverExternalId') driverExternalId: string,
+		@Body() dto: SetDriverCounterOfferDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		this.ensureCanModifyOffers(req.user.role);
+		const result = await this.offersService.setDriverCounterOffer(
+			id,
+			driverExternalId,
+			dto,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(
+			id,
+			'driver_counter_offer_updated',
+			{
+				affectedExternalIds: [driverExternalId],
+				requestingUserId: req.user?.id,
+			},
+		);
 		return result;
 	}
 

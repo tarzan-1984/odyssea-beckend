@@ -32,6 +32,7 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 import { AddDriversToOfferDto } from './dto/add-drivers-to-offer.dto';
 import { SetDriverRateDto } from './dto/set-driver-rate.dto';
+import { SetDriverCounterOfferDto } from './dto/set-driver-counter-offer.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
 import {
 	AMERICA_NEW_YORK_TZ,
@@ -623,6 +624,83 @@ export class OffersService {
 		};
 	}
 
+	/**
+	 * Set counter_offer for a specific driver in an offer.
+	 * Must not be higher than the driver's current rate.
+	 */
+	async setDriverCounterOffer(
+		offerId: number,
+		driverExternalId: string,
+		dto: SetDriverCounterOfferDto,
+	): Promise<{
+		offer_id: number;
+		driver_id: string;
+		rate: number | null;
+		counter_offer: number | null;
+	}> {
+		const driverId = driverExternalId.trim();
+		if (!driverId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverExternalId is required'],
+			});
+		}
+
+		const rateOffer = await this.prisma.rateOffer.findFirst({
+			where: {
+				offerId,
+				driverId,
+				active: true,
+			},
+		});
+
+		if (!rateOffer) {
+			throw new NotFoundException(
+				`Active rate_offer not found for offer_id=${offerId} and driver_id=${driverId}`,
+			);
+		}
+
+		if (rateOffer.rate == null) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['Driver rate is not set'],
+			});
+		}
+
+		const driverRate = Number(rateOffer.rate);
+		const counterOffer = Number(dto.counterOffer);
+
+		if (!Number.isFinite(counterOffer) || counterOffer < 0) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['Please enter a valid counter offer'],
+			});
+		}
+
+		if (counterOffer > driverRate) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: [
+					`Counter offer must not be higher than the driver's rate ($${driverRate.toLocaleString('en-US')})`,
+				],
+			});
+		}
+
+		const updated = await this.prisma.rateOffer.update({
+			where: { id: rateOffer.id },
+			data: {
+				counterOffer,
+			},
+		});
+
+		return {
+			offer_id: offerId,
+			driver_id: driverId,
+			rate: updated.rate ?? null,
+			counter_offer: updated.counterOffer ?? null,
+		};
+	}
+
 	async extendDriverTime(
 		offerId: number,
 		driverExternalId: string,
@@ -1187,6 +1265,7 @@ export class OffersService {
 				active: true,
 				isSelected: true,
 				rate: true,
+				counterOffer: true,
 				actionTime: true,
 				emptyMiles: true,
 				totalMiles: true,
@@ -1232,6 +1311,7 @@ export class OffersService {
 				active: boolean;
 				is_selected: boolean;
 				rate: number | null;
+				counter_offer: number | null;
 				action_time: number | null;
 				action_time_display: string | null;
 				empty_miles: number | null;
@@ -1261,6 +1341,7 @@ export class OffersService {
 				active: ro.active,
 				is_selected: ro.isSelected,
 				rate: ro.rate ?? null,
+				counter_offer: ro.counterOffer ?? null,
 				action_time: ro.actionTime != null ? Number(ro.actionTime) : null,
 				action_time_display: formatActionTimeUnixToNyString(ro.actionTime),
 				empty_miles: ro.emptyMiles ?? null,

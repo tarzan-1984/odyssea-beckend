@@ -271,17 +271,19 @@ model Offer {
 }
 
 model RateOffer {
-  id         Int     @id @default(autoincrement())
-  offerId    Int     @map("offer_id")
-  driverId   String? @map("driver_id")
-  isSelected Boolean @default(false) @map("is_selected")
-  rate       Float?
-  actionTime BigInt? @map("action_time")
-  active     Boolean @default(true)
-  emptyMiles Float?  @map("empty_miles")
-  totalMiles Float?  @map("total_miles")
-  driverEta  String? @map("driver_eta") // Time set by driver in mobile app (Estimated Time of Arrival)
-  offer      Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  id           Int     @id @default(autoincrement())
+  offerId      Int     @map("offer_id")
+  driverId     String? @map("driver_id")
+  isSelected   Boolean @default(false) @map("is_selected")
+  rate         Float?
+  /// Counter-offer amount proposed to the driver (must not exceed `rate`).
+  counterOffer Float?  @map("counter_offer")
+  actionTime   BigInt? @map("action_time")
+  active       Boolean @default(true)
+  emptyMiles   Float?  @map("empty_miles")
+  totalMiles   Float?  @map("total_miles")
+  driverEta    String? @map("driver_eta") // Time set by driver in mobile app (Estimated Time of Arrival)
+  offer        Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
 
   @@map("rate_offers")
 }
