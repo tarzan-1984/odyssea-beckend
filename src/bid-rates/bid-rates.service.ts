@@ -686,21 +686,37 @@ export class BidRatesService {
 		};
 	}
 
-	async findAll(requesterId: string, page = 1, limit = 10) {
+	async findAll(
+		requesterId: string,
+		page = 1,
+		limit = 10,
+		scope: 'general' | 'my' = 'general',
+	) {
 		const safePage = Math.max(1, Number(page) || 1);
 		const safeLimit = Math.max(1, Math.min(100, Number(limit) || 10));
 		const skip = (safePage - 1) * safeLimit;
-		// Only bids whose linked chat includes the requester as a participant.
-		const listWhere = {
-			isArchive: false,
-			chatRoom: {
-				participants: {
-					some: {
-						userId: requesterId,
-					},
-				},
-			},
-		};
+		const listWhere =
+			scope === 'my'
+				? // Bids where the requester created the bid or pressed +1.
+					{
+						isArchive: false,
+						participants: {
+							some: {
+								userId: requesterId,
+							},
+						},
+					}
+				: // Only bids whose linked chat includes the requester as a participant.
+					{
+						isArchive: false,
+						chatRoom: {
+							participants: {
+								some: {
+									userId: requesterId,
+								},
+							},
+						},
+					};
 
 		const [rows, totalCount] = await Promise.all([
 			this.prisma.bidRate.findMany({

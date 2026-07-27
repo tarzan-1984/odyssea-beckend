@@ -42,25 +42,35 @@ export class BidRatesController {
 	@ApiOperation({
 		summary: 'List bid rates with owner and route',
 		description:
-			'Returns non-archived bids whose linked chat includes the current user as a participant.',
+			'general (default): non-archived bids whose linked chat includes the current user. my: bids where the user is in bid_rate_participants (creator or +1).',
 	})
 	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	@ApiQuery({
+		name: 'scope',
+		required: false,
+		enum: ['general', 'my'],
+		example: 'general',
+	})
 	@ApiResponse({ status: 200, description: 'Bid rates list' })
 	@ApiResponse({ status: 403, description: 'Forbidden' })
 	async findAll(
 		@Request() req: AuthenticatedRequest,
 		@Query('page') page?: string,
 		@Query('limit') limit?: string,
+		@Query('scope') scope?: string,
 	) {
 		if (!canAccessBidRates(req.user.role)) {
 			throw new ForbiddenException('You do not have access to bid rates');
 		}
 
+		const normalizedScope = scope === 'my' ? 'my' : 'general';
+
 		return this.bidRatesService.findAll(
 			req.user.id,
 			page ? Number(page) : 1,
 			limit ? Number(limit) : 10,
+			normalizedScope,
 		);
 	}
 
