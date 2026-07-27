@@ -691,11 +691,12 @@ export class BidRatesService {
 		page = 1,
 		limit = 10,
 		scope: 'general' | 'my' = 'general',
+		search?: string,
 	) {
 		const safePage = Math.max(1, Number(page) || 1);
 		const safeLimit = Math.max(1, Math.min(100, Number(limit) || 10));
 		const skip = (safePage - 1) * safeLimit;
-		const listWhere =
+		const scopeWhere: Prisma.BidRateWhereInput =
 			scope === 'my'
 				? // Bids where the requester created the bid or pressed +1.
 					{
@@ -717,6 +718,36 @@ export class BidRatesService {
 							},
 						},
 					};
+
+		const q = typeof search === 'string' ? search.trim() : '';
+		let listWhere: Prisma.BidRateWhereInput = scopeWhere;
+
+		if (q) {
+			const pattern = `%${this.escapeIlikePattern(q)}%`;
+			const matched = await this.prisma.$queryRaw<{ id: number }[]>`
+				SELECT id
+				FROM bid_rates
+				WHERE broker ILIKE ${pattern} ESCAPE '\\'
+					OR COALESCE(route::text, '') ILIKE ${pattern} ESCAPE '\\'
+			`;
+			const ids = matched.map((row) => row.id);
+			if (ids.length === 0) {
+				return {
+					results: [],
+					pagination: {
+						current_page: safePage,
+						per_page: safeLimit,
+						total_count: 0,
+						total_pages: 1,
+						has_next_page: false,
+						has_prev_page: false,
+					},
+				};
+			}
+			listWhere = {
+				AND: [scopeWhere, { id: { in: ids } }],
+			};
+		}
 
 		const [rows, totalCount] = await Promise.all([
 			this.prisma.bidRate.findMany({
@@ -750,6 +781,11 @@ export class BidRatesService {
 				has_prev_page: safePage > 1,
 			},
 		};
+	}
+
+	/** Escape `%`, `_`, and `\` for PostgreSQL ILIKE … ESCAPE '\\'. */
+	private escapeIlikePattern(value: string): string {
+		return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 	}
 
 	async create(dto: CreateBidRateDto, creatorId: string) {

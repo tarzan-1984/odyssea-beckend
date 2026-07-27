@@ -52,6 +52,12 @@ export class BidRatesController {
 		enum: ['general', 'my'],
 		example: 'general',
 	})
+	@ApiQuery({
+		name: 'search',
+		required: false,
+		type: String,
+		description: 'Filter by origin/destination address or broker name',
+	})
 	@ApiResponse({ status: 200, description: 'Bid rates list' })
 	@ApiResponse({ status: 403, description: 'Forbidden' })
 	async findAll(
@@ -59,6 +65,7 @@ export class BidRatesController {
 		@Query('page') page?: string,
 		@Query('limit') limit?: string,
 		@Query('scope') scope?: string,
+		@Query('search') search?: string,
 	) {
 		if (!canAccessBidRates(req.user.role)) {
 			throw new ForbiddenException('You do not have access to bid rates');
@@ -71,6 +78,7 @@ export class BidRatesController {
 			page ? Number(page) : 1,
 			limit ? Number(limit) : 10,
 			normalizedScope,
+			search,
 		);
 	}
 
