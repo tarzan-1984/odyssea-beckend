@@ -571,6 +571,11 @@ export class BidRatesService {
 		bidRateId: number,
 		reason: string,
 		bidRate?: unknown,
+		participant?: {
+			userId: string;
+			createdAt: number;
+			updatedAt: number;
+		} | null,
 	) {
 		const row = await this.prisma.bidRate.findUnique({
 			where: { id: bidRateId },
@@ -599,7 +604,43 @@ export class BidRatesService {
 			reason,
 			participantIds,
 			bidRate,
+			participant: participant ?? null,
 		});
+	}
+
+	/**
+	 * Restart a +1 participant timer as a fresh cycle (15 min, up to 3 extends),
+	 * same as pressing +1 again after expiry.
+	 */
+	private async resetPlusOneParticipantTimer(
+		bidRateId: number,
+		userId: string,
+	): Promise<{ userId: string; createdAt: number; updatedAt: number } | null> {
+		const row = await this.prisma.bidRateParticipant.findUnique({
+			where: {
+				userId_bidRateId: {
+					userId,
+					bidRateId,
+				},
+			},
+			select: { id: true, isOwner: true },
+		});
+		if (!row || row.isOwner) return null;
+
+		const nowSec = nowUnixSeconds();
+		const updated = await this.prisma.bidRateParticipant.update({
+			where: { id: row.id },
+			data: {
+				createdAt: nowSec,
+				updatedAt: nowSec,
+			},
+			select: {
+				userId: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+		return updated;
 	}
 
 	private async resolveBidChatParticipants(): Promise<BidChatParticipant[]> {
@@ -1840,6 +1881,7 @@ export class BidRatesService {
 	 * Accept / reject another participant's offer.
 	 * Manual Reject → chat message + clear that offer.
 	 * Accept → chat Confirm message, silently Reject/clear all other offers,
+	 * reset the confirming +1 voter's timer (fresh 15 min / up to 3 extends),
 	 * then when every snapshot vote is true → write rate to bid_rates.
 	 */
 	async voteOnOffer(
@@ -1986,6 +2028,12 @@ export class BidRatesService {
 			},
 		});
 
+		// Confirming +1 voter gets a fresh timer cycle (15 min, up to 3 extends).
+		// Users who did not vote are left unchanged.
+		const confirmingTimerReset = isBidOwner
+			? null
+			: await this.resetPlusOneParticipantTimer(bidRateId, voterUserId);
+
 		const allAccepted =
 			votes.length > 0 && votes.every((v) => v.user_vote === true);
 
@@ -2021,6 +2069,7 @@ export class BidRatesService {
 				bidRateId,
 				'offer_accepted',
 				mapped,
+				confirmingTimerReset,
 			);
 			return {
 				bidRateId,
@@ -2029,7 +2078,12 @@ export class BidRatesService {
 			};
 		}
 
-		await this.notifyBidRateChangedById(bidRateId, 'offer_vote_recorded');
+		await this.notifyBidRateChangedById(
+			bidRateId,
+			'offer_vote_recorded',
+			undefined,
+			confirmingTimerReset,
+		);
 		return {
 			bidRateId,
 			status: 'pending' as const,
