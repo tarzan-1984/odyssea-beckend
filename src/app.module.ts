@@ -30,6 +30,7 @@ import { NotificationSoundsModule } from './notification-sounds/notification-sou
 import { TrackingModule } from './tracking/tracking.module';
 import { GeocodingModule } from './geocoding/geocoding.module';
 import { BidRatesModule } from './bid-rates/bid-rates.module';
+import { ClientErrorsModule } from './client-errors/client-errors.module';
 
 @Module({
 	imports: [
@@ -64,6 +65,7 @@ import { BidRatesModule } from './bid-rates/bid-rates.module';
 		TrackingModule,
 		GeocodingModule,
 		BidRatesModule,
+		ClientErrorsModule,
 	],
 	controllers: [AppController],
 	providers: [],
