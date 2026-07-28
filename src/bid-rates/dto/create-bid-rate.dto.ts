@@ -1,10 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
 	ArrayMinSize,
 	IsArray,
+	IsBoolean,
 	IsNotEmpty,
 	IsNumber,
+	IsOptional,
 	IsString,
 	Min,
 	ValidateNested,
@@ -41,4 +43,13 @@ export class CreateBidRateDto {
 	@IsNumber()
 	@Min(0)
 	distance: number;
+
+	@ApiPropertyOptional({
+		description:
+			'When true, marks the load as Do Not Bid (no +1 / offers / votes; chat only)',
+		default: false,
+	})
+	@IsOptional()
+	@IsBoolean()
+	isDoNotBid?: boolean;
 }

@@ -696,6 +696,7 @@ export class BidRatesService {
 		distance: number | null;
 		isArchive: boolean;
 		isRateChange: boolean;
+		isDoNotBid: boolean;
 		createdAt: number;
 		updatedAt: number;
 		owner?: {
@@ -715,6 +716,7 @@ export class BidRatesService {
 			distance: row.distance,
 			isArchive: row.isArchive,
 			isRateChange: row.isRateChange,
+			isDoNotBid: row.isDoNotBid,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 			owner: row.owner
@@ -836,6 +838,7 @@ export class BidRatesService {
 		const broker = dto.broker.trim();
 		const rate = dto.rate;
 		const distance = dto.distance;
+		const isDoNotBid = Boolean(dto.isDoNotBid);
 		const routeJson = normalizedRoute as unknown as Prisma.InputJsonValue;
 		const { pickUp, delivery } = getRouteEndpoints(normalizedRoute);
 		const chatName =
@@ -908,6 +911,7 @@ export class BidRatesService {
 					broker,
 					rate,
 					distance,
+					isDoNotBid,
 					ownerId: creatorId,
 					chatId: chatRoom.id,
 					createdAt: bidUnix,
@@ -1258,11 +1262,18 @@ export class BidRatesService {
 				ownerId: true,
 				chatId: true,
 				rate: true,
+				isDoNotBid: true,
 			},
 		});
 
 		if (!bidRate) {
 			throw new NotFoundException('Bid rate not found');
+		}
+
+		if (bidRate.isDoNotBid) {
+			throw new BadRequestException(
+				'Do Not Bid loads do not allow rate changes or offers',
+			);
 		}
 
 		const chatId = bidRate.chatId;
@@ -1566,11 +1577,17 @@ export class BidRatesService {
 	async joinByChatId(chatRoomId: string, userId: string) {
 		const bidRate = await this.prisma.bidRate.findFirst({
 			where: { chatId: chatRoomId },
-			select: { id: true, ownerId: true },
+			select: { id: true, ownerId: true, isDoNotBid: true },
 		});
 
 		if (!bidRate) {
 			throw new NotFoundException('Bid rate not found for this chat');
+		}
+
+		if (bidRate.isDoNotBid) {
+			throw new BadRequestException(
+				'Do Not Bid loads do not allow +1 participation',
+			);
 		}
 
 		if (bidRate.ownerId === userId) {
@@ -1896,11 +1913,15 @@ export class BidRatesService {
 
 		const bidRate = await this.prisma.bidRate.findUnique({
 			where: { id: bidRateId },
-			select: { id: true, ownerId: true, chatId: true },
+			select: { id: true, ownerId: true, chatId: true, isDoNotBid: true },
 		});
 
 		if (!bidRate) {
 			throw new NotFoundException('Bid rate not found');
+		}
+
+		if (bidRate.isDoNotBid) {
+			throw new BadRequestException('Do Not Bid loads do not allow voting');
 		}
 
 		const offer = await this.prisma.bidRateParticipant.findUnique({
