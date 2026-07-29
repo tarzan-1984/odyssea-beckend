@@ -20,12 +20,30 @@ import { UserRole } from '@prisma/client';
 describe('user-external-id-lookup.util', () => {
 	it('normalizes TMS roles to UserRole-shaped keys', () => {
 		expect(normalizeParticipantRole('tracking-tl')).toBe('TRACKING_TL');
+		expect(normalizeParticipantRole('tracking-tl-daytime')).toBe(
+			'TRACKING_TL_DAYTIME',
+		);
+		expect(normalizeParticipantRole('tracking-tl-nightshift')).toBe(
+			'TRACKING_TL_NIGHTSHIFT',
+		);
+		expect(normalizeParticipantRole('tracking-tl-morningshift')).toBe(
+			'TRACKING_TL_MORNINGSHIFT',
+		);
 		expect(normalizeParticipantRole(' nightshift_tracking ')).toBe(
 			'NIGHTSHIFT_TRACKING',
 		);
 		expect(resolveUserRoleFromParticipantRole('tracking-tl')).toBe(
 			UserRole.TRACKING_TL,
 		);
+		expect(resolveUserRoleFromParticipantRole('tracking-tl-daytime')).toBe(
+			UserRole.TRACKING_TL_DAYTIME,
+		);
+		expect(
+			resolveUserRoleFromParticipantRole('tracking-tl-nightshift'),
+		).toBe(UserRole.TRACKING_TL_NIGHTSHIFT);
+		expect(
+			resolveUserRoleFromParticipantRole('tracking-tl-morningshift'),
+		).toBe(UserRole.TRACKING_TL_MORNINGSHIFT);
 	});
 
 	it('detects driver participant role case-insensitively', () => {

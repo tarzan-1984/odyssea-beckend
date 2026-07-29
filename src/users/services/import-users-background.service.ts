@@ -477,6 +477,15 @@ export class ImportUsersBackgroundService {
 		if (externalRoles.includes('tracking')) {
 			return UserRole.TRACKING;
 		}
+		if (externalRoles.includes('tracking-tl-daytime')) {
+			return UserRole.TRACKING_TL_DAYTIME;
+		}
+		if (externalRoles.includes('tracking-tl-nightshift')) {
+			return UserRole.TRACKING_TL_NIGHTSHIFT;
+		}
+		if (externalRoles.includes('tracking-tl-morningshift')) {
+			return UserRole.TRACKING_TL_MORNINGSHIFT;
+		}
 		if (externalRoles.includes('tracking-tl')) {
 			return UserRole.TRACKING_TL;
 		}
