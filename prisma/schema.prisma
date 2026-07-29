@@ -67,6 +67,7 @@ model User {
   notificationSounds   UserNotificationSound[]
   bidRateParticipants  BidRateParticipant[]
   ownedBidRates        BidRate[]             @relation("BidRateOwner")
+  rateOfferCounterOffers RateOfferCounterOffer[] @relation("RateOfferCounterOfferCreatedBy")
 
   @@index([externalId])
   @@index([role, isAutoupdate])
@@ -264,8 +265,9 @@ model Offer {
   route               Json? // array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
-  rateOffers          RateOffer[]
-  chatRooms           ChatRoom[]
+  rateOffers             RateOffer[]
+  rateOfferCounterOffers RateOfferCounterOffer[]
+  chatRooms              ChatRoom[]
 
   @@map("offers")
 }
@@ -284,8 +286,32 @@ model RateOffer {
   totalMiles   Float?  @map("total_miles")
   driverEta    String? @map("driver_eta") // Time set by driver in mobile app (Estimated Time of Arrival)
   offer        Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  counterOfferEvents RateOfferCounterOffer[]
 
   @@map("rate_offers")
+}
+
+/// History of staff counter-offers sent to a driver within an offer.
+/// Limit: max 6 rows per (offer_id, driver_id, created_by_id). createdById = users.id (not role).
+model RateOfferCounterOffer {
+  id          String   @id @default(cuid())
+  rateOfferId Int      @map("rate_offer_id")
+  offerId     Int      @map("offer_id")
+  /// Driver User.externalId (same as rate_offers.driver_id).
+  driverId    String   @map("driver_id")
+  /// Staff user who sent the counter-offer (users.id).
+  createdById String   @map("created_by_id")
+  amount      Float
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rateOffer RateOffer @relation(fields: [rateOfferId], references: [id], onDelete: Cascade)
+  offer     Offer     @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("RateOfferCounterOfferCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([offerId, driverId, createdById])
+  @@index([createdById])
+  @@index([rateOfferId])
+  @@map("rate_offer_counter_offers")
 }
 
 model BidRate {

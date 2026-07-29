@@ -512,6 +512,7 @@ export class OffersController {
 			id,
 			driverExternalId,
 			dto,
+			req.user.id,
 		);
 		await this.offersRealtimeService.emitOfferUpdated(
 			id,

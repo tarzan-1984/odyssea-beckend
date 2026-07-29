@@ -626,24 +626,44 @@ export class OffersService {
 	}
 
 	/**
+	 * Max counter-offers one staff user (users.id) may send to the same driver within one offer.
+	 * History is stored in rate_offer_counter_offers (created_by_id = users.id).
+	 */
+	private static readonly MAX_COUNTER_OFFERS_PER_DRIVER = 6;
+
+	private static readonly MAX_COUNTER_OFFERS_MESSAGE =
+		'You have reached the maximum number of counteroffers for this driver. Additional counteroffers are no longer available. If you would like to continue negotiating, please contact the driver directly through the chat.';
+
+	/**
 	 * Set counter_offer for a specific driver in an offer.
 	 * Must not be higher than the driver's current rate.
+	 * Enforces max 6 counter-offers per (offer, driver, createdById=users.id).
 	 */
 	async setDriverCounterOffer(
 		offerId: number,
 		driverExternalId: string,
 		dto: SetDriverCounterOfferDto,
+		createdById: string,
 	): Promise<{
 		offer_id: number;
 		driver_id: string;
 		rate: number | null;
 		counter_offer: number | null;
+		counter_offer_sent_count: number;
 	}> {
 		const driverId = driverExternalId.trim();
 		if (!driverId) {
 			throw new BadRequestException({
 				message: 'Validation failed',
 				errors: ['driverExternalId is required'],
+			});
+		}
+
+		const staffUserId = createdById?.trim();
+		if (!staffUserId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['createdById is required'],
 			});
 		}
 
@@ -687,18 +707,47 @@ export class OffersService {
 			});
 		}
 
-		const updated = await this.prisma.rateOffer.update({
-			where: { id: rateOffer.id },
-			data: {
-				counterOffer,
+		// Limit is per (offer, driver, staff user.id) — not shared across dispatchers.
+		const sentCount = await this.prisma.rateOfferCounterOffer.count({
+			where: {
+				offerId,
+				driverId,
+				createdById: staffUserId,
 			},
 		});
+
+		if (sentCount >= OffersService.MAX_COUNTER_OFFERS_PER_DRIVER) {
+			throw new BadRequestException({
+				message: 'Counter offer limit reached',
+				code: 'COUNTER_OFFER_LIMIT_REACHED',
+				errors: [OffersService.MAX_COUNTER_OFFERS_MESSAGE],
+			});
+		}
+
+		const [, updated] = await this.prisma.$transaction([
+			this.prisma.rateOfferCounterOffer.create({
+				data: {
+					rateOfferId: rateOffer.id,
+					offerId,
+					driverId,
+					createdById: staffUserId,
+					amount: counterOffer,
+				},
+			}),
+			this.prisma.rateOffer.update({
+				where: { id: rateOffer.id },
+				data: {
+					counterOffer,
+				},
+			}),
+		]);
 
 		return {
 			offer_id: offerId,
 			driver_id: driverId,
 			rate: updated.rate ?? null,
 			counter_offer: updated.counterOffer ?? null,
+			counter_offer_sent_count: sentCount + 1,
 		};
 	}
 
