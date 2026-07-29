@@ -155,6 +155,10 @@ export function formatDriverEtaForTms(
 	return null;
 }
 
+function isAsapRouteTime(value: string): boolean {
+	return value.trim().toUpperCase() === 'ASAP';
+}
+
 function parseRoutePointTimesForTms(
 	timeRaw: string,
 ): Pick<TmsLoadDraftRoutePoint, 'local_date' | 'time_start' | 'time_end'> | null {
@@ -172,6 +176,24 @@ function parseRoutePointTimesForTms(
 }
 
 /**
+ * ASAP stops have no clock time in the offer UI. For TMS we still need a concrete
+ * local_date / time window — inherit the previous stop's date (or today) and use
+ * end-of-day so delivery ASAP is not dropped (which caused missing_locations).
+ */
+function resolveAsapTimesForTms(
+	previous:
+		| Pick<TmsLoadDraftRoutePoint, 'local_date' | 'time_start' | 'time_end'>
+		| null,
+): Pick<TmsLoadDraftRoutePoint, 'local_date' | 'time_start' | 'time_end'> {
+	const local_date = previous?.local_date ?? formatTmsLocalDate(new Date());
+	return {
+		local_date,
+		time_start: previous?.time_end ?? '23:59',
+		time_end: '23:59',
+	};
+}
+
+/**
  * Maps offer route points to TMS load/draft/create route format.
  * eta_date / eta_time are set only on the first pick_up_location from driver_eta.
  */
@@ -183,6 +205,10 @@ export function normalizeRouteForTms(
 
 	const out: TmsLoadDraftRoutePoint[] = [];
 	let firstPickupHandled = false;
+	let previousTimes: Pick<
+		TmsLoadDraftRoutePoint,
+		'local_date' | 'time_start' | 'time_end'
+	> | null = null;
 	const etaTime = formatDriverEtaForTms(firstPickupDriverEta);
 
 	for (const point of route) {
@@ -190,7 +216,10 @@ export function normalizeRouteForTms(
 		const row = point as Record<string, unknown>;
 		const type = String(row.type ?? '').trim();
 		const location = String(row.location ?? '').trim();
-		const times = parseRoutePointTimesForTms(String(row.time ?? ''));
+		const timeRaw = String(row.time ?? '');
+		const times = isAsapRouteTime(timeRaw)
+			? resolveAsapTimesForTms(previousTimes)
+			: parseRoutePointTimesForTms(timeRaw);
 		if (!type || !location || !times) continue;
 
 		const routePoint: TmsLoadDraftRoutePoint = {
@@ -207,6 +236,7 @@ export function normalizeRouteForTms(
 			}
 		}
 
+		previousTimes = times;
 		out.push(routePoint);
 	}
 
