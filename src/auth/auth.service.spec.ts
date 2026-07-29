@@ -457,7 +457,7 @@ describe('AuthService', () => {
 		};
 
 		it('should create password reset token successfully', async () => {
-			mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 			mockPrismaService.passwordResetToken.deleteMany.mockResolvedValue(
 				{},
 			);
@@ -475,6 +475,14 @@ describe('AuthService', () => {
 
 			await service.forgotPassword('test@example.com');
 
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+				where: {
+					email: {
+						equals: 'test@example.com',
+						mode: 'insensitive',
+					},
+				},
+			});
 			expect(
 				mockPrismaService.passwordResetToken.deleteMany,
 			).toHaveBeenCalledWith({
@@ -491,8 +499,36 @@ describe('AuthService', () => {
 			});
 		});
 
+		it('should find user case-insensitively', async () => {
+			mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+			mockPrismaService.passwordResetToken.deleteMany.mockResolvedValue(
+				{},
+			);
+			mockPrismaService.passwordResetToken.create.mockResolvedValue({
+				token: 'reset-token',
+			});
+			(configService.get as jest.Mock).mockReturnValue({
+				frontendUrl: 'http://localhost:3000',
+			});
+			mockMailerService.sendHtmlEmail.mockResolvedValue(true);
+
+			await service.forgotPassword('Test@Example.COM');
+
+			expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+				where: {
+					email: {
+						equals: 'Test@Example.COM',
+						mode: 'insensitive',
+					},
+				},
+			});
+			expect(
+				mockPrismaService.passwordResetToken.create,
+			).toHaveBeenCalled();
+		});
+
 		it('should not create token for non-existent user', async () => {
-			mockPrismaService.user.findUnique.mockResolvedValue(null);
+			mockPrismaService.user.findFirst.mockResolvedValue(null);
 
 			await service.forgotPassword('nonexistent@example.com');
 
@@ -501,6 +537,7 @@ describe('AuthService', () => {
 			).not.toHaveBeenCalled();
 		});
 	});
+
 
 	describe('resetPassword', () => {
 		const mockResetToken = {

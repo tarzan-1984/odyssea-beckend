@@ -694,8 +694,14 @@ export class AuthService {
 	 * Initiates password reset process
 	 */
 	async forgotPassword(email: string): Promise<void> {
-		const user = await this.prisma.user.findUnique({
-			where: { email },
+		const normalizedEmail = email?.trim() ?? '';
+		const user = await this.prisma.user.findFirst({
+			where: {
+				email: {
+					equals: normalizedEmail,
+					mode: 'insensitive',
+				},
+			},
 		});
 
 		if (!user) {
@@ -1012,8 +1018,14 @@ export class AuthService {
 	 * Does NOT change user status (unlike loginWithEmail)
 	 */
 	async resetPasswordForMobile(email: string): Promise<{ message: string }> {
-		const user = await this.prisma.user.findUnique({
-			where: { email },
+		const normalizedEmail = email?.trim() ?? '';
+		const user = await this.prisma.user.findFirst({
+			where: {
+				email: {
+					equals: normalizedEmail,
+					mode: 'insensitive',
+				},
+			},
 		});
 
 		if (!user) {

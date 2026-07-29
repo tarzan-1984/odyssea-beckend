@@ -1839,6 +1839,11 @@ export class OffersService {
 				`Rate offer not found for offer ${offerId} and driver ${normalizedDriverExternalId}`,
 			);
 		}
+		if (selectedRateOffer.rate == null) {
+			throw new BadRequestException({
+				message: 'Cannot accept driver: rate is not set',
+			});
+		}
 
 		const tmsUserId = parseOfferExternalUserIdToTmsUserId(offer.externalUserId);
 		const tmsDriverId = /^\d+$/.test(normalizedDriverExternalId)
@@ -1858,8 +1863,7 @@ export class OffersService {
 		const specialReqs = normalizeSpecialRequirementsForTms(
 			offer.specialRequirements,
 		);
-		const rateNum =
-			selectedRateOffer.rate != null ? Number(selectedRateOffer.rate) : 0;
+		const rateNum = Number(selectedRateOffer.rate);
 		const weightNum = offer.weight != null ? Number(offer.weight) : 0;
 		const emptyMilesNum =
 			selectedRateOffer.emptyMiles != null
