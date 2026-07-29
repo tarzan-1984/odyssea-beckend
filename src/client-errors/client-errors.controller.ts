@@ -26,6 +26,7 @@ const OPERATION_LABELS: Record<string, string> = {
 	chat_photo_prepare_fallback: 'Prepare photo (device JPEG fallback)',
 	chat_photo_upload: 'Upload photo to chat',
 	chat_file_upload: 'Upload file to chat',
+	chat_attach: 'Chat attach flow',
 };
 
 function resolveOperationLabel(feature: string, stage?: string | null): string {
@@ -49,9 +50,9 @@ export class ClientErrorsController {
 	@HttpCode(HttpStatus.CREATED)
 	@ApiOperation({
 		summary:
-			'Report a client-side error (mobile diagnostics; visible in Render logs)',
+			'Report a client-side diagnostic event (errors + breadcrumbs; visible in Render logs)',
 	})
-	@ApiResponse({ status: 201, description: 'Error logged' })
+	@ApiResponse({ status: 201, description: 'Event logged' })
 	async report(
 		@Request() req: AuthenticatedRequest,
 		@Body() body: ReportClientErrorDto,
@@ -72,6 +73,8 @@ export class ClientErrorsController {
 			.join(' ')
 			.trim() || null;
 		const operation = resolveOperationLabel(body.feature, body.stage);
+		const level = body.level ?? 'error';
+		const flowId = body.flowId?.trim() || null;
 
 		const payload = {
 			externalId,
@@ -81,6 +84,8 @@ export class ClientErrorsController {
 			operation,
 			feature: body.feature,
 			stage: body.stage ?? null,
+			level,
+			flowId,
 			message: body.message,
 			platform: body.platform ?? null,
 			osVersion: body.osVersion ?? null,
@@ -92,10 +97,17 @@ export class ClientErrorsController {
 			stack: body.stack ? body.stack.slice(0, 4000) : null,
 		};
 
-		// Searchable in Render: [ClientError] externalId=3206 operation=...
-		this.logger.error(
-			`[ClientError] externalId=${externalId ?? 'n/a'} operation="${operation}" user="${userName ?? 'n/a'}" ${JSON.stringify(payload)}`,
-		);
+		const tag = level === 'error' ? '[ClientError]' : '[ClientDiag]';
+		const line = `${tag} externalId=${externalId ?? 'n/a'} flowId=${flowId ?? 'n/a'} level=${level} operation="${operation}" user="${userName ?? 'n/a'}" ${JSON.stringify(payload)}`;
+
+		// Searchable in Render: [ClientError] / [ClientDiag] externalId=4013 flowId=...
+		if (level === 'error') {
+			this.logger.error(line);
+		} else if (level === 'warn') {
+			this.logger.warn(line);
+		} else {
+			this.logger.log(line);
+		}
 
 		return { success: true };
 	}

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+	IsIn,
 	IsObject,
 	IsOptional,
 	IsString,
@@ -25,6 +26,25 @@ export class ReportClientErrorDto {
 	@IsString()
 	@MaxLength(80)
 	stage?: string;
+
+	@ApiPropertyOptional({
+		example: 'info',
+		description: 'error | warn | info (breadcrumbs use info)',
+		enum: ['error', 'warn', 'info'],
+	})
+	@IsOptional()
+	@IsString()
+	@IsIn(['error', 'warn', 'info'])
+	level?: 'error' | 'warn' | 'info';
+
+	@ApiPropertyOptional({
+		example: 'chat_m5x2k_ab12cd',
+		description: 'Correlates steps of one client attach/upload attempt',
+	})
+	@IsOptional()
+	@IsString()
+	@MaxLength(80)
+	flowId?: string;
 
 	@ApiPropertyOptional()
 	@IsOptional()
