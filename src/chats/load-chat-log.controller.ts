@@ -49,7 +49,7 @@ export class LoadChatLogController {
 	) {
 		if (!canAccessAppLogs(req.user.role)) {
 			throw new ForbiddenException(
-				'Only administrators can view app logs',
+				'Only administrators and tracking team leads can view app logs',
 			);
 		}
 

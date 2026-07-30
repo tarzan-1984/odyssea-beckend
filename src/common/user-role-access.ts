@@ -8,9 +8,14 @@ export function canModifyAppSettings(role: UserRole): boolean {
 	return role === UserRole.ADMINISTRATOR;
 }
 
-/** App Logs page / API: administrators only. */
+/** App Logs page / API: administrators and tracking team leads. */
+const APP_LOGS_ALLOWED_ROLES: UserRole[] = [
+	UserRole.ADMINISTRATOR,
+	UserRole.TRACKING_TL,
+];
+
 export function canAccessAppLogs(role: UserRole): boolean {
-	return role === UserRole.ADMINISTRATOR;
+	return APP_LOGS_ALLOWED_ROLES.includes(role);
 }
 
 export function canSendCheckListMessages(role: UserRole): boolean {
