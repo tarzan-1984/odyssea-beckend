@@ -20,6 +20,7 @@ const OFFER_NOTIFICATION_TYPES = new Set([
 	'offer_updated',
 	'offer_unavailable',
 	'offer_counter_offer',
+	'offer_custom',
 ]);
 
 /** Group / BID chat events — ADMINISTRATOR must not receive these. */
@@ -258,6 +259,7 @@ export class NotificationsService {
     userId: string;
     offerId?: number;
     offerTitle?: string;
+    loadId?: string;
   }): Promise<{ targeted: true; users: number }> {
     const message = (params.message ?? '').trim();
     if (!message) return { targeted: true, users: 0 };
@@ -267,16 +269,27 @@ export class NotificationsService {
         ? Math.trunc(params.offerId)
         : undefined;
     const offerTitle = (params.offerTitle ?? '').trim();
+    const loadId = (params.loadId ?? '').trim() || undefined;
 
-    if (offerTitle) {
+    if (offerId != null || offerTitle) {
       await this.sendPushToUser({
         userId: params.userId,
-        title: `Offer - ${offerTitle}`,
+        title: offerTitle ? `Offer - ${offerTitle}` : 'Odyssea',
         body: message,
         payload: {
-          type: 'offer_unavailable',
-          offerTitle,
+          type: 'offer_custom',
+          ...(offerTitle ? { offerTitle } : {}),
           ...(offerId != null ? { offerId: String(offerId) } : {}),
+        },
+      });
+    } else if (loadId) {
+      await this.sendPushToUser({
+        userId: params.userId,
+        title: `Load #${loadId}`,
+        body: message,
+        payload: {
+          type: 'load_message',
+          loadId,
         },
       });
     } else {
@@ -717,17 +730,33 @@ export class NotificationsService {
       return null;
     }
 
+    const normalizedOfferTitle =
+      String(data.offerTitle || '').trim() || `Offer #${data.offerId}`;
     const title = data.driverName;
-    const message = `extended bid time on offer "${data.offerTitle}"`;
+    const message = `extended bid time on offer "${normalizedOfferTitle}"`;
     const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
 
-    return this.createNotification({
+    const notification = await this.createNotification({
       userId: data.userId,
       title,
       message,
       type: 'offer_extend_time',
       avatar,
     });
+    if (!notification) return null;
+
+    await this.sendPushToUser({
+      userId: data.userId,
+      title,
+      body: message,
+      payload: {
+        type: 'offer_extend_time',
+        offerId: String(data.offerId),
+        offerTitle: normalizedOfferTitle,
+      },
+    });
+
+    return notification;
   }
 
   async createOfferSelectedNotification(data: {

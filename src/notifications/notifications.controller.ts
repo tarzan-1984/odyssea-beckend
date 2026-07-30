@@ -163,6 +163,7 @@ export class NotificationsController {
 			platform?: 'all' | 'ios' | 'android' | null;
 			offerId?: number | string | null;
 			offerTitle?: string | null;
+			loadId?: string | null;
 		},
 	) {
 		if (!canSendCheckListMessages(req.user.role)) {
@@ -230,6 +231,10 @@ export class NotificationsController {
 			offerTitle:
 				typeof body?.offerTitle === 'string' && body.offerTitle.trim()
 					? body.offerTitle.trim()
+					: undefined,
+			loadId:
+				typeof body?.loadId === 'string' && body.loadId.trim()
+					? body.loadId.trim()
 					: undefined,
 		});
 
@@ -340,12 +345,18 @@ export class NotificationsController {
 		body: {
 			externalId?: string;
 			message?: string;
+			loadId?: string;
+			title?: string;
 		},
 	) {
 		const externalId =
 			typeof body?.externalId === 'string' ? body.externalId.trim() : '';
 		const message =
 			typeof body?.message === 'string' ? body.message.trim() : '';
+		const loadId =
+			typeof body?.loadId === 'string' ? body.loadId.trim() : '';
+		const title =
+			typeof body?.title === 'string' ? body.title.trim() : '';
 
 		if (!externalId) {
 			throw new BadRequestException('externalId is required');
@@ -357,6 +368,15 @@ export class NotificationsController {
 		const result = await this.notificationsService.sendTmsPushByExternalId({
 			externalId,
 			message,
+			...(title ? { title } : {}),
+			...(loadId
+				? {
+						payload: {
+							type: 'load_message',
+							loadId,
+						},
+					}
+				: {}),
 		});
 
 		return { success: result.sent, data: result };

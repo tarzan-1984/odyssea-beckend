@@ -552,7 +552,7 @@ export class MessagesService {
 			// Get chat room info to determine notification title
 			const chatRoom = await this.prisma.chatRoom.findUnique({
 				where: { id: message.chatRoomId },
-				select: { type: true, name: true },
+				select: { type: true, name: true, loadId: true, offerId: true },
 			});
 
 			// BID chats: no mobile push support yet
@@ -740,6 +740,11 @@ export class MessagesService {
 				isNewMessage: 'true',
 				// Include avatar URL for notification display
 				...(chatAvatar ? { avatarUrl: chatAvatar } : {}),
+				...(chatRoom?.type ? { chatRoomType: chatRoom.type } : {}),
+				...(chatRoom?.loadId ? { loadId: chatRoom.loadId } : {}),
+				...(chatRoom?.offerId != null
+					? { offerId: String(chatRoom.offerId) }
+					: {}),
 			};
 
 			// Extract device tokens
