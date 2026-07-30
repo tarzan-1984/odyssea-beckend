@@ -1860,10 +1860,12 @@ export class UsersService {
 		}
 
 		const data: Prisma.UserUpdateInput = {
-			latitude: locationDto.latitude,
-			longitude: locationDto.longitude,
 			lastLocationUpdateAt: nowNy,
 		};
+		if (hasCoords) {
+			data.latitude = locationDto.latitude;
+			data.longitude = locationDto.longitude;
+		}
 
 		if (resolvedCity) {
 			data.city = resolvedCity;
@@ -1901,14 +1903,18 @@ export class UsersService {
 			data.driverStatus = driverStatusPatch;
 		}
 		if (locationDto.statusDate !== undefined) {
+			const statusNorm = driverStatusPatch?.trim().toLowerCase();
+			const keepClientStatusDate =
+				statusNorm === 'available_on' || statusNorm === 'on_vocation';
 			if (
 				isManualAction &&
 				driverStatusPatch !== undefined &&
-				driverStatusPatch.trim().toLowerCase() !== 'available_on'
+				!keepClientStatusDate
 			) {
 				// Manual status submit uses server NY wall-clock (not device local time).
 				data.statusDate = formatStatusDateNyDisplay(new Date());
 			} else {
+				// available_on / on_vocation: keep client return / available-from datetime → TMS status_date
 				data.statusDate = locationDto.statusDate;
 			}
 		}

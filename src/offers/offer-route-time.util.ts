@@ -156,7 +156,11 @@ export function formatDriverEtaForTms(
 }
 
 function isAsapRouteTime(value: string): boolean {
-	return value.trim().toUpperCase() === 'ASAP';
+	const normalized = value.trim().toUpperCase();
+	return (
+		normalized === 'ASAP' ||
+		normalized === 'AS SOON AS POSSIBLE, NEGOTIABLE'
+	);
 }
 
 function parseRoutePointTimesForTms(
