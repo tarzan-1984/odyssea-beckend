@@ -29,6 +29,7 @@ import {
 	WebhookType,
 	WebhookRole,
 } from './dto/webhook-sync.dto';
+import { mapTmsRolesToUserRole } from './map-tms-role.util';
 import { Prisma, UserRole, UserStatus, DriverLogSource } from '@prisma/client';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 import { TmsDriverApplicationService } from '../tms/tms-driver-application.service';
@@ -2740,7 +2741,7 @@ export class UsersService {
 			lastName: last_name,
 			phone: acf_fields?.phone_number || undefined,
 			location: acf_fields?.work_location || undefined,
-			role: String(roles[0]).toUpperCase(),
+			role: mapTmsRolesToUserRole(roles),
 			status: userStatus,
 			deactivateAccount: acf_fields?.deactivate_account || false,
 			password: undefined, // Will be set when user first logs in

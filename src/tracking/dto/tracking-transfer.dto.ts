@@ -21,15 +21,86 @@ export class TrackingTransferMembershipDto {
 	@ApiProperty({
 		example: [2, 3],
 		description: 'externalIds of non-driver TRACKING replacements',
+		required: false,
 	})
+	@IsOptional()
 	@IsArray()
 	@Type(() => Number)
 	@IsInt({ each: true })
-	trackings!: number[];
+	tracking?: number[];
+
+	/** @deprecated Prefer `tracking`. Kept for backward compatibility. */
+	@ApiProperty({
+		example: [2, 3],
+		description: 'Alias of tracking (legacy)',
+		required: false,
+	})
+	@IsOptional()
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	trackings?: number[];
+
+	@ApiProperty({
+		example: [25],
+		description: 'externalIds of non-driver MORNING_TRACKING replacements',
+		required: false,
+	})
+	@IsOptional()
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	morning_tracking?: number[];
+
+	@ApiProperty({
+		example: [7],
+		description: 'externalIds of non-driver NIGHTSHIFT_TRACKING replacements',
+		required: false,
+	})
+	@IsOptional()
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	nightshift_tracking?: number[];
+
+	@ApiProperty({
+		example: [35],
+		description: 'externalIds of non-driver TRACKING_TL_DAYTIME replacements',
+		required: false,
+	})
+	@IsOptional()
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	'tracking-tl-daytime'?: number[];
+
+	@ApiProperty({
+		example: [37],
+		description:
+			'externalIds of non-driver TRACKING_TL_NIGHTSHIFT replacements',
+		required: false,
+	})
+	@IsOptional()
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	'tracking-tl-nightshift'?: number[];
+
+	@ApiProperty({
+		example: [36],
+		description:
+			'externalIds of non-driver TRACKING_TL_MORNINGSHIFT replacements',
+		required: false,
+	})
+	@IsOptional()
+	@IsArray()
+	@Type(() => Number)
+	@IsInt({ each: true })
+	'tracking-tl-morningshift'?: number[];
 
 	@ApiProperty({
 		example: [1015, 1088],
-		description: 'loadIds to skip (no TRACKING replacement)',
+		description: 'loadIds to skip (no role replacement)',
 		required: false,
 	})
 	@IsOptional()
@@ -65,7 +136,7 @@ export class TrackingTransferDto {
 
 	@ApiProperty({
 		type: [TrackingTransferMembershipDto],
-		description: 'Per-dispatcher TRACKING membership updates',
+		description: 'Per-dispatcher role membership updates',
 	})
 	@IsArray()
 	@ValidateNested({ each: true })

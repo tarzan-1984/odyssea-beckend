@@ -4,13 +4,14 @@ import {
 	ExternalUser,
 	ExternalUserApiResponse,
 } from '../interfaces/external-user.interface';
-import { UserRole, UserStatus } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 import axios from 'axios';
 import {
 	buildExistingUserImportUpdate,
 	isExistingUserImportUnchanged,
 	isBlankString,
 } from './import-users-merge.helper';
+import { mapTmsRolesToUserRole } from '../map-tms-role.util';
 
 @Injectable()
 export class ImportUsersService {
@@ -230,7 +231,7 @@ export class ImportUsersService {
 		}
 
 		// Map roles to UserRole enum
-		const mappedRole = this.mapRoleToUserRole(user.roles);
+		const mappedRole = mapTmsRolesToUserRole(user.roles);
 
 		const permissionView = user.acf_fields?.permission_view ?? [];
 		const initialsColorRaw = (
@@ -323,79 +324,6 @@ export class ImportUsersService {
 			},
 		});
 		return 'imported';
-	}
-
-	/**
-	 * Map external roles to internal UserRole enum
-	 */
-	private mapRoleToUserRole(externalRoles: string[]): UserRole {
-		// Priority mapping based on role hierarchy
-		if (externalRoles.includes('administrator')) {
-			return UserRole.ADMINISTRATOR;
-		}
-		if (externalRoles.includes('moderator')) {
-			return UserRole.MODERATOR;
-		}
-		if (externalRoles.includes('dispatcher')) {
-			return UserRole.DISPATCHER;
-		}
-		if (externalRoles.includes('dispatcher-tl')) {
-			return UserRole.DISPATCHER_TL;
-		}
-		if (externalRoles.includes('recruiter')) {
-			return UserRole.RECRUITER;
-		}
-		if (externalRoles.includes('recruiter-tl')) {
-			return UserRole.RECRUITER_TL;
-		}
-		if (externalRoles.includes('hr_manager')) {
-			return UserRole.HR_MANAGER;
-		}
-		if (externalRoles.includes('driver')) {
-			return UserRole.DRIVER;
-		}
-		if (externalRoles.includes('driver_updates')) {
-			return UserRole.DRIVER_UPDATES;
-		}
-		if (externalRoles.includes('tracking')) {
-			return UserRole.TRACKING;
-		}
-		if (externalRoles.includes('tracking-tl-daytime')) {
-			return UserRole.TRACKING_TL_DAYTIME;
-		}
-		if (externalRoles.includes('tracking-tl-nightshift')) {
-			return UserRole.TRACKING_TL_NIGHTSHIFT;
-		}
-		if (externalRoles.includes('tracking-tl-morningshift')) {
-			return UserRole.TRACKING_TL_MORNINGSHIFT;
-		}
-		if (externalRoles.includes('tracking-tl')) {
-			return UserRole.TRACKING_TL;
-		}
-		if (externalRoles.includes('morning_tracking')) {
-			return UserRole.MORNING_TRACKING;
-		}
-		if (externalRoles.includes('nightshift_tracking')) {
-			return UserRole.NIGHTSHIFT_TRACKING;
-		}
-		if (externalRoles.includes('expedite_manager')) {
-			return UserRole.EXPEDITE_MANAGER;
-		}
-		if (externalRoles.includes('accounting')) {
-			return UserRole.ACCOUNTING;
-		}
-		if (externalRoles.includes('billing')) {
-			return UserRole.BILLING;
-		}
-		if (externalRoles.includes('subscriber')) {
-			return UserRole.SUBSCRIBER;
-		}
-		if (externalRoles.includes('gast') || externalRoles.includes('guest')) {
-			return UserRole.GAST;
-		}
-
-		// Default role for unknown roles
-		return UserRole.DRIVER;
 	}
 
 	/**

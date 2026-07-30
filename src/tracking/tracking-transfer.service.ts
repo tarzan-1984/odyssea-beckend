@@ -1,14 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { TrackingTransferDto } from './dto/tracking-transfer.dto';
+import {
+	TrackingTransferDto,
+	TrackingTransferMembershipDto,
+} from './dto/tracking-transfer.dto';
 import { ChatGateway } from '../chats/chat.gateway';
 import { LoadChatLogService } from '../chats/load-chat-log.service';
 import {
 	newParticipantJoinedAt,
 	parseInstantToNyNaiveDate,
 } from '../common/utils/ny-wall-clock';
-import { userWhereEmployeeByExternalId } from '../users/user-external-id-lookup.util';
+import {
+	resolveUserRoleFromParticipantRole,
+	userWhereEmployeeByExternalId,
+} from '../users/user-external-id-lookup.util';
+
+/** TMS membership keys whose non-empty arrays trigger role replacement. */
+const ROLE_TRANSFER_FIELD_KEYS = [
+	'tracking',
+	'morning_tracking',
+	'nightshift_tracking',
+	'tracking-tl-daytime',
+	'tracking-tl-nightshift',
+	'tracking-tl-morningshift',
+] as const;
+
+type RoleTransferFieldKey = (typeof ROLE_TRANSFER_FIELD_KEYS)[number];
 
 type TransferOutcome = {
 	ok: boolean;
@@ -50,18 +68,13 @@ export class TrackingTransferService {
 		try {
 			for (const membership of dto.memberships ?? []) {
 				const dispatcherExternalId = String(membership.dispatcher_id).trim();
-				const trackingExternalIds = Array.from(
-					new Set(
-						(membership.trackings ?? [])
-							.map((n) => String(n).trim())
-							.filter(Boolean),
-					),
-				);
 				const excludeLoadIds = new Set(
 					(membership.exclude_loads ?? [])
 						.map((n) => String(n).trim())
 						.filter(Boolean),
 				);
+
+				const roleReplacements = this.collectRoleReplacements(membership);
 
 				const dispatcher = await this.prisma.user.findFirst({
 					where: userWhereEmployeeByExternalId(dispatcherExternalId),
@@ -80,32 +93,17 @@ export class TrackingTransferService {
 					continue;
 				}
 
-				const trackingUsers = trackingExternalIds.length
-					? await this.prisma.user.findMany({
-							where: {
-								OR: trackingExternalIds.map((externalId) =>
-									userWhereEmployeeByExternalId(externalId),
-								),
-							},
-							select: { id: true, externalId: true },
-						})
-					: [];
-
-				// Prefer one user per externalId (non-driver already filtered by where).
-				const trackingUserByExternal = new Map<string, string>();
-				for (const u of trackingUsers) {
-					const key = String(u.externalId ?? '').trim();
-					if (key && !trackingUserByExternal.has(key)) {
-						trackingUserByExternal.set(key, u.id);
-					}
+				if (roleReplacements.length === 0) {
+					membershipResults.push({
+						dispatcher_id: membership.dispatcher_id,
+						dispatcherUserId: dispatcher.id,
+						chatRoomsMatched: 0,
+						trackingRemoved: 0,
+						trackingAdded: 0,
+						skipped: null,
+					});
+					continue;
 				}
-				const replacementUserIds = Array.from(
-					new Set(
-						trackingExternalIds
-							.map((ext) => trackingUserByExternal.get(ext))
-							.filter((id): id is string => Boolean(id)),
-					),
-				);
 
 				const rooms = await this.prisma.chatRoom.findMany({
 					where: {
@@ -137,62 +135,22 @@ export class TrackingTransferService {
 				}
 
 				const chatRoomIds = targetRooms.map((r) => r.id);
-				const replacementSet = new Set(replacementUserIds);
+				let totalRemoved = 0;
+				let totalAdded = 0;
 
-				const trackingParticipants =
-					await this.prisma.chatRoomParticipant.findMany({
-						where: {
-							chatRoomId: { in: chatRoomIds },
-							user: { role: UserRole.TRACKING },
-						},
-						select: { id: true, chatRoomId: true, userId: true },
+				for (const { role, externalIds } of roleReplacements) {
+					const result = await this.replaceRoleInRooms({
+						chatRoomIds,
+						targetRooms,
+						role,
+						externalIds,
+						joinedAt,
+						removedByRoom,
+						addedByRoom,
 					});
-
-				const existingReplacementRows =
-					replacementUserIds.length > 0
-						? await this.prisma.chatRoomParticipant.findMany({
-								where: {
-									chatRoomId: { in: chatRoomIds },
-									userId: { in: replacementUserIds },
-								},
-								select: { chatRoomId: true, userId: true },
-							})
-						: [];
-				const existingReplacementKeys = new Set(
-					existingReplacementRows.map((p) => `${p.chatRoomId}:${p.userId}`),
-				);
-
-				const toRemove = trackingParticipants.filter(
-					(p) => !replacementSet.has(p.userId),
-				);
-				const toCreate: Array<{
-					chatRoomId: string;
-					userId: string;
-					joinedAt: Date;
-				}> = [];
-
-				for (const room of targetRooms) {
-					for (const userId of replacementUserIds) {
-						const key = `${room.id}:${userId}`;
-						if (!existingReplacementKeys.has(key)) {
-							toCreate.push({ chatRoomId: room.id, userId, joinedAt });
-						}
-					}
+					totalRemoved += result.removed;
+					totalAdded += result.added;
 				}
-
-				await this.prisma.$transaction(async (tx) => {
-					if (toRemove.length > 0) {
-						await tx.chatRoomParticipant.deleteMany({
-							where: { id: { in: toRemove.map((p) => p.id) } },
-						});
-					}
-					if (toCreate.length > 0) {
-						await tx.chatRoomParticipant.createMany({
-							data: toCreate,
-							skipDuplicates: true,
-						});
-					}
-				});
 
 				for (const room of targetRooms) {
 					affectedChatRoomIds.add(room.id);
@@ -200,25 +158,12 @@ export class TrackingTransferService {
 					if (loadId) affectedLoadIds.add(loadId);
 				}
 
-				for (const p of toRemove) {
-					if (!removedByRoom.has(p.chatRoomId)) {
-						removedByRoom.set(p.chatRoomId, new Set());
-					}
-					removedByRoom.get(p.chatRoomId)!.add(p.userId);
-				}
-				for (const row of toCreate) {
-					if (!addedByRoom.has(row.chatRoomId)) {
-						addedByRoom.set(row.chatRoomId, new Set());
-					}
-					addedByRoom.get(row.chatRoomId)!.add(row.userId);
-				}
-
 				membershipResults.push({
 					dispatcher_id: membership.dispatcher_id,
 					dispatcherUserId: dispatcher.id,
 					chatRoomsMatched: targetRooms.length,
-					trackingRemoved: toRemove.length,
-					trackingAdded: toCreate.length,
+					trackingRemoved: totalRemoved,
+					trackingAdded: totalAdded,
 					skipped: null,
 				});
 			}
@@ -249,6 +194,157 @@ export class TrackingTransferService {
 			);
 			throw error;
 		}
+	}
+
+	/**
+	 * Collect non-empty role → externalIds replacements from membership.
+	 * Field key is the TMS role name (e.g. morning_tracking, tracking-tl-daytime).
+	 */
+	private collectRoleReplacements(
+		membership: TrackingTransferMembershipDto,
+	): Array<{ role: UserRole; externalIds: string[] }> {
+		const out: Array<{ role: UserRole; externalIds: string[] }> = [];
+		const raw = membership as TrackingTransferMembershipDto &
+			Record<string, number[] | undefined>;
+
+		for (const fieldKey of ROLE_TRANSFER_FIELD_KEYS) {
+			const role = resolveUserRoleFromParticipantRole(fieldKey);
+			if (!role) continue;
+
+			const sourceIds =
+				fieldKey === 'tracking'
+					? (raw.tracking ?? raw.trackings ?? [])
+					: (raw[fieldKey as RoleTransferFieldKey] ?? []);
+
+			const externalIds = Array.from(
+				new Set(
+					(sourceIds ?? [])
+						.map((n) => String(n).trim())
+						.filter(Boolean),
+				),
+			);
+
+			// Empty / missing array → do not touch this role in chats
+			if (externalIds.length === 0) continue;
+
+			out.push({ role, externalIds });
+		}
+
+		return out;
+	}
+
+	private async replaceRoleInRooms(params: {
+		chatRoomIds: string[];
+		targetRooms: Array<{ id: string; loadId: string | null }>;
+		role: UserRole;
+		externalIds: string[];
+		joinedAt: Date;
+		removedByRoom: Map<string, Set<string>>;
+		addedByRoom: Map<string, Set<string>>;
+	}): Promise<{ removed: number; added: number }> {
+		const {
+			chatRoomIds,
+			targetRooms,
+			role,
+			externalIds,
+			joinedAt,
+			removedByRoom,
+			addedByRoom,
+		} = params;
+
+		const users = await this.prisma.user.findMany({
+			where: {
+				OR: externalIds.map((externalId) =>
+					userWhereEmployeeByExternalId(externalId),
+				),
+			},
+			select: { id: true, externalId: true },
+		});
+
+		const userByExternal = new Map<string, string>();
+		for (const u of users) {
+			const key = String(u.externalId ?? '').trim();
+			if (key && !userByExternal.has(key)) {
+				userByExternal.set(key, u.id);
+			}
+		}
+		const replacementUserIds = Array.from(
+			new Set(
+				externalIds
+					.map((ext) => userByExternal.get(ext))
+					.filter((id): id is string => Boolean(id)),
+			),
+		);
+		const replacementSet = new Set(replacementUserIds);
+
+		const roleParticipants = await this.prisma.chatRoomParticipant.findMany({
+			where: {
+				chatRoomId: { in: chatRoomIds },
+				user: { role },
+			},
+			select: { id: true, chatRoomId: true, userId: true },
+		});
+
+		const existingReplacementRows =
+			replacementUserIds.length > 0
+				? await this.prisma.chatRoomParticipant.findMany({
+						where: {
+							chatRoomId: { in: chatRoomIds },
+							userId: { in: replacementUserIds },
+						},
+						select: { chatRoomId: true, userId: true },
+					})
+				: [];
+		const existingReplacementKeys = new Set(
+			existingReplacementRows.map((p) => `${p.chatRoomId}:${p.userId}`),
+		);
+
+		const toRemove = roleParticipants.filter(
+			(p) => !replacementSet.has(p.userId),
+		);
+		const toCreate: Array<{
+			chatRoomId: string;
+			userId: string;
+			joinedAt: Date;
+		}> = [];
+
+		for (const room of targetRooms) {
+			for (const userId of replacementUserIds) {
+				const key = `${room.id}:${userId}`;
+				if (!existingReplacementKeys.has(key)) {
+					toCreate.push({ chatRoomId: room.id, userId, joinedAt });
+				}
+			}
+		}
+
+		await this.prisma.$transaction(async (tx) => {
+			if (toRemove.length > 0) {
+				await tx.chatRoomParticipant.deleteMany({
+					where: { id: { in: toRemove.map((p) => p.id) } },
+				});
+			}
+			if (toCreate.length > 0) {
+				await tx.chatRoomParticipant.createMany({
+					data: toCreate,
+					skipDuplicates: true,
+				});
+			}
+		});
+
+		for (const p of toRemove) {
+			if (!removedByRoom.has(p.chatRoomId)) {
+				removedByRoom.set(p.chatRoomId, new Set());
+			}
+			removedByRoom.get(p.chatRoomId)!.add(p.userId);
+		}
+		for (const row of toCreate) {
+			if (!addedByRoom.has(row.chatRoomId)) {
+				addedByRoom.set(row.chatRoomId, new Set());
+			}
+			addedByRoom.get(row.chatRoomId)!.add(row.userId);
+		}
+
+		return { removed: toRemove.length, added: toCreate.length };
 	}
 
 	private async emitWebsocketUpdates(

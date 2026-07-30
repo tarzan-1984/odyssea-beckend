@@ -568,25 +568,27 @@ GET /v1/users/import-status/import-1695998400000
 
 #### Маппинг ролей
 
-| Внешняя роль          | Внутренняя роль       | Описание                   |
-| --------------------- | --------------------- | -------------------------- |
-| `administrator`       | `ADMINISTRATOR`       | Администратор              |
-| `moderator`           | `MODERATOR`           | Модератор                  |
-| `dispatcher`          | `DISPATCHER`          | Диспетчер                  |
-| `dispatcher-tl`       | `DISPATCHER_TL`       | Диспетчер-тил-лидер        |
-| `recruiter`           | `RECRUITER`           | Рекрутер                   |
-| `recruiter-tl`        | `RECRUITER_TL`        | Рекрутер-тил-лидер         |
-| `hr_manager`          | `HR_MANAGER`          | HR-менеджер                |
-| `driver`              | `DRIVER`              | Водитель                   |
-| `driver_updates`      | `DRIVER_UPDATES`      | Обновления водителей       |
-| `tracking`            | `TRACKING`            | Отслеживание               |
-| `tracking-tl`         | `TRACKING_TL`         | Отслеживание-тил-лидер     |
-| `morning_tracking`    | `MORNING_TRACKING`    | Утреннее отслеживание      |
-| `nightshift_tracking` | `NIGHTSHIFT_TRACKING` | Ночное отслеживание        |
-| `expedite_manager`    | `EXPEDITE_MANAGER`    | Менеджер экспресс-доставки |
-| `accounting`          | `ACCOUNTING`          | Бухгалтер                  |
-| `billing`             | `BILLING`             | Биллинг                    |
-| `subscriber`          | `SUBSCRIBER`          | Подписчик                  |
+| Внешняя роль (TMS slug)    | Внутренняя роль            | Label (TMS)                            |
+| -------------------------- | -------------------------- | -------------------------------------- |
+| `dispatcher`               | `DISPATCHER`               | Dispatcher                             |
+| `dispatcher-tl`            | `DISPATCHER_TL`            | Dispatcher Team Lead                   |
+| `tracking`                 | `TRACKING`                 | Tracking Coordinator (Day Shift)       |
+| `tracking-tl`              | `TRACKING_TL`              | Tracking Manager                       |
+| `tracking-tl-daytime`      | `TRACKING_TL_DAYTIME`      | Tracking Team Lead (Day Shift)         |
+| `tracking-tl-nightshift`   | `TRACKING_TL_NIGHTSHIFT`   | Tracking Team Lead (Evening Shift)     |
+| `tracking-tl-morningshift` | `TRACKING_TL_MORNINGSHIFT` | Tracking Team Lead (Night Shift)       |
+| `billing`                  | `BILLING`                  | Billing                                |
+| `recruiter`                | `RECRUITER`                | Recruiter                              |
+| `recruiter-tl`             | `RECRUITER_TL`             | Recruiter Team Leader                  |
+| `accounting`               | `ACCOUNTING`               | Accounting                             |
+| `moderator`                | `MODERATOR`                | Moderator                              |
+| `morning_tracking`         | `MORNING_TRACKING`         | Tracking Coordinator (Night Shift)     |
+| `nightshift_tracking`      | `NIGHTSHIFT_TRACKING`      | Tracking Coordinator (Evening Shift)   |
+| `expedite_manager`         | `EXPEDITE_MANAGER`         | Expedite Manager                       |
+| `hr_manager`               | `HR_MANAGER`               | HR Manager                             |
+| `driver_updates`           | `DRIVER_UPDATES`           | Driver App Assistant                   |
+
+Локальные роли вне TMS-каталога сотрудников: `ADMINISTRATOR`, `DRIVER`, `SUBSCRIBER`, `GAST`.
 
 #### Примеры запросов
 
