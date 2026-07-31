@@ -1434,6 +1434,7 @@ export class OffersService {
 				actionTime: true,
 				emptyMiles: true,
 				totalMiles: true,
+				driverEta: true,
 			},
 		});
 		const userSelect = {
@@ -1481,6 +1482,7 @@ export class OffersService {
 				action_time_display: string | null;
 				empty_miles: number | null;
 				total_miles: number | null;
+				driver_eta: string | null;
 				driver_rating: number | null;
 			}>
 		>();
@@ -1511,6 +1513,7 @@ export class OffersService {
 				action_time_display: formatActionTimeUnixToNyString(ro.actionTime),
 				empty_miles: ro.emptyMiles ?? null,
 				total_miles: ro.totalMiles ?? null,
+				driver_eta: ro.driverEta ?? null,
 				driver_rating: driver?.driverRating ?? null,
 			});
 			driversByOfferId.set(ro.offerId, list);
