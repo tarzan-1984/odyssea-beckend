@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
@@ -7,6 +8,29 @@ interface EmitOfferUpdatedOptions {
 	/** Internal user ID of the user who triggered the action (ensures they receive the event) */
 	requestingUserId?: string;
 }
+
+/**
+ * Staff roles that view Offers in Next and should receive offerUpdated in real time.
+ * Mirrors Odyssea-backend-ui DRIVERS_AND_OFFERS_ALLOWED_ROLES (except GAST).
+ */
+const OFFER_UPDATE_STAFF_ROLES: readonly UserRole[] = [
+	UserRole.ADMINISTRATOR,
+	UserRole.DISPATCHER,
+	UserRole.DISPATCHER_TL,
+	UserRole.EXPEDITE_MANAGER,
+	UserRole.TRACKING,
+	UserRole.TRACKING_TL,
+	UserRole.TRACKING_TL_DAYTIME,
+	UserRole.TRACKING_TL_NIGHTSHIFT,
+	UserRole.TRACKING_TL_MORNINGSHIFT,
+	UserRole.DRIVER_UPDATES,
+	UserRole.MORNING_TRACKING,
+	UserRole.NIGHTSHIFT_TRACKING,
+	UserRole.RECRUITER,
+	UserRole.RECRUITER_TL,
+	UserRole.HR_MANAGER,
+	UserRole.MODERATOR,
+] as const;
 
 @Injectable()
 export class OffersRealtimeService {
@@ -53,7 +77,9 @@ export class OffersRealtimeService {
 			}
 		}
 
-		const rooms = new Set<string>(['role_ADMINISTRATOR']);
+		const rooms = new Set<string>(
+			OFFER_UPDATE_STAFF_ROLES.map((role) => `role_${role}`),
+		);
 
 		if (requestingUserId && String(requestingUserId).trim()) {
 			rooms.add(`user_${requestingUserId.trim()}`);
