@@ -139,6 +139,43 @@ function formatTmsTime24(date: Date): string {
 	return `${hours}:${minutes}`;
 }
 
+/** Converts mobile driver_eta ("9:00 PM") to minutes since midnight, or null if unparsable. */
+export function parseDriverEtaToMinutesOfDay(
+	driverEta: string | null | undefined,
+): number | null {
+	const trimmed = driverEta?.trim();
+	if (!trimmed) return null;
+
+	const base = new Date(2000, 0, 1);
+	const timeOnly = parseOfferTimeOnly(trimmed, base);
+	if (timeOnly) {
+		return timeOnly.getHours() * 60 + timeOnly.getMinutes();
+	}
+
+	const parsed = parseSingleOfferDateTime(trimmed);
+	if (parsed) {
+		return parsed.getHours() * 60 + parsed.getMinutes();
+	}
+
+	return null;
+}
+
+/**
+ * Absolute difference in minutes between two driver ETA strings (time-of-day).
+ * Returns null if either value cannot be parsed.
+ */
+export function getDriverEtaDiffMinutes(
+	previousEta: string | null | undefined,
+	nextEta: string | null | undefined,
+): number | null {
+	const previousMinutes = parseDriverEtaToMinutesOfDay(previousEta);
+	const nextMinutes = parseDriverEtaToMinutesOfDay(nextEta);
+	if (previousMinutes == null || nextMinutes == null) return null;
+
+	const direct = Math.abs(nextMinutes - previousMinutes);
+	return Math.min(direct, 24 * 60 - direct);
+}
+
 /** Converts mobile driver_eta ("9:00 PM") to TMS 24h ("21:00"). */
 export function formatDriverEtaForTms(
 	driverEta: string | null | undefined,

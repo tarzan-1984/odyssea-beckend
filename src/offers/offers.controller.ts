@@ -34,6 +34,7 @@ import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { SetDriverCounterOfferDto } from './dto/set-driver-counter-offer.dto';
 import { RespondDriverCounterOfferDto } from './dto/respond-driver-counter-offer.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
+import { UpdateDriverEtaDto } from './dto/update-driver-eta.dto';
 import { OffersRealtimeService } from './offers-realtime.service';
 import { OfferPostCreateBackgroundService } from './offer-post-create-background.service';
 import {
@@ -480,6 +481,57 @@ export class OffersController {
 				),
 			);
 		}
+		return result;
+	}
+
+	@Patch(':id/drivers/:driverExternalId/eta')
+	@ApiOperation({
+		summary: 'Update driver ETA for an offer',
+		description:
+			'Updates rate_offers.driver_eta. If the new ETA differs from the previous by more than 20 minutes, refreshes action_time (bid timer).',
+	})
+	@ApiParam({ name: 'id', description: 'Offer id' })
+	@ApiParam({
+		name: 'driverExternalId',
+		description: 'Driver externalId (User.externalId)',
+	})
+	@ApiBody({ type: UpdateDriverEtaDto })
+	@ApiResponse({ status: 200, description: 'Driver ETA updated successfully' })
+	@ApiResponse({
+		status: 400,
+		description: 'Bad request - validation failed',
+	})
+	@ApiResponse({ status: 404, description: 'Offer or rate_offer not found' })
+	async updateDriverEta(
+		@Param('id', ParseIntPipe) id: number,
+		@Param('driverExternalId') driverExternalId: string,
+		@Body() dto: UpdateDriverEtaDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (req.user.role === UserRole.DRIVER) {
+			const driverUser = await this.offersService.getDriverExternalIdByUserId(
+				req.user.id,
+			);
+			if (!driverUser || driverUser !== driverExternalId.trim()) {
+				throw new ForbiddenException('You can only update your own ETA');
+			}
+		} else {
+			this.ensureCanModifyOffers(req.user.role);
+		}
+
+		const result = await this.offersService.updateDriverEta(
+			id,
+			driverExternalId,
+			dto,
+		);
+		await this.offersRealtimeService.emitOfferUpdated(
+			id,
+			'driver_eta_updated',
+			{
+				affectedExternalIds: [driverExternalId],
+				requestingUserId: req.user?.id,
+			},
+		);
 		return result;
 	}
 

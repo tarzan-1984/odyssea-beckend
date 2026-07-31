@@ -26,7 +26,7 @@ import {
 	getRouteEndpoints,
 } from './offer-route.util';
 import { calcTotalMiles, parseEmptyMiles } from './offer-miles.util';
-import { normalizeRouteForTms } from './offer-route-time.util';
+import { normalizeRouteForTms, getDriverEtaDiffMinutes, parseDriverEtaToMinutesOfDay } from './offer-route-time.util';
 import { AxiosError } from '../types/request.types';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
@@ -35,6 +35,7 @@ import { SetDriverRateDto } from './dto/set-driver-rate.dto';
 import { SetDriverCounterOfferDto } from './dto/set-driver-counter-offer.dto';
 import { RespondDriverCounterOfferDto } from './dto/respond-driver-counter-offer.dto';
 import { ExtendDriverTimeDto } from './dto/extend-driver-time.dto';
+import { UpdateDriverEtaDto } from './dto/update-driver-eta.dto';
 import {
 	AMERICA_NEW_YORK_TZ,
 	nowInNewYorkAsLocaleString,
@@ -634,6 +635,12 @@ export class OffersService {
 	private static readonly MAX_COUNTER_OFFERS_MESSAGE =
 		'You have reached the maximum number of counteroffers for this driver. Additional counteroffers are no longer available. If you would like to continue negotiating, please contact the driver directly through the chat.';
 
+	/** Refresh bid timer when ETA changes by more than this many minutes. */
+	private static readonly ETA_BID_TIMER_REFRESH_THRESHOLD_MINUTES = 20;
+
+	/** Full bid-timer window applied after a significant ETA change. */
+	private static readonly ETA_BID_TIMER_REFRESH_MINUTES = 30;
+
 	/**
 	 * Set counter_offer for a specific driver in an offer.
 	 * Must not be higher than the driver's current rate.
@@ -864,6 +871,97 @@ export class OffersService {
 		if (!user || user.role !== UserRole.DRIVER) return null;
 		const externalId = user.externalId?.trim();
 		return externalId || null;
+	}
+
+	/**
+	 * Update driver_eta for an existing bid.
+	 * If the new ETA differs from the previous by more than 20 minutes, refresh action_time.
+	 */
+	async updateDriverEta(
+		offerId: number,
+		driverExternalId: string,
+		dto: UpdateDriverEtaDto,
+	): Promise<{
+		offer_id: number;
+		driver_id: string;
+		rate: number | null;
+		driver_eta: string | null;
+		action_time: number | null;
+		action_time_display: string | null;
+		bid_timer_refreshed: boolean;
+	}> {
+		const driverId = driverExternalId.trim();
+		if (!driverId) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverExternalId is required'],
+			});
+		}
+
+		const nextEta = dto.driverEta?.trim() || '';
+		if (!nextEta) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverEta is required'],
+			});
+		}
+
+		if (parseDriverEtaToMinutesOfDay(nextEta) == null) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['driverEta must be a valid time (e.g. "9:00 PM")'],
+			});
+		}
+
+		const rateOffer = await this.prisma.rateOffer.findFirst({
+			where: {
+				offerId,
+				driverId,
+				active: true,
+			},
+		});
+
+		if (!rateOffer) {
+			throw new NotFoundException(
+				`Active rate_offer not found for offer_id=${offerId} and driver_id=${driverId}`,
+			);
+		}
+
+		if (rateOffer.rate == null) {
+			throw new BadRequestException({
+				message: 'Validation failed',
+				errors: ['Place a bid before updating ETA'],
+			});
+		}
+
+		const etaDiffMinutes = getDriverEtaDiffMinutes(rateOffer.driverEta, nextEta);
+		const shouldRefreshBidTimer =
+			etaDiffMinutes != null &&
+			etaDiffMinutes > OffersService.ETA_BID_TIMER_REFRESH_THRESHOLD_MINUTES;
+
+		const updated = await this.prisma.rateOffer.update({
+			where: { id: rateOffer.id },
+			data: {
+				driverEta: nextEta,
+				...(shouldRefreshBidTimer
+					? {
+							actionTime: getUnixSecondsPlusMinutes(
+								OffersService.ETA_BID_TIMER_REFRESH_MINUTES,
+							),
+						}
+					: {}),
+			},
+		});
+
+		return {
+			offer_id: offerId,
+			driver_id: driverId,
+			rate: updated.rate ?? null,
+			driver_eta: updated.driverEta ?? null,
+			action_time: updated.actionTime != null ? Number(updated.actionTime) : null,
+			action_time_display: formatActionTimeUnixToNyString(updated.actionTime),
+			bid_timer_refreshed: shouldRefreshBidTimer,
+		};
 	}
 
 	async extendDriverTime(
