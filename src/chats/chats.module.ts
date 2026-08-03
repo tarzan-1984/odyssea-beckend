@@ -28,6 +28,7 @@ import { NotificationsWebSocketService } from '../notifications/notifications-we
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
 import { StorageModule } from '../storage/storage.module';
+import { TrackingTeamsModule } from '../tracking/tracking-teams.module';
 
 @Module({
 	imports: [
@@ -35,6 +36,7 @@ import { StorageModule } from '../storage/storage.module';
 		NotificationsModule, // Import NotificationsModule to get FcmPushService
 		AppSettingsModule,
 		StorageModule,
+		TrackingTeamsModule,
 		JwtModule.registerAsync({
 			imports: [ConfigModule],
 			useFactory: (configService: ConfigService) => ({

@@ -39,3 +39,30 @@ const BID_RATES_ALLOWED_ROLES: UserRole[] = [
 export function canAccessBidRates(role: UserRole): boolean {
 	return BID_RATES_ALLOWED_ROLES.includes(role);
 }
+
+/** My Loads chat tab (TMS tracking/teams without subordinates). */
+const MY_LOADS_CHAT_TAB_ROLES: UserRole[] = [
+	UserRole.TRACKING_TL,
+	UserRole.TRACKING_TL_DAYTIME,
+	UserRole.TRACKING_TL_NIGHTSHIFT,
+	UserRole.TRACKING_TL_MORNINGSHIFT,
+];
+
+/** My Team chat tab (TMS tracking/teams with include_subordinates=1). */
+const MY_TEAM_CHAT_TAB_ROLES: UserRole[] = [
+	UserRole.TRACKING_TL_DAYTIME,
+	UserRole.TRACKING_TL_NIGHTSHIFT,
+	UserRole.TRACKING_TL_MORNINGSHIFT,
+];
+
+export function canAccessMyLoadsChatTab(role: UserRole): boolean {
+	return MY_LOADS_CHAT_TAB_ROLES.includes(role);
+}
+
+export function canAccessMyTeamChatTab(role: UserRole): boolean {
+	return MY_TEAM_CHAT_TAB_ROLES.includes(role);
+}
+
+export function canAccessTrackingTeamsApi(role: UserRole): boolean {
+	return canAccessMyLoadsChatTab(role);
+}

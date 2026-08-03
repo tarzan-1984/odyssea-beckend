@@ -7,6 +7,7 @@ import {
 } from './dto/tracking-transfer.dto';
 import { ChatGateway } from '../chats/chat.gateway';
 import { LoadChatLogService } from '../chats/load-chat-log.service';
+import { TrackingTeamsService } from './tracking-teams.service';
 import {
 	newParticipantJoinedAt,
 	parseInstantToNyNaiveDate,
@@ -48,6 +49,7 @@ export class TrackingTransferService {
 		private readonly prisma: PrismaService,
 		private readonly chatGateway: ChatGateway,
 		private readonly loadChatLogService: LoadChatLogService,
+		private readonly trackingTeamsService: TrackingTeamsService,
 	) {}
 
 	async transfer(dto: TrackingTransferDto): Promise<TransferOutcome> {
@@ -183,6 +185,19 @@ export class TrackingTransferService {
 			);
 
 			await this.emitWebsocketUpdates(removedByRoom, addedByRoom);
+
+			const affectedUserIds = new Set<string>();
+			for (const ids of removedByRoom.values()) {
+				for (const id of ids) affectedUserIds.add(id);
+			}
+			for (const ids of addedByRoom.values()) {
+				for (const id of ids) affectedUserIds.add(id);
+			}
+			if (affectedUserIds.size > 0) {
+				await this.trackingTeamsService.invalidateForUserIds([
+					...affectedUserIds,
+				]);
+			}
 
 			return outcome;
 		} catch (error) {

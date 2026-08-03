@@ -10,6 +10,7 @@ import { UpdateLoadChatDto } from './dto/update-load-chat.dto';
 import { ChatGateway } from './chat.gateway';
 import { MessagesService } from './messages.service';
 import { LoadChatLogService } from './load-chat-log.service';
+import { TrackingTeamsService } from '../tracking/tracking-teams.service';
 
 @ApiTags('Load Chat')
 @Controller('create_load_chat')
@@ -21,6 +22,7 @@ export class LoadChatController {
 		@Inject(ChatGateway) private readonly chatGateway: ChatGateway,
 		private readonly messagesService: MessagesService,
 		private readonly loadChatLogService: LoadChatLogService,
+		private readonly trackingTeamsService: TrackingTeamsService,
 	) {}
 
 	@Post()
@@ -88,6 +90,7 @@ export class LoadChatController {
 					result,
 					createLoadChatDto.dispatch_message,
 				);
+				void this.invalidateTeamsCacheForResult(result);
 			}
 
 			await this.loadChatLogService.recordSuccess(
@@ -205,6 +208,34 @@ export class LoadChatController {
 		await this.maybeCreateDispatchSystemMessage(result, dispatchMessage);
 	}
 
+	private async invalidateTeamsCacheForResult(result: CreateLoadChatResult) {
+		const userIds = new Set<string>();
+		for (const deleted of result.hardDeletedChats) {
+			for (const userId of deleted.notifyUserIds) {
+				userIds.add(userId);
+			}
+		}
+		const participants = result.chatRoom?.participants ?? [];
+		for (const participant of participants) {
+			if (participant?.userId) userIds.add(participant.userId);
+		}
+		const events = result.conversionParticipantEvents;
+		if (events) {
+			for (const userId of events.addedUserIds) userIds.add(userId);
+			for (const userId of events.removedUserIds) userIds.add(userId);
+		}
+		if (userIds.size === 0) return;
+		try {
+			await this.trackingTeamsService.invalidateForUserIds([...userIds]);
+		} catch (error) {
+			this.logger.warn(
+				`Failed to invalidate tracking teams cache: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	}
+
 	private async maybeCreateDispatchSystemMessage(
 		result: CreateLoadChatResult,
 		dispatchMessage?: string,
@@ -264,6 +295,7 @@ export class LoadChatController {
 				}
 
 				if (result.kind === 'noop' || !result.chatRoom) {
+					void this.invalidateTeamsCacheForResult(result);
 					continue;
 				}
 
@@ -321,11 +353,20 @@ export class LoadChatController {
 							.emit('chatRoomCreated', result.chatRoom);
 					}
 				}
+
+				void this.invalidateTeamsCacheForResult(result);
 			}
 
+			const staffSyncUserIds = new Set<string>();
 			for (const event of outcome.staffSyncEvents) {
 				const { chatRoomId, chatRoom, newParticipants, addedUserIds, removedUserIds } =
 					event;
+
+				for (const userId of addedUserIds) staffSyncUserIds.add(userId);
+				for (const userId of removedUserIds) staffSyncUserIds.add(userId);
+				for (const participant of chatRoom?.participants ?? []) {
+					if (participant?.userId) staffSyncUserIds.add(participant.userId);
+				}
 
 				if (addedUserIds.length > 0 && newParticipants.length > 0) {
 					this.chatGateway.server.to(`chat_${chatRoomId}`).emit('participantsAdded', {
@@ -368,6 +409,17 @@ export class LoadChatController {
 						});
 					}
 				}
+			}
+			if (staffSyncUserIds.size > 0) {
+				void this.trackingTeamsService
+					.invalidateForUserIds([...staffSyncUserIds])
+					.catch((error) => {
+						this.logger.warn(
+							`Failed to invalidate tracking teams cache: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						);
+					});
 			}
 
 			const response = {

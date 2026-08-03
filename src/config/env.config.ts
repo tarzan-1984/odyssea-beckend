@@ -49,6 +49,8 @@ export interface ExternalApiConfig {
 	tmsLoadsDraftsUrl: string;
 	/** GET load details by id — default Endurance TMS URL prefix */
 	tmsLoadDetailsBaseUrl: string;
+	/** GET tracking teams load ids — default Endurance TMS URL */
+	tmsTrackingTeamsUrl: string;
 	/**
 	 * When true, driver location updates persist to DB only; TMS reverse sync is skipped (200 instead of 503).
 	 * Set SKIP_TMS_DRIVER_LOCATION_SYNC=true when TMS endpoint is unavailable.
@@ -163,6 +165,9 @@ export const externalApiConfig = registerAs(
 		tmsLoadDetailsBaseUrl:
 			process.env.TMS_LOAD_DETAILS_BASE_URL ||
 			'https://www.endurance-tms.com/wp-json/tms/v1/load',
+		tmsTrackingTeamsUrl:
+			process.env.TMS_TRACKING_TEAMS_URL ||
+			'https://www.endurance-tms.com/wp-json/tms/v1/tracking/teams',
 		skipTmsDriverLocationSync:
 			process.env.SKIP_TMS_DRIVER_LOCATION_SYNC === 'true',
 		tmsLocationBatchCronEnabled:
