@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsWebSocketService } from './notifications-websocket.service';
-import { Notification, UserRole } from '@prisma/client';
+import { Notification, Prisma, UserRole } from '@prisma/client';
 import { FcmPushService } from './fcm-push.service';
 import { ExpoPushService } from './expo-push.service';
 import { MailerService } from '../mailer/mailer.service';
@@ -35,6 +35,43 @@ const ADMINISTRATOR_EXCLUDED_NOTIFICATION_TYPES = new Set([
 	...OFFER_NOTIFICATION_TYPES,
 	...GROUP_CHAT_NOTIFICATION_TYPES,
 ]);
+
+/** Deep-link payload stored in Notification.data (JSON). */
+export type NotificationLinkData = {
+	chatRoomId?: string;
+	chatRoomType?: string;
+	loadId?: string | null;
+	offerId?: number | string | null;
+	unitId?: string | null;
+	/** True when the recipient themselves was removed from the chat — UI must not deep-link. */
+	removedSelf?: boolean;
+};
+
+type ChatRoomNotifyInfo = {
+	id: string;
+	name: string | null;
+	avatar?: string | null;
+	type?: string | null;
+	loadId?: string | null;
+	offerId?: number | null;
+	unitId?: string | null;
+};
+
+function buildChatLinkData(
+	chatRoom: ChatRoomNotifyInfo,
+	extra?: Partial<NotificationLinkData>,
+): NotificationLinkData {
+	return {
+		chatRoomId: chatRoom.id,
+		...(chatRoom.type ? { chatRoomType: chatRoom.type } : {}),
+		...(chatRoom.loadId != null && chatRoom.loadId !== ''
+			? { loadId: chatRoom.loadId }
+			: {}),
+		...(chatRoom.offerId != null ? { offerId: chatRoom.offerId } : {}),
+		...(chatRoom.unitId ? { unitId: chatRoom.unitId } : {}),
+		...extra,
+	};
+}
 
 @Injectable()
 export class NotificationsService {
@@ -103,6 +140,7 @@ export class NotificationsService {
     message: string;
     type: string;
     avatar?: string;
+    linkData?: NotificationLinkData | null;
   }): Promise<Notification | null> {
     try {
       if (
@@ -122,6 +160,9 @@ export class NotificationsService {
           message: data.message,
           type: data.type,
           avatar: data.avatar,
+          ...(data.linkData
+            ? { data: data.linkData as Prisma.InputJsonValue }
+            : {}),
         },
       });
 
@@ -440,7 +481,7 @@ export class NotificationsService {
   async createPrivateChatNotification(
     creator: { id: string; firstName: string; lastName: string; profilePhoto: string | null },
     recipientId: string,
-    chatRoomId: string
+    chatRoom: ChatRoomNotifyInfo,
   ): Promise<Notification | null> {
     const title = 'New Private Chat';
     const message = `${creator.firstName} ${creator.lastName} created a new private chat with you`;
@@ -459,6 +500,7 @@ export class NotificationsService {
       message,
       type: 'private_chat_created',
       avatar,
+      linkData: buildChatLinkData(chatRoom),
     });
   }
 
@@ -467,7 +509,7 @@ export class NotificationsService {
    * ADMINISTRATOR participants are excluded (e.g. auto-added to BID chats).
    */
   async createGroupChatNotifications(
-    chatRoom: { id: string; name: string | null; avatar?: string | null },
+    chatRoom: ChatRoomNotifyInfo,
     participants: { userId: string; role: string }[],
     adminUserId: string
   ): Promise<Notification[]> {
@@ -484,6 +526,8 @@ export class NotificationsService {
         participant.role !== UserRole.ADMINISTRATOR,
     );
 
+    const linkData = buildChatLinkData(chatRoom);
+
     const notifications = (
       await Promise.all(
         recipients.map((participant) =>
@@ -493,6 +537,7 @@ export class NotificationsService {
             message,
             type: 'group_chat_created',
             avatar,
+            linkData,
           }),
         ),
       )
@@ -506,7 +551,7 @@ export class NotificationsService {
    */
   async createUserLeftGroupNotifications(
     leavingUser: { id: string; firstName: string; lastName: string; profilePhoto: string | null },
-    chatRoom: { id: string; name: string | null },
+    chatRoom: ChatRoomNotifyInfo,
     remainingParticipants: { userId: string }[]
   ): Promise<Notification[]> {
     const notifications: Notification[] = [];
@@ -522,6 +567,8 @@ export class NotificationsService {
     } else {
       avatar = this.generateInitials(leavingUser.firstName, leavingUser.lastName);
     }
+
+    const linkData = buildChatLinkData(chatRoom);
     
     // Create notifications for all remaining participants
     for (const participant of remainingParticipants) {
@@ -531,6 +578,7 @@ export class NotificationsService {
         message,
         type: 'user_left_group_chat',
         avatar,
+        linkData,
       });
       
       if (notification) notifications.push(notification);
@@ -544,7 +592,7 @@ export class NotificationsService {
    */
   async createParticipantsAddedNotifications(
     addedUsers: { id: string; firstName: string; lastName: string }[],
-    chatRoom: { id: string; name: string | null; avatar?: string | null },
+    chatRoom: ChatRoomNotifyInfo,
     allParticipants: { userId: string }[],
     adminUserId: string
   ): Promise<Notification[]> {
@@ -564,6 +612,8 @@ export class NotificationsService {
     } else {
       avatar = this.generateChatInitials(chatName);
     }
+
+    const linkData = buildChatLinkData(chatRoom);
     
     // Create notifications for all participants except admin
     for (const participant of allParticipants) {
@@ -574,6 +624,7 @@ export class NotificationsService {
           message,
           type: 'participants_added_to_group_chat',
           avatar,
+          linkData,
         });
         
         if (notification) notifications.push(notification);
@@ -584,11 +635,12 @@ export class NotificationsService {
   }
 
   /**
-   * Create notifications when a participant is removed from a group chat by admin
+   * Create notifications when a participant is removed from a group chat by admin.
+   * The removed user gets a non-linkable notice; others get a deep-link to the chat.
    */
   async createParticipantRemovedNotifications(
     removedUser: { id: string; firstName: string; lastName: string },
-    chatRoom: { id: string; name: string | null; avatar?: string | null },
+    chatRoom: ChatRoomNotifyInfo,
     allParticipants: { userId: string }[],
     adminUserId: string
   ): Promise<Notification[]> {
@@ -596,7 +648,6 @@ export class NotificationsService {
     
     const title = 'Member Removed from Group Chat';
     const chatName = chatRoom.name || 'Group Chat';
-    const message = `${removedUser.firstName} ${removedUser.lastName} was removed from the group chat "${chatName}"`;
     
     // Use chat avatar if available, otherwise generate initials from chat name
     let avatar: string;
@@ -608,19 +659,135 @@ export class NotificationsService {
     
     // Create notifications for all participants except admin
     for (const participant of allParticipants) {
-      if (participant.userId !== adminUserId) {
-        const notification = await this.createNotification({
-          userId: participant.userId,
-          title,
-          message,
-          type: 'participant_removed_from_group_chat',
-          avatar,
-        });
-        
-        if (notification) notifications.push(notification);
-      }
+      if (participant.userId === adminUserId) continue;
+
+      const isRemovedSelf = participant.userId === removedUser.id;
+      const message = isRemovedSelf
+        ? `You were removed from the group chat "${chatName}"`
+        : `${removedUser.firstName} ${removedUser.lastName} was removed from the group chat "${chatName}"`;
+
+      const notification = await this.createNotification({
+        userId: participant.userId,
+        title: isRemovedSelf ? 'Removed from Group Chat' : title,
+        message,
+        type: 'participant_removed_from_group_chat',
+        avatar,
+        linkData: buildChatLinkData(chatRoom, {
+          removedSelf: isRemovedSelf,
+        }),
+      });
+      
+      if (notification) notifications.push(notification);
     }
     
+    return notifications;
+  }
+
+  /**
+   * Notify all participants that a LOAD chat was created and they are members.
+   * Deep-links to the load chat. Not excluded for ADMINISTRATOR.
+   */
+  async createLoadChatCreatedNotifications(
+    chatRoom: ChatRoomNotifyInfo,
+    participantUserIds: string[],
+  ): Promise<Notification[]> {
+    const notifications: Notification[] = [];
+    const chatName = chatRoom.name || 'Load Chat';
+    const title = 'Load Chat Created';
+    const message = `A load chat "${chatName}" was created and you are a participant.`;
+    const avatar = chatRoom.avatar
+      ? chatRoom.avatar
+      : this.generateChatInitials(chatName);
+    const linkData = buildChatLinkData({
+      ...chatRoom,
+      type: chatRoom.type || 'LOAD',
+    });
+    const uniqueIds = [...new Set(participantUserIds.filter(Boolean))];
+
+    for (const userId of uniqueIds) {
+      const notification = await this.createNotification({
+        userId,
+        title,
+        message,
+        type: 'load_chat_created',
+        avatar,
+        linkData,
+      });
+      if (notification) notifications.push(notification);
+    }
+
+    return notifications;
+  }
+
+  /**
+   * Notify users who were added to an existing LOAD chat (TMS sync / transfer).
+   * Deep-links to the load chat.
+   */
+  async createLoadChatParticipantAddedNotifications(
+    chatRoom: ChatRoomNotifyInfo,
+    addedUserIds: string[],
+  ): Promise<Notification[]> {
+    const notifications: Notification[] = [];
+    const chatName = chatRoom.name || 'Load Chat';
+    const title = 'Added to Load Chat';
+    const message = `You were added to the load chat "${chatName}".`;
+    const avatar = chatRoom.avatar
+      ? chatRoom.avatar
+      : this.generateChatInitials(chatName);
+    const linkData = buildChatLinkData({
+      ...chatRoom,
+      type: chatRoom.type || 'LOAD',
+    });
+    const uniqueIds = [...new Set(addedUserIds.filter(Boolean))];
+
+    for (const userId of uniqueIds) {
+      const notification = await this.createNotification({
+        userId,
+        title,
+        message,
+        type: 'load_chat_participant_added',
+        avatar,
+        linkData,
+      });
+      if (notification) notifications.push(notification);
+    }
+
+    return notifications;
+  }
+
+  /**
+   * Notify users who were removed from a LOAD chat.
+   * Not clickable (removedSelf) — they no longer have access to the chat.
+   */
+  async createLoadChatParticipantRemovedNotifications(
+    chatRoom: ChatRoomNotifyInfo,
+    removedUserIds: string[],
+  ): Promise<Notification[]> {
+    const notifications: Notification[] = [];
+    const chatName = chatRoom.name || 'Load Chat';
+    const title = 'Removed from Load Chat';
+    const message = `You were removed from the load chat "${chatName}".`;
+    const avatar = chatRoom.avatar
+      ? chatRoom.avatar
+      : this.generateChatInitials(chatName);
+    const linkData = buildChatLinkData(
+      { ...chatRoom, type: chatRoom.type || 'LOAD' },
+      { removedSelf: true },
+    );
+    const uniqueIds = [...new Set(removedUserIds.filter(Boolean))];
+
+    for (const userId of uniqueIds) {
+      const notification = await this.createNotification({
+        userId,
+        title,
+        message,
+        type: 'load_chat_participant_removed',
+        avatar,
+        linkData,
+      });
+      if (notification) notifications.push(notification);
+    }
+
     return notifications;
   }
 
@@ -645,6 +812,7 @@ export class NotificationsService {
     const title = 'New offer bid';
     const message = `${data.driverName} placed a bid for offer "${normalizedOfferTitle}".`;
     const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
+    const linkData: NotificationLinkData = { offerId: data.offerId };
 
     const notification = await this.createNotification({
       userId: data.userId,
@@ -652,6 +820,7 @@ export class NotificationsService {
       message,
       type: 'offer_bid',
       avatar,
+      linkData,
     });
     if (!notification) return null;
 
@@ -690,6 +859,7 @@ export class NotificationsService {
     const title = 'Offer declined';
     const message = `${data.driverName} declined the offer "${normalizedOfferTitle}".`;
     const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
+    const linkData: NotificationLinkData = { offerId: data.offerId };
 
     const notification = await this.createNotification({
       userId: data.userId,
@@ -697,6 +867,7 @@ export class NotificationsService {
       message,
       type: 'offer_refused',
       avatar,
+      linkData,
     });
     if (!notification) return null;
 
@@ -735,6 +906,7 @@ export class NotificationsService {
     const title = data.driverName;
     const message = `extended bid time on offer "${normalizedOfferTitle}"`;
     const avatar = data.driverAvatar ?? this.generateChatInitials(data.driverName);
+    const linkData: NotificationLinkData = { offerId: data.offerId };
 
     const notification = await this.createNotification({
       userId: data.userId,
@@ -742,6 +914,7 @@ export class NotificationsService {
       message,
       type: 'offer_extend_time',
       avatar,
+      linkData,
     });
     if (!notification) return null;
 
@@ -773,6 +946,7 @@ export class NotificationsService {
     const title = 'Offer Assignment Confirmed';
     const message = `You have been selected for the offer "${normalizedOfferTitle}".`;
     const avatar = this.generateChatInitials(normalizedOfferTitle);
+    const linkData: NotificationLinkData = { offerId: data.offerId };
 
     const notification = await this.createNotification({
       userId: data.userId,
@@ -780,6 +954,7 @@ export class NotificationsService {
       message,
       type: 'offer_selected',
       avatar,
+      linkData,
     });
     if (!notification) return null;
 
@@ -811,6 +986,7 @@ export class NotificationsService {
     const title = 'Offer Assignment';
     const message = `You have a new load offer "${normalizedOfferTitle}".`;
     const avatar = this.generateChatInitials(normalizedOfferTitle);
+    const linkData: NotificationLinkData = { offerId: data.offerId };
 
     const notification = await this.createNotification({
       userId: data.userId,
@@ -818,6 +994,7 @@ export class NotificationsService {
       message,
       type: 'offer_added',
       avatar,
+      linkData,
     });
     if (!notification) return null;
 
@@ -859,6 +1036,7 @@ export class NotificationsService {
       `The load offer for ${routeLabel} has been updated. ` +
       'Please review the changes that have been made. If you are still interested, kindly resubmit your rate.';
     const avatar = this.generateChatInitials(routeLabel);
+    const linkData: NotificationLinkData = { offerId: data.offerId };
 
     const notification = await this.createNotification({
       userId: data.userId,
@@ -866,6 +1044,7 @@ export class NotificationsService {
       message,
       type: 'offer_updated',
       avatar,
+      linkData,
     });
     if (!notification) return null;
 
@@ -902,6 +1081,7 @@ export class NotificationsService {
     const title = 'Counter offer';
     const message = `You have a counter offer of ${formattedRate} for "${normalizedOfferTitle}".`;
     const avatar = this.generateChatInitials(normalizedOfferTitle);
+    const linkData: NotificationLinkData = { offerId: data.offerId };
 
     const notification = await this.createNotification({
       userId: data.userId,
@@ -909,6 +1089,7 @@ export class NotificationsService {
       message,
       type: 'offer_counter_offer',
       avatar,
+      linkData,
     });
     if (!notification) return null;
 

@@ -8,6 +8,7 @@ import {
 import { ChatGateway } from '../chats/chat.gateway';
 import { LoadChatLogService } from '../chats/load-chat-log.service';
 import { TrackingTeamsService } from './tracking-teams.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
 	newParticipantJoinedAt,
 	parseInstantToNyNaiveDate,
@@ -50,6 +51,7 @@ export class TrackingTransferService {
 		private readonly chatGateway: ChatGateway,
 		private readonly loadChatLogService: LoadChatLogService,
 		private readonly trackingTeamsService: TrackingTeamsService,
+		private readonly notificationsService: NotificationsService,
 	) {}
 
 	async transfer(dto: TrackingTransferDto): Promise<TransferOutcome> {
@@ -185,6 +187,7 @@ export class TrackingTransferService {
 			);
 
 			await this.emitWebsocketUpdates(removedByRoom, addedByRoom);
+			await this.emitInAppNotifications(removedByRoom, addedByRoom);
 
 			const affectedUserIds = new Set<string>();
 			for (const ids of removedByRoom.values()) {
@@ -445,6 +448,58 @@ export class TrackingTransferService {
 				}
 			} catch {
 				// Do not block the transfer on WebSocket notification issues
+			}
+		}
+	}
+
+	/** In-app bell notices for users added/removed by tracking transfer. */
+	private async emitInAppNotifications(
+		removedByRoom: Map<string, Set<string>>,
+		addedByRoom: Map<string, Set<string>>,
+	): Promise<void> {
+		const chatRoomIds = Array.from(
+			new Set([...removedByRoom.keys(), ...addedByRoom.keys()]),
+		);
+
+		for (const chatRoomId of chatRoomIds) {
+			try {
+				const chatRoom = await this.prisma.chatRoom.findUnique({
+					where: { id: chatRoomId },
+					select: {
+						id: true,
+						name: true,
+						avatar: true,
+						type: true,
+						loadId: true,
+					},
+				});
+				if (!chatRoom || chatRoom.type !== 'LOAD') continue;
+
+				const linkInfo = {
+					id: chatRoom.id,
+					name: chatRoom.name,
+					avatar: chatRoom.avatar,
+					type: 'LOAD',
+					loadId: chatRoom.loadId,
+				};
+
+				const addedUserIds = Array.from(addedByRoom.get(chatRoomId) ?? []);
+				const removedUserIds = Array.from(removedByRoom.get(chatRoomId) ?? []);
+
+				if (addedUserIds.length > 0) {
+					await this.notificationsService.createLoadChatParticipantAddedNotifications(
+						linkInfo,
+						addedUserIds,
+					);
+				}
+				if (removedUserIds.length > 0) {
+					await this.notificationsService.createLoadChatParticipantRemovedNotifications(
+						linkInfo,
+						removedUserIds,
+					);
+				}
+			} catch {
+				// Do not block the transfer on in-app notification issues
 			}
 		}
 	}

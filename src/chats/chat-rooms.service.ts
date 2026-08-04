@@ -345,6 +345,7 @@ export class ChatRoomsService {
 									role: true,
 									profilePhoto: true,
 									userColor: true,
+									externalId: true,
 								},
 							},
 						},
@@ -379,10 +380,21 @@ export class ChatRoomsService {
 
 					if (creator && recipient && !skipOfferAdminNotify) {
 						// Create notification for the recipient
+						const driverParticipant = participants.find(
+							(p) => p.user.role === UserRole.DRIVER,
+						);
 						await this.notificationsService.createPrivateChatNotification(
 							creator,
 							recipient.userId,
-							chatRoom.id,
+							{
+								id: chatRoom.id,
+								name: chatRoom.name,
+								avatar: chatRoom.avatar,
+								type: chatRoom.type,
+								loadId: chatRoom.loadId,
+								offerId: chatRoom.offerId,
+								unitId: driverParticipant?.user.externalId ?? null,
+							},
 						);
 					}
 				} catch (error) {
@@ -405,6 +417,9 @@ export class ChatRoomsService {
 							id: chatRoom.id,
 							name: chatRoom.name,
 							avatar: chatRoom.avatar,
+							type: chatRoom.type,
+							loadId: chatRoom.loadId,
+							offerId: chatRoom.offerId,
 						},
 						participantsData,
 						creatorId,
@@ -1444,6 +1459,8 @@ export class ChatRoomsService {
 			name: string | null;
 			avatar: string | null;
 			type: string;
+			loadId?: string | null;
+			offerId?: number | null;
 			participants: Array<{ userId: string }>;
 		},
 		resolvedUsers: Array<{ id: string; firstName: string; lastName: string }>,
@@ -1489,6 +1506,9 @@ export class ChatRoomsService {
 						id: chatRoom.id,
 						name: chatRoom.name,
 						avatar: chatRoom.avatar,
+						type: chatRoom.type,
+						loadId: chatRoom.loadId,
+						offerId: chatRoom.offerId,
 					},
 					allParticipants,
 					actorUserId,
@@ -1666,6 +1686,9 @@ export class ChatRoomsService {
 								{
 									id: chatRoom.id,
 									name: chatRoom.name,
+									type: chatRoom.type,
+									loadId: chatRoom.loadId,
+									offerId: chatRoom.offerId,
 								},
 								remainingParticipants,
 							);
@@ -1686,6 +1709,9 @@ export class ChatRoomsService {
 								id: chatRoom.id,
 								name: chatRoom.name,
 								avatar: chatRoom.avatar,
+								type: chatRoom.type,
+								loadId: chatRoom.loadId,
+								offerId: chatRoom.offerId,
 							},
 							allParticipants,
 							userId, // admin who removed
@@ -1907,6 +1933,9 @@ export class ChatRoomsService {
 							{
 								id: chatRoom.id,
 								name: chatRoom.name,
+								type: chatRoom.type,
+								loadId: chatRoom.loadId,
+								offerId: chatRoom.offerId,
 							},
 							remainingParticipants,
 						);
@@ -2510,6 +2539,11 @@ export class ChatRoomsService {
 						removedUserIds: toRemove,
 					},
 				});
+
+				await this.notifyLoadChatCreatedOrConverted(
+					convertOutcome.chatRoom,
+					toRemove,
+				);
 				continue;
 			}
 
@@ -2643,6 +2677,8 @@ export class ChatRoomsService {
 					kind: 'created',
 					hardDeletedChats: outcome.hardDeletedChats,
 				});
+
+				await this.notifyLoadChatCreatedOrConverted(outcome.chatRoom);
 			} catch (e) {
 				if (
 					e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -2986,9 +3022,102 @@ export class ChatRoomsService {
 				addedUserIds: toAdd,
 				removedUserIds: toRemove,
 			});
+
+			await this.notifyLoadChatParticipantChanges(
+				completeChatRoom,
+				toAdd,
+				toRemove,
+			);
 		}
 
 		return { events, warnings };
+	}
+
+	/** In-app notices for LOAD chat create / OFFER→LOAD convert. */
+	private async notifyLoadChatCreatedOrConverted(
+		chatRoom: {
+			id: string;
+			name: string | null;
+			avatar?: string | null;
+			type?: string | null;
+			loadId?: string | null;
+			participants?: Array<{ userId: string }>;
+		},
+		removedUserIds: string[] = [],
+	): Promise<void> {
+		const linkInfo = {
+			id: chatRoom.id,
+			name: chatRoom.name,
+			avatar: chatRoom.avatar ?? null,
+			type: 'LOAD',
+			loadId: chatRoom.loadId ?? null,
+		};
+		const participantIds = (chatRoom.participants ?? []).map((p) => p.userId);
+
+		try {
+			if (removedUserIds.length > 0) {
+				await this.notificationsService.createLoadChatParticipantRemovedNotifications(
+					linkInfo,
+					removedUserIds,
+				);
+			}
+			if (participantIds.length > 0) {
+				await this.notificationsService.createLoadChatCreatedNotifications(
+					linkInfo,
+					participantIds,
+				);
+			}
+		} catch (error) {
+			this.logger.error(
+				`Failed to create LOAD chat create/convert notifications for ${chatRoom.id}:`,
+				error,
+			);
+		}
+	}
+
+	/** In-app notices when staff are added/removed on an existing LOAD chat. */
+	private async notifyLoadChatParticipantChanges(
+		chatRoom: {
+			id: string;
+			name: string | null;
+			avatar?: string | null;
+			type?: string | null;
+			loadId?: string | null;
+		},
+		addedUserIds: string[],
+		removedUserIds: string[],
+	): Promise<void> {
+		if (addedUserIds.length === 0 && removedUserIds.length === 0) {
+			return;
+		}
+
+		const linkInfo = {
+			id: chatRoom.id,
+			name: chatRoom.name,
+			avatar: chatRoom.avatar ?? null,
+			type: 'LOAD',
+			loadId: chatRoom.loadId ?? null,
+		};
+
+		try {
+			if (addedUserIds.length > 0) {
+				await this.notificationsService.createLoadChatParticipantAddedNotifications(
+					linkInfo,
+					addedUserIds,
+				);
+			}
+			if (removedUserIds.length > 0) {
+				await this.notificationsService.createLoadChatParticipantRemovedNotifications(
+					linkInfo,
+					removedUserIds,
+				);
+			}
+		} catch (error) {
+			this.logger.error(
+				`Failed to create LOAD chat participant change notifications for ${chatRoom.id}:`,
+				error,
+			);
+		}
 	}
 
 	/** Warning text when a request participant is skipped during LOAD chat create/update. */

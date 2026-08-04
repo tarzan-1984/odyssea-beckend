@@ -947,6 +947,9 @@ export class BidRatesService {
 					id: chatRoomId,
 					name: chatRoom?.name ?? chatName,
 					avatar: chatRoom?.avatar ?? null,
+					type: chatRoom?.type ?? 'BID',
+					loadId: chatRoom?.loadId ?? null,
+					offerId: chatRoom?.offerId ?? null,
 				},
 				uniqueParticipants.map((user) => ({
 					userId: user.id,
