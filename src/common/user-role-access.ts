@@ -40,6 +40,22 @@ export function canAccessBidRates(role: UserRole): boolean {
 	return BID_RATES_ALLOWED_ROLES.includes(role);
 }
 
+/** Load board page / create shipment API. */
+const LOAD_BOARD_ALLOWED_ROLES: UserRole[] = [
+	UserRole.DISPATCHER,
+	UserRole.DISPATCHER_TL,
+	UserRole.EXPEDITE_MANAGER,
+	UserRole.MODERATOR,
+	UserRole.ADMINISTRATOR,
+	UserRole.NIGHTSHIFT_TRACKING,
+	UserRole.MORNING_TRACKING,
+	UserRole.TRACKING_TL,
+];
+
+export function canAccessLoadBoard(role: UserRole): boolean {
+	return LOAD_BOARD_ALLOWED_ROLES.includes(role);
+}
+
 /** My Loads chat tab (TMS tracking/teams without subordinates). */
 const MY_LOADS_CHAT_TAB_ROLES: UserRole[] = [
 	UserRole.TRACKING_TL,

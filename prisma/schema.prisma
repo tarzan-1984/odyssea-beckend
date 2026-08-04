@@ -67,6 +67,7 @@ model User {
   notificationSounds   UserNotificationSound[]
   bidRateParticipants  BidRateParticipant[]
   ownedBidRates        BidRate[]             @relation("BidRateOwner")
+  loadBoardShipments   LoadBoardShipment[]   @relation("LoadBoardShipmentUser")
   rateOfferCounterOffers RateOfferCounterOffer[] @relation("RateOfferCounterOfferCreatedBy")
 
   @@index([externalId])
@@ -370,6 +371,40 @@ model BidRateParticipant {
   @@map("bid_rate_participants")
 }
 
+/// Load board shipment posts created from the New Shipment form.
+model LoadBoardShipment {
+  id                  Int                 @id @default(autoincrement())
+  userId              String              @map("user_id")
+  /// Creator's users.externalId snapshot at create time.
+  userExternalId      String?             @map("user_external_id")
+  /// Array of { type: "pick_up_location"|"delivery_location", location: string, time: string }
+  route               Json
+  pickupEarliest      String              @map("pickup_earliest")
+  pickupLatest        String?             @map("pickup_latest")
+  pickupHours         String?             @map("pickup_hours")
+  dropOffHours        String?             @map("drop_off_hours")
+  weight              Float
+  commodity           String
+  /// Same slug array as offer special requirements.
+  specialInstructions Json?               @map("special_instructions")
+  loadType            LoadBoardLoadType   @map("load_type")
+  equipment           LoadBoardEquipment
+  /// Only for box_truck / dry_van.
+  equipmentLength     Float?              @map("equipment_length")
+  /// Only for box_truck / dry_van.
+  equipmentWeight     Float?              @map("equipment_weight")
+  comments            String?
+  referenceId         String?             @map("reference_id")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  user                User                @relation("LoadBoardShipmentUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([userExternalId])
+  @@index([createdAt])
+  @@map("load_board_shipments")
+}
+
 model ChatRoom {
   id           String                @id @default(cuid())
   name         String?
@@ -620,4 +655,15 @@ enum BidRateStatus {
   blocked
   in_process @map("in-process")
   completed
+}
+
+enum LoadBoardLoadType {
+  full
+  partial
+}
+
+enum LoadBoardEquipment {
+  cargo_van
+  box_truck
+  dry_van
 }
