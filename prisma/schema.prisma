@@ -68,6 +68,7 @@ model User {
   bidRateParticipants  BidRateParticipant[]
   ownedBidRates        BidRate[]             @relation("BidRateOwner")
   loadBoardShipments   LoadBoardShipment[]   @relation("LoadBoardShipmentUser")
+  rateLoadBoards       RateLoadBoard[]      @relation("RateLoadBoardDriver")
   rateOfferCounterOffers RateOfferCounterOffer[] @relation("RateOfferCounterOfferCreatedBy")
 
   @@index([externalId])
@@ -395,15 +396,43 @@ model LoadBoardShipment {
   equipmentWeight     Float?              @map("equipment_weight")
   comments            String?
   referenceId         String?             @map("reference_id")
+  /// Optional estimated rate for the load.
+  rate                Float?
+  status              LoadBoardShipmentStatus @default(posted)
   /// Naive America/New_York wall-clock timestamps (same pattern as chat messages).
   createdAt           DateTime            @map("created_at")
   updatedAt           DateTime            @map("updated_at")
   user                User                @relation("LoadBoardShipmentUser", fields: [userId], references: [id], onDelete: Restrict)
+  rateLoadBoards      RateLoadBoard[]
 
   @@index([userId])
   @@index([userExternalId])
   @@index([createdAt])
+  @@index([status])
   @@map("load_board_shipments")
+}
+
+/// Driver bids / rate offers for a load board shipment (analog of rate_offers).
+model RateLoadBoard {
+  id               Int               @id @default(autoincrement())
+  loadBoardId      Int               @map("load_board_id")
+  /// Driver User.id
+  driverId         String            @map("driver_id")
+  /// Snapshot of driver users.externalId at bid time.
+  driverExternalId String?           @map("driver_external_id")
+  rate             Float?
+  active           Boolean           @default(true)
+  isSelected       Boolean           @default(false) @map("is_selected")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  loadBoard        LoadBoardShipment @relation(fields: [loadBoardId], references: [id], onDelete: Cascade)
+  driver           User              @relation("RateLoadBoardDriver", fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([loadBoardId])
+  @@index([driverId])
+  @@index([driverExternalId])
+  @@index([loadBoardId, active])
+  @@map("rate_load_board")
 }
 
 model ChatRoom {
@@ -667,4 +696,9 @@ enum LoadBoardEquipment {
   cargo_van
   box_truck
   dry_van
+}
+
+enum LoadBoardShipmentStatus {
+  posted
+  unposted
 }

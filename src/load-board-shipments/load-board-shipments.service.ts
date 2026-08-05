@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import {
 	LoadBoardEquipment,
 	LoadBoardLoadType,
+	LoadBoardShipmentStatus,
 	Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -51,6 +52,8 @@ function validateRoute(route: RoutePointDto[]): void {
 		throw new BadRequestException('each route point must have a location');
 	}
 }
+
+export type LoadBoardAgeSort = 'asc' | 'desc';
 
 @Injectable()
 export class LoadBoardShipmentsService {
@@ -105,6 +108,8 @@ export class LoadBoardShipmentsService {
 
 		const userExternalId = creator.externalId?.trim() || null;
 		const nowNy = nowInNewYorkAsNaiveDate();
+		const rate =
+			dto.rate != null && Number.isFinite(dto.rate) ? dto.rate : null;
 
 		const shipment = await this.prisma.loadBoardShipment.create({
 			data: {
@@ -127,6 +132,8 @@ export class LoadBoardShipmentsService {
 				equipmentWeight,
 				comments,
 				referenceId: dto.referenceId?.trim() || null,
+				rate,
+				status: dto.status ?? LoadBoardShipmentStatus.posted,
 				createdAt: nowNy,
 				updatedAt: nowNy,
 			},
@@ -143,5 +150,66 @@ export class LoadBoardShipmentsService {
 		});
 
 		return shipment;
+	}
+
+	async findAll(
+		page = 1,
+		limit = 10,
+		ageSort: LoadBoardAgeSort = 'desc',
+	) {
+		const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+		const safeLimit =
+			Number.isFinite(limit) && limit > 0
+				? Math.min(Math.floor(limit), 100)
+				: 10;
+		const skip = (safePage - 1) * safeLimit;
+		const order: Prisma.SortOrder = ageSort === 'asc' ? 'asc' : 'desc';
+
+		const [shipments, total] = await Promise.all([
+			this.prisma.loadBoardShipment.findMany({
+				skip,
+				take: safeLimit,
+				orderBy: [{ createdAt: order }, { id: order }],
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							externalId: true,
+						},
+					},
+					rateLoadBoards: {
+						where: { active: true },
+						orderBy: [{ id: 'asc' }],
+						include: {
+							driver: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									externalId: true,
+								},
+							},
+						},
+					},
+				},
+			}),
+			this.prisma.loadBoardShipment.count(),
+		]);
+
+		const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+
+		return {
+			shipments,
+			pagination: {
+				current_page: safePage,
+				per_page: safeLimit,
+				total_count: total,
+				total_pages: totalPages,
+				has_next_page: safePage < totalPages,
+				has_prev_page: safePage > 1,
+			},
+		};
 	}
 }

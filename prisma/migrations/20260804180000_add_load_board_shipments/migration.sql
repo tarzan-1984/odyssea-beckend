@@ -4,6 +4,9 @@ CREATE TYPE "LoadBoardLoadType" AS ENUM ('full', 'partial');
 -- CreateEnum
 CREATE TYPE "LoadBoardEquipment" AS ENUM ('cargo_van', 'box_truck', 'dry_van');
 
+-- CreateEnum
+CREATE TYPE "LoadBoardShipmentStatus" AS ENUM ('posted', 'unposted');
+
 -- CreateTable
 CREATE TABLE "load_board_shipments" (
     "id" SERIAL NOT NULL,
@@ -23,7 +26,9 @@ CREATE TABLE "load_board_shipments" (
     "equipment_weight" DOUBLE PRECISION,
     "comments" TEXT,
     "reference_id" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "rate" DOUBLE PRECISION,
+    "status" "LoadBoardShipmentStatus" NOT NULL DEFAULT 'posted',
+    "created_at" TIMESTAMP(3) NOT NULL,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "load_board_shipments_pkey" PRIMARY KEY ("id")
@@ -37,6 +42,9 @@ CREATE INDEX "load_board_shipments_user_external_id_idx" ON "load_board_shipment
 
 -- CreateIndex
 CREATE INDEX "load_board_shipments_created_at_idx" ON "load_board_shipments"("created_at");
+
+-- CreateIndex
+CREATE INDEX "load_board_shipments_status_idx" ON "load_board_shipments"("status");
 
 -- AddForeignKey
 ALTER TABLE "load_board_shipments" ADD CONSTRAINT "load_board_shipments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -2,13 +2,16 @@ import {
 	Body,
 	Controller,
 	ForbiddenException,
+	Get,
 	Post,
+	Query,
 	Request,
 	UseGuards,
 } from '@nestjs/common';
 import {
 	ApiBearerAuth,
 	ApiOperation,
+	ApiQuery,
 	ApiResponse,
 	ApiTags,
 } from '@nestjs/swagger';
@@ -16,7 +19,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { canAccessLoadBoard } from '../common/user-role-access';
 import { AuthenticatedRequest } from '../types/request.types';
 import { CreateLoadBoardShipmentDto } from './dto/create-load-board-shipment.dto';
-import { LoadBoardShipmentsService } from './load-board-shipments.service';
+import {
+	LoadBoardAgeSort,
+	LoadBoardShipmentsService,
+} from './load-board-shipments.service';
 
 @ApiTags('Load board shipments')
 @ApiBearerAuth()
@@ -26,6 +32,42 @@ export class LoadBoardShipmentsController {
 	constructor(
 		private readonly loadBoardShipmentsService: LoadBoardShipmentsService,
 	) {}
+
+	@Get()
+	@ApiOperation({
+		summary: 'List load board shipments',
+		description: 'Paginated list sorted by Age (createdAt). Default: newest first.',
+	})
+	@ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	@ApiQuery({
+		name: 'ageSort',
+		required: false,
+		enum: ['asc', 'desc'],
+		example: 'desc',
+		description: 'desc = newest first, asc = oldest first',
+	})
+	@ApiResponse({ status: 200, description: 'Shipments list' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	async findAll(
+		@Request() req: AuthenticatedRequest,
+		@Query('page') page?: string,
+		@Query('limit') limit?: string,
+		@Query('ageSort') ageSort?: string,
+	) {
+		if (!canAccessLoadBoard(req.user.role)) {
+			throw new ForbiddenException('You do not have access to load board');
+		}
+
+		const normalizedSort: LoadBoardAgeSort =
+			ageSort === 'asc' ? 'asc' : 'desc';
+
+		return this.loadBoardShipmentsService.findAll(
+			page ? Number(page) : 1,
+			limit ? Number(limit) : 10,
+			normalizedSort,
+		);
+	}
 
 	@Post()
 	@ApiOperation({

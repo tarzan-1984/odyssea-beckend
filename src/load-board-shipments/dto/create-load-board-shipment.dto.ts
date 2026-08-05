@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { LoadBoardEquipment, LoadBoardLoadType } from '@prisma/client';
+import {
+	LoadBoardEquipment,
+	LoadBoardLoadType,
+	LoadBoardShipmentStatus,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
 	ArrayMinSize,
@@ -79,7 +83,7 @@ export class CreateLoadBoardShipmentDto {
 	equipment: LoadBoardEquipment;
 
 	@ApiPropertyOptional({
-		description: 'Equipment length in feet (required conceptually for box_truck / dry_van)',
+		description: 'Equipment length in feet (for box_truck / dry_van)',
 		example: 26,
 	})
 	@ValidateIf(
@@ -118,4 +122,20 @@ export class CreateLoadBoardShipmentDto {
 	@IsOptional()
 	@IsString()
 	referenceId?: string;
+
+	@ApiPropertyOptional({ example: 2500, description: 'Optional estimated rate' })
+	@IsOptional()
+	@Type(() => Number)
+	@IsNumber()
+	@Min(0)
+	rate?: number;
+
+	@ApiPropertyOptional({
+		enum: LoadBoardShipmentStatus,
+		example: LoadBoardShipmentStatus.posted,
+		default: LoadBoardShipmentStatus.posted,
+	})
+	@IsOptional()
+	@IsEnum(LoadBoardShipmentStatus)
+	status?: LoadBoardShipmentStatus;
 }
