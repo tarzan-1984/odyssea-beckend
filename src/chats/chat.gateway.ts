@@ -541,6 +541,13 @@ export class ChatGateway
 				{ participantUserIds },
 			);
 
+			const isReplay = Boolean(
+				(message as { _idempotentReplay?: boolean })._idempotentReplay,
+			);
+			if ('_idempotentReplay' in message) {
+				delete (message as { _idempotentReplay?: boolean })._idempotentReplay;
+			}
+
 			// Ack sender immediately after persist; broadcast can follow asynchronously.
 			client.emit('messageSent', {
 				messageId: message.id,
@@ -549,7 +556,9 @@ export class ChatGateway
 				message,
 			});
 
-			void this.broadcastMessage(chatRoomId, message, participantUserIds);
+			if (!isReplay) {
+				void this.broadcastMessage(chatRoomId, message, participantUserIds);
+			}
 
 			console.log('✅ Message sent:', {
 				userId,

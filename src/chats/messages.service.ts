@@ -100,6 +100,10 @@ export class MessagesService {
 		}
 		const target = error.meta?.target;
 		if (Array.isArray(target)) {
+			if (target.length === 0) {
+				// Some drivers omit target — treat as clientMessageId collision when we sent one.
+				return true;
+			}
 			return target.some(
 				(field) =>
 					field === 'client_message_id' ||
@@ -108,9 +112,14 @@ export class MessagesService {
 			);
 		}
 		if (typeof target === 'string') {
-			return target.includes('client_message');
+			return (
+				target.includes('client_message') ||
+				target.includes('clientMessage') ||
+				target.length === 0
+			);
 		}
-		return false;
+		// meta.target missing — still treat as idempotent hit when clientMessageId was set.
+		return true;
 	}
 
 	private async findExistingClientOutboundMessage(
@@ -259,6 +268,19 @@ export class MessagesService {
 			? participants.find((p) => p.userId !== senderId)?.userId ?? null
 			: null;
 
+		// Idempotent fast-path: avoid create+P2002 race side effects when possible.
+		if (clientMessageId) {
+			const existing = await this.findExistingClientOutboundMessage(
+				chatRoomId,
+				senderId,
+				clientMessageId,
+				isDirectChat,
+			);
+			if (existing) {
+				return { ...existing, _idempotentReplay: true as const };
+			}
+		}
+
 		let message;
 		try {
 			message = await this.prisma.$transaction(
@@ -306,7 +328,7 @@ export class MessagesService {
 					isDirectChat,
 				);
 				if (existing) {
-					return existing;
+					return { ...existing, _idempotentReplay: true as const };
 				}
 			}
 			throw error;

@@ -145,12 +145,21 @@ export class MessagesController {
 				{ participantUserIds },
 			);
 
-			// Broadcast message via WebSocket to all participants
-			void this.chatGateway.broadcastMessage(
-				sendMessageDto.chatRoomId,
-				message,
-				participantUserIds,
+			const isReplay = Boolean(
+				(message as { _idempotentReplay?: boolean })._idempotentReplay,
 			);
+			if ('_idempotentReplay' in message) {
+				delete (message as { _idempotentReplay?: boolean })._idempotentReplay;
+			}
+
+			// Skip re-broadcast for idempotent retries (WS+HTTP race after backgrounding).
+			if (!isReplay) {
+				void this.chatGateway.broadcastMessage(
+					sendMessageDto.chatRoomId,
+					message,
+					participantUserIds,
+				);
+			}
 
 			return message;
 		} catch (error) {

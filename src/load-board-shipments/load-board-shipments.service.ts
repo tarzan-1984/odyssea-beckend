@@ -6,6 +6,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoutePointDto } from '../offers/dto/create-offer.dto';
+import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { CreateLoadBoardShipmentDto } from './dto/create-load-board-shipment.dto';
 
 function normalizeRoute(route: RoutePointDto[]): RoutePointDto[] {
@@ -103,6 +104,7 @@ export class LoadBoardShipmentsService {
 				.filter(Boolean) ?? [];
 
 		const userExternalId = creator.externalId?.trim() || null;
+		const nowNy = nowInNewYorkAsNaiveDate();
 
 		const shipment = await this.prisma.loadBoardShipment.create({
 			data: {
@@ -125,6 +127,8 @@ export class LoadBoardShipmentsService {
 				equipmentWeight,
 				comments,
 				referenceId: dto.referenceId?.trim() || null,
+				createdAt: nowNy,
+				updatedAt: nowNy,
 			},
 			include: {
 				user: {

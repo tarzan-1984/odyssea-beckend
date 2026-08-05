@@ -395,8 +395,9 @@ model LoadBoardShipment {
   equipmentWeight     Float?              @map("equipment_weight")
   comments            String?
   referenceId         String?             @map("reference_id")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
+  /// Naive America/New_York wall-clock timestamps (same pattern as chat messages).
+  createdAt           DateTime            @map("created_at")
+  updatedAt           DateTime            @map("updated_at")
   user                User                @relation("LoadBoardShipmentUser", fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId])
