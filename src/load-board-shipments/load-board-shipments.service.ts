@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+	BadRequestException,
+	Injectable,
+	NotFoundException,
+} from '@nestjs/common';
 import {
 	LoadBoardEquipment,
 	LoadBoardLoadType,
@@ -53,21 +57,24 @@ function validateRoute(route: RoutePointDto[]): void {
 	}
 }
 
+const shipmentUserInclude = {
+	user: {
+		select: {
+			id: true,
+			firstName: true,
+			lastName: true,
+			externalId: true,
+		},
+	},
+} as const;
+
 export type LoadBoardAgeSort = 'asc' | 'desc';
 
 @Injectable()
 export class LoadBoardShipmentsService {
 	constructor(private readonly prisma: PrismaService) {}
 
-	async create(dto: CreateLoadBoardShipmentDto, userId: string) {
-		const creator = await this.prisma.user.findUnique({
-			where: { id: userId },
-			select: { id: true, externalId: true },
-		});
-		if (!creator) {
-			throw new BadRequestException('Creator user not found');
-		}
-
+	private buildShipmentFields(dto: CreateLoadBoardShipmentDto) {
 		const normalizedRoute = normalizeRoute(dto.route);
 		validateRoute(normalizedRoute);
 
@@ -94,62 +101,88 @@ export class LoadBoardShipmentsService {
 			equipment === LoadBoardEquipment.box_truck ||
 			equipment === LoadBoardEquipment.dry_van;
 
-		const equipmentLength = needsEquipmentSize
-			? dto.equipmentLength ?? null
-			: null;
-		const equipmentWeight = needsEquipmentSize
-			? dto.equipmentWeight ?? null
-			: null;
-
 		const specialInstructions =
 			dto.specialInstructions
 				?.map((item) => item.trim())
 				.filter(Boolean) ?? [];
 
-		const userExternalId = creator.externalId?.trim() || null;
-		const nowNy = nowInNewYorkAsNaiveDate();
 		const rate =
 			dto.rate != null && Number.isFinite(dto.rate) ? dto.rate : null;
 
-		const shipment = await this.prisma.loadBoardShipment.create({
+		return {
+			route: normalizedRoute as unknown as Prisma.InputJsonValue,
+			pickupEarliest,
+			pickupLatest: dto.pickupLatest?.trim() || null,
+			pickupHours: dto.pickupHours?.trim() || null,
+			dropOffHours: dto.dropOffHours?.trim() || null,
+			weight: dto.weight,
+			commodity,
+			specialInstructions:
+				specialInstructions.length > 0
+					? (specialInstructions as unknown as Prisma.InputJsonValue)
+					: Prisma.JsonNull,
+			loadType: dto.loadType ?? LoadBoardLoadType.full,
+			equipment,
+			equipmentLength: needsEquipmentSize
+				? (dto.equipmentLength ?? null)
+				: null,
+			equipmentWeight: needsEquipmentSize
+				? (dto.equipmentWeight ?? null)
+				: null,
+			comments,
+			referenceId: dto.referenceId?.trim() || null,
+			rate,
+			status: dto.status ?? LoadBoardShipmentStatus.posted,
+		};
+	}
+
+	async create(dto: CreateLoadBoardShipmentDto, userId: string) {
+		const creator = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { id: true, externalId: true },
+		});
+		if (!creator) {
+			throw new BadRequestException('Creator user not found');
+		}
+
+		const fields = this.buildShipmentFields(dto);
+		const nowNy = nowInNewYorkAsNaiveDate();
+
+		return this.prisma.loadBoardShipment.create({
 			data: {
 				userId: creator.id,
-				userExternalId,
-				route: normalizedRoute as unknown as Prisma.InputJsonValue,
-				pickupEarliest,
-				pickupLatest: dto.pickupLatest?.trim() || null,
-				pickupHours: dto.pickupHours?.trim() || null,
-				dropOffHours: dto.dropOffHours?.trim() || null,
-				weight: dto.weight,
-				commodity,
-				specialInstructions:
-					specialInstructions.length > 0
-						? (specialInstructions as unknown as Prisma.InputJsonValue)
-						: Prisma.JsonNull,
-				loadType: dto.loadType ?? LoadBoardLoadType.full,
-				equipment,
-				equipmentLength,
-				equipmentWeight,
-				comments,
-				referenceId: dto.referenceId?.trim() || null,
-				rate,
-				status: dto.status ?? LoadBoardShipmentStatus.posted,
+				userExternalId: creator.externalId?.trim() || null,
+				...fields,
 				createdAt: nowNy,
 				updatedAt: nowNy,
 			},
-			include: {
-				user: {
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						externalId: true,
-					},
-				},
-			},
+			include: shipmentUserInclude,
 		});
+	}
 
-		return shipment;
+	async update(id: number, dto: CreateLoadBoardShipmentDto) {
+		const existing = await this.prisma.loadBoardShipment.findUnique({
+			where: { id },
+			select: { id: true, status: true },
+		});
+		if (!existing) {
+			throw new NotFoundException('Shipment not found');
+		}
+
+		const fields = this.buildShipmentFields({
+			...dto,
+			status: dto.status ?? existing.status,
+		});
+		const nowNy = nowInNewYorkAsNaiveDate();
+
+		return this.prisma.loadBoardShipment.update({
+			where: { id },
+			data: {
+				...fields,
+				updatedAt: nowNy,
+			},
+			include: shipmentUserInclude,
+		});
 	}
 
 	async findAll(
@@ -171,14 +204,7 @@ export class LoadBoardShipmentsService {
 				take: safeLimit,
 				orderBy: [{ createdAt: order }, { id: order }],
 				include: {
-					user: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							externalId: true,
-						},
-					},
+					...shipmentUserInclude,
 					rateLoadBoards: {
 						where: { active: true },
 						orderBy: [{ id: 'asc' }],

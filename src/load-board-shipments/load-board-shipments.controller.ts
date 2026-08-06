@@ -3,6 +3,9 @@ import {
 	Controller,
 	ForbiddenException,
 	Get,
+	Param,
+	ParseIntPipe,
+	Patch,
 	Post,
 	Query,
 	Request,
@@ -86,5 +89,26 @@ export class LoadBoardShipmentsController {
 		}
 
 		return this.loadBoardShipmentsService.create(dto, req.user.id);
+	}
+
+	@Patch(':id')
+	@ApiOperation({
+		summary: 'Update a load board shipment',
+		description:
+			'Updates an existing load_board_shipments row from the Edit Shipment form.',
+	})
+	@ApiResponse({ status: 200, description: 'Shipment updated' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async update(
+		@Param('id', ParseIntPipe) id: number,
+		@Body() dto: CreateLoadBoardShipmentDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessLoadBoard(req.user.role)) {
+			throw new ForbiddenException('You do not have access to load board');
+		}
+
+		return this.loadBoardShipmentsService.update(id, dto);
 	}
 }
