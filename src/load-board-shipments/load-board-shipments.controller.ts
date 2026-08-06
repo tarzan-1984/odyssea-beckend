@@ -26,6 +26,7 @@ import {
 	LoadBoardAgeSort,
 	LoadBoardShipmentsService,
 } from './load-board-shipments.service';
+import { LoadBoardRealtimeService } from './load-board-realtime.service';
 
 @ApiTags('Load board shipments')
 @ApiBearerAuth()
@@ -34,6 +35,7 @@ import {
 export class LoadBoardShipmentsController {
 	constructor(
 		private readonly loadBoardShipmentsService: LoadBoardShipmentsService,
+		private readonly loadBoardRealtimeService: LoadBoardRealtimeService,
 	) {}
 
 	@Get()
@@ -88,7 +90,16 @@ export class LoadBoardShipmentsController {
 			throw new ForbiddenException('You do not have access to load board');
 		}
 
-		return this.loadBoardShipmentsService.create(dto, req.user.id);
+		const shipment = await this.loadBoardShipmentsService.create(
+			dto,
+			req.user.id,
+		);
+
+		this.loadBoardRealtimeService.emitShipmentUpdated(shipment.id, 'created', {
+			requestingUserId: req.user.id,
+		});
+
+		return shipment;
 	}
 
 	@Patch(':id')
@@ -109,6 +120,12 @@ export class LoadBoardShipmentsController {
 			throw new ForbiddenException('You do not have access to load board');
 		}
 
-		return this.loadBoardShipmentsService.update(id, dto);
+		const shipment = await this.loadBoardShipmentsService.update(id, dto);
+
+		this.loadBoardRealtimeService.emitShipmentUpdated(shipment.id, 'updated', {
+			requestingUserId: req.user.id,
+		});
+
+		return shipment;
 	}
 }

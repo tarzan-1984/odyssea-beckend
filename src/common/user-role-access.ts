@@ -41,7 +41,7 @@ export function canAccessBidRates(role: UserRole): boolean {
 }
 
 /** Load board page / create shipment API. */
-const LOAD_BOARD_ALLOWED_ROLES: UserRole[] = [
+export const LOAD_BOARD_ALLOWED_ROLES: UserRole[] = [
 	UserRole.DISPATCHER,
 	UserRole.DISPATCHER_TL,
 	UserRole.EXPEDITE_MANAGER,
