@@ -22,6 +22,7 @@ import {
 	logMessageSendFailure,
 	reasonFromSendError,
 } from './utils/message-send-failure.logger';
+import { stripPerUserChatRoomFields } from './strip-per-user-chat-room-fields';
 
 interface AuthenticatedSocket extends Socket {
 	userId?: string;
@@ -738,7 +739,8 @@ export class ChatGateway
 		client.emit('messagesMarkedAsRead', payload);
 		this.emitChatUnreadCountUpdated(userId, chatRoomId, 0);
 
-		// Other participants need full readBy snapshots for the "Read by" list
+		// Other participants need readBy snapshots for the "Read by" list only.
+		// Do NOT treat this as an unread-badge signal — clients must use chatUnreadCountUpdated.
 		if (updatedMessageIds.length > 0) {
 			client
 				.to(`chat_${chatRoomId}`)
@@ -1126,16 +1128,19 @@ export class ChatGateway
 				userId,
 			);
 
-			// Broadcast update to all participants
+			// Broadcast update to all participants (strip per-user fields)
+			const safeRoom = stripPerUserChatRoomFields(
+				updatedChatRoom as Record<string, unknown>,
+			);
 			void this.server.to(`chat_${chatRoomId}`).emit('chatRoomUpdated', {
 				chatRoomId,
-				updatedChatRoom,
+				updatedChatRoom: safeRoom,
 				updatedBy: userId,
 				updatedAt: new Date().toISOString(),
 			});
 
 			// Send confirmation back to updater
-			client.emit('chatRoomUpdated', { chatRoomId, updatedChatRoom });
+			client.emit('chatRoomUpdated', { chatRoomId, updatedChatRoom: safeRoom });
 
 			console.log(
 				`Chat room updated via WebSocket: ${chatRoomId} by user ${userId}`,
@@ -1205,15 +1210,18 @@ export class ChatGateway
 			}
 
 			if (updatedSourceRoom) {
+				const safeRoom = stripPerUserChatRoomFields(
+					updatedSourceRoom as Record<string, unknown>,
+				);
 				void this.server
 					.to(`chat_${chatRoomId}`)
 					.emit('chatRoomUpdated', {
 						chatRoomId,
-						updatedChatRoom: updatedSourceRoom,
+						updatedChatRoom: safeRoom,
 					});
 				client.emit('chatRoomUpdated', {
 					chatRoomId,
-					updatedChatRoom: updatedSourceRoom,
+					updatedChatRoom: safeRoom,
 				});
 			}
 

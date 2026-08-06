@@ -11,6 +11,7 @@ import { ChatGateway } from './chat.gateway';
 import { MessagesService } from './messages.service';
 import { LoadChatLogService } from './load-chat-log.service';
 import { TrackingTeamsService } from '../tracking/tracking-teams.service';
+import { stripPerUserChatRoomFields } from './strip-per-user-chat-room-fields';
 
 @ApiTags('Load Chat')
 @Controller('create_load_chat')
@@ -183,12 +184,15 @@ export class LoadChatController {
 
 			if (result.chatRoom?.participants?.length) {
 				const updatedAt = new Date().toISOString();
+				const safeRoom = stripPerUserChatRoomFields(
+					result.chatRoom as Record<string, unknown>,
+				);
 				for (const participant of result.chatRoom.participants) {
 					this.chatGateway.server
 						.to(`user_${participant.userId}`)
 						.emit('chatRoomUpdated', {
 							chatRoomId: result.chatRoom.id,
-							updatedChatRoom: result.chatRoom,
+							updatedChatRoom: safeRoom,
 							updatedBy: 'system',
 							updatedAt,
 						});
@@ -335,12 +339,15 @@ export class LoadChatController {
 
 					if (result.chatRoom.participants?.length) {
 						const updatedAt = new Date().toISOString();
+						const safeRoom = stripPerUserChatRoomFields(
+							result.chatRoom as Record<string, unknown>,
+						);
 						for (const participant of result.chatRoom.participants) {
 							this.chatGateway.server
 								.to(`user_${participant.userId}`)
 								.emit('chatRoomUpdated', {
 									chatRoomId: result.chatRoom.id,
-									updatedChatRoom: result.chatRoom,
+									updatedChatRoom: safeRoom,
 									updatedBy: 'system',
 									updatedAt,
 								});
@@ -400,10 +407,13 @@ export class LoadChatController {
 
 				if (chatRoom?.participants?.length) {
 					const updatedAt = new Date().toISOString();
+					const safeRoom = stripPerUserChatRoomFields(
+						chatRoom as Record<string, unknown>,
+					);
 					for (const participant of chatRoom.participants) {
 						this.chatGateway.server.to(`user_${participant.userId}`).emit('chatRoomUpdated', {
 							chatRoomId,
-							updatedChatRoom: chatRoom,
+							updatedChatRoom: safeRoom,
 							updatedBy: 'system',
 							updatedAt,
 						});
