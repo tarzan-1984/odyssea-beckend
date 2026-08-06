@@ -185,6 +185,39 @@ export class LoadBoardShipmentsService {
 		});
 	}
 
+	async updateStatus(id: number, status: LoadBoardShipmentStatus) {
+		const existing = await this.prisma.loadBoardShipment.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+		if (!existing) {
+			throw new NotFoundException('Shipment not found');
+		}
+
+		const nowNy = nowInNewYorkAsNaiveDate();
+		return this.prisma.loadBoardShipment.update({
+			where: { id },
+			data: {
+				status,
+				updatedAt: nowNy,
+			},
+			include: shipmentUserInclude,
+		});
+	}
+
+	async remove(id: number) {
+		const existing = await this.prisma.loadBoardShipment.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+		if (!existing) {
+			throw new NotFoundException('Shipment not found');
+		}
+
+		await this.prisma.loadBoardShipment.delete({ where: { id } });
+		return { id };
+	}
+
 	async findAll(
 		page = 1,
 		limit = 10,

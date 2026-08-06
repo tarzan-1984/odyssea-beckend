@@ -1,6 +1,7 @@
 import {
 	Body,
 	Controller,
+	Delete,
 	ForbiddenException,
 	Get,
 	Param,
@@ -22,6 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { canAccessLoadBoard } from '../common/user-role-access';
 import { AuthenticatedRequest } from '../types/request.types';
 import { CreateLoadBoardShipmentDto } from './dto/create-load-board-shipment.dto';
+import { UpdateLoadBoardShipmentStatusDto } from './dto/update-load-board-shipment-status.dto';
 import {
 	LoadBoardAgeSort,
 	LoadBoardShipmentsService,
@@ -127,5 +129,60 @@ export class LoadBoardShipmentsController {
 		});
 
 		return shipment;
+	}
+
+	@Patch(':id/status')
+	@ApiOperation({
+		summary: 'Post or unpost a load board shipment',
+		description:
+			'Sets status to posted (visible to drivers) or unposted (hidden, kept in list).',
+	})
+	@ApiResponse({ status: 200, description: 'Shipment status updated' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async updateStatus(
+		@Param('id', ParseIntPipe) id: number,
+		@Body() dto: UpdateLoadBoardShipmentStatusDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessLoadBoard(req.user.role)) {
+			throw new ForbiddenException('You do not have access to load board');
+		}
+
+		const shipment = await this.loadBoardShipmentsService.updateStatus(
+			id,
+			dto.status,
+		);
+
+		this.loadBoardRealtimeService.emitShipmentUpdated(shipment.id, 'updated', {
+			requestingUserId: req.user.id,
+		});
+
+		return shipment;
+	}
+
+	@Delete(':id')
+	@ApiOperation({
+		summary: 'Delete a load board shipment',
+		description: 'Permanently deletes the load board shipment post.',
+	})
+	@ApiResponse({ status: 200, description: 'Shipment deleted' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async remove(
+		@Param('id', ParseIntPipe) id: number,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessLoadBoard(req.user.role)) {
+			throw new ForbiddenException('You do not have access to load board');
+		}
+
+		const result = await this.loadBoardShipmentsService.remove(id);
+
+		this.loadBoardRealtimeService.emitShipmentUpdated(result.id, 'deleted', {
+			requestingUserId: req.user.id,
+		});
+
+		return result;
 	}
 }

@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LOAD_BOARD_ALLOWED_ROLES } from '../common/user-role-access';
 import { NotificationsWebSocketService } from '../notifications/notifications-websocket.service';
 
-export type LoadBoardShipmentRealtimeReason = 'created' | 'updated';
+export type LoadBoardShipmentRealtimeReason =
+	| 'created'
+	| 'updated'
+	| 'deleted';
 
 /**
  * Broadcasts load board shipment create/update to everyone with Load board access.
