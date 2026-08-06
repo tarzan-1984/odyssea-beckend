@@ -324,7 +324,10 @@ export class ChatGateway
 		}
 
 		try {
-			await this.chatRoomsService.assertChatRoomAccess(chatRoomId, userId);
+			await this.chatRoomsService.assertChatRoomAccess(
+				chatRoomId,
+				userId,
+			);
 
 			void client.join(`chat_${chatRoomId}`);
 
@@ -387,10 +390,11 @@ export class ChatGateway
 		// Verify user has access to this chat room and get user data
 		let userFirstName = 'Someone';
 		try {
-			const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
-				chatRoomId,
-				userId,
-			);
+			const chatRoom =
+				await this.chatRoomsService.getChatRoomOutboundContext(
+					chatRoomId,
+					userId,
+				);
 			// Get user data from participants
 			const userParticipant = chatRoom.participants.find(
 				(p) => p.userId === userId,
@@ -497,10 +501,11 @@ export class ChatGateway
 			void client.join(`chat_${chatRoomId}`);
 
 			// Verify user has access to this chat room (no message history load)
-			const chatRoom = await this.chatRoomsService.getChatRoomOutboundContext(
-				chatRoomId,
-				userId,
-			);
+			const chatRoom =
+				await this.chatRoomsService.getChatRoomOutboundContext(
+					chatRoomId,
+					userId,
+				);
 
 			// For DIRECT and OFFER chats: unhide chat for all participants if hidden
 			if (chatRoom.type === 'DIRECT' || chatRoom.type === 'OFFER') {
@@ -545,7 +550,8 @@ export class ChatGateway
 				(message as { _idempotentReplay?: boolean })._idempotentReplay,
 			);
 			if ('_idempotentReplay' in message) {
-				delete (message as { _idempotentReplay?: boolean })._idempotentReplay;
+				delete (message as { _idempotentReplay?: boolean })
+					._idempotentReplay;
 			}
 
 			// Ack sender immediately after persist; broadcast can follow asynchronously.
@@ -557,7 +563,11 @@ export class ChatGateway
 			});
 
 			if (!isReplay) {
-				void this.broadcastMessage(chatRoomId, message, participantUserIds);
+				void this.broadcastMessage(
+					chatRoomId,
+					message,
+					participantUserIds,
+				);
 			}
 
 			console.log('✅ Message sent:', {
@@ -679,11 +689,13 @@ export class ChatGateway
 
 			if (message.senderId !== userId) {
 				// Notify everyone in the chat room (senders see read receipts in real time)
-				void this.server.to(`chat_${message.chatRoomId}`).emit('messageRead', {
-					messageId,
-					readBy: userId,
-					chatRoomId: message.chatRoomId,
-				});
+				void this.server
+					.to(`chat_${message.chatRoomId}`)
+					.emit('messageRead', {
+						messageId,
+						readBy: userId,
+						chatRoomId: message.chatRoomId,
+					});
 			}
 		}
 	}
@@ -976,22 +988,24 @@ export class ChatGateway
 
 		try {
 			// Create chat room using the service
-			const { chatRoom, created } = await this.chatRoomsService.createChatRoom(
-				{
-					name,
-					type,
-					loadId,
-					participantIds,
-				},
-				userId,
-			);
+			const { chatRoom, created } =
+				await this.chatRoomsService.createChatRoom(
+					{
+						name,
+						type,
+						loadId,
+						participantIds,
+					},
+					userId,
+				);
 
 			// Join creator to the chat room
 			void client.join(`chat_${chatRoom.id}`);
 
 			if (created) {
 				for (const participantId of participantIds) {
-					const participantSocketId = this.userSockets.get(participantId);
+					const participantSocketId =
+						this.userSockets.get(participantId);
 					if (participantSocketId) {
 						void this.server
 							.to(participantSocketId)
@@ -1156,10 +1170,9 @@ export class ChatGateway
 			return { error: 'Unauthorized' };
 		}
 
-		const participantRefs =
-			participants?.length
-				? participants
-				: participantIds.map((id) => ({ id }));
+		const participantRefs = participants?.length
+			? participants
+			: participantIds.map((id) => ({ id }));
 
 		try {
 			// LOAD + DRIVER: forks when source already has a driver; otherwise attaches in place
@@ -1192,10 +1205,12 @@ export class ChatGateway
 			}
 
 			if (updatedSourceRoom) {
-				void this.server.to(`chat_${chatRoomId}`).emit('chatRoomUpdated', {
-					chatRoomId,
-					updatedChatRoom: updatedSourceRoom,
-				});
+				void this.server
+					.to(`chat_${chatRoomId}`)
+					.emit('chatRoomUpdated', {
+						chatRoomId,
+						updatedChatRoom: updatedSourceRoom,
+					});
 				client.emit('chatRoomUpdated', {
 					chatRoomId,
 					updatedChatRoom: updatedSourceRoom,
@@ -1225,7 +1240,8 @@ export class ChatGateway
 							addedBy: userId,
 						});
 
-					const participantSocketId = this.userSockets.get(participantId);
+					const participantSocketId =
+						this.userSockets.get(participantId);
 					if (participantSocketId) {
 						void this.server
 							.to(participantSocketId)
@@ -1237,7 +1253,10 @@ export class ChatGateway
 				});
 
 				// Send confirmation back to adder
-				client.emit('participantsAdded', { chatRoomId, newParticipants });
+				client.emit('participantsAdded', {
+					chatRoomId,
+					newParticipants,
+				});
 			}
 
 			console.log(
