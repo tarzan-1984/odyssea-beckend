@@ -399,6 +399,8 @@ model LoadBoardShipment {
   /// Optional estimated rate for the load.
   rate                Float?
   status              LoadBoardShipmentStatus @default(posted)
+  /// TMS load id after the driver is confirmed on the load (filled later).
+  loadId              String?             @map("load_id")
   /// Naive America/New_York wall-clock timestamps (same pattern as chat messages).
   createdAt           DateTime            @map("created_at")
   updatedAt           DateTime            @map("updated_at")
@@ -409,6 +411,7 @@ model LoadBoardShipment {
   @@index([userExternalId])
   @@index([createdAt])
   @@index([status])
+  @@index([loadId])
   @@map("load_board_shipments")
 }
 

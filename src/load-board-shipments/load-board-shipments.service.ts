@@ -13,6 +13,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RoutePointDto } from '../offers/dto/create-offer.dto';
 import { nowInNewYorkAsNaiveDate } from '../common/utils/ny-wall-clock';
 import { CreateLoadBoardShipmentDto } from './dto/create-load-board-shipment.dto';
+import { LoadBoardRealtimeService } from './load-board-realtime.service';
+import {
+	assertLoadBoardPickupNotInPast,
+	isLoadBoardPickupExpired,
+} from './load-board-pickup.util';
 
 function normalizeRoute(route: RoutePointDto[]): RoutePointDto[] {
 	return route.map((point) => ({
@@ -72,7 +77,10 @@ export type LoadBoardAgeSort = 'asc' | 'desc';
 
 @Injectable()
 export class LoadBoardShipmentsService {
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly loadBoardRealtimeService: LoadBoardRealtimeService,
+	) {}
 
 	private buildShipmentFields(dto: CreateLoadBoardShipmentDto) {
 		const normalizedRoute = normalizeRoute(dto.route);
@@ -82,6 +90,12 @@ export class LoadBoardShipmentsService {
 		if (!pickupEarliest) {
 			throw new BadRequestException('pickupEarliest is required');
 		}
+
+		assertLoadBoardPickupNotInPast({
+			pickupEarliest,
+			pickupLatest: dto.pickupLatest,
+			pickupHours: dto.pickupHours,
+		});
 
 		const commodity = dto.commodity.trim();
 		if (!commodity) {
@@ -136,6 +150,21 @@ export class LoadBoardShipmentsService {
 		};
 	}
 
+	private withPickupExpired<T extends {
+		pickupEarliest: string;
+		pickupLatest: string | null;
+		pickupHours: string | null;
+	}>(shipment: T) {
+		return {
+			...shipment,
+			pickupExpired: isLoadBoardPickupExpired({
+				pickupEarliest: shipment.pickupEarliest,
+				pickupLatest: shipment.pickupLatest,
+				pickupHours: shipment.pickupHours,
+			}),
+		};
+	}
+
 	async create(dto: CreateLoadBoardShipmentDto, userId: string) {
 		const creator = await this.prisma.user.findUnique({
 			where: { id: userId },
@@ -148,7 +177,7 @@ export class LoadBoardShipmentsService {
 		const fields = this.buildShipmentFields(dto);
 		const nowNy = nowInNewYorkAsNaiveDate();
 
-		return this.prisma.loadBoardShipment.create({
+		const shipment = await this.prisma.loadBoardShipment.create({
 			data: {
 				userId: creator.id,
 				userExternalId: creator.externalId?.trim() || null,
@@ -158,6 +187,8 @@ export class LoadBoardShipmentsService {
 			},
 			include: shipmentUserInclude,
 		});
+
+		return this.withPickupExpired(shipment);
 	}
 
 	async update(id: number, dto: CreateLoadBoardShipmentDto) {
@@ -175,7 +206,7 @@ export class LoadBoardShipmentsService {
 		});
 		const nowNy = nowInNewYorkAsNaiveDate();
 
-		return this.prisma.loadBoardShipment.update({
+		const shipment = await this.prisma.loadBoardShipment.update({
 			where: { id },
 			data: {
 				...fields,
@@ -183,19 +214,39 @@ export class LoadBoardShipmentsService {
 			},
 			include: shipmentUserInclude,
 		});
+
+		return this.withPickupExpired(shipment);
 	}
 
 	async updateStatus(id: number, status: LoadBoardShipmentStatus) {
 		const existing = await this.prisma.loadBoardShipment.findUnique({
 			where: { id },
-			select: { id: true },
+			select: {
+				id: true,
+				pickupEarliest: true,
+				pickupLatest: true,
+				pickupHours: true,
+			},
 		});
 		if (!existing) {
 			throw new NotFoundException('Shipment not found');
 		}
 
+		if (
+			status === LoadBoardShipmentStatus.posted &&
+			isLoadBoardPickupExpired({
+				pickupEarliest: existing.pickupEarliest,
+				pickupLatest: existing.pickupLatest,
+				pickupHours: existing.pickupHours,
+			})
+		) {
+			throw new BadRequestException(
+				'Cannot post: pickup date/time has passed. Edit the shipment and update Pick up earliest / latest / hours first.',
+			);
+		}
+
 		const nowNy = nowInNewYorkAsNaiveDate();
-		return this.prisma.loadBoardShipment.update({
+		const shipment = await this.prisma.loadBoardShipment.update({
 			where: { id },
 			data: {
 				status,
@@ -203,6 +254,8 @@ export class LoadBoardShipmentsService {
 			},
 			include: shipmentUserInclude,
 		});
+
+		return this.withPickupExpired(shipment);
 	}
 
 	async remove(id: number) {
@@ -218,11 +271,64 @@ export class LoadBoardShipmentsService {
 		return { id };
 	}
 
+	/**
+	 * Unpost all posted shipments whose pickup window has already passed.
+	 * Used by cron and lazily before list responses.
+	 */
+	async unpostExpiredPostedShipments(): Promise<{ unpostedCount: number }> {
+		const posted = await this.prisma.loadBoardShipment.findMany({
+			where: { status: LoadBoardShipmentStatus.posted },
+			select: {
+				id: true,
+				pickupEarliest: true,
+				pickupLatest: true,
+				pickupHours: true,
+			},
+		});
+
+		const expiredIds = posted
+			.filter((row) =>
+				isLoadBoardPickupExpired({
+					pickupEarliest: row.pickupEarliest,
+					pickupLatest: row.pickupLatest,
+					pickupHours: row.pickupHours,
+				}),
+			)
+			.map((row) => row.id);
+
+		if (expiredIds.length === 0) {
+			return { unpostedCount: 0 };
+		}
+
+		const nowNy = nowInNewYorkAsNaiveDate();
+		await this.prisma.loadBoardShipment.updateMany({
+			where: {
+				id: { in: expiredIds },
+				status: LoadBoardShipmentStatus.posted,
+			},
+			data: {
+				status: LoadBoardShipmentStatus.unposted,
+				updatedAt: nowNy,
+			},
+		});
+
+		for (const shipmentId of expiredIds) {
+			this.loadBoardRealtimeService.emitShipmentUpdated(
+				shipmentId,
+				'unposted',
+			);
+		}
+
+		return { unpostedCount: expiredIds.length };
+	}
+
 	async findAll(
 		page = 1,
 		limit = 10,
 		ageSort: LoadBoardAgeSort = 'desc',
 	) {
+		await this.unpostExpiredPostedShipments();
+
 		const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 		const safeLimit =
 			Number.isFinite(limit) && limit > 0
@@ -260,7 +366,7 @@ export class LoadBoardShipmentsService {
 		const totalPages = Math.max(1, Math.ceil(total / safeLimit));
 
 		return {
-			shipments,
+			shipments: shipments.map((s) => this.withPickupExpired(s)),
 			pagination: {
 				current_page: safePage,
 				per_page: safeLimit,
