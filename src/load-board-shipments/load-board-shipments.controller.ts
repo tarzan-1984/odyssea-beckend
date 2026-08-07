@@ -104,33 +104,6 @@ export class LoadBoardShipmentsController {
 		return shipment;
 	}
 
-	@Patch(':id')
-	@ApiOperation({
-		summary: 'Update a load board shipment',
-		description:
-			'Updates an existing load_board_shipments row from the Edit Shipment form.',
-	})
-	@ApiResponse({ status: 200, description: 'Shipment updated' })
-	@ApiResponse({ status: 403, description: 'Forbidden' })
-	@ApiResponse({ status: 404, description: 'Not found' })
-	async update(
-		@Param('id', ParseIntPipe) id: number,
-		@Body() dto: CreateLoadBoardShipmentDto,
-		@Request() req: AuthenticatedRequest,
-	) {
-		if (!canAccessLoadBoard(req.user.role)) {
-			throw new ForbiddenException('You do not have access to load board');
-		}
-
-		const shipment = await this.loadBoardShipmentsService.update(id, dto);
-
-		this.loadBoardRealtimeService.emitShipmentUpdated(shipment.id, 'updated', {
-			requestingUserId: req.user.id,
-		});
-
-		return shipment;
-	}
-
 	@Patch(':id/status')
 	@ApiOperation({
 		summary: 'Post or unpost a load board shipment',
@@ -153,6 +126,35 @@ export class LoadBoardShipmentsController {
 			id,
 			dto.status,
 		);
+
+		this.loadBoardRealtimeService.emitShipmentUpdated(
+			shipment.id,
+			dto.status === 'posted' ? 'posted' : 'unposted',
+			{ requestingUserId: req.user.id },
+		);
+
+		return shipment;
+	}
+
+	@Patch(':id')
+	@ApiOperation({
+		summary: 'Update a load board shipment',
+		description:
+			'Updates an existing load_board_shipments row from the Edit Shipment form.',
+	})
+	@ApiResponse({ status: 200, description: 'Shipment updated' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Not found' })
+	async update(
+		@Param('id', ParseIntPipe) id: number,
+		@Body() dto: CreateLoadBoardShipmentDto,
+		@Request() req: AuthenticatedRequest,
+	) {
+		if (!canAccessLoadBoard(req.user.role)) {
+			throw new ForbiddenException('You do not have access to load board');
+		}
+
+		const shipment = await this.loadBoardShipmentsService.update(id, dto);
 
 		this.loadBoardRealtimeService.emitShipmentUpdated(shipment.id, 'updated', {
 			requestingUserId: req.user.id,

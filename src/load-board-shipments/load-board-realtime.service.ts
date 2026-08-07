@@ -5,11 +5,13 @@ import { NotificationsWebSocketService } from '../notifications/notifications-we
 export type LoadBoardShipmentRealtimeReason =
 	| 'created'
 	| 'updated'
+	| 'posted'
+	| 'unposted'
 	| 'deleted';
 
 /**
- * Broadcasts load board shipment create/update to everyone with Load board access.
- * Clients join `role_${role}` on connect (ChatGateway); we emit to those rooms.
+ * Broadcasts load board shipment create/update/status/delete to everyone with
+ * Load board access. Clients join `role_${role}` on connect (ChatGateway).
  */
 @Injectable()
 export class LoadBoardRealtimeService {
@@ -45,10 +47,20 @@ export class LoadBoardRealtimeService {
 			rooms.add(`user_${requestingUserId}`);
 		}
 
-		server.to(Array.from(rooms)).emit('loadBoardShipmentUpdated', {
+		const roomList = Array.from(rooms);
+		const payload = {
 			shipmentId,
 			reason,
 			refreshedAt: new Date().toISOString(),
-		});
+		};
+
+		// Emit per room (same pattern reliability as multi-room staff broadcasts)
+		for (const room of roomList) {
+			server.to(room).emit('loadBoardShipmentUpdated', payload);
+		}
+
+		this.logger.debug(
+			`loadBoardShipmentUpdated shipment=${shipmentId} reason=${reason} rooms=${roomList.length}`,
+		);
 	}
 }
